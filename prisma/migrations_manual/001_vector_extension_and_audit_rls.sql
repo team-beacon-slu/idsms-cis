@@ -1,6 +1,9 @@
 -- Manual migration — run once in the Supabase SQL editor against a real project,
--- BEFORE `prisma db push`. Not auto-applied; Prisma has no way to express either
--- of these (a Postgres extension, or an RLS policy with no allowed UPDATE/DELETE).
+-- AFTER `prisma db push` (this ALTERs daily_report_entries and audit_logs, which
+-- only exist once Prisma has created them — running this first will fail with
+-- "relation does not exist"). Not auto-applied; Prisma has no way to express
+-- either of these (a Postgres extension, or an RLS policy with no allowed
+-- UPDATE/DELETE) even after the tables exist.
 
 -- 1. pgvector extension (required for daily_report_entries.embeddingVector,
 --    queried via $queryRaw in aiService.ts — see prisma/schema.prisma comment

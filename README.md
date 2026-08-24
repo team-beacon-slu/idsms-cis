@@ -71,12 +71,13 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
 4. **Initialize the database** _(once a real Supabase project exists — see `prisma/migrations_manual/`)_
 
    ```bash
-   # Run prisma/migrations_manual/001_vector_extension_and_audit_rls.sql
-   # by hand in the Supabase SQL editor first — it enables pgvector and
-   # locks down audit_logs (append-only). Prisma can't express either of these.
-
    npx prisma generate
    npx prisma db push
+
+   # THEN run prisma/migrations_manual/001_vector_extension_and_audit_rls.sql
+   # by hand in the Supabase SQL editor — it enables pgvector and locks down
+   # audit_logs (append-only). Must run AFTER db push: it ALTERs tables that
+   # db push is what creates in the first place.
    ```
 
 5. **Run the development server**

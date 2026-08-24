@@ -41,7 +41,7 @@ All business logic lives in `/src/lib/services/` — never directly in page file
 
 ## Database changes
 
-We're on Prisma with a Supabase Postgres backend. Edit `prisma/schema.prisma`, then run `npx prisma migrate dev` once a real `DATABASE_URL` is configured. The `vector` extension and the `audit_logs` append-only RLS policy are **not** managed by Prisma — see `prisma/migrations_manual/001_vector_extension_and_audit_rls.sql`, which must be run once by hand in the Supabase SQL editor before the first `prisma db push`.
+We're on Prisma with a Supabase Postgres backend. Edit `prisma/schema.prisma`, then run `npx prisma migrate dev` once a real `DATABASE_URL` is configured. The `vector` extension and the `audit_logs` append-only RLS policy are **not** managed by Prisma — see `prisma/migrations_manual/001_vector_extension_and_audit_rls.sql`, which must be run once by hand in the Supabase SQL editor **after** the first `prisma db push` (it ALTERs tables that `db push` is what creates — running it first fails with "relation does not exist").
 
 ## Questions
 
