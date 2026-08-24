@@ -44,3 +44,10 @@ yarn-error.log*
 # Cypress
 /cypress/videos
 /cypress/screenshots
+
+# Local-only AI agent skills (installed via `npx skills add`, e.g. Supabase
+# agent skills) — user-level tooling, not project source; install with -g
+# to keep it out of the repo entirely.
+/.agents
+/.claude
+skills-lock.json
