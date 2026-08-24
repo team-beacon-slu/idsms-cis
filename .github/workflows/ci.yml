@@ -9,6 +9,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Placeholder values so `prisma validate` and `next build` don't fail on
+      # missing env vars. No real secrets are used or needed for a build-only
+      # check — applies to every step in this job, not just the build step,
+      # since prisma validate needs DATABASE_URL to just be *defined*.
+      NEXTAUTH_SECRET: "ci-build-placeholder"
+      NEXTAUTH_URL: "http://localhost:3000"
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      GEMINI_API_KEY: "ci-build-placeholder"
+      RESEND_API_KEY: "ci-build-placeholder"
     steps:
       - uses: actions/checkout@v4
 
@@ -31,11 +41,3 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          # Placeholder values so `next build` doesn't fail on missing env vars.
-          # No real secrets are used or needed for a build-only check.
-          NEXTAUTH_SECRET: "ci-build-placeholder"
-          NEXTAUTH_URL: "http://localhost:3000"
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          GEMINI_API_KEY: "ci-build-placeholder"
-          RESEND_API_KEY: "ci-build-placeholder"
