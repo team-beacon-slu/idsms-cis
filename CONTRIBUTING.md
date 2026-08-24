@@ -26,7 +26,7 @@ cp .env.example .env.local   # fill in real values once we have Supabase/Gemini/
 npm run dev
 ```
 
-Requires Node 20+ (the devcontainer and CI both use Node 20).
+Requires Node 24+ (the devcontainer, CI, and `package.json#engines` all pin this — `@sparticuz/chromium` and `lint-staged` require it).
 
 ## Branching & PRs
 

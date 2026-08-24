@@ -39,7 +39,7 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24+ (required — `@sparticuz/chromium` and `lint-staged` don't support Node 20)
 - npm
 - A Supabase project with the `vector` extension enabled (not yet provisioned — see PRD Phase 0)
 - Google Gemini API Key
