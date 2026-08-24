@@ -5,3 +5,6 @@ cypress/videos
 cypress/screenshots
 prisma/migrations
 package-lock.json
+.agents
+.claude/skills
+skills-lock.json
