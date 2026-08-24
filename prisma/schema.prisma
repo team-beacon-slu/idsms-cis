@@ -1,0 +1,453 @@
+// IDSMS-CIS Prisma schema
+// 18 tables per PRD.md v1.3 Database Schema section (16 domain tables + sessions/accounts
+// added in v1.3 for NextAuth's database session strategy — see FR-UM-11).
+//
+// NOTE: `prisma generate` / `prisma db push` are NOT run yet — no DATABASE_URL exists.
+// The `vector` extension and the audit_logs append-only RLS policy must be applied via
+// the raw SQL migration in prisma/migrations_manual/ before this schema can be pushed.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  DEPARTMENT_COORDINATOR
+  FACULTY_ADVISER
+  STUDENT_INTERN
+}
+
+enum Program {
+  BSIT
+  BSCS
+  BMMA
+}
+
+enum WorkModality {
+  ON_SITE
+  WORK_FROM_HOME
+  HYBRID
+}
+
+enum MoaStatus {
+  DRAFTING
+  PENDING
+  FOR_HTE_REVIEW
+  FOR_UNIVERSITY_REVIEW
+  APPROVED_ACTIVE
+  EXPIRING
+  EXPIRED
+  ARCHIVED
+}
+
+enum ChecklistRequirementType {
+  MEDICAL_CERTIFICATE
+  PSYCHOLOGICAL_CLEARANCE
+  PARENT_CONSENT_UNDERTAKING
+  COMPANY_REPLY_FORM
+  DATA_PRIVACY_ORIENTATION
+  INTERNSHIP_ORIENTATION
+  GOVERNMENT_COMPANY_PERMIT
+  WORK_PLAN
+  MOA
+}
+
+enum ChecklistStatus {
+  PENDING
+  APPROVED
+  RETURNED
+}
+
+enum WorkPlanStatus {
+  SUBMITTED
+  APPROVED
+  RETURNED
+}
+
+enum DeviationType {
+  ABSENCE
+  OVERTIME
+  UNDERTIME
+}
+
+enum ValidationStatus {
+  PENDING
+  VALIDATED
+  REJECTED
+}
+
+enum WeeklyReportStatus {
+  PENDING
+  APPROVED
+  RETURNED
+  REGARDED
+  DISREGARDED
+}
+
+enum SentimentLabel {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum DocumentType {
+  ENDORSEMENT_LETTER
+  WEEKLY_REPORT
+  MONTHLY_REPORT
+  FINAL_REPORT_COVER
+}
+
+enum DocumentStatus {
+  PENDING_DRAFT
+  GENERATED
+  FAILED
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+}
+
+enum NotificationStatus {
+  SENT
+  PENDING
+  FAILED
+}
+
+enum HolidayType {
+  NATIONAL
+  REGIONAL
+}
+
+// ── NextAuth (database session strategy — FR-UM-11) ────────────────────────
+
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// Deleting a row here is the enforcement mechanism for FR-UM-11 instant revocation.
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ── Core domain tables ──────────────────────────────────────────────────
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique
+  hashedPassword String    @map("hashed_password")
+  role           Role
+  isActive       Boolean   @default(true) @map("is_active")
+  mustResetPassword Boolean @default(true) @map("must_reset_password")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  accounts         Account[]
+  sessions         Session[]
+  studentProfile   StudentProfile?
+  facultyGroups    FacultyClassGroup[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @unique @map("user_id") @db.Uuid
+  studentNumber        String    @unique @map("student_number")
+  program              Program
+  classGroupId         String    @map("class_group_id") @db.Uuid
+  semesterId           String    @map("semester_id") @db.Uuid
+  companyId            String?   @map("company_id") @db.Uuid
+  scheduleId           String?   @map("schedule_id") @db.Uuid
+  requiredHours        Int       @map("required_hours")
+  renderedHours         Decimal   @default(0) @map("rendered_hours") @db.Decimal(6, 2)
+  internshipFaceType    String?   @map("internship_face_type")
+  internshipStartDate   DateTime? @map("internship_start_date")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  user       User       @relation(fields: [userId], references: [id])
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id])
+  semester   Semester   @relation(fields: [semesterId], references: [id])
+  company    Company?   @relation(fields: [companyId], references: [id])
+
+  checklistItems    PreDeploymentChecklistItem[]
+  workPlans         WorkPlan[]
+  deviationReports  DeviationReport[]
+  weeklyReports     WeeklyReport[]
+  generatedDocuments GeneratedDocument[]
+  holidayOverrides  HolidayCalendarEntry[]
+
+  @@map("student_profiles")
+}
+
+model ClassGroup {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  startDate DateTime  @map("start_date")
+  endDate   DateTime  @map("end_date")
+  program   Program
+  classType String    @map("class_type")
+  deletedAt DateTime? @map("deleted_at")
+
+  students        StudentProfile[]
+  facultyGroups   FacultyClassGroup[]
+
+  @@map("class_groups")
+}
+
+// NEW in PRD v1.2 — enables many-to-many faculty <-> class group.
+model FacultyClassGroup {
+  id           String @id @default(uuid()) @db.Uuid
+  facultyId    String @map("faculty_id") @db.Uuid
+  classGroupId String @map("class_group_id") @db.Uuid
+  semesterId   String @map("semester_id") @db.Uuid
+
+  faculty    User       @relation(fields: [facultyId], references: [id])
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id])
+  semester   Semester   @relation(fields: [semesterId], references: [id])
+
+  @@unique([facultyId, classGroupId, semesterId])
+  @@map("faculty_class_groups")
+}
+
+model Semester {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String
+  startDate    DateTime  @map("start_date")
+  endDate      DateTime  @map("end_date")
+  academicYear String    @map("academic_year")
+  isActive     Boolean   @default(false) @map("is_active")
+  archivedAt   DateTime? @map("archived_at")
+
+  students       StudentProfile[]
+  facultyGroups  FacultyClassGroup[]
+  holidayEntries HolidayCalendarEntry[]
+
+  @@map("semesters")
+}
+
+model Company {
+  id                String    @id @default(uuid()) @db.Uuid
+  name              String
+  address           String
+  workModality      WorkModality @map("work_modality")
+  supervisorName    String    @map("supervisor_name")
+  supervisorContact String    @map("supervisor_contact")
+  isVerified        Boolean   @default(false) @map("is_verified")
+  deletedAt         DateTime? @map("deleted_at")
+
+  students   StudentProfile[]
+  moaRecords MoaRecord[]
+
+  @@map("companies")
+}
+
+model MoaRecord {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  documentUrl      String    @map("document_url")
+  status           MoaStatus @default(DRAFTING)
+  validFrom        DateTime  @map("valid_from")
+  validTo          DateTime  @map("valid_to")
+  programsCovered  Program[] @map("programs_covered")
+  archivedAt       DateTime? @map("archived_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("moa_records")
+}
+
+model PreDeploymentChecklistItem {
+  id              String                    @id @default(uuid()) @db.Uuid
+  studentProfileId String                   @map("student_profile_id") @db.Uuid
+  requirementType ChecklistRequirementType  @map("requirement_type")
+  status          ChecklistStatus           @default(PENDING)
+  fileUrl         String?                   @map("file_url")
+  reviewerId      String?                   @map("reviewer_id") @db.Uuid
+  reviewDate      DateTime?                 @map("review_date")
+  comments        String?
+  archivedAt      DateTime?                 @map("archived_at")
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([studentProfileId, requirementType])
+  @@map("pre_deployment_checklist_items")
+}
+
+model WorkPlan {
+  id                   String         @id @default(uuid()) @db.Uuid
+  studentProfileId     String         @map("student_profile_id") @db.Uuid
+  status               WorkPlanStatus @default(SUBMITTED)
+  plannedTasks         Json           @map("planned_tasks")
+  scheduleConfig       Json?          @map("schedule_config")
+  scheduleChangeHistory Json          @default("[]") @map("schedule_change_history")
+  approvalMetadata     Json?          @map("approval_metadata")
+  coordinatorId        String?        @map("coordinator_id") @db.Uuid
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@map("work_plans")
+}
+
+model WeeklyReport {
+  id               String              @id @default(uuid()) @db.Uuid
+  studentProfileId String              @map("student_profile_id") @db.Uuid
+  weekStart        DateTime            @map("week_start")
+  weekEnd          DateTime            @map("week_end")
+  totalHours       Decimal             @default(0) @map("total_hours") @db.Decimal(5, 2)
+  runningTotal     Decimal             @default(0) @map("running_total") @db.Decimal(6, 2)
+  remainingHours   Decimal             @default(0) @map("remaining_hours") @db.Decimal(6, 2)
+  status           WeeklyReportStatus  @default(PENDING)
+  facultyAction    String?             @map("faculty_action")
+  revisionHistory  Json                @default("[]") @map("revision_history")
+  similarityScore  Decimal?            @map("similarity_score") @db.Decimal(4, 3)
+  similarityFlag   Boolean             @default(false) @map("similarity_flag")
+  sentimentLabel   SentimentLabel?     @map("sentiment_label")
+  sentimentConfidence Decimal?         @map("sentiment_confidence") @db.Decimal(4, 3)
+  aiProcessedAt    DateTime?           @map("ai_processed_at")
+
+  studentProfile StudentProfile        @relation(fields: [studentProfileId], references: [id])
+  dailyEntries   DailyReportEntry[]
+
+  @@unique([studentProfileId, weekStart])
+  @@map("weekly_reports")
+}
+
+model DailyReportEntry {
+  id               String   @id @default(uuid()) @db.Uuid
+  weeklyReportId   String   @map("weekly_report_id") @db.Uuid
+  reportDate       DateTime @map("report_date")
+  attendanceStatus String   @map("attendance_status")
+  scheduledHours   Decimal  @map("scheduled_hours") @db.Decimal(4, 2)
+  actualHours      Decimal? @map("actual_hours") @db.Decimal(4, 2)
+  accomplishments  String?  @db.Text
+  toolsUsed        String?  @map("tools_used")
+  // embeddingVector: pgvector column, added via raw SQL migration (see
+  // prisma/migrations_manual/) — Prisma has no native `vector` type, so this
+  // field is queried through $queryRaw in aiService.ts, not through the client.
+
+  weeklyReport WeeklyReport @relation(fields: [weeklyReportId], references: [id])
+
+  @@map("daily_report_entries")
+}
+
+model DeviationReport {
+  id                String            @id @default(uuid()) @db.Uuid
+  studentProfileId  String            @map("student_profile_id") @db.Uuid
+  date              DateTime
+  deviationType     DeviationType     @map("deviation_type")
+  reason            String
+  proofUrl          String?           @map("proof_url")
+  validationStatus  ValidationStatus  @default(PENDING) @map("validation_status")
+  facultyId         String?           @map("faculty_id") @db.Uuid
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@map("deviation_reports")
+}
+
+model GeneratedDocument {
+  id               String         @id @default(uuid()) @db.Uuid
+  studentProfileId String         @map("student_profile_id") @db.Uuid
+  documentType     DocumentType   @map("document_type")
+  fileUrl          String?        @map("file_url")
+  referenceCode    String?        @unique @map("reference_code")
+  generatedAt      DateTime?      @map("generated_at")
+  status           DocumentStatus @default(PENDING_DRAFT)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@map("generated_documents")
+}
+
+model Notification {
+  id          String              @id @default(uuid()) @db.Uuid
+  userId      String              @map("user_id") @db.Uuid
+  triggerType String              @map("trigger_type")
+  channel     NotificationChannel
+  status      NotificationStatus  @default(PENDING)
+  payload     Json?
+  sentAt      DateTime?           @map("sent_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// Append-only: enforced at the DB level via RLS (NFR-SEC-10), applied through the
+// raw SQL migration, not through Prisma — Prisma has no way to express "no UPDATE/DELETE".
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  ipAddress  String?  @map("ip_address")
+  timestamp  DateTime @default(now())
+  detail     Json?
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model HolidayCalendarEntry {
+  id               String      @id @default(uuid()) @db.Uuid
+  date             DateTime
+  name             String
+  holidayType      HolidayType @map("holiday_type")
+  semesterId       String?     @map("semester_id") @db.Uuid
+  studentProfileId String?     @map("student_profile_id") @db.Uuid // nullable — company-specific override
+
+  semester       Semester?       @relation(fields: [semesterId], references: [id])
+  studentProfile StudentProfile? @relation(fields: [studentProfileId], references: [id])
+
+  @@map("holiday_calendar")
+}
+
+model SystemConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  configKey   String   @unique @map("config_key")
+  configValue Json     @map("config_value")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  @@map("system_config")
+}

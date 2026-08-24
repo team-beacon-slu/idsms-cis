@@ -1,0 +1,24 @@
+{
+  "name": "IDSMS-CIS",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "prisma.prisma",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
+  },
+  "forwardPorts": [3000],
+  "postCreateCommand": "npm install && (npx prisma generate || echo 'Skipping prisma generate — DATABASE_URL not set yet, this is expected until a real Supabase project is wired up.')",
+  "remoteUser": "node"
+}

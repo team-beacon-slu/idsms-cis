@@ -18,59 +18,63 @@
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-| :--- | :--- |
-| **Framework** | Next.js 14 (App Router) |
-| **Language** | TypeScript |
-| **Styling** | Tailwind CSS |
-| **Database** | PostgreSQL 15 via Supabase (with `pgvector` extension) |
-| **ORM** | Prisma |
-| **Authentication** | NextAuth.js v4.24.x |
-| **AI Services** | Google Gemini API (`text-embedding-004`, `gemini-2.5-flash`) |
-| **Document Gen** | Puppeteer (`@sparticuz/chromium`) |
-| **Email** | Resend + React Email |
-| **Deployment** | Vercel + GitHub Actions |
+| Layer              | Technology                                                   |
+| :----------------- | :----------------------------------------------------------- |
+| **Framework**      | Next.js 14 (App Router)                                      |
+| **Language**       | TypeScript                                                   |
+| **Styling**        | Tailwind CSS                                                 |
+| **Database**       | PostgreSQL 15 via Supabase (with `pgvector` extension)       |
+| **ORM**            | Prisma                                                       |
+| **Authentication** | NextAuth.js v4.24.x                                          |
+| **AI Services**    | Google Gemini API (`text-embedding-004`, `gemini-2.5-flash`) |
+| **Document Gen**   | Puppeteer (`@sparticuz/chromium`)                            |
+| **Email**          | Resend + React Email                                         |
+| **Deployment**     | Vercel + GitHub Actions                                      |
 
 ---
 
 ## 📦 Getting Started
 
+Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path — GitHub Codespaces needs zero local setup. Below is the local-dev path.
+
 ### Prerequisites
-- Node.js 18+ 
-- npm, yarn, or pnpm
-- A Supabase project with the `vector` extension enabled
+
+- Node.js 20+
+- npm
+- A Supabase project with the `vector` extension enabled (not yet provisioned — see PRD Phase 0)
 - Google Gemini API Key
 - Resend API Key
 
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
-   git clone https://github.com/your-org/idsms-cis.git
+   git clone https://github.com/team-beacon-slu/idsms-cis.git
    cd idsms-cis
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
-   Create a `.env` file in the root directory and add the following:
-   ```env
-   DATABASE_URL="your_supabase_postgres_connection_string"
-   DIRECT_URL="your_supabase_direct_connection_string"
-   NEXTAUTH_SECRET="your_generated_secret"
-   NEXTAUTH_URL="http://localhost:3000"
-   GEMINI_API_KEY="your_gemini_api_key"
-   RESEND_API_KEY="your_resend_api_key"
+
+   ```bash
+   cp .env.example .env.local
    ```
 
-4. **Initialize the database**
+   Then fill in real values in `.env.local` (gitignored — never commit real secrets).
+
+4. **Initialize the database** _(once a real Supabase project exists — see `prisma/migrations_manual/`)_
+
    ```bash
-   # Enable pgvector extension in Supabase SQL editor first:
-   # CREATE EXTENSION IF NOT EXISTS vector;
-   
+   # Run prisma/migrations_manual/001_vector_extension_and_audit_rls.sql
+   # by hand in the Supabase SQL editor first — it enables pgvector and
+   # locks down audit_logs (append-only). Prisma can't express either of these.
+
    npx prisma generate
    npx prisma db push
    ```
@@ -102,6 +106,7 @@
 ## 👥 Team & Adviser
 
 **Team Beacon (IT 321)**
+
 - Abanador, Frencine Daine L.
 - Andres, James Matthew S.
 - Antonio, Shantea Myles C.
@@ -112,7 +117,7 @@
 - Suarez, Steven Dale O.
 
 **Project Adviser**: Ria Andrea N. Fernandez  
-**Institution**: Saint Louis University — SAMCIS  
+**Institution**: Saint Louis University — SAMCIS
 
 ---
 
@@ -126,4 +131,3 @@
 ## 📄 License
 
 This project is developed for academic purposes under Saint Louis University. All rights reserved.
-
