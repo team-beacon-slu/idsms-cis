@@ -182,6 +182,8 @@ model User {
   auditLogs        AuditLog[]
   notifications    Notification[]
   passwordResetTokens PasswordResetToken[]
+  reviewedChecklistItems PreDeploymentChecklistItem[] @relation("ChecklistReviewer")
+  coordinatedWorkPlans   WorkPlan[]                   @relation("WorkPlanCoordinator")
 
   @@map("users")
 }
@@ -214,6 +216,9 @@ model StudentProfile {
   renderedHours         Decimal   @default(0) @map("rendered_hours") @db.Decimal(6, 2)
   internshipFaceType    String?   @map("internship_face_type")
   internshipStartDate   DateTime? @map("internship_start_date")
+  // Per-deployment, not per-company (a company has no single "position title") —
+  // FR-MOA-01 bundles this into "company registration" but it belongs here.
+  positionTitle        String?   @map("position_title")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   deletedAt            DateTime? @map("deleted_at")
@@ -230,6 +235,12 @@ model StudentProfile {
   generatedDocuments GeneratedDocument[]
   holidayOverrides  HolidayCalendarEntry[]
 
+  // classGroupId/semesterId are pre-existing Phase 0 gaps (Postgres never
+  // auto-indexes FK columns) left alone here; companyId and classGroupId are
+  // fixed because Phase 2's own new queries (MOA-approval checklist sync,
+  // the Faculty roster page) filter on them directly.
+  @@index([companyId])
+  @@index([classGroupId])
   @@map("student_profiles")
 }
 
@@ -298,7 +309,11 @@ model Company {
 model MoaRecord {
   id               String    @id @default(uuid()) @db.Uuid
   companyId        String    @map("company_id") @db.Uuid
-  documentUrl      String    @map("document_url")
+  // Exactly one of documentUrl/documentPath is set — enforced in the
+  // validator (Zod .refine()), not a DB constraint, matching this project's
+  // style of business rules living in the service/validator layer.
+  documentUrl      String?   @map("document_url") // external Google Drive link (FR-MOA-03)
+  documentPath     String?   @map("document_path") // internal Supabase Storage object path
   status           MoaStatus @default(DRAFTING)
   validFrom        DateTime  @map("valid_from")
   validTo          DateTime  @map("valid_to")
@@ -307,6 +322,7 @@ model MoaRecord {
 
   company Company @relation(fields: [companyId], references: [id])
 
+  @@index([companyId])
   @@map("moa_records")
 }
 
@@ -315,15 +331,21 @@ model PreDeploymentChecklistItem {
   studentProfileId String                   @map("student_profile_id") @db.Uuid
   requirementType ChecklistRequirementType  @map("requirement_type")
   status          ChecklistStatus           @default(PENDING)
-  fileUrl         String?                   @map("file_url")
+  // Holds a Storage object path (resolved to a signed URL at read time), not
+  // a fetchable URL — renamed from fileUrl since nothing wrote it before now.
+  filePath        String?                   @map("file_path")
   reviewerId      String?                   @map("reviewer_id") @db.Uuid
   reviewDate      DateTime?                 @map("review_date")
   comments        String?
   archivedAt      DateTime?                 @map("archived_at")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  reviewer       User?          @relation("ChecklistReviewer", fields: [reviewerId], references: [id])
 
   @@unique([studentProfileId, requirementType])
+  @@index([reviewerId])
   @@map("pre_deployment_checklist_items")
 }
 
@@ -340,7 +362,10 @@ model WorkPlan {
   updatedAt            DateTime       @updatedAt @map("updated_at")
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  coordinator    User?          @relation("WorkPlanCoordinator", fields: [coordinatorId], references: [id])
 
+  @@index([studentProfileId])
+  @@index([coordinatorId])
   @@map("work_plans")
 }
 
