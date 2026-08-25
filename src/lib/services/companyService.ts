@@ -14,7 +14,7 @@ export class InvalidMoaTransitionError extends Error {
 // FR-MOA-04's lifecycle, expressed as an explicit allow-list rather than a
 // free-form status field — makes "lifecycle stages must be tracked" mean
 // something enforceable, not just a label.
-const ALLOWED_MOA_TRANSITIONS: Record<MoaStatus, MoaStatus[]> = {
+export const ALLOWED_MOA_TRANSITIONS: Record<MoaStatus, MoaStatus[]> = {
   [MoaStatus.DRAFTING]: [MoaStatus.PENDING],
   [MoaStatus.PENDING]: [MoaStatus.FOR_HTE_REVIEW],
   [MoaStatus.FOR_HTE_REVIEW]: [MoaStatus.FOR_UNIVERSITY_REVIEW],
