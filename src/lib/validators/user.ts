@@ -6,9 +6,10 @@ export const createUserSchema = z.object({
   role: z.enum(Role),
 });
 
+// Role reassignment isn't exposed here — it has no dedicated service-layer
+// audit/session-revocation semantics yet, unlike isActive (setUserActive).
 export const updateUserSchema = z.object({
-  isActive: z.boolean().optional(),
-  role: z.enum(Role).optional(),
+  isActive: z.boolean(),
 });
 
 // One row of a bulk-import spreadsheet. The class group and semester the

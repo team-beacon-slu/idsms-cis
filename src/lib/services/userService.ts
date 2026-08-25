@@ -364,10 +364,19 @@ export async function changePassword(
   });
 }
 
+export interface BulkImportInputRow {
+  // The row's position in the original uploaded file — callers filter out
+  // zod-invalid rows before this function ever sees them, so this can't be
+  // recomputed from the array index here without misreporting which
+  // spreadsheet row a result actually corresponds to.
+  rowNumber: number;
+  row: BulkImportRow;
+}
+
 // FR-UM-02/FR-UM-03. Per-row transactions so one bad row (duplicate email,
 // duplicate student number) doesn't fail the whole batch.
 export async function bulkImportStudents(
-  rows: BulkImportRow[],
+  inputRows: BulkImportInputRow[],
   classGroupId: string,
   semesterId: string,
   actingUserId: string,
@@ -375,9 +384,8 @@ export async function bulkImportStudents(
 ): Promise<BulkImportResult> {
   const results: BulkImportRowResult[] = [];
 
-  for (let index = 0; index < rows.length; index++) {
-    const row = rows[index];
-    const rowNumber = index + 2; // header occupies row 1
+  for (let index = 0; index < inputRows.length; index++) {
+    const { rowNumber, row } = inputRows[index];
 
     try {
       const outcome = await prisma.$transaction(async (tx) => {
@@ -451,7 +459,7 @@ export async function bulkImportStudents(
   }
 
   return {
-    totalRows: rows.length,
+    totalRows: inputRows.length,
     created: results.filter((r) => r.status === "created").length,
     skipped: results.filter((r) => r.status === "skipped").length,
     results,
@@ -500,6 +508,41 @@ export async function assertCanAccessStudent(
   }
 
   throw new ForbiddenError();
+}
+
+// The other half of account creation alongside bulkImportStudents — that one
+// is students-only (from a class list); this covers the three staff roles,
+// created one at a time by a Super Admin. Same "surface the plaintext once"
+// pattern as FR-UM-03, just with a random password instead of a derived one
+// since there's no student number to derive it from.
+export async function createUser(
+  email: string,
+  role: Role,
+  actingUserId: string,
+  ipAddress?: string | null
+): Promise<{ user: SafeUser; temporaryPassword: string }> {
+  const temporaryPassword = randomBytes(12).toString("base64url");
+  const hashedPassword = await hashPassword(temporaryPassword);
+
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: { email, hashedPassword, role, mustResetPassword: true },
+    });
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "USER_CREATED",
+        entityType: "User",
+        entityId: created.id,
+        ipAddress,
+        detail: { role },
+      },
+      tx
+    );
+    return created;
+  });
+
+  return { user: toSafeUser(user), temporaryPassword };
 }
 
 export interface ListUsersFilters {
