@@ -17,8 +17,10 @@ jobs:
       NEXTAUTH_SECRET: "ci-build-placeholder"
       NEXTAUTH_URL: "http://localhost:3000"
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
       GEMINI_API_KEY: "ci-build-placeholder"
       RESEND_API_KEY: "ci-build-placeholder"
+      STUDENT_DEFAULT_PASSWORD_PEPPER: "ci-build-placeholder-pepper-value-32bytes"
     steps:
       - uses: actions/checkout@v4
 
