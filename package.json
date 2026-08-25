@@ -18,6 +18,9 @@
     "format:check": "prettier --check .",
     "prepare": "husky"
   },
+  "overrides": {
+    "ajv": "^6.12.4"
+  },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
     "@next-auth/prisma-adapter": "^1.0.7",

@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Lint
         run: npm run lint
 
@@ -40,6 +43,9 @@ jobs:
 
       - name: Prisma schema validate
         run: npx prisma validate
+
+      - name: Test
+        run: npm test -- --coverage
 
       - name: Build
         run: npm run build
