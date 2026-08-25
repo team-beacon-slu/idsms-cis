@@ -33,7 +33,7 @@ export function CompanyVerifyToggle({
 
   return (
     <Button size="sm" variant="outline" disabled={isPending} onClick={toggle}>
-      {isVerified ? "Unverify" : "Verify"}
+      {isPending ? "Saving..." : isVerified ? "Unverify" : "Verify"}
     </Button>
   );
 }

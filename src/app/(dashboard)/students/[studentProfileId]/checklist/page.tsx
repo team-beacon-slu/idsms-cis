@@ -36,7 +36,11 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Pre-Deployment Checklist
-          <Badge variant={progress.gateSatisfied ? "outline" : "secondary"}>
+          <Badge
+            variant={progress.gateSatisfied ? "outline" : "secondary"}
+            role="status"
+            aria-live="polite"
+          >
             {progress.approvedCount}/{progress.total} ({progress.percentage}%)
           </Badge>
         </CardTitle>

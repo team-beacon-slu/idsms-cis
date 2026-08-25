@@ -107,10 +107,10 @@ export function ChecklistItemRow({
       {canReview && status !== "APPROVED" && (
         <>
           <Button size="sm" disabled={isPending} onClick={() => review("APPROVE")}>
-            Approve
+            {isPending ? "Saving..." : "Approve"}
           </Button>
           <Button size="sm" variant="outline" disabled={isPending} onClick={() => review("RETURN")}>
-            Return
+            {isPending ? "Saving..." : "Return"}
           </Button>
         </>
       )}

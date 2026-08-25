@@ -51,7 +51,7 @@ export function MoaStatusActions({
           disabled={isPending}
           onClick={() => advance(status)}
         >
-          {status}
+          {isPending ? "Saving..." : status}
         </Button>
       ))}
     </div>

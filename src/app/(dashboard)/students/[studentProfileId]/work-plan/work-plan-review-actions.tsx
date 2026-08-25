@@ -30,10 +30,10 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
   return (
     <div className="flex gap-2">
       <Button size="sm" disabled={isPending} onClick={() => review("APPROVE")}>
-        Approve
+        {isPending ? "Saving..." : "Approve"}
       </Button>
       <Button size="sm" variant="outline" disabled={isPending} onClick={() => review("RETURN")}>
-        Return
+        {isPending ? "Saving..." : "Return"}
       </Button>
     </div>
   );
