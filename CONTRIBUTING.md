@@ -41,7 +41,9 @@ All business logic lives in `/src/lib/services/` — never directly in page file
 
 ## Database changes
 
-We're on Prisma with a Supabase Postgres backend. Edit `prisma/schema.prisma`, then run `npx prisma migrate dev` once a real `DATABASE_URL` is configured. The `vector` extension and the `audit_logs` append-only RLS policy are **not** managed by Prisma — see `prisma/migrations_manual/001_vector_extension_and_audit_rls.sql`, which must be run once by hand in the Supabase SQL editor **after** the first `prisma db push` (it ALTERs tables that `db push` is what creates — running it first fails with "relation does not exist").
+We're on Prisma with a Supabase Postgres backend. Edit `prisma/schema.prisma`, then run `npx prisma db push` — **not** `prisma migrate dev`. This project has no migration history (schema changes have always gone through `db push`), so `migrate dev` sees the entire existing schema as "drift" and wants to reset the database to establish a baseline, which would drop all data on our shared dev project. Confirmed this the hard way during Phase 1; stick with `db push`.
+
+Anything Prisma can't express at all (a Postgres extension, an RLS policy) goes in a hand-written SQL file under `prisma/migrations_manual/`, run once by hand in the Supabase SQL editor **after** the `db push` that creates the tables it touches (numbered in the order they need to run — `001_...` before `002_...`, etc.). See `001_vector_extension_and_audit_rls.sql` and `002_default_deny_rls.sql` for the pattern. Ordinary schema changes (new columns, new tables) don't need a file here — `db push` alone handles those.
 
 ## Questions
 
