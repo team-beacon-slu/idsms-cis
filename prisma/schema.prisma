@@ -2,7 +2,6 @@
 // 18 tables per PRD.md v1.3 Database Schema section (16 domain tables + sessions/accounts
 // added in v1.3 for NextAuth's database session strategy — see FR-UM-11).
 //
-// NOTE: `prisma generate` / `prisma db push` are NOT run yet — no DATABASE_URL exists.
 // The `vector` extension and the audit_logs append-only RLS policy must be applied via
 // the raw SQL migration in prisma/migrations_manual/ before this schema can be pushed.
 
@@ -11,8 +10,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ── Enums ────────────────────────────────────────────────────────────────
@@ -169,6 +169,8 @@ model User {
   role           Role
   isActive       Boolean   @default(true) @map("is_active")
   mustResetPassword Boolean @default(true) @map("must_reset_password")
+  failedLoginAttempts Int  @default(0) @map("failed_login_attempts")
+  lockedUntil    DateTime? @map("locked_until")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
@@ -179,8 +181,24 @@ model User {
   facultyGroups    FacultyClassGroup[]
   auditLogs        AuditLog[]
   notifications    Notification[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
+}
+
+// FR-UM-10 (reset-password magic link, 1-hour expiry). Only the hash is stored —
+// same rationale as hashedPassword: a DB leak must not hand out usable tokens.
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
 }
 
 model StudentProfile {
