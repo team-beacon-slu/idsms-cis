@@ -13,16 +13,17 @@ export const createCompanySchema = z.object({
   linkToStudentProfileId: z.uuid().optional(),
 });
 
+// isVerified is split out in the route handler (calls companyService's
+// distinct setCompanyVerified, which logs a dedicated audit action) rather
+// than folded into a generic field update — but both arrive via the same
+// PATCH /api/companies/[id] body for a simpler client-side contract.
 export const updateCompanySchema = z.object({
   name: z.string().min(1).optional(),
   address: z.string().min(1).optional(),
   workModality: z.enum(WorkModality).optional(),
   supervisorName: z.string().min(1).optional(),
   supervisorContact: z.string().min(1).optional(),
-});
-
-export const setCompanyVerifiedSchema = z.object({
-  isVerified: z.boolean(),
+  isVerified: z.boolean().optional(),
 });
 
 // Validated against the route's *assembled* object (after it resolves
@@ -32,6 +33,7 @@ export const setCompanyVerifiedSchema = z.object({
 // handleApiError) instead of inventing a parallel validation-error type.
 export const createMoaRecordSchema = z
   .object({
+    id: z.uuid().optional(),
     companyId: z.uuid(),
     documentUrl: z.url().optional(),
     documentPath: z.string().min(1).optional(),

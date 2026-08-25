@@ -156,6 +156,12 @@ export async function getCompany(companyId: string): Promise<Company | null> {
 }
 
 export interface CreateMoaRecordInput {
+  // Optional: when the caller is uploading a file (not a link), it needs the
+  // record's id *before* the record exists, to build the Storage object path
+  // ({companyId}/{moaRecordId}.{ext}) ahead of the create call. Prisma's
+  // @default(uuid()) only applies when id is omitted, so passing one through
+  // here lets the route generate it once and use it for both.
+  id?: string;
   companyId: string;
   documentUrl?: string;
   documentPath?: string;
@@ -175,6 +181,7 @@ export async function createMoaRecord(
   return prisma.$transaction(async (tx) => {
     const moaRecord = await tx.moaRecord.create({
       data: {
+        id: input.id,
         companyId: input.companyId,
         documentUrl: input.documentUrl,
         documentPath: input.documentPath,
