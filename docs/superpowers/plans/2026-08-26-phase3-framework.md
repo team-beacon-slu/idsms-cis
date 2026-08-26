@@ -15,7 +15,18 @@
 - Never run `prisma migrate dev` — always `npx prisma generate && npx prisma db push` (Phase 1 CONTRIBUTING.md rule).
 - Every mutation goes through `prisma.$transaction(async (tx) => {...; await logEvent({...}, tx); return dto;})` — the exact shape in `companyService.ts`.
 - Every student-record route/service call reuses `assertCanAccessStudent` from `userService.ts` — never re-derive ownership logic.
-- Stub function bodies are `// TODO(<github-username>): <FR-ID> — <contract from PHASE3_TASKS.md>` followed by a placeholder return of the correct type. They must compile and must NOT throw — callers (routes, tests) rely on a resolvable placeholder.
+- Stub function bodies carry a **structured comment block**, not a one-liner — this is a monolith-modular codebase, and the point of the block is that an implementer never has to grep the repo to find what to wire into:
+  ```
+  // FR-<ID> — Owner: <github-username>
+  // Requirement: <one-sentence paraphrase of the FR text>
+  // Connects to: <exact function names + file for every upstream caller and
+  //   downstream callee this stub must eventually call>; <exact Prisma model
+  //   + field names it reads/writes>
+  // Edge cases: <the specific conditions from the FR text, or a schema gap
+  //   found while scaffolding, that the implementer must resolve>
+  // TODO(<github-username>): <contract — same content as the GitHub issue>
+  ```
+  followed by a placeholder return of the correct type. Bodies must compile and must NOT throw — callers (routes, tests) rely on a resolvable placeholder.
 - Trivial CRUD reads (list/get, no business rule) are implemented for real, not stubbed — matches Phase 2's `listCompanies`/`listMoaRecordsForCompany` precedent.
 - Owners (from `PHASE3_TASKS.md`): Danielle=JayPing23, Kenneth=KennethRusselAvaricio, Ulrich=gu457, Matt=AndresBonifaci0, Gillian=2215428-sys, Shantea23=Shantea23, Rhaastas=Rhaastas (unassigned in code comments too — pending org invite).
 - No route-level automated tests — Phase 1/2 established RBAC verification via live browser walkthrough, not route unit tests; this plan follows that precedent (see Task 19).
@@ -512,7 +523,19 @@ export interface ConfigureWorkScheduleInput {
   hoursPerDay: number;
 }
 
-// FR-AT-01. Owner: KennethRusselAvaricio.
+// FR-AT-01 — Owner: KennethRusselAvaricio
+// Requirement: upon work plan approval, each student configures their work
+// schedule (daily hours, working days).
+// Connects to: called by POST /api/students/[studentProfileId]/schedule
+// (Task 9 route). Writes `WorkPlan.scheduleConfig` (Json field on the
+// `work_plans` table, prisma.workPlan.update inside a $transaction) — read
+// `WorkPlan.status` (WorkPlanStatus enum) first. Log via
+// `logEvent({ action: "SCHEDULE_CONFIGURED", entityType: "WorkPlan", ... })`
+// from auditService.ts.
+// Edge cases: no WorkPlan with status APPROVED exists yet for this student
+// (throw, don't silently no-op); scheduleConfig already set (decide
+// overwrite vs. reject — FR-AT-01 doesn't specify, this is a call for the
+// implementer to make and document).
 export async function configureWorkSchedule(
   studentProfileId: string,
   input: ConfigureWorkScheduleInput,
@@ -520,9 +543,7 @@ export async function configureWorkSchedule(
   ipAddress?: string | null
 ): Promise<{ studentProfileId: string; scheduleConfig: ConfigureWorkScheduleInput }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(KennethRusselAvaricio): FR-AT-01 — persist `input` into this
-  // student's latest WorkPlan.scheduleConfig, only once WorkPlan.status is
-  // APPROVED; log via logEvent("SCHEDULE_CONFIGURED") inside a $transaction.
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void ipAddress;
   return { studentProfileId, scheduleConfig: input };
 }
@@ -534,18 +555,44 @@ export interface HolidayCalendarEntryDTO {
   applicable: boolean;
 }
 
-// FR-AT-02. Owner: 2215428-sys (Gillian).
+// FR-AT-02 — Owner: 2215428-sys (Gillian)
+// Requirement: populate a calendar-based schedule pre-populated with
+// Philippine national/regional holidays and company-specific non-working
+// days that students can mark as applicable.
+// Connects to: reads `HolidayCalendarEntry` (`holiday_calendar` table) two
+// ways — rows with `semesterId` set and `studentProfileId` null are
+// system-wide (national/regional); rows with `studentProfileId` set are the
+// per-student override `markHolidayApplicable` below writes, reachable via
+// `StudentProfile.holidayOverrides`. Consumed by
+// `weeklyReportService.generateWeeklyReportForm` (Task 4, to skip
+// non-working days) and by `attendance/page.tsx` (Task 14).
+// Edge cases: SCHEMA GAP found while scaffolding — `HolidayCalendarEntry`
+// has no boolean "applicable" field. There's no company-specific
+// non-working-day source in the schema either (`Company` has no such
+// field). Implementer must decide: does a per-student override row mean
+// "this holiday doesn't apply to me" (row = opt-out) or "this is an extra
+// non-working day for me" (row = opt-in)? Whichever is chosen must be
+// documented in this JSDoc and reflected in `markHolidayApplicable` below —
+// don't add a new schema field without raising it with Danielle first
+// (`ScheduleId`-style vestige risk).
 export async function getHolidayCalendarForStudent(
   studentProfileId: string
 ): Promise<HolidayCalendarEntryDTO[]> {
-  // TODO(2215428-sys): FR-AT-02 — merge HolidayCalendarEntry rows (national/
-  // regional/semester-scoped) with the student's company non-working days
-  // and any per-student override from markHolidayApplicable.
+  // TODO(2215428-sys): implement per the contract above.
   void studentProfileId;
   return [];
 }
 
-// FR-AT-02. Owner: 2215428-sys (Gillian).
+// FR-AT-02 — Owner: 2215428-sys (Gillian)
+// Requirement: students can mark a pre-populated holiday as applicable/not
+// applicable to their own schedule.
+// Connects to: writes the same `HolidayCalendarEntry` rows
+// `getHolidayCalendarForStudent` above reads (via
+// `StudentProfile.holidayOverrides`) — whatever override representation is
+// chosen there must match here exactly (create/delete/update a row with
+// `studentProfileId` set to this student).
+// Edge cases: same schema-gap note as `getHolidayCalendarForStudent` — this
+// function's implementation is coupled to that decision.
 export async function markHolidayApplicable(
   studentProfileId: string,
   holidayEntryId: string,
@@ -553,7 +600,7 @@ export async function markHolidayApplicable(
   actingUser: { id: string; role: Role }
 ): Promise<{ holidayEntryId: string; applicable: boolean }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(2215428-sys): FR-AT-02 — persist the per-student holiday override.
+  // TODO(2215428-sys): implement per the contract above.
   return { holidayEntryId, applicable };
 }
 
@@ -564,7 +611,17 @@ export interface SubmitDeviationReportInput {
   proofUrl?: string;
 }
 
-// FR-AT-03. Owner: KennethRusselAvaricio.
+// FR-AT-03 — Owner: KennethRusselAvaricio
+// Requirement: absences/undertime/overtime submitted via a structured
+// deviation report form with date, reason category, and optional proof upload.
+// Connects to: called by POST /api/students/[studentProfileId]/deviations
+// (Task 10 route, which also handles the file upload via
+// `src/lib/storage.ts`'s `uploadFile`, Phase 2 pattern, before calling this).
+// Creates a `DeviationReport` row (`deviation_reports` table) — fields
+// `date`, `deviationType` (`DeviationType` enum: ABSENCE/OVERTIME/UNDERTIME),
+// `reason`, `proofUrl`, `validationStatus` (start `PENDING`). Log via
+// `logEvent({ action: "DEVIATION_SUBMITTED", entityType: "DeviationReport" })`.
+// Edge cases: none beyond the standard $transaction + logEvent pattern.
 export async function submitDeviationReport(
   studentProfileId: string,
   input: SubmitDeviationReportInput,
@@ -572,10 +629,7 @@ export async function submitDeviationReport(
   ipAddress?: string | null
 ): Promise<{ id: string; validationStatus: ValidationStatus }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(KennethRusselAvaricio): FR-AT-03 — create a DeviationReport row
-  // (validationStatus: PENDING) inside a $transaction with
-  // logEvent("DEVIATION_SUBMITTED"). `input.proofUrl` is set by the route
-  // after an uploadFile call (Phase 2 storage.ts pattern) when a file is attached.
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void input;
   void ipAddress;
   return { id: "", validationStatus: ValidationStatus.PENDING };
@@ -589,74 +643,118 @@ export async function listDeviationReportsForStudent(studentProfileId: string) {
   });
 }
 
-// FR-AT-04. Owner: KennethRusselAvaricio.
+// FR-AT-04 — Owner: KennethRusselAvaricio
+// Requirement: all deviation reports must be validated by the faculty
+// adviser before affecting hour computation.
+// Connects to: called by PATCH /api/deviations/[id]/validate (Task 10
+// route, Faculty/Coordinator/Admin-gated). Sets
+// `DeviationReport.validationStatus` (`ValidationStatus` enum:
+// PENDING/VALIDATED/REJECTED — note it is VALIDATED, not APPROVED) and
+// `DeviationReport.facultyId`. Downstream: `computeTotalHoursRendered`
+// below must filter on `validationStatus === VALIDATED` only.
+// Edge cases: a REJECTED row must never be readable by
+// `computeTotalHoursRendered` — this is the whole point of the gate.
 export async function validateDeviationReport(
   deviationReportId: string,
   facultyId: string,
   action: "VALIDATE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ id: string; validationStatus: ValidationStatus }> {
-  // TODO(KennethRusselAvaricio): FR-AT-04 — set DeviationReport.validationStatus
-  // to VALIDATED or REJECTED plus DeviationReport.facultyId = facultyId. A
-  // REJECTED row must never be readable by computeTotalHoursRendered.
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void facultyId;
   void action;
   void ipAddress;
   return { id: deviationReportId, validationStatus: ValidationStatus.PENDING };
 }
 
-// FR-AT-05. Owner: JayPing23 (Danielle).
+// FR-AT-05 — Owner: JayPing23 (Danielle)
+// Requirement: automatically compute total hours rendered, based only on
+// validated attendance data. This is the system's central value metric —
+// every other module's "hours" display reads from this.
+// Connects to: reads `DailyReportEntry.actualHours` (via `WeeklyReport`,
+// only rows with `WeeklyReportStatus` APPROVED or REGARDED — see
+// `weeklyReportService.ts`'s review actions, Task 4) plus `DeviationReport`
+// rows with `validationStatus === VALIDATED` (`deviationType` OVERTIME
+// adds, ABSENCE/UNDERTIME subtract — see `validateDeviationReport` above).
+// Writes the result to `StudentProfile.renderedHours` (Decimal field,
+// currently unwritten anywhere in the codebase — confirmed via
+// `grep -rn renderedHours src/` during spec research). Called by GET
+// /api/students/[studentProfileId]/attendance-summary (Task 11) and by
+// `reviewWeeklyReport_Approve`/`_Regard` (Task 4) after each approval.
+// Edge cases: must never read PENDING/RETURNED/DISREGARDED WeeklyReport
+// rows, or PENDING/REJECTED DeviationReport rows.
 export async function computeTotalHoursRendered(studentProfileId: string): Promise<number> {
-  // TODO(JayPing23): FR-AT-05 — sum DailyReportEntry.actualHours across every
-  // WeeklyReport with status APPROVED or REGARDED for this student, plus
-  // VALIDATED OVERTIME deviations, minus VALIDATED ABSENCE/UNDERTIME
-  // deviations. Never read PENDING/RETURNED/DISREGARDED rows. Write the
-  // result to StudentProfile.renderedHours.
+  // TODO(JayPing23): implement per the contract above.
   void studentProfileId;
   return 0;
 }
 
-// FR-AT-05. Owner: JayPing23 (Danielle).
+// FR-AT-05 — Owner: JayPing23 (Danielle)
+// Requirement: automatically compute required hours remaining and a
+// projected completion date, based only on validated attendance data.
+// Connects to: calls `computeTotalHoursRendered` above; reads
+// `StudentProfile.requiredHours` (Int) and the active schedule from
+// `WorkPlan.scheduleConfig` (post any `applyScheduleChangeProspectively`
+// change further down this file). Called by the same attendance-summary
+// route (Task 11) and by `calendarService.detectEndorsementLetterSpikes`
+// (Task 7, which clusters these dates across students).
+// Edge cases: return null when no APPROVED WorkPlan/schedule exists yet —
+// there's nothing to project against.
 export async function computeProjectedCompletionDate(
   studentProfileId: string
 ): Promise<Date | null> {
-  // TODO(JayPing23): FR-AT-05 — using computeTotalHoursRendered,
-  // StudentProfile.requiredHours, and the active schedule from
-  // WorkPlan.scheduleConfig (post any applyScheduleChangeProspectively
-  // change), project a completion date. Return null with no approved schedule.
+  // TODO(JayPing23): implement per the contract above.
   void studentProfileId;
   return null;
 }
 
 const REQUIRED_HOURS_CONFIG_KEY = (program: Program) => `required_hours:${program}`;
 
-// FR-AT-06. Owner: 2215428-sys (Gillian).
+// FR-AT-06 — Owner: 2215428-sys (Gillian)
+// Requirement: required completion hours per program must be configurable
+// via the admin interface, never hardcoded.
+// Connects to: called by GET /api/config/required-hours (Task 11). Reads
+// `SystemConfig.configValue` (Json) where `configKey === REQUIRED_HOURS_CONFIG_KEY(program)`
+// (`system_config` table, unique on `configKey`).
+// Edge cases: fall back to a documented default only if unset — don't throw.
 export async function getRequiredHoursConfig(program: Program): Promise<number> {
-  // TODO(2215428-sys): FR-AT-06 — read SystemConfig where configKey ===
-  // REQUIRED_HOURS_CONFIG_KEY(program); fall back to a documented default if unset.
+  // TODO(2215428-sys): implement per the contract above.
   void program;
   return 0;
 }
 
-// FR-AT-06. Owner: 2215428-sys (Gillian).
+// FR-AT-06 — Owner: 2215428-sys (Gillian)
+// Requirement: same as above, the write side.
+// Connects to: called by PATCH /api/config/required-hours (Task 11,
+// Super Admin only — enforced by the route's `requireRole`, this function
+// trusts that gate the same way `companyService.updateCompany` does).
+// Upserts `SystemConfig` at `REQUIRED_HOURS_CONFIG_KEY(program)`.
+// Edge cases: must NOT retroactively alter already-provisioned
+// `StudentProfile.requiredHours` values (those are set once, at bulk-import
+// time, per Phase 1's `userService.bulkImportStudents`) — this only changes
+// the default for *future* imports.
 export async function setRequiredHoursConfig(
   program: Program,
   hours: number,
   actingUserId: string,
   ipAddress?: string | null
 ): Promise<{ program: Program; hours: number }> {
-  // TODO(2215428-sys): FR-AT-06 — upsert SystemConfig at
-  // REQUIRED_HOURS_CONFIG_KEY(program), Super Admin only (route-enforced).
-  // Must NOT retroactively alter already-provisioned StudentProfile.requiredHours.
+  // TODO(2215428-sys): implement per the contract above.
   void actingUserId;
   void ipAddress;
   return { program, hours };
 }
 
-// FR-AT-07. Owner: Shantea23.
+// FR-AT-07 — Owner: Shantea23
+// Requirement: students can export their attendance log as CSV.
+// Connects to: called by GET /api/students/[studentProfileId]/attendance-export
+// (Task 11 route, which sets the CSV response headers — this function only
+// returns the CSV body as a string). Reads `DailyReportEntry` rows (via
+// this student's `WeeklyReport`s) for `reportDate`, `scheduledHours`,
+// `actualHours`, `attendanceStatus`.
+// Edge cases: none — read-only formatting.
 export async function exportAttendanceLogCsv(studentProfileId: string): Promise<string> {
-  // TODO(Shantea23): FR-AT-07 — assemble a CSV (date, scheduled hours,
-  // actual hours, status) from this student's DailyReportEntry rows.
+  // TODO(Shantea23): implement per the contract above.
   void studentProfileId;
   return "date,scheduledHours,actualHours,status\n";
 }
@@ -667,7 +765,19 @@ export interface RequestScheduleChangeInput {
   supportingDocumentPath?: string;
 }
 
-// FR-AT-08. Owner: Rhaastas (org invite pending).
+// FR-AT-08 — Owner: Rhaastas (org invite pending — GitHub issue #13
+// created unassigned; assign once they accept)
+// Requirement: students may request a mid-internship schedule change via a
+// structured form, requiring a valid reason and supporting document if applicable.
+// Connects to: called by PATCH /api/students/[studentProfileId]/schedule
+// (Task 9 route). Must call `logScheduleChangeHistory` (bottom of this
+// file) to append a `{ status: "PENDING_FACULTY" }` entry to this
+// student's latest `WorkPlan.scheduleChangeHistory` (Json array). The
+// resulting pending request is picked up next by
+// `validateScheduleChangeFaculty` below.
+// Edge cases: if a supporting document was uploaded, the route has already
+// called `uploadFile` (Phase 2 `storage.ts` pattern) and passed the
+// resulting path in `input.supportingDocumentPath`.
 export async function requestScheduleChange(
   studentProfileId: string,
   input: RequestScheduleChangeInput,
@@ -675,54 +785,75 @@ export async function requestScheduleChange(
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: "PENDING_FACULTY" }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(Rhaastas): FR-AT-08 — append a pending schedule-change request to
-  // this student's latest WorkPlan.scheduleChangeHistory (status
-  // PENDING_FACULTY) via logScheduleChangeHistory.
+  // TODO(Rhaastas): implement per the contract above.
   void input;
   void ipAddress;
   return { workPlanId: "", status: "PENDING_FACULTY" };
 }
 
-// FR-AT-09 (step 1 of 2). Owner: JayPing23 (Danielle).
+// FR-AT-09 (step 1 of 2) — Owner: JayPing23 (Danielle)
+// Requirement: schedule changes require Faculty Adviser validation followed
+// by Department Coordinator final approval — this is step 1.
+// Connects to: called by PATCH
+// /api/work-plans/[id]/schedule-change/faculty-review (Task 9 route,
+// Faculty-only). On APPROVE, advances the pending request (written by
+// `requestScheduleChange` above) to `PENDING_COORDINATOR`, for
+// `approveScheduleChangeCoordinator` below to pick up. On REJECT, the
+// request is terminal — no further action. Log via
+// `logScheduleChangeHistory`.
+// Edge cases: must only act on a request currently `PENDING_FACULTY` —
+// reject/throw if called on a request in any other state.
 export async function validateScheduleChangeFaculty(
   workPlanId: string,
   facultyId: string,
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  // TODO(JayPing23): FR-AT-09 (step 1) — Faculty APPROVE advances the
-  // pending request to PENDING_COORDINATOR for approveScheduleChangeCoordinator;
-  // REJECT is terminal. Log via logScheduleChangeHistory.
+  // TODO(JayPing23): implement per the contract above.
   void facultyId;
   void action;
   void ipAddress;
   return { workPlanId, status: "PENDING_FACULTY" };
 }
 
-// FR-AT-09 (step 2 of 2). Owner: JayPing23 (Danielle).
+// FR-AT-09 (step 2 of 2) — Owner: JayPing23 (Danielle)
+// Requirement: step 2 — Department Coordinator final approval.
+// Connects to: called by PATCH
+// /api/work-plans/[id]/schedule-change/coordinator-review (Task 9 route,
+// Coordinator/Admin-only). Only callable once
+// `validateScheduleChangeFaculty` above set status `PENDING_COORDINATOR`.
+// On final APPROVE, calls `applyScheduleChangeProspectively` below. Log via
+// `logScheduleChangeHistory`.
+// Edge cases: reject/throw if called on a request not currently
+// `PENDING_COORDINATOR`.
 export async function approveScheduleChangeCoordinator(
   workPlanId: string,
   coordinatorId: string,
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  // TODO(JayPing23): FR-AT-09 (step 2) — only callable once step 1's status
-  // is PENDING_COORDINATOR. On final APPROVE, trigger
-  // applyScheduleChangeProspectively. Log via logScheduleChangeHistory.
+  // TODO(JayPing23): implement per the contract above.
   void coordinatorId;
   void action;
   void ipAddress;
   return { workPlanId, status: "PENDING_COORDINATOR" };
 }
 
-// FR-AT-10. Owner: JayPing23 (Danielle).
+// FR-AT-10 — Owner: JayPing23 (Danielle)
+// Requirement: approved schedule changes do NOT retroactively alter
+// previously validated hours or reports — they only affect future hour
+// computation and update the projected completion date.
+// Connects to: called internally by `approveScheduleChangeCoordinator`
+// above (not its own route). Swaps the active `WorkPlan.scheduleConfig` for
+// future-dated computation only. Must trigger
+// `computeProjectedCompletionDate` (above) to recompute after applying.
+// Edge cases: must NOT touch any already-computed `WeeklyReport` or
+// `DailyReportEntry` row — this is the "prospective, not retroactive" rule
+// FR-AT-10 exists to enforce.
 export async function applyScheduleChangeProspectively(
   workPlanId: string
 ): Promise<{ workPlanId: string; effectiveFrom: Date }> {
-  // TODO(JayPing23): FR-AT-10 — swap the active scheduleConfig for
-  // future-dated computation only; must not touch any already-computed
-  // WeeklyReport/DailyReportEntry row. Trigger
-  // computeProjectedCompletionDate to recompute after applying.
+  // TODO(JayPing23): implement per the contract above.
   return { workPlanId, effectiveFrom: new Date() };
 }
 
@@ -733,17 +864,22 @@ export interface ScheduleChangeHistoryEntry {
   [key: string]: unknown;
 }
 
-// FR-AT-11. Owner: KennethRusselAvaricio.
+// FR-AT-11 — Owner: KennethRusselAvaricio
+// Requirement: all schedule changes are logged in
+// `work_plans.scheduleChangeHistory` with timestamps and approver IDs.
+// Connects to: called internally by `requestScheduleChange`,
+// `validateScheduleChangeFaculty`, `approveScheduleChangeCoordinator`, and
+// `applyScheduleChangeProspectively` (all above in this file) — never
+// exposed as its own route. Appends `entry` to `WorkPlan.scheduleChangeHistory`
+// (Json array, `@default("[]")`).
+// Edge cases: none — pure append, no read-modify-write race handling needed
+// beyond what `$transaction` already gives every other mutation in this file.
 export async function logScheduleChangeHistory(
   workPlanId: string,
   entry: ScheduleChangeHistoryEntry,
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<void> {
-  // TODO(KennethRusselAvaricio): FR-AT-11 — append `entry` to this
-  // WorkPlan's scheduleChangeHistory JSONB array. Called internally by
-  // requestScheduleChange/validateScheduleChangeFaculty/
-  // approveScheduleChangeCoordinator/applyScheduleChangeProspectively —
-  // not exposed as its own route.
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void workPlanId;
   void entry;
   void client;
@@ -889,141 +1025,219 @@ Expected: FAIL — module not found.
 import { WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-// FR-WR-01. Owner: Shantea23.
+// FR-WR-01 — Owner: Shantea23
+// Requirement: auto-generate weekly report forms based on each student's
+// approved fixed schedule and semester calendar.
+// Connects to: called by POST /api/students/[studentProfileId]/weekly-reports
+// (Task 12 route, manual "generate this week" fallback). Creates one
+// `WeeklyReport` row (unique on `[studentProfileId, weekStart]`) plus one
+// `DailyReportEntry` per scheduled working day (`scheduledHours` pre-filled
+// from `WorkPlan.scheduleConfig` in `attendanceService.ts`, `actualHours`
+// left null), skipping days `attendanceService.getHolidayCalendarForStudent`
+// (Task 3) marks non-working.
+// Edge cases: violating the `[studentProfileId, weekStart]` unique
+// constraint means a report for that week already exists — decide whether
+// to return the existing row or throw.
 export async function generateWeeklyReportForm(
   studentProfileId: string,
   weekStart: Date
 ): Promise<{ weeklyReportId: string; weekStart: Date; weekEnd: Date }> {
-  // TODO(Shantea23): FR-WR-01 — create a WeeklyReport row plus one
-  // DailyReportEntry per scheduled working day that week (scheduledHours
-  // pre-filled from WorkPlan.scheduleConfig, actualHours null), skipping
-  // days attendanceService.getHolidayCalendarForStudent marks non-working.
+  // TODO(Shantea23): implement per the contract above.
   void studentProfileId;
   const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
   return { weeklyReportId: "", weekStart, weekEnd };
 }
 
-// FR-WR-02. Owner: KennethRusselAvaricio.
+// FR-WR-02 — Owner: KennethRusselAvaricio
+// Requirement: total hours for the week must be auto-calculated.
+// Connects to: called by PATCH /api/weekly-reports/[id] (Task 12 route)
+// after every `saveDailyAccomplishment` call below, so the client form can
+// show a live total. Sums `DailyReportEntry.actualHours` for this report,
+// writes `WeeklyReport.totalHours` (Decimal).
+// Edge cases: null `actualHours` (not yet filled in) should count as 0, not throw.
 export async function calculateWeeklyTotalHours(weeklyReportId: string): Promise<number> {
-  // TODO(KennethRusselAvaricio): FR-WR-02 — sum DailyReportEntry.actualHours
-  // for this report and write WeeklyReport.totalHours.
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void weeklyReportId;
   return 0;
 }
 
-// FR-WR-02. Owner: KennethRusselAvaricio.
+// FR-WR-02 — Owner: KennethRusselAvaricio
+// Requirement: running total hours and hours remaining must be auto-calculated.
+// Connects to: called from the same PATCH /api/weekly-reports/[id] route as
+// `calculateWeeklyTotalHours` above. Writes `WeeklyReport.runningTotal`
+// (cumulative across prior APPROVED/REGARDED weeks + this one, Decimal) and
+// `WeeklyReport.remainingHours` (against `StudentProfile.requiredHours`).
+// Edge cases: only prior weeks with status APPROVED or REGARDED count
+// toward the running total — same status filter as
+// `attendanceService.computeTotalHoursRendered`.
 export async function calculateRunningTotalAndRemaining(
   studentProfileId: string,
   weeklyReportId: string
 ): Promise<{ runningTotal: number; remainingHours: number }> {
-  // TODO(KennethRusselAvaricio): FR-WR-02 — write WeeklyReport.runningTotal
-  // (cumulative across prior APPROVED/REGARDED weeks + this one) and
-  // WeeklyReport.remainingHours (against StudentProfile.requiredHours).
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void studentProfileId;
   void weeklyReportId;
   return { runningTotal: 0, remainingHours: 0 };
 }
 
-// FR-WR-03. Owner: gu457 (Ulrich).
+// FR-WR-03 — Owner: gu457 (Ulrich)
+// Requirement: only the student may enter actual hours worked and daily
+// accomplishments.
+// Connects to: called by PATCH /api/weekly-reports/[id] (Task 12 route),
+// which then calls `calculateWeeklyTotalHours` and
+// `calculateRunningTotalAndRemaining` above and returns all three in one
+// response. Writes a single `DailyReportEntry` row (`actualHours`,
+// `accomplishments`).
+// Edge cases: enforce the caller (`studentUserId`) is the owning student —
+// self-only, same pattern as `assertCanAccessStudent` elsewhere — and that
+// the parent `WeeklyReport.status` is not already
+// APPROVED/REGARDED/DISREGARDED (those are locked).
 export async function saveDailyAccomplishment(
   dailyReportEntryId: string,
   hours: number,
   accomplishments: string,
   studentUserId: string
 ): Promise<{ id: string; hours: number; accomplishments: string }> {
-  // TODO(gu457): FR-WR-03 — write to this DailyReportEntry only; enforce
-  // the caller is the owning student (self-only) and the parent
-  // WeeklyReport is not already APPROVED/REGARDED/DISREGARDED.
+  // TODO(gu457): implement per the contract above.
   void studentUserId;
   return { id: dailyReportEntryId, hours, accomplishments };
 }
 
-// FR-WR-05. Owner: Shantea23.
+// FR-WR-05 — Owner: Shantea23
+// Requirement: reports are due Tuesday; late submissions require the
+// student to fill out a mandatory "Reason for Delay" field before the
+// system accepts the submission. Faculty can view this note during review.
+// Connects to: called by POST /api/weekly-reports/[id]/submit (Task 12
+// route) before `generateReportReferenceCode` below. No dedicated schema
+// field currently exists for the delay reason — store it in
+// `WeeklyReport.revisionHistory` (Json, already used by
+// `reviewWeeklyReport_Return` below) or add a field; note whichever choice
+// is made here in this comment for `reviewWeeklyReport_*`'s implementers to
+// find it.
+// Edge cases: no-op (don't throw) if the report is not actually late.
 export async function validateLateSubmissionReason(
   weeklyReportId: string,
   reasonForDelay?: string
 ): Promise<void> {
-  // TODO(Shantea23): FR-WR-05 — reports are due Tuesday; if this report's
-  // weekEnd + due offset has passed, throw unless reasonForDelay is
-  // non-empty. Store it so faculty can view it during review. No-op if not late.
+  // TODO(Shantea23): implement per the contract above.
   void weeklyReportId;
   void reasonForDelay;
   return;
 }
 
-// FR-WR-06 (Approve). Owner: JayPing23 (Danielle).
+// FR-WR-06 (Approve) — Owner: JayPing23 (Danielle)
+// Requirement: Faculty can Approve — hours count, status complete.
+// Connects to: called by PATCH /api/weekly-reports/[id]/review (Task 12
+// route, `action: "APPROVE"`, Faculty-only). Sets `WeeklyReport.status =
+// APPROVED` and `facultyAction`. Must call
+// `attendanceService.computeTotalHoursRendered` +
+// `computeProjectedCompletionDate` (Task 3) afterward, since this report's
+// hours now count toward both. The route also calls
+// `notificationService.sendReportStatusEmail` (Task 8) after this returns.
+// Edge cases: none beyond the status transition itself.
 export async function reviewWeeklyReport_Approve(
   weeklyReportId: string,
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(JayPing23): FR-WR-06 (Approve) — set status APPROVED,
-  // facultyAction. Must trigger attendanceService's computeTotalHoursRendered
-  // + computeProjectedCompletionDate since this report's hours now count.
+  // TODO(JayPing23): implement per the contract above.
   void facultyId;
   void ipAddress;
   return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
 }
 
-// FR-WR-06 (Return). Owner: KennethRusselAvaricio.
+// FR-WR-06 (Return) — Owner: KennethRusselAvaricio
+// Requirement: Faculty can Return — requires student revision, hours do
+// not count yet.
+// Connects to: called by the same PATCH /api/weekly-reports/[id]/review
+// route (`action: "RETURN"`). Sets `WeeklyReport.status = RETURNED`,
+// appends `notes` to `WeeklyReport.revisionHistory` (Json array).
+// Edge cases: hours must NOT be recomputed — a RETURNED report is excluded
+// from `computeTotalHoursRendered`'s status filter by construction.
 export async function reviewWeeklyReport_Return(
   weeklyReportId: string,
   facultyId: string,
   notes: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(KennethRusselAvaricio): FR-WR-06 (Return) — set status RETURNED,
-  // append `notes` to revisionHistory Json; hours do not count.
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void facultyId;
   void notes;
   void ipAddress;
   return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
 }
 
-// FR-WR-06 (Regard). Owner: KennethRusselAvaricio.
+// FR-WR-06 (Regard) — Owner: KennethRusselAvaricio
+// Requirement: Faculty can Regard — acknowledged, hours count, but marked
+// for minor improvement/no revision needed.
+// Connects to: same review route (`action: "REGARD"`). Sets
+// `WeeklyReport.status = REGARDED` — hours count exactly like Approve
+// (trigger `computeTotalHoursRendered`/`computeProjectedCompletionDate`,
+// Task 3), the status is just visually distinct in the UI.
+// Edge cases: none — this is the "same effect as Approve, different label" branch.
 export async function reviewWeeklyReport_Regard(
   weeklyReportId: string,
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(KennethRusselAvaricio): FR-WR-06 (Regard) — set status REGARDED;
-  // hours count (same trigger as Approve), status stays visually distinct.
+  // TODO(KennethRusselAvaricio): implement per the contract above.
   void facultyId;
   void ipAddress;
   return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
 }
 
-// FR-WR-06 (Disregard). Owner: JayPing23 (Danielle).
+// FR-WR-06 (Disregard) — Owner: JayPing23 (Danielle)
+// Requirement: Faculty can Disregard — invalid submission (e.g. wrong
+// week), hours do not count, requires full resubmission.
+// Connects to: same review route (`action: "DISREGARD"`). Sets
+// `WeeklyReport.status = DISREGARDED`; excluded from
+// `computeTotalHoursRendered`. Must clear/reset the row so
+// `generateWeeklyReportForm` above can regenerate a fresh form for that
+// week without violating the `[studentProfileId, weekStart]` unique constraint.
+// Edge cases: deciding "clear vs. delete-and-recreate" for the DISREGARDED
+// row is this function's actual design work — document the choice here for
+// `generateWeeklyReportForm`'s implementer.
 export async function reviewWeeklyReport_Disregard(
   weeklyReportId: string,
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(JayPing23): FR-WR-06 (Disregard) — set status DISREGARDED, hours
-  // excluded from computeTotalHoursRendered; must clear/reset so
-  // generateWeeklyReportForm can regenerate a fresh form for that week
-  // without violating the [studentProfileId, weekStart] unique constraint.
+  // TODO(JayPing23): implement per the contract above.
   void facultyId;
   void ipAddress;
   return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
 }
 
-// FR-WR-09. Owner: gu457 (Ulrich).
+// FR-WR-09 — Owner: gu457 (Ulrich)
+// Requirement: students must be able to preview a PDF of their report
+// before final submission.
+// Connects to: called by GET /api/weekly-reports/[id]/preview (Task 12
+// route). This is a lightweight preview, NOT the final Puppeteer-rendered
+// PDF from Module 8's `documentService.ts` (out of scope for Phase 3 — see
+// the design spec's "Out of scope" section).
+// Edge cases: none — read-only rendering.
 export async function generateReportPdfPreview(
   weeklyReportId: string
 ): Promise<{ previewUrl: string | null }> {
-  // TODO(gu457): FR-WR-09 — render a preview (not the final Puppeteer PDF
-  // from Module 8) the student can review before submitting.
+  // TODO(gu457): implement per the contract above.
   void weeklyReportId;
   return { previewUrl: null };
 }
 
-// FR-WR-10. Owner: Shantea23.
+// FR-WR-10 — Owner: Shantea23
+// Requirement: a submitted report PDF must be auto-generated with a system
+// reference code and timestamp.
+// Connects to: called by POST /api/weekly-reports/[id]/submit (Task 12
+// route), after `validateLateSubmissionReason` above passes. The actual PDF
+// file generation is Module 8's job (out of scope here) — this function
+// only produces the reference code + timestamp pair that gets attached to it.
+// Edge cases: reference code must be globally unique (matches the pattern
+// `GeneratedDocument.referenceCode`'s `@unique` constraint expects, even
+// though this function doesn't write to that table directly).
 export async function generateReportReferenceCode(
   weeklyReportId: string
 ): Promise<{ referenceCode: string; timestamp: Date }> {
-  // TODO(Shantea23): FR-WR-10 — produce a unique, human-readable reference
-  // code (e.g. "WR-2026-000123") + timestamp for the submitted report.
+  // TODO(Shantea23): implement per the contract above.
   void weeklyReportId;
   return { referenceCode: "", timestamp: new Date() };
 }
@@ -1116,29 +1330,49 @@ Expected: FAIL — module not found.
 import { DocumentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-// FR-WR-08. Owner: JayPing23 (Danielle).
+// FR-WR-08 — Owner: JayPing23 (Danielle)
+// Requirement: monthly reports aggregate weekly reports by calendar month.
+// A monthly report can only be submitted when ALL weekly reports falling
+// within that calendar month are Approved or Regarded.
+// Connects to: called by POST /api/students/[studentProfileId]/monthly-reports
+// (Task 13 route) as the pre-flight gate, before `submitMonthlyReport`
+// below. Reads `WeeklyReport` rows (from `weeklyReportService.ts`, Task 4)
+// whose `[weekStart, weekEnd]` overlaps `calendarMonth`, checking `status`
+// against the same APPROVED/REGARDED filter
+// `attendanceService.computeTotalHoursRendered` (Task 3) uses.
+// Edge cases: a month with zero weekly reports at all — decide whether
+// that's eligible (nothing to block) or ineligible (nothing to aggregate);
+// document the choice here.
 export async function checkMonthlyAggregationEligibility(
   studentProfileId: string,
   calendarMonth: string // "YYYY-MM"
 ): Promise<boolean> {
-  // TODO(JayPing23): FR-WR-08 — true only if every WeeklyReport whose
-  // [weekStart, weekEnd] overlaps calendarMonth is APPROVED or REGARDED.
+  // TODO(JayPing23): implement per the contract above.
   void studentProfileId;
   void calendarMonth;
   return false;
 }
 
-// FR-WR-08. Owner: JayPing23 (Danielle).
+// FR-WR-08 — Owner: JayPing23 (Danielle)
+// Requirement: same as above, the actual submission.
+// Connects to: called by the same monthly-reports route, only after
+// `checkMonthlyAggregationEligibility` above returns true (the route
+// enforces this — see Task 13). Creates a `GeneratedDocument` row
+// (`documentType: MONTHLY_REPORT`, `status: PENDING_DRAFT`, `periodLabel:
+// calendarMonth` — the field Task 1's schema diff added specifically for
+// this) inside a `$transaction` with `logEvent`. Read back later by
+// `listMonthlyReportsForStudent` below.
+// Edge cases: must be idempotent — no duplicate `GeneratedDocument` row for
+// the same `studentProfileId` + `periodLabel` (check with `findFirst`
+// before creating, same pattern Phase 2's `workPlanService.reviewWorkPlan`
+// uses for the endorsement-letter row).
 export async function submitMonthlyReport(
   studentProfileId: string,
   calendarMonth: string,
   actingUserId: string,
   ipAddress?: string | null
 ): Promise<{ generatedDocumentId: string; calendarMonth: string }> {
-  // TODO(JayPing23): FR-WR-08 — after checkMonthlyAggregationEligibility
-  // passes, create GeneratedDocument(documentType: MONTHLY_REPORT, status:
-  // PENDING_DRAFT, periodLabel: calendarMonth) inside a $transaction with
-  // logEvent. Idempotent — no duplicate submission for the same student+month.
+  // TODO(JayPing23): implement per the contract above.
   void studentProfileId;
   void actingUserId;
   void ipAddress;
@@ -1283,72 +1517,124 @@ export interface CalendarEvent {
   color?: string;
 }
 
-// FR-CAL-01. Owner: JayPing23 (Danielle).
+// FR-CAL-01 — Owner: JayPing23 (Danielle)
+// Requirement: all roles have access to a calendar view displaying
+// color-coded events: Submission Deadlines (Red), Holidays (Gray), Approved
+// Deviations (Yellow), and Projected OJT Completion Date (Green milestone).
+// This is the central aggregator every other function in this file specializes.
+// Connects to: called by GET /api/calendar (Task 13 route). Pulls: weekly
+// report deadlines from `weeklyReportService.listWeeklyReportsForStudent`
+// (Task 4); `HolidayCalendarEntry` rows from
+// `attendanceService.getHolidayCalendarForStudent` (Task 3); `DeviationReport`
+// rows with `validationStatus === VALIDATED`; and
+// `attendanceService.computeProjectedCompletionDate` (Task 3) — into one
+// normalized `CalendarEvent[]`, scoped by `role`: STUDENT_INTERN sees own
+// data only; FACULTY_ADVISER sees assigned students via
+// `FacultyClassGroup`; DEPARTMENT_COORDINATOR/SUPER_ADMIN see the whole
+// department.
+// Edge cases: role-scoping bugs here are a data-leak risk — a student must
+// never see another student's events, so this needs the same rigor as
+// `assertCanAccessStudent`, even though it's a read, not a mutation.
 export async function getUnifiedCalendarEvents(
   userId: string,
   role: Role
 ): Promise<CalendarEvent[]> {
-  // TODO(JayPing23): FR-CAL-01 — aggregator. Pulls weekly report deadlines,
-  // HolidayCalendarEntry rows, VALIDATED DeviationReport rows, and
-  // attendanceService.computeProjectedCompletionDate into one normalized
-  // array, scoped by role (student: own; faculty: assigned students via
-  // faculty_class_groups; coordinator: department).
+  // TODO(JayPing23): implement per the contract above.
   void userId;
   void role;
   return [];
 }
 
-// FR-CAL-01. Owner: AndresBonifaci0 (Matt).
+// FR-CAL-01 — Owner: AndresBonifaci0 (Matt)
+// Requirement: color-code events per the scheme above.
+// Connects to: called by GET /api/calendar (Task 13 route) right after
+// `getUnifiedCalendarEvents` above, and by `calendar/page.tsx` (Task 17) if
+// the route ever needs to re-color a client-side-filtered subset. Pure
+// function — sets `CalendarEvent.color`: DEADLINE=red, HOLIDAY=gray,
+// DEVIATION=yellow, COMPLETION=green.
+// Edge cases: none — no I/O, just a `type → color` map.
 export function colorCodeCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
-  // TODO(AndresBonifaci0): FR-CAL-01 — pure formatting helper. Maps
-  // event.type to a display color: DEADLINE=red, HOLIDAY=gray,
-  // DEVIATION=yellow, COMPLETION=green.
+  // TODO(AndresBonifaci0): implement per the contract above.
   return events;
 }
 
-// FR-CAL-02. Owner: gu457 (Ulrich).
+// FR-CAL-02 — Owner: gu457 (Ulrich)
+// Requirement: the student calendar displays the student's specific work
+// schedule, upcoming report deadlines, and a prominent, auto-updating
+// Projected OJT Completion Date.
+// Connects to: consumed by `UnifiedCalendarView` (F5, `calendar/page.tsx`,
+// Task 17) when the viewer is a STUDENT_INTERN. Thin wrapper around
+// `getUnifiedCalendarEvents` above scoped to one student, layered with
+// their `WorkPlan.scheduleConfig` (`attendanceService.ts`, Task 3).
+// Edge cases: none beyond what `getUnifiedCalendarEvents` already handles.
 export async function getStudentCalendarView(studentProfileId: string): Promise<CalendarEvent[]> {
-  // TODO(gu457): FR-CAL-02 — calls getUnifiedCalendarEvents scoped to one
-  // student, layers in their specific schedule for the calendar UI.
+  // TODO(gu457): implement per the contract above.
   void studentProfileId;
   return [];
 }
 
-// FR-CAL-03. Owner: AndresBonifaci0 (Matt).
+// FR-CAL-03 — Owner: AndresBonifaci0 (Matt)
+// Requirement: the faculty calendar displays aggregated submission
+// deadlines for all assigned students, highlighting weeks with high
+// expected submission volumes.
+// Connects to: consumed by `UnifiedCalendarView` (F5, Task 17) for
+// FACULTY_ADVISER viewers. Calls `getUnifiedCalendarEvents` above once per
+// student assigned via `FacultyClassGroup` (`faculty_class_groups` table,
+// same join Phase 2's `my-students` page already uses) and merges into one
+// aggregated array. Feeds `detectHighVolumeSubmissionWeeks` below.
+// Edge cases: none beyond the aggregation itself.
 export async function getFacultyCalendarView(facultyId: string): Promise<CalendarEvent[]> {
-  // TODO(AndresBonifaci0): FR-CAL-03 — calls getUnifiedCalendarEvents per
-  // assigned student (via faculty_class_groups) and merges into one
-  // aggregated view.
+  // TODO(AndresBonifaci0): implement per the contract above.
   void facultyId;
   return [];
 }
 
-// FR-CAL-03. Owner: AndresBonifaci0 (Matt).
+// FR-CAL-03 — Owner: AndresBonifaci0 (Matt)
+// Requirement: highlight weeks with high expected submission volumes.
+// Connects to: reads `getFacultyCalendarView`'s output above (call it
+// directly, don't re-derive). Buckets DEADLINE-type events by week, flags
+// weeks exceeding a configurable threshold (mirror
+// `attendanceService.getRequiredHoursConfig`'s `SystemConfig`-lookup
+// pattern for the threshold value, or hardcode a documented default —
+// implementer's call).
+// Edge cases: none.
 export async function detectHighVolumeSubmissionWeeks(
   facultyId: string
 ): Promise<{ weekStart: Date; count: number }[]> {
-  // TODO(AndresBonifaci0): FR-CAL-03 — bucket getFacultyCalendarView's
-  // deadlines by week, flag weeks exceeding a configurable threshold.
+  // TODO(AndresBonifaci0): implement per the contract above.
   void facultyId;
   return [];
 }
 
-// FR-CAL-04. Owner: AndresBonifaci0 (Matt).
+// FR-CAL-04 — Owner: AndresBonifaci0 (Matt)
+// Requirement: the coordinator calendar displays department-wide
+// milestones, MOA expiration dates, and clustered projected completion
+// dates to anticipate endorsement letter generation spikes.
+// Connects to: consumed by `UnifiedCalendarView` (F5, Task 17) for
+// DEPARTMENT_COORDINATOR/SUPER_ADMIN viewers. Merges
+// `getUnifiedCalendarEvents`-style events department-wide with
+// `companyService.getExpiringMoaRecords` (Phase 2, already exists — reuse
+// it, don't re-derive MOA-expiry logic). Feeds
+// `detectEndorsementLetterSpikes` below.
+// Edge cases: none beyond the merge.
 export async function getCoordinatorCalendarView(coordinatorId: string): Promise<CalendarEvent[]> {
-  // TODO(AndresBonifaci0): FR-CAL-04 — merges getUnifiedCalendarEvents-style
-  // events department-wide with MOA expiry dates (reuse
-  // companyService.getExpiringMoaRecords).
+  // TODO(AndresBonifaci0): implement per the contract above.
   void coordinatorId;
   return [];
 }
 
-// FR-CAL-04. Owner: JayPing23 (Danielle).
+// FR-CAL-04 — Owner: JayPing23 (Danielle)
+// Requirement: anticipate endorsement letter generation spikes.
+// Connects to: reads `getCoordinatorCalendarView`'s COMPLETION-type events
+// above (equivalently, calls `attendanceService.computeProjectedCompletionDate`,
+// Task 3, per student in the department) and clusters them by week/month to
+// flag upcoming load spikes — same "bucket by week, flag over threshold"
+// shape as `detectHighVolumeSubmissionWeeks` above, different event type.
+// Edge cases: none.
 export async function detectEndorsementLetterSpikes(
   coordinatorId: string
 ): Promise<{ weekStart: Date; expectedCount: number }[]> {
-  // TODO(JayPing23): FR-CAL-04 — clusters students' projected completion
-  // dates (attendanceService.computeProjectedCompletionDate) by week/month
-  // to flag upcoming endorsement-letter generation load spikes.
+  // TODO(JayPing23): implement per the contract above.
   void coordinatorId;
   return [];
 }
@@ -1403,15 +1689,26 @@ Expected: FAIL — named export not found.
 ```typescript
 // 12 automated notification triggers via Resend. See PRD Module 11 (FR-NT-*).
 
-// FR-WR-07. Owner: Rhaastas (org invite pending — issue #27 created
-// unassigned; assign once they accept).
+// FR-WR-07 — Owner: Rhaastas (org invite pending — GitHub issue #27
+// created unassigned; assign once they accept)
+// Requirement: Faculty and students must receive email notifications when
+// reports are approved or returned.
+// Connects to: called by PATCH /api/weekly-reports/[id]/review (Task 12
+// route) right after `reviewWeeklyReport_Approve`/`_Return`/`_Regard`/
+// `_Disregard` (`weeklyReportService.ts`, Task 4) returns. Should use
+// Resend + React Email per FR-NT-04's convention (Module 11) — no existing
+// Resend client/template setup exists in this codebase yet (Module 11 is
+// out of scope for Phase 3), so the real implementation likely needs that
+// infrastructure stood up first; flag that dependency rather than silently
+// blocking on it.
+// Edge cases: none specific to this stub — the "sent: false" placeholder
+// intentionally never fails the calling route (the review action itself
+// must still succeed even if email delivery isn't implemented yet).
 export async function sendReportStatusEmail(
   weeklyReportId: string,
   action: "APPROVE" | "RETURN" | "REGARD" | "DISREGARD"
 ): Promise<{ sent: boolean }> {
-  // TODO(Rhaastas): FR-WR-07 — send a Resend/React-Email notification to
-  // the student (and faculty on submission) per FR-NT-04's convention
-  // (Module 11).
+  // TODO(Rhaastas): implement per the contract above.
   void weeklyReportId;
   void action;
   return { sent: false };
@@ -2101,12 +2398,20 @@ git commit -m "Phase 3 Stage D: monthly report + unified calendar routes (FR-WR-
 ```tsx
 "use client";
 
-// TODO(gu457): FR-AT-01, FR-AT-08 — initial schedule config (POST
-// /api/students/[studentProfileId]/schedule, wired to configureWorkSchedule)
-// and mid-internship change request (PATCH same route, wired to
-// requestScheduleChange), including a reason field and optional supporting-
-// document upload. Follow the Phase 2 checklist-item-row.tsx pattern (fetch
-// + sonner toast + router.refresh()).
+// FR-AT-01, FR-AT-08 — Owner: gu457 (Ulrich)
+// Requirement: initial schedule config form, plus a mid-internship
+// change-request form (same component, two modes).
+// Connects to: POST /api/students/[studentProfileId]/schedule (Task 9
+// route) → `attendanceService.configureWorkSchedule` (Task 3) for initial
+// setup; PATCH same route → `requestScheduleChange` (Task 3) for a change
+// request, body validated by `scheduleChangeRequestSchema`
+// (`src/lib/validators/attendance.ts`, Task 2) — needs `reason` (string)
+// and `newScheduleConfig` (`{ daysOfWeek: number[], hoursPerDay: number }`),
+// plus an optional file upload for the supporting document.
+// Follow the Phase 2 `checklist-item-row.tsx` pattern exactly (fetch +
+// `sonner` toast + `router.refresh()`) — that file is the reference
+// implementation for this kind of client component in this codebase.
+// Edge cases: none beyond standard form validation.
 export function AttendanceScheduleForm({ studentProfileId }: { studentProfileId: string }) {
   return (
     <div data-testid="attendance-schedule-form" className="text-sm text-muted-foreground">
@@ -2121,9 +2426,15 @@ export function AttendanceScheduleForm({ studentProfileId }: { studentProfileId:
 ```tsx
 "use client";
 
-// TODO(gu457): FR-AT-03 — date, reason category, supporting document
-// upload, wired to POST /api/students/[studentProfileId]/deviations
-// (submitDeviationReport).
+// FR-AT-03 — Owner: gu457 (Ulrich)
+// Requirement: date, reason category, supporting document upload for an
+// absence/undertime/overtime deviation.
+// Connects to: POST /api/students/[studentProfileId]/deviations (Task 10
+// route) → `attendanceService.submitDeviationReport` (Task 3), body
+// validated by `deviationReportSchema` (`src/lib/validators/attendance.ts`,
+// Task 2) — needs `date`, `deviationType` (`DeviationType` enum:
+// ABSENCE/OVERTIME/UNDERTIME), `reason`, optional `proofUrl`.
+// Edge cases: none beyond standard form validation.
 export function DeviationReportForm({ studentProfileId }: { studentProfileId: string }) {
   return (
     <div data-testid="deviation-report-form" className="text-sm text-muted-foreground">
@@ -2140,8 +2451,14 @@ export function DeviationReportForm({ studentProfileId }: { studentProfileId: st
 
 import { Button } from "@/components/ui/button";
 
-// TODO(AndresBonifaci0): FR-AT-07 — trigger a CSV download from GET
-// /api/students/[studentProfileId]/attendance-export (exportAttendanceLogCsv).
+// FR-AT-07 — Owner: AndresBonifaci0 (Matt)
+// Requirement: students can export their attendance log as CSV.
+// Connects to: GET /api/students/[studentProfileId]/attendance-export
+// (Task 11 route) → `attendanceService.exportAttendanceLogCsv` (Task 3).
+// The route already sets `Content-Disposition: attachment` — this button
+// just needs to trigger the browser download (`window.open` or an anchor
+// click, not `fetch` + manual blob handling, unless auth requires it).
+// Edge cases: none.
 export function AttendanceExportButton({ studentProfileId }: { studentProfileId: string }) {
   void studentProfileId;
   return (
@@ -2241,11 +2558,18 @@ git commit -m "Phase 3 Stage E: attendance page shell + F3/F4/F6 stub components
 ```tsx
 "use client";
 
-// TODO(gu457): FR-WR-02, FR-WR-03 — daily accomplishment entry UI, one row
-// per scheduled day (hours + accomplishments + tools used), wired to PATCH
-// /api/weekly-reports/[id] (saveDailyAccomplishment) with live totals from
-// calculateWeeklyTotalHours/calculateRunningTotalAndRemaining, gated by
-// detectCopyPasteWarning (copy-paste-warning.ts) before submit.
+// FR-WR-02, FR-WR-03 — Owner: gu457 (Ulrich)
+// Requirement: daily accomplishment entry UI — one row per scheduled day
+// (hours + accomplishments + tools used), showing live running totals.
+// Connects to: PATCH /api/weekly-reports/[id] (Task 12 route) →
+// `weeklyReportService.saveDailyAccomplishment` (Task 4), which the route
+// already chains with `calculateWeeklyTotalHours`/
+// `calculateRunningTotalAndRemaining` and returns in one response — this
+// component just needs to read `{ entry, totalHours, runningTotal,
+// remainingHours }` from that response and re-render. Before submit, call
+// `detectCopyPasteWarning` from `./copy-paste-warning.ts` (F7, same task)
+// to block submission on a near-duplicate accomplishment entry.
+// Edge cases: none beyond standard form validation.
 export function WeeklyReportForm({ weeklyReportId }: { weeklyReportId: string }) {
   return (
     <div data-testid="weekly-report-form" className="text-sm text-muted-foreground">
@@ -2258,11 +2582,17 @@ export function WeeklyReportForm({ weeklyReportId }: { weeklyReportId: string })
 `src/app/(dashboard)/students/[studentProfileId]/weekly-reports/copy-paste-warning.ts`:
 
 ```typescript
-// TODO(AndresBonifaci0): FR-WR-04 — pure client-side string-similarity
-// check (no server round-trip) comparing new accomplishment text against
-// the student's immediate prior submission. Distinct from the server-side
-// vector similarity in FR-AI-01. Wires into WeeklyReportForm to gate its
-// submit button.
+// FR-WR-04 — Owner: AndresBonifaci0 (Matt)
+// Requirement: before submission, compare new accomplishment text against
+// the student's immediate prior submission; block submit on an exact or
+// near-exact match.
+// Connects to: called from `WeeklyReportForm` (F1, `weekly-report-form.tsx`,
+// same task) to gate its submit button — pure client-side check, no server
+// round-trip (distinct from the server-side vector similarity in FR-AI-01 /
+// Module 9, which is out of scope for Phase 3).
+// Edge cases: what counts as "near-exact" is this function's actual design
+// work (e.g. Levenshtein distance ratio, or a simpler normalized-string
+// equality check) — document whichever approach is chosen here.
 export function detectCopyPasteWarning(newText: string, priorText: string): boolean {
   void newText;
   void priorText;
@@ -2435,10 +2765,20 @@ git commit -m "Phase 3 Stage E: weekly report pages + review actions + F1/F7 stu
 ```tsx
 "use client";
 
-// TODO(AndresBonifaci0): FR-WR-08 — eligibility status from GET
-// /api/students/[studentProfileId]/monthly-reports?calendarMonth=..., a
-// submit action wired to POST (submitMonthlyReport), and a read-only
-// rollup of the qualifying weekly reports for the given calendar month.
+// FR-WR-08 — Owner: AndresBonifaci0 (Matt)
+// Requirement: eligibility status, a submit action, and a read-only rollup
+// of the month's qualifying weekly reports.
+// Connects to: eligibility from `checkMonthlyAggregationEligibility`
+// (`monthlyReportService.ts`, Task 5) — the route (POST
+// /api/students/[studentProfileId]/monthly-reports, Task 13) already
+// enforces this gate server-side, but the UI should surface it before the
+// user clicks submit, not just after a rejected POST. Submit calls that
+// same POST route → `submitMonthlyReport` (Task 5). Rollup data comes from
+// GET on the same route → `listMonthlyReportsForStudent` (Task 5), plus
+// whatever weekly reports the eligibility check covers (fetch via
+// `weeklyReportService.listWeeklyReportsForStudent`, Task 4, filtered
+// client-side to the given `calendarMonth`).
+// Edge cases: none beyond standard form/gate UX.
 export function MonthlyReportView({
   studentProfileId,
   calendarMonth,
@@ -2531,9 +2871,18 @@ git commit -m "Phase 3 Stage E: monthly report page shell + F2 stub component"
 
 import type { CalendarEvent } from "@/lib/services/calendarService";
 
-// TODO(gu457): FR-CAL-01–04 — shared color-coded calendar grid, rendered
-// for all four roles, rendering whatever the server passes in via
-// getUnifiedCalendarEvents (already color-coded by colorCodeCalendarEvents).
+// FR-CAL-01–04 — Owner: gu457 (Ulrich)
+// Requirement: the shared color-coded calendar grid, rendered for all four
+// roles.
+// Connects to: the `events` prop is already fetched and color-coded by the
+// server page shell (`calendar/page.tsx`, same task) via
+// `calendarService.getUnifiedCalendarEvents` +
+// `colorCodeCalendarEvents` (Task 7) — this component is purely
+// presentational, it does not fetch. `CalendarEvent.color` (already set:
+// red/gray/yellow/green per FR-CAL-01) drives the visual styling;
+// `CalendarEvent.type`/`date`/`label` drive placement and content.
+// Edge cases: an empty `events` array (new semester, nothing scheduled yet)
+// should render an empty grid, not an error state.
 export function UnifiedCalendarView({ events }: { events: CalendarEvent[] }) {
   return (
     <div data-testid="unified-calendar-view" className="text-sm text-muted-foreground">
