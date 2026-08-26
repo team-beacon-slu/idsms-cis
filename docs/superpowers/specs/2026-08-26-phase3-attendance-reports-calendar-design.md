@@ -116,7 +116,8 @@ type (so the file compiles and the route/UI wiring is real, but the logic is not
 | `/api/students/[studentProfileId]/attendance-export`      | GET         | `assertCanAccessStudent`.                                                                                                                           |
 | `/api/config/required-hours`                              | GET, PATCH  | GET: any authenticated user. PATCH: Super Admin only.                                                                                               |
 | `/api/students/[studentProfileId]/weekly-reports`         | POST, GET   | POST: system/cron-triggered generation (B16) — exposed as a manual "generate this week" fallback, student self-only. GET: `assertCanAccessStudent`. |
-| `/api/weekly-reports/[id]`                                | GET, PATCH  | GET: `assertCanAccessStudent`. PATCH (daily entries): student self-only.                                                                            |
+| `/api/weekly-reports/[id]`                                | GET, PATCH  | GET: `assertCanAccessStudent`. PATCH (daily entries): student self-only, recomputes and returns B17/B18's live totals after each save.              |
+| `/api/weekly-reports/[id]/preview`                        | GET         | Student self-only — runs B28's PDF preview (FR-WR-09), gap found and fixed during plan self-review.                                                 |
 | `/api/weekly-reports/[id]/submit`                         | POST        | Student self-only — runs B20 late-submission gate.                                                                                                  |
 | `/api/weekly-reports/[id]/review`                         | PATCH       | Faculty only — body `{ action: "APPROVE"\|"RETURN"\|"REGARD"\|"DISREGARD" }`, dispatches to B21–B24.                                                |
 | `/api/students/[studentProfileId]/monthly-reports`        | POST, GET   | POST: student self-only (runs B26 gate then B27). GET: `assertCanAccessStudent`.                                                                    |
@@ -163,7 +164,7 @@ Mirrors Phase 1/2's lettered stages, adjusted for the framework/stub split:
 - **A** — Schema diff (`scheduleId` drop, `periodLabel` add), `db push`.
 - **B** — Service file scaffolding: all 43 function/component signatures + JSDoc + RBAC/`$transaction` shell + `TODO(owner)` stub bodies, across `attendanceService.ts`, `weeklyReportService.ts`, `monthlyReportService.ts`, `calendarService.ts`.
 - **C** — Zod validators for every new route body.
-- **D** — All 13 API routes, wired to the stub services.
+- **D** — All 15 API routes, wired to the stub services.
 - **E** — UI page shells + nav entries, wired to the stub services/routes (client components F1–F7 also land here as their own stub bodies, owned per `PHASE3_TASKS.md`).
 - **F** — Framework tests (Stage G equivalent): RBAC/wiring/"reachable" tests per the Testing approach above.
 - **G** — Docs reconciliation: `PRD.md` FR annotations for any Should-vs-Must clarifications made here, `CONTRIBUTING.md` note on the stub/TODO convention for anyone picking up a task from `PHASE3_TASKS.md`.
