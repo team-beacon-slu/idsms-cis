@@ -32,6 +32,29 @@ const config: Config = {
       functions: 90,
       lines: 90,
     },
+    // Phase 2 critical logic: FR-CK-04's approval gate and FR-WP-06's
+    // submit-lock/letter-queuing get the same 90% bar as Phase 1's
+    // RBAC/session-security modules. companyService is mostly CRUD plus one
+    // transition table, lower inherent risk, so it gets Phase 1's 70% bar.
+    "./src/lib/services/checklistService.ts": {
+      statements: 90,
+      branches: 90,
+      functions: 90,
+      lines: 90,
+    },
+    "./src/lib/services/workPlanService.ts": {
+      statements: 90,
+      branches: 90,
+      functions: 90,
+      lines: 90,
+    },
+    "./src/lib/storage.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
+    "./src/lib/services/companyService.ts": {
+      statements: 70,
+      branches: 70,
+      functions: 70,
+      lines: 70,
+    },
   },
 };
 
