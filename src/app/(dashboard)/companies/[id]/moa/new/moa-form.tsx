@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Link2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,22 +75,26 @@ export function MoaForm({ companyId }: { companyId: string }) {
         <CardDescription>Upload a PDF or link a Google Drive document (FR-MOA-03).</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={onSubmit}>
+        <form className="space-y-5" onSubmit={onSubmit}>
           <div className="flex gap-2">
             <Button
               type="button"
               variant={sourceType === "link" ? "default" : "outline"}
               size="sm"
+              className="cursor-pointer gap-1.5"
               onClick={() => setSourceType("link")}
             >
+              <Link2 className="size-3.5" aria-hidden="true" />
               Link
             </Button>
             <Button
               type="button"
               variant={sourceType === "file" ? "default" : "outline"}
               size="sm"
+              className="cursor-pointer gap-1.5"
               onClick={() => setSourceType("file")}
             >
+              <Upload className="size-3.5" aria-hidden="true" />
               Upload file
             </Button>
           </div>
@@ -118,42 +123,48 @@ export function MoaForm({ companyId }: { companyId: string }) {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="validFrom">Valid from</Label>
-            <Input
-              id="validFrom"
-              type="date"
-              value={validFrom}
-              onChange={(e) => setValidFrom(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="validTo">Valid to</Label>
-            <Input
-              id="validTo"
-              type="date"
-              value={validTo}
-              onChange={(e) => setValidTo(e.target.value)}
-              required
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="validFrom">Valid from</Label>
+              <Input
+                id="validFrom"
+                type="date"
+                value={validFrom}
+                onChange={(e) => setValidFrom(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="validTo">Valid to</Label>
+              <Input
+                id="validTo"
+                type="date"
+                value={validTo}
+                onChange={(e) => setValidTo(e.target.value)}
+                required
+              />
+            </div>
           </div>
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Programs covered</legend>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               {PROGRAMS.map((program) => (
-                <label key={program} className="flex items-center gap-2 text-sm">
+                <label
+                  key={program}
+                  className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+                >
                   <input
                     type="checkbox"
                     checked={programsCovered.includes(program)}
                     onChange={() => toggleProgram(program)}
+                    className="size-4 cursor-pointer rounded border-input accent-primary"
                   />
                   {program}
                 </label>
               ))}
             </div>
           </fieldset>
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
             {isSubmitting ? "Saving..." : "Create MOA record"}
           </Button>
         </form>
