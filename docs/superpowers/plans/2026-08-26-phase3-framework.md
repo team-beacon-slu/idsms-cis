@@ -3210,13 +3210,20 @@ git commit -m "Phase 3 Stage E: nav entries for Attendance, Weekly Reports, Cale
 
 - [ ] **Step 1: Add coverage thresholds**
 
-In `jest.config.ts`'s `coverageThreshold` object, add entries scoped to the framework surface (RBAC/validation/wiring branches actually exercised by this plan's tests — not stub-body logic, which is TODO by design):
+In `jest.config.ts`'s `coverageThreshold` object, add entries scoped to the framework surface (RBAC/validation/wiring branches actually exercised by this plan's tests — not stub-body logic, which is TODO by design).
+
+**Correction from plan self-review (verified against the actual file
+before dispatch):** every existing key in this object uses a leading
+`./` (e.g. `"./src/lib/services/userService.ts"`) — an earlier draft of
+this task used bare paths, which Jest would silently fail to match
+against any file (the threshold would just never apply, not error).
+Use the same `./`-prefixed form:
 
 ```typescript
-"src/lib/services/attendanceService.ts": { statements: 40, branches: 30, functions: 40, lines: 40 },
-"src/lib/services/weeklyReportService.ts": { statements: 40, branches: 30, functions: 40, lines: 40 },
-"src/lib/services/monthlyReportService.ts": { statements: 50, branches: 30, functions: 50, lines: 50 },
-"src/lib/services/calendarService.ts": { statements: 40, branches: 30, functions: 40, lines: 40 },
+"./src/lib/services/attendanceService.ts": { statements: 40, branches: 30, functions: 40, lines: 40 },
+"./src/lib/services/weeklyReportService.ts": { statements: 40, branches: 30, functions: 40, lines: 40 },
+"./src/lib/services/monthlyReportService.ts": { statements: 50, branches: 30, functions: 50, lines: 50 },
+"./src/lib/services/calendarService.ts": { statements: 40, branches: 30, functions: 40, lines: 40 },
 ```
 
 (Thresholds are deliberately lower than Phase 1/2's 90/90/90/90 — those covered real business logic; this phase's service files are mostly TODO stub bodies by design, and the smoke tests already exercise every exported function once.)
