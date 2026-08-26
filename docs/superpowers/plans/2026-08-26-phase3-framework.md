@@ -3108,22 +3108,82 @@ git commit -m "Phase 3 Stage E: unified calendar page shell + F5 stub component"
 **Files:**
 
 - Modify: `src/app/(dashboard)/dashboard-nav.tsx`
+- Create: `src/app/(dashboard)/weekly-reports/page.tsx`
+- Create: `src/app/(dashboard)/attendance/page.tsx`
 
-**Interfaces:** none new — pure link additions.
+**Interfaces:** none new — pure link additions plus two thin redirect pages.
 
-- [ ] **Step 1: Read the current nav structure**
+**Correction from plan self-review (verified against the actual file before
+dispatch, not assumed):** `dashboard-nav.tsx` is NOT a link-array — it's
+inline JSX with per-section role conditionals (`{STAFF_ROLES.includes(role)
+&& <Link>...}`). "Checklist" and "Work Plan" are wrapped in `role ===
+Role.STUDENT_INTERN` because their redirect pages only resolve a
+`StudentProfile` for the _current_ user — a Faculty/Coordinator/Admin
+account has no `StudentProfile` row to redirect from. "Attendance" and
+"Weekly Reports" use the exact same redirect-page mechanism, so they must
+be **`STUDENT_INTERN`-only too**, not visible to all roles as an earlier
+draft of this task said. "Calendar" has no per-student resolution — it's
+genuinely role-agnostic and goes unconditionally next to "Companies"/"Profile".
 
-Run: `grep -n "href:" "src/app/(dashboard)/dashboard-nav.tsx"` to see the existing link-array shape before adding to it, and match its exact object structure (label/href/roles fields).
+- [ ] **Step 1: Create the two redirect pages**
 
-- [ ] **Step 2: Add the three new links**
+`src/app/(dashboard)/weekly-reports/page.tsx` (mirrors the existing
+`(dashboard)/checklist/page.tsx` exactly):
 
-Add entries for `{ label: "Attendance", href: (studentProfileId) => ... }`-style or the flat-path equivalent already used by "Companies"/"My Students" — add:
+```tsx
+import { redirect } from "next/navigation";
+import { requireUserPage } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 
-- "Weekly Reports" → `/weekly-reports` (thin redirect page resolving the current user's own `studentProfileId`, matching the existing `(dashboard)/checklist/page.tsx` redirect-page convention — create `src/app/(dashboard)/weekly-reports/page.tsx` that resolves `getCurrentUser()`'s own profile and redirects to `/students/[id]/weekly-reports`, same shape as the existing checklist redirect page).
-- "Attendance" → same redirect-page pattern, `src/app/(dashboard)/attendance/page.tsx`.
-- "Calendar" → `/calendar` directly (already role-agnostic, no redirect page needed), visible to all roles.
+// Thin redirect so a student never needs to know their own studentProfileId.
+export default async function OwnWeeklyReportsPage() {
+  const user = await requireUserPage();
+  const studentProfile = await prisma.studentProfile.findUnique({
+    where: { userId: user.id },
+    select: { id: true },
+  });
 
-Follow whatever conditional-visibility mechanism the existing "My Students" entry already uses (role array check) so "Attendance"/"Weekly Reports" show for all roles and "Calendar" shows for all roles.
+  if (!studentProfile) {
+    redirect("/");
+  }
+
+  redirect(`/students/${studentProfile.id}/weekly-reports`);
+}
+```
+
+`src/app/(dashboard)/attendance/page.tsx` (same pattern):
+
+```tsx
+import { redirect } from "next/navigation";
+import { requireUserPage } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
+
+// Thin redirect so a student never needs to know their own studentProfileId.
+export default async function OwnAttendancePage() {
+  const user = await requireUserPage();
+  const studentProfile = await prisma.studentProfile.findUnique({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+
+  if (!studentProfile) {
+    redirect("/");
+  }
+
+  redirect(`/students/${studentProfile.id}/attendance`);
+}
+```
+
+- [ ] **Step 2: Add the nav links**
+
+In `src/app/(dashboard)/dashboard-nav.tsx`, inside the existing `{role ===
+Role.STUDENT_INTERN && (<>...</>)}` block (the one currently containing the
+"Checklist" and "Work Plan" links), add "Attendance" and "Weekly Reports"
+as two more `<Link>` elements in that same fragment. Then add "Calendar" as
+an unconditional `<Link>` at the top level, next to the existing
+unconditional "Companies" link (before "Profile"). Match the exact
+className every other link in this file already uses:
+`"text-sm text-muted-foreground hover:underline"`.
 
 - [ ] **Step 3: Typecheck**
 
