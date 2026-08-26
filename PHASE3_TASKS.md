@@ -104,3 +104,21 @@ Total: 43
 `WorkPlan.scheduleConfig` (Json). **Confirmed: drop this column** in the Phase 3 schema diff,
 alongside whatever new fields the attendance/report/calendar models need. Not yet executed —
 this happens during the framework build (schema stage), not during task planning.
+
+## Wiring gap — flagged 2026-08-26 (final branch review)
+
+8 of the 43 stubs compile and have a smoke test but are **not yet reachable from any route
+or UI** — the framework build wired everything else in, but missed these:
+
+- **B2** `getHolidayCalendarForStudent` (#4) and **B3** `markHolidayApplicable` (#5) — no
+  holidays route exists at all.
+- **B32–B36** (#34–#38) — `/api/calendar` only calls `getUnifiedCalendarEvents` +
+  `colorCodeCalendarEvents`; the role-specific breakdown functions (student/faculty/
+  coordinator views, high-volume-week detection, endorsement-letter-spike detection) have
+  no branching point calling them.
+- **F7** `detectCopyPasteWarning` (#45) — referenced only in a comment inside F1
+  (`weekly-report-form.tsx`), never actually called.
+
+Each affected issue has a comment explaining what route/wiring the implementer needs to add
+alongside their stub's real logic — this wasn't in the original issue text, flagging it here
+so it isn't lost. Not blocking the Phase 3 framework PR; tracked as follow-up scope.
