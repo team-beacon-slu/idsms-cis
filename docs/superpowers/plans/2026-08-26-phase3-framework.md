@@ -358,7 +358,7 @@ git commit -m "Phase 3 Stage C: attendance and report zod validators"
 **Interfaces:**
 
 - Consumes: `assertCanAccessStudent(actingUser, studentProfileId)` from `@/lib/services/userService`; `logEvent(input, client?)` from `@/lib/services/auditService`; `prisma` from `@/lib/prisma`.
-- Produces: `ConfigureWorkScheduleInput`, `configureWorkSchedule`, `HolidayCalendarEntryDTO`, `getHolidayCalendarForStudent`, `markHolidayApplicable`, `SubmitDeviationReportInput`, `submitDeviationReport`, `listDeviationReportsForStudent`, `validateDeviationReport`, `computeTotalHoursRendered`, `computeProjectedCompletionDate`, `getRequiredHoursConfig`, `setRequiredHoursConfig`, `exportAttendanceLogCsv`, `RequestScheduleChangeInput`, `requestScheduleChange`, `validateScheduleChangeFaculty`, `approveScheduleChangeCoordinator`, `applyScheduleChangeProspectively`, `ScheduleChangeHistoryEntry`, `logScheduleChangeHistory` — consumed by Task 8–10's routes.
+- Produces: `ConfigureWorkScheduleInput`, `configureWorkSchedule`, `HolidayCalendarEntryDTO`, `getHolidayCalendarForStudent`, `markHolidayApplicable`, `SubmitDeviationReportInput`, `submitDeviationReport`, `listDeviationReportsForStudent`, `getDeviationReportStudentProfileId`, `validateDeviationReport`, `computeTotalHoursRendered`, `computeProjectedCompletionDate`, `getRequiredHoursConfig`, `setRequiredHoursConfig`, `exportAttendanceLogCsv`, `RequestScheduleChangeInput`, `requestScheduleChange`, `getWorkPlanStudentProfileId`, `validateScheduleChangeFaculty`, `approveScheduleChangeCoordinator`, `applyScheduleChangeProspectively`, `ScheduleChangeHistoryEntry`, `logScheduleChangeHistory` — consumed by Task 9–11's routes.
 
 - [ ] **Step 1: Write the failing smoke test**
 
@@ -372,8 +372,10 @@ import {
   computeTotalHoursRendered,
   configureWorkSchedule,
   exportAttendanceLogCsv,
+  getDeviationReportStudentProfileId,
   getHolidayCalendarForStudent,
   getRequiredHoursConfig,
+  getWorkPlanStudentProfileId,
   listDeviationReportsForStudent,
   logScheduleChangeHistory,
   markHolidayApplicable,
@@ -436,6 +438,26 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
   it("validateDeviationReport resolves without throwing", async () => {
     const result = await validateDeviationReport("dev-1", "faculty-1", "VALIDATE");
     expect(result.id).toBe("dev-1");
+  });
+
+  it("getDeviationReportStudentProfileId calls prisma with the right id", async () => {
+    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+    } as never);
+    await expect(getDeviationReportStudentProfileId("dev-1")).resolves.toBe("profile-1");
+    expect(prismaMock.deviationReport.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "dev-1" } })
+    );
+  });
+
+  it("getWorkPlanStudentProfileId calls prisma with the right id", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+    } as never);
+    await expect(getWorkPlanStudentProfileId("wp-1")).resolves.toBe("profile-1");
+    expect(prismaMock.workPlan.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "wp-1" } })
+    );
   });
 
   it("computeTotalHoursRendered resolves a number", async () => {
@@ -643,6 +665,21 @@ export async function listDeviationReportsForStudent(studentProfileId: string) {
   });
 }
 
+// Trivial read — not a stub. Resolves the owning student for a
+// DeviationReport id, same reason and same pattern as
+// `getWorkPlanStudentProfileId` below: a `deviationReportId` alone carries
+// no ownership information, so PATCH /api/deviations/[id]/validate
+// (Task 10) must call this before `assertCanAccessStudent`.
+export async function getDeviationReportStudentProfileId(
+  deviationReportId: string
+): Promise<string> {
+  const deviationReport = await prisma.deviationReport.findUniqueOrThrow({
+    where: { id: deviationReportId },
+    select: { studentProfileId: true },
+  });
+  return deviationReport.studentProfileId;
+}
+
 // FR-AT-04 — Owner: KennethRusselAvaricio
 // Requirement: all deviation reports must be validated by the faculty
 // adviser before affecting hour computation.
@@ -763,6 +800,20 @@ export interface RequestScheduleChangeInput {
   reason: string;
   newScheduleConfig: ConfigureWorkScheduleInput;
   supportingDocumentPath?: string;
+}
+
+// Trivial read — not a stub. Resolves the owning student for a WorkPlan id
+// so routes that only receive `workPlanId` (the two schedule-change review
+// routes below, Task 9) can call `assertCanAccessStudent` before acting —
+// same pre-flight fix as Task 12's `weeklyReportId`-only routes. Throws if
+// the WorkPlan doesn't exist, matching `findUniqueOrThrow`'s use elsewhere
+// in this codebase (see `companyService.updateMoaRecordStatus`).
+export async function getWorkPlanStudentProfileId(workPlanId: string): Promise<string> {
+  const workPlan = await prisma.workPlan.findUniqueOrThrow({
+    where: { id: workPlanId },
+    select: { studentProfileId: true },
+  });
+  return workPlan.studentProfileId;
 }
 
 // FR-AT-08 — Owner: Rhaastas (org invite pending — GitHub issue #13
@@ -890,7 +941,7 @@ export async function logScheduleChangeHistory(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx jest src/lib/services/attendanceService.test.ts`
-Expected: PASS, 15 stub smoke assertions + 1 real read test green.
+Expected: PASS, 15 stub smoke assertions + 3 real read tests green.
 
 - [ ] **Step 5: Commit**
 
@@ -1739,7 +1790,15 @@ git commit -m "Phase 3 Stage B: notificationService.ts sendReportStatusEmail stu
 
 **Interfaces:**
 
-- Consumes: `configureWorkSchedule`, `requestScheduleChange`, `validateScheduleChangeFaculty`, `approveScheduleChangeCoordinator` from Task 3; `scheduleConfigSchema`, `scheduleChangeRequestSchema`, `scheduleChangeReviewSchema` from Task 2; `requireUserApi`, `requireRole` from `@/lib/auth/session`; `handleApiError` from `@/lib/utils/apiError`.
+- Consumes: `configureWorkSchedule`, `requestScheduleChange`, `getWorkPlanStudentProfileId`, `validateScheduleChangeFaculty`, `approveScheduleChangeCoordinator` from Task 3; `scheduleConfigSchema`, `scheduleChangeRequestSchema`, `scheduleChangeReviewSchema` from Task 2; `requireUserApi`, `requireRole` from `@/lib/auth/session`; `assertCanAccessStudent` from `@/lib/services/userService`; `handleApiError` from `@/lib/utils/apiError`.
+
+**Ownership note (pre-flight fix):** `validateScheduleChangeFaculty` and
+`approveScheduleChangeCoordinator` take a `workPlanId`, which carries no
+ownership information by itself — same class of gap as Task 12's
+`weeklyReportId`-only routes. Both review routes below resolve the owning
+student via `getWorkPlanStudentProfileId` first, then call
+`assertCanAccessStudent` — otherwise a Faculty Adviser could approve/reject
+a schedule change for a student they are not assigned to.
 
 - [ ] **Step 1: Write the routes**
 
@@ -1787,16 +1846,24 @@ export async function PATCH(
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { validateScheduleChangeFaculty } from "@/lib/services/attendanceService";
+import {
+  getWorkPlanStudentProfileId,
+  validateScheduleChangeFaculty,
+} from "@/lib/services/attendanceService";
 import { scheduleChangeReviewSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-// FR-AT-09 step 1: Faculty Adviser only.
+// FR-AT-09 step 1: Faculty Adviser only, and only for a student they're
+// assigned to.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.FACULTY_ADVISER]);
+    const studentProfileId = await getWorkPlanStudentProfileId(params.id);
+    await assertCanAccessStudent(user, studentProfileId);
+
     const { action } = scheduleChangeReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await validateScheduleChangeFaculty(params.id, user.id, action, ipAddress);
@@ -1812,16 +1879,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { approveScheduleChangeCoordinator } from "@/lib/services/attendanceService";
+import {
+  approveScheduleChangeCoordinator,
+  getWorkPlanStudentProfileId,
+} from "@/lib/services/attendanceService";
 import { scheduleChangeReviewSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-// FR-AT-09 step 2: Department Coordinator/Admin only.
+// FR-AT-09 step 2: Department Coordinator/Admin only. `assertCanAccessStudent`
+// always passes for these two roles (see userService.ts) — kept here anyway
+// for the same reason every other student-record route keeps it: uniform
+// shape, and it becomes load-bearing again if a narrower Coordinator
+// scoping rule is ever introduced.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);
+    const studentProfileId = await getWorkPlanStudentProfileId(params.id);
+    await assertCanAccessStudent(user, studentProfileId);
+
     const { action } = scheduleChangeReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await approveScheduleChangeCoordinator(params.id, user.id, action, ipAddress);
@@ -1855,7 +1933,14 @@ git commit -m "Phase 3 Stage D: schedule + schedule-change routes (FR-AT-01, 08,
 
 **Interfaces:**
 
-- Consumes: `submitDeviationReport`, `listDeviationReportsForStudent`, `validateDeviationReport` from Task 3; `deviationReportSchema`, `deviationValidateSchema` from Task 2; `assertCanAccessStudent` from `@/lib/services/userService`.
+- Consumes: `submitDeviationReport`, `listDeviationReportsForStudent`, `getDeviationReportStudentProfileId`, `validateDeviationReport` from Task 3; `deviationReportSchema`, `deviationValidateSchema` from Task 2; `assertCanAccessStudent` from `@/lib/services/userService`.
+
+**Ownership note (pre-flight fix):** `validateDeviationReport` takes a
+`deviationReportId`, which carries no ownership information by itself —
+same class of gap as Task 9/12's id-only routes. The validate route below
+resolves the owning student via `getDeviationReportStudentProfileId` first,
+then calls `assertCanAccessStudent` — otherwise a Faculty Adviser could
+validate/reject a deviation report for a student they are not assigned to.
 
 - [ ] **Step 1: Write the routes**
 
@@ -1903,18 +1988,27 @@ export async function GET(req: NextRequest, { params }: { params: { studentProfi
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { validateDeviationReport } from "@/lib/services/attendanceService";
+import {
+  getDeviationReportStudentProfileId,
+  validateDeviationReport,
+} from "@/lib/services/attendanceService";
 import { deviationValidateSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
-// FR-AT-04: Faculty/Coordinator/Admin only.
+// FR-AT-04: Faculty/Coordinator/Admin only, and only for a student they're
+// assigned to (Faculty) or always (Coordinator/Admin) — see
+// assertCanAccessStudent in userService.ts.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUserApi();
     requireRole(user, STAFF_ROLES);
+    const studentProfileId = await getDeviationReportStudentProfileId(params.id);
+    await assertCanAccessStudent(user, studentProfileId);
+
     const { action } = deviationValidateSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await validateDeviationReport(params.id, user.id, action, ipAddress);
@@ -2113,10 +2207,26 @@ export async function GET(req: NextRequest, { params }: { params: { studentProfi
 }
 ```
 
+**Ownership note (pre-flight fix, applies to every route below except the
+list route above):** a `weeklyReportId` alone carries no ownership
+information, so every route in this file that receives one must resolve
+its owning student via `getWeeklyReport` FIRST, then call
+`assertCanAccessStudent(user, report.studentProfileId)` — exactly the same
+requirement Global Constraints already states for every student-record
+route, just non-obvious here because the URL param is a report id, not a
+`studentProfileId`. Skipping this lets any authenticated user read or
+mutate any other student's weekly report by guessing/incrementing its id.
+Routes restricted to "student self-only" by their FR (WR-03, WR-05, WR-09,
+WR-10) additionally need `requireRole(user, [Role.STUDENT_INTERN])` —
+`assertCanAccessStudent` alone would also let assigned Faculty and any
+Coordinator/Admin through, which is correct for read access elsewhere but
+wrong for these write-your-own-hours actions.
+
 `src/app/api/weekly-reports/[id]/route.ts`:
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
+import { Role } from "@prisma/client";
 import {
   calculateRunningTotalAndRemaining,
   calculateWeeklyTotalHours,
@@ -2124,16 +2234,18 @@ import {
   saveDailyAccomplishment,
 } from "@/lib/services/weeklyReportService";
 import { dailyEntrySchema } from "@/lib/validators/report";
-import { requireUserApi } from "@/lib/auth/session";
+import { requireRole, requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireUserApi();
+    const user = await requireUserApi();
     const report = await getWeeklyReport(params.id);
     if (!report) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    await assertCanAccessStudent(user, report.studentProfileId);
     return NextResponse.json(report);
   } catch (error) {
     return handleApiError(error);
@@ -2142,16 +2254,23 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 // FR-WR-03: student self-only daily-entry write. Body must include
 // `dailyReportEntryId` alongside the validated hours/accomplishments.
-// Recomputes and returns live totals (FR-WR-02) after every save so the
-// client form can show an up-to-date running total without a page reload.
+// `studentProfileId` for the totals recompute comes from the fetched
+// report row, never the request body — a body-supplied studentProfileId
+// would be spoofable. Recomputes and returns live totals (FR-WR-02) after
+// every save so the client form can show an up-to-date running total
+// without a page reload.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUserApi();
+    requireRole(user, [Role.STUDENT_INTERN]);
+    const report = await getWeeklyReport(params.id);
+    if (!report) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    await assertCanAccessStudent(user, report.studentProfileId);
+
     const body = await req.json();
-    const { dailyReportEntryId, studentProfileId } = body as {
-      dailyReportEntryId: string;
-      studentProfileId: string;
-    };
+    const { dailyReportEntryId } = body as { dailyReportEntryId: string };
     const { hours, accomplishments } = dailyEntrySchema.parse(body);
 
     const entry = await saveDailyAccomplishment(
@@ -2162,7 +2281,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     );
     const totalHours = await calculateWeeklyTotalHours(params.id);
     const { runningTotal, remainingHours } = await calculateRunningTotalAndRemaining(
-      studentProfileId,
+      report.studentProfileId,
       params.id
     );
 
@@ -2177,14 +2296,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-import { generateReportPdfPreview } from "@/lib/services/weeklyReportService";
-import { requireUserApi } from "@/lib/auth/session";
+import { Role } from "@prisma/client";
+import { generateReportPdfPreview, getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { requireRole, requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-09: student self-only preview before final submission.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireUserApi();
+    const user = await requireUserApi();
+    requireRole(user, [Role.STUDENT_INTERN]);
+    const report = await getWeeklyReport(params.id);
+    if (!report) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    await assertCanAccessStudent(user, report.studentProfileId);
     const result = await generateReportPdfPreview(params.id);
     return NextResponse.json(result);
   } catch (error) {
@@ -2197,16 +2324,28 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-import { generateReportReferenceCode } from "@/lib/services/weeklyReportService";
-import { validateLateSubmissionReason } from "@/lib/services/weeklyReportService";
+import { Role } from "@prisma/client";
+import {
+  generateReportReferenceCode,
+  getWeeklyReport,
+  validateLateSubmissionReason,
+} from "@/lib/services/weeklyReportService";
 import { weeklyReportSubmitSchema } from "@/lib/validators/report";
-import { requireUserApi } from "@/lib/auth/session";
+import { requireRole, requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-05 + FR-WR-10: student self-only.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireUserApi();
+    const user = await requireUserApi();
+    requireRole(user, [Role.STUDENT_INTERN]);
+    const report = await getWeeklyReport(params.id);
+    if (!report) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    await assertCanAccessStudent(user, report.studentProfileId);
+
     const { reasonForDelay } = weeklyReportSubmitSchema.parse(await req.json());
     await validateLateSubmissionReason(params.id, reasonForDelay);
     const result = await generateReportReferenceCode(params.id);
@@ -2223,6 +2362,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import {
+  getWeeklyReport,
   reviewWeeklyReport_Approve,
   reviewWeeklyReport_Disregard,
   reviewWeeklyReport_Regard,
@@ -2231,13 +2371,23 @@ import {
 import { sendReportStatusEmail } from "@/lib/services/notificationService";
 import { weeklyReportReviewSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-// FR-WR-06: Faculty only, dispatches on `action`.
+// FR-WR-06: Faculty only, and only for a student they're assigned to
+// (assertCanAccessStudent's FACULTY_ADVISER branch checks
+// FacultyClassGroup — same rule Phase 2's checklist review route uses).
+// Dispatches on `action`.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.FACULTY_ADVISER]);
+    const report = await getWeeklyReport(params.id);
+    if (!report) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    await assertCanAccessStudent(user, report.studentProfileId);
+
     const { action, notes } = weeklyReportReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
 
@@ -2704,9 +2854,13 @@ import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { Role } from "@prisma/client";
 import { getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WeeklyReportReviewActions } from "./review-actions";
 
+// Ownership note (pre-flight fix): a role check alone isn't enough — a
+// Faculty Adviser must also be assigned to this specific student (same
+// FacultyClassGroup rule every other review surface in this plan enforces).
 export default async function WeeklyReportReviewPage({
   params,
 }: {
@@ -2715,6 +2869,15 @@ export default async function WeeklyReportReviewPage({
   const user = await requireUserPage();
   if (user.role !== Role.FACULTY_ADVISER) {
     redirect("/");
+  }
+
+  try {
+    await assertCanAccessStudent(user, params.studentProfileId);
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      redirect("/");
+    }
+    throw error;
   }
 
   const report = await getWeeklyReport(params.weeklyReportId);
