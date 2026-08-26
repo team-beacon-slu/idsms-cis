@@ -3,12 +3,13 @@ import { Role } from "@prisma/client";
 import {
   calculateRunningTotalAndRemaining,
   calculateWeeklyTotalHours,
+  getDailyReportEntryWeeklyReportId,
   getWeeklyReport,
   saveDailyAccomplishment,
 } from "@/lib/services/weeklyReportService";
 import { dailyEntrySchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -43,8 +44,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await assertCanAccessStudent(user, report.studentProfileId);
 
     const body = await req.json();
-    const { dailyReportEntryId } = body as { dailyReportEntryId: string };
-    const { hours, accomplishments } = dailyEntrySchema.parse(body);
+    const { dailyReportEntryId, hours, accomplishments } = dailyEntrySchema.parse(body);
+
+    const entryWeeklyReportId = await getDailyReportEntryWeeklyReportId(dailyReportEntryId);
+    if (entryWeeklyReportId !== params.id) {
+      throw new ForbiddenError("This daily entry does not belong to this weekly report");
+    }
 
     const entry = await saveDailyAccomplishment(
       dailyReportEntryId,

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Role } from "@prisma/client";
 import {
   checkMonthlyAggregationEligibility,
   listMonthlyReportsForStudent,
   submitMonthlyReport,
 } from "@/lib/services/monthlyReportService";
 import { monthlyReportSchema } from "@/lib/validators/report";
-import { requireUserApi } from "@/lib/auth/session";
+import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
@@ -13,6 +14,7 @@ import { handleApiError } from "@/lib/utils/apiError";
 export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
   try {
     const user = await requireUserApi();
+    requireRole(user, [Role.STUDENT_INTERN]);
     await assertCanAccessStudent(user, params.studentProfileId);
     const { calendarMonth } = monthlyReportSchema.parse(await req.json());
 

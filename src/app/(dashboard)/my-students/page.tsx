@@ -75,6 +75,21 @@ export default async function MyStudentsPage() {
                   <Link href={`/students/${student.id}/work-plan`} className="text-sm underline">
                     Work Plan
                   </Link>
+                  <Link href={`/students/${student.id}/attendance`} className="text-sm underline">
+                    Attendance
+                  </Link>
+                  <Link
+                    href={`/students/${student.id}/weekly-reports`}
+                    className="text-sm underline"
+                  >
+                    Weekly Reports
+                  </Link>
+                  <Link
+                    href={`/students/${student.id}/monthly-reports`}
+                    className="text-sm underline"
+                  >
+                    Monthly Reports
+                  </Link>
                 </TableCell>
               </TableRow>
             ))}

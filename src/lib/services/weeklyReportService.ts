@@ -235,3 +235,23 @@ export async function getWeeklyReport(weeklyReportId: string) {
     include: { dailyEntries: true },
   });
 }
+
+// Trivial read — not a stub. Resolves the owning WeeklyReport for a
+// DailyReportEntry id, same reason and same pattern as
+// `attendanceService.getWorkPlanStudentProfileId`: a `dailyReportEntryId`
+// alone carries no ownership information, so PATCH /api/weekly-reports/[id]
+// (Task 12 route) must call this and compare against `params.id` before
+// calling `saveDailyAccomplishment` — otherwise a caller who legitimately
+// owns one WeeklyReport could write into another student's daily entry row
+// by supplying its id in the request body. Throws if the DailyReportEntry
+// doesn't exist, matching `findUniqueOrThrow`'s use elsewhere in this
+// codebase (see `companyService.updateMoaRecordStatus`).
+export async function getDailyReportEntryWeeklyReportId(
+  dailyReportEntryId: string
+): Promise<string> {
+  const dailyReportEntry = await prisma.dailyReportEntry.findUniqueOrThrow({
+    where: { id: dailyReportEntryId },
+    select: { weeklyReportId: true },
+  });
+  return dailyReportEntry.weeklyReportId;
+}

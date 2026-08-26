@@ -6,6 +6,7 @@ import {
   generateReportPdfPreview,
   generateReportReferenceCode,
   generateWeeklyReportForm,
+  getDailyReportEntryWeeklyReportId,
   getWeeklyReport,
   listWeeklyReportsForStudent,
   reviewWeeklyReport_Approve,
@@ -88,6 +89,17 @@ describe("weeklyReportService stubs — reachable and wired correctly", () => {
     await getWeeklyReport("wr-1");
     expect(prismaMock.weeklyReport.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "wr-1" } })
+    );
+  });
+
+  it("getDailyReportEntryWeeklyReportId resolves the owning weekly report id", async () => {
+    prismaMock.dailyReportEntry.findUniqueOrThrow.mockResolvedValue({
+      weeklyReportId: "wr-1",
+    } as never);
+    const result = await getDailyReportEntryWeeklyReportId("entry-1");
+    expect(result).toBe("wr-1");
+    expect(prismaMock.dailyReportEntry.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "entry-1" } })
     );
   });
 });

@@ -232,7 +232,8 @@ export async function computeProjectedCompletionDate(
 // Requirement: required completion hours per program must be configurable
 // via the admin interface, never hardcoded.
 // Connects to: called by GET /api/config/required-hours (Task 11). Reads
-// `SystemConfig.configValue` (Json) where `configKey === REQUIRED_HOURS_CONFIG_KEY(program)`
+// `SystemConfig.configValue` (Json) where `configKey` equals a
+// program-specific key (see the key-builder note above)
 // (`system_config` table, unique on `configKey`).
 // Edge cases: fall back to a documented default only if unset — don't throw.
 export async function getRequiredHoursConfig(program: Program): Promise<number> {
@@ -246,7 +247,7 @@ export async function getRequiredHoursConfig(program: Program): Promise<number> 
 // Connects to: called by PATCH /api/config/required-hours (Task 11,
 // Super Admin only — enforced by the route's `requireRole`, this function
 // trusts that gate the same way `companyService.updateCompany` does).
-// Upserts `SystemConfig` at `REQUIRED_HOURS_CONFIG_KEY(program)`.
+// Upserts `SystemConfig` at a program-specific key (see the key-builder note above).
 // Edge cases: must NOT retroactively alter already-provisioned
 // `StudentProfile.requiredHours` values (those are set once, at bulk-import
 // time, per Phase 1's `userService.bulkImportStudents`) — this only changes

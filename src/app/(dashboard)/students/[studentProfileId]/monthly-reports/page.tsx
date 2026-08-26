@@ -22,7 +22,8 @@ export default async function MonthlyReportsPage({
   }
 
   const reports = await listMonthlyReportsForStudent(params.studentProfileId);
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   return (
     <Card>

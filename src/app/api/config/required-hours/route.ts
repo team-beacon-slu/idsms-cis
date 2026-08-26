@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { Program, Role } from "@prisma/client";
 import { getRequiredHoursConfig, setRequiredHoursConfig } from "@/lib/services/attendanceService";
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
@@ -9,10 +10,11 @@ export async function GET(req: NextRequest) {
   try {
     await requireUserApi();
     const url = new URL(req.url);
-    const program = url.searchParams.get("program") as Program | null;
-    if (!program) {
-      return NextResponse.json({ error: "Missing program query param" }, { status: 400 });
+    const parsed = z.enum(Program).safeParse(url.searchParams.get("program"));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid or missing program" }, { status: 400 });
     }
+    const program = parsed.data;
     const hours = await getRequiredHoursConfig(program);
     return NextResponse.json({ program, hours });
   } catch (error) {

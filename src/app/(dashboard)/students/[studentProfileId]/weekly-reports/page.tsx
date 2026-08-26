@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { listWeeklyReportsForStudent } from "@/lib/services/weeklyReportService";
@@ -22,6 +23,8 @@ export default async function WeeklyReportsPage({
   }
 
   const reports = await listWeeklyReportsForStudent(params.studentProfileId);
+  const isOwner = user.role === "STUDENT_INTERN";
+  const canReview = !isOwner;
 
   return (
     <Card>
@@ -30,7 +33,17 @@ export default async function WeeklyReportsPage({
       </CardHeader>
       <CardContent className="space-y-4">
         {reports.map((report) => (
-          <WeeklyReportForm key={report.id} weeklyReportId={report.id} />
+          <div key={report.id} className="space-y-2">
+            <WeeklyReportForm weeklyReportId={report.id} />
+            {canReview && (
+              <Link
+                href={`/students/${params.studentProfileId}/weekly-reports/${report.id}/review`}
+                className="text-sm underline"
+              >
+                Review
+              </Link>
+            )}
+          </div>
         ))}
       </CardContent>
     </Card>
