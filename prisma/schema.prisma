@@ -211,7 +211,6 @@ model StudentProfile {
   classGroupId         String    @map("class_group_id") @db.Uuid
   semesterId           String    @map("semester_id") @db.Uuid
   companyId            String?   @map("company_id") @db.Uuid
-  scheduleId           String?   @map("schedule_id") @db.Uuid
   requiredHours        Int       @map("required_hours")
   renderedHours         Decimal   @default(0) @map("rendered_hours") @db.Decimal(6, 2)
   internshipFaceType    String?   @map("internship_face_type")
@@ -432,6 +431,10 @@ model GeneratedDocument {
   documentType     DocumentType   @map("document_type")
   fileUrl          String?        @map("file_url")
   referenceCode    String?        @unique @map("reference_code")
+  // Disambiguates which week/month a WEEKLY_REPORT or MONTHLY_REPORT row
+  // represents (e.g. "2026-08-24" for a week-start, "2026-08" for a
+  // calendar month). Null for ENDORSEMENT_LETTER/FINAL_REPORT_COVER.
+  periodLabel      String?        @map("period_label")
   generatedAt      DateTime?      @map("generated_at")
   status           DocumentStatus @default(PENDING_DRAFT)
 

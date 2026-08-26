@@ -26,6 +26,9 @@ export function DashboardNav({ role }: { role: Role }) {
         <Link href="/companies" className="text-sm text-muted-foreground hover:underline">
           Companies
         </Link>
+        <Link href="/calendar" className="text-sm text-muted-foreground hover:underline">
+          Calendar
+        </Link>
         {MY_STUDENTS_ROLES.includes(role) && (
           <Link href="/my-students" className="text-sm text-muted-foreground hover:underline">
             My Students
@@ -38,6 +41,12 @@ export function DashboardNav({ role }: { role: Role }) {
             </Link>
             <Link href="/work-plan" className="text-sm text-muted-foreground hover:underline">
               Work Plan
+            </Link>
+            <Link href="/attendance" className="text-sm text-muted-foreground hover:underline">
+              Attendance
+            </Link>
+            <Link href="/weekly-reports" className="text-sm text-muted-foreground hover:underline">
+              Weekly Reports
             </Link>
           </>
         )}
