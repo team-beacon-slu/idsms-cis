@@ -9,8 +9,12 @@ import {
   ValidationStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { logEvent } from "@/lib/services/auditService";
 import { assertCanAccessStudent } from "@/lib/services/userService";
+
+// `logEvent` from "@/lib/services/auditService" is intentionally not
+// imported yet — no stub body below calls it (they're all placeholders).
+// Import it when implementing the real logic behind any mutation stub; an
+// unused import fails this project's ESLint no-unused-vars rule.
 
 export interface ConfigureWorkScheduleInput {
   daysOfWeek: number[]; // 0=Sunday..6=Saturday
@@ -217,7 +221,12 @@ export async function computeProjectedCompletionDate(
   return null;
 }
 
-const REQUIRED_HOURS_CONFIG_KEY = (program: Program) => `required_hours:${program}`;
+// `REQUIRED_HOURS_CONFIG_KEY` is intentionally not defined yet — no stub
+// body below calls it (they're all placeholders); an unused top-level
+// const fails ESLint no-unused-vars the same way the removed `logEvent`
+// import did. Define it as `(program: Program) => \`required_hours:${program}\``
+// when implementing the real logic behind `getRequiredHoursConfig` or
+// `setRequiredHoursConfig` below — both should share the same key builder.
 
 // FR-AT-06 — Owner: 2215428-sys (Gillian)
 // Requirement: required completion hours per program must be configurable
