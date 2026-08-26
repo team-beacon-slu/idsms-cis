@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoaStatus } from "@prisma/client";
 import { toast } from "sonner";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // FR-MOA-04's lifecycle is a strict allow-list (see companyService's
@@ -42,16 +43,24 @@ export function MoaStatusActions({
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       {nextStatuses.map((status) => (
         <Button
           key={status}
           size="sm"
           variant="outline"
+          className="cursor-pointer gap-1.5"
           disabled={isPending}
           onClick={() => advance(status)}
         >
-          {isPending ? "Saving..." : status}
+          {isPending ? (
+            "Saving..."
+          ) : (
+            <>
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+              {status}
+            </>
+          )}
         </Button>
       ))}
     </div>

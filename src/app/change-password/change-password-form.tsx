@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { changePasswordSchema } from "@/lib/validators/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,8 +85,14 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
               <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
             )}
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {error && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
+            </div>
+          )}
+          <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {isSubmitting ? "Saving..." : "Save password"}
           </Button>
         </form>

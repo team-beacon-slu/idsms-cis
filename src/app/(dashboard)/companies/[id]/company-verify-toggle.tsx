@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ShieldCheck, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function CompanyVerifyToggle({
@@ -32,7 +33,18 @@ export function CompanyVerifyToggle({
   }
 
   return (
-    <Button size="sm" variant="outline" disabled={isPending} onClick={toggle}>
+    <Button
+      size="sm"
+      variant="outline"
+      className="cursor-pointer gap-1.5"
+      disabled={isPending}
+      onClick={toggle}
+    >
+      {isVerified ? (
+        <ShieldOff className="size-3.5" aria-hidden="true" />
+      ) : (
+        <ShieldCheck className="size-3.5" aria-hidden="true" />
+      )}
       {isPending ? "Saving..." : isVerified ? "Unverify" : "Verify"}
     </Button>
   );
