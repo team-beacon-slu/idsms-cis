@@ -80,6 +80,9 @@ export function verifyDownloadSig(bucket: string, path: string, exp: number, sig
 
 // Not a real S3 presigned URL — a same-origin link to our own proxy route
 // (Option B). MinIO is never exposed to the browser.
+// Returns a same-origin *relative* URL: fine for the browser `window.open`
+// caller, but a future server-side caller (e.g. emailing a link) must prepend
+// the origin (NEXTAUTH_URL) to make it absolute.
 export async function getSignedUrl(
   bucket: string,
   path: string,

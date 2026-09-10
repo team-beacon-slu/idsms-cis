@@ -60,7 +60,8 @@ in `deploy.yml`:
 1. Merge the change to `main` (PR review as usual).
 2. GitHub Actions runs **Deploy**: `validate` (full CI) → `build-and-push`
    (image tagged `sha-<sha>` **and** `stable`) → `deploy` (SSH to the VM,
-   `docker compose --env-file .env.deploy pull app`, then `up -d --wait`).
+   `docker compose --env-file .env --env-file .env.deploy pull app`, then
+   `up -d --wait` — both env-files, see §4.3).
 3. `--wait` blocks on the `app` container healthcheck (`/api/health`). A failed
    healthcheck fails the workflow; the previous container keeps serving because
    Compose only swaps it once the new one is healthy.
@@ -84,8 +85,10 @@ ssh <VM_SSH_USER>@<VM_HOST>
 cd /opt/idsms
 # list what GHCR has, or read a prior green run's "build-and-push" log for its sha- tag
 echo "IMAGE_TAG=sha-<prior-good-sha>" > .env.deploy
-docker compose --env-file .env.deploy pull app
-docker compose --env-file .env.deploy up -d --wait
+# both env-files: --env-file suppresses the automatic .env load, and minio
+# re-reads MINIO_ROOT_* on every start (see §4.3)
+docker compose --env-file .env --env-file .env.deploy pull app
+docker compose --env-file .env --env-file .env.deploy up -d --wait
 curl -fsS http://localhost:3000/api/health   # {"status":"ok"}
 ```
 
@@ -146,16 +149,17 @@ MINIO_ROOT_PASSWORD=<minio admin password, >= 8 chars>
 IMAGE_TAG=stable
 ```
 
-> **Known gap (tracked):** the deploy job runs
-> `docker compose --env-file .env.deploy …` and writes `.env.deploy` with only
-> `IMAGE_TAG`. Compose then ignores the default `.env`, so `POSTGRES_PASSWORD` /
-> `MINIO_ROOT_*` are not interpolated during an automated deploy. Mitigations,
-> pick one at cutover: (a) change the `deploy.yml` SSH script to
-> `docker compose --env-file .env --env-file .env.deploy …` (Compose merges
-> multiple env-files, last wins); or (b) export those three vars in the deploy
-> user's environment. `postgres` and `minio` only read their credential vars at
-> first-init, but `minio` re-reads `MINIO_ROOT_*` on every start, so leaving this
-> unaddressed will break `minio` on the next container recreate.
+> **Resolved in `deploy.yml`:** the deploy job writes `.env.deploy` with only
+> `IMAGE_TAG`. Naming `--env-file` at all suppresses Compose's automatic `.env`
+> load, so `.env.deploy` alone would leave `POSTGRES_PASSWORD` / `MINIO_ROOT_*`
+> un-interpolated during an automated deploy — and while `postgres` and `minio`
+> only read their credential vars at first-init, `minio` re-reads `MINIO_ROOT_*`
+> on every start, so an empty value breaks `minio` on the next container
+> recreate. The SSH script therefore passes **both** files —
+> `docker compose --env-file .env --env-file .env.deploy …` — so `.env` still
+> supplies the credential vars while `.env.deploy` supplies `IMAGE_TAG` (Compose
+> v2 merges repeated `--env-file`, last wins on overlap). Keep both `.env` and
+> `.env.deploy` present in `/opt/idsms`.
 
 ### 4.4 Applying a secret change
 
@@ -248,7 +252,7 @@ pushed **off the VM** (institutional object storage / OneDrive / Backblaze via
 ```cron
 # m  h  dom mon dow  user            command
 30 2   *   *   *     <VM_SSH_USER>   cd /opt/idsms && docker compose exec -T postgres pg_dump -U idsms -Fc idsms > /opt/idsms/backups/db/idsms-$(date +\%Y\%m\%d).dump 2>> /opt/idsms/backups/backup.log && find /opt/idsms/backups/db -name 'idsms-*.dump' -mtime +14 -delete
-45 2   *   *   *     <VM_SSH_USER>   docker run --rm --network idsms_net -v /opt/idsms/backups:/bk --entrypoint sh minio/mc:latest -c "mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && mc mirror --overwrite --remove local/checklist-documents /bk/minio/checklist-documents && mc mirror --overwrite --remove local/moa-documents /bk/minio/moa-documents" >> /opt/idsms/backups/backup.log 2>&1
+45 2   *   *   *     <VM_SSH_USER>   docker run --rm --network idsms_net -v /opt/idsms/backups:/bk --entrypoint sh minio/mc:latest -c "mc alias set local http://minio:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\" && mc mirror --overwrite --remove local/checklist-documents /bk/minio/checklist-documents && mc mirror --overwrite --remove local/moa-documents /bk/minio/moa-documents" >> /opt/idsms/backups/backup.log 2>&1
 15 3   *   *   *     <VM_SSH_USER>   rclone sync /opt/idsms/backups offsite:idsms-backups --backup-dir offsite:idsms-backups-history/$(date +\%F) >> /opt/idsms/backups/backup.log 2>&1
 ```
 
@@ -281,7 +285,7 @@ curl -fsS http://localhost:3000/api/health
 
 ```bash
 docker run --rm --network idsms_net -v /opt/idsms/backups:/bk --entrypoint sh minio/mc:latest -c "\
-  mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && \
+  mc alias set local http://minio:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\" && \
   mc mirror --overwrite /bk/minio/checklist-documents local/checklist-documents && \
   mc mirror --overwrite /bk/minio/moa-documents      local/moa-documents"
 ```

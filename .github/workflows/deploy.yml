@@ -23,6 +23,7 @@ jobs:
   build-and-push:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -34,7 +35,19 @@ jobs:
         env:
           IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
           GH_SHA: ${{ github.sha }}
-        run: echo "value=${IMAGE_TAG_INPUT:-sha-$GH_SHA}" >> "$GITHUB_OUTPUT"
+        run: |
+          # Guard the manual dispatch input: only an immutable sha- tag is a
+          # valid roll-back/forward target. Reject anything else before it can
+          # reach `docker build` tags or the deploy SSH script.
+          case "$IMAGE_TAG_INPUT" in
+            "") : ;;  # empty → fall through to the sha-$GH_SHA default
+            *)
+              if ! printf '%s' "$IMAGE_TAG_INPUT" | grep -Eq '^sha-[0-9a-fA-F]{7,40}$'; then
+                echo "::error::invalid image_tag" && exit 1
+              fi
+              ;;
+          esac
+          echo "value=${IMAGE_TAG_INPUT:-sha-$GH_SHA}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -68,5 +81,11 @@ jobs:
             set -euo pipefail
             cd /opt/idsms
             echo "IMAGE_TAG=$IMAGE_TAG" > .env.deploy
-            docker compose --env-file .env.deploy pull app
-            docker compose --env-file .env.deploy up -d --wait
+            # Pass BOTH env-files: naming --env-file at all suppresses Compose's
+            # automatic .env load, so .env.deploy alone would blank out
+            # ${POSTGRES_PASSWORD} / ${MINIO_ROOT_USER} / ${MINIO_ROOT_PASSWORD}
+            # in docker-compose.yml (minio re-reads those every start and would
+            # fail to recreate). Compose v2 merges repeated --env-file, last wins
+            # on overlap, so .env.deploy's IMAGE_TAG still takes precedence.
+            docker compose --env-file .env --env-file .env.deploy pull app
+            docker compose --env-file .env --env-file .env.deploy up -d --wait

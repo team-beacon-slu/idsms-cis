@@ -366,8 +366,13 @@ Only after Stage 8 is stable:
 2. Confirm the repo Actions secrets exist: `VM_HOST`, `VM_SSH_USER`,
    `VM_SSH_PRIVATE_KEY` (see [`OPERATIONS.md` §4.1](../../OPERATIONS.md#41-github-repo-actions-secrets)).
 3. Confirm `/opt/idsms` has `docker-compose.yml`, `Caddyfile`, `.env.production`,
-   and `.env` (and resolve the `.env` / `--env-file` gap noted in
-   [`OPERATIONS.md` §4.3](../../OPERATIONS.md#43-on-the-vm--optidsmsenv-compose-only-interpolation-not-read-by-the-app)).
+   and `.env`. The `.env` / `--env-file` interpolation gap is **resolved in
+   `deploy.yml`**: the SSH script passes both `--env-file .env` and
+   `--env-file .env.deploy` (naming `--env-file` at all suppresses Compose's
+   automatic `.env` load, and `minio` re-reads `MINIO_ROOT_*` on every start, so
+   `.env` must still be supplied alongside the `IMAGE_TAG`-only `.env.deploy`).
+   Both files just need to be present — see
+   [`OPERATIONS.md` §4.3](../../OPERATIONS.md#43-on-the-vm--optidsmsenv-compose-only-interpolation-not-read-by-the-app).
 4. Merge a trivial no-op commit to `main`; watch **Actions → Deploy** run
    `validate → build-and-push → deploy` and finish on a green
    `docker compose up -d --wait`.

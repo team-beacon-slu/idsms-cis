@@ -27,6 +27,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+# Next's output-file-tracing usually bundles the generated Prisma client +
+# query-engine binary into .next/standalone, but that is fragile — copy it
+# explicitly so `node server.js` always finds the engine.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

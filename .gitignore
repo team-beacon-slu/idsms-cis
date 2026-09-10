@@ -56,3 +56,6 @@ skills-lock.json
 
 # superpowers SDD scratch
 .superpowers/
+
+# Local-only test-credential file — real rows in the shared dev DB, never commit
+TEST_ACCOUNTS.md
