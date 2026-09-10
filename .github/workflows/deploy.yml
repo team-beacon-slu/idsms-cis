@@ -1,8 +1,8 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
+  # push:
+  #   branches: [main]   # Uncomment on VM cutover — see docs/migration/from-supabase.md step 12
   workflow_dispatch:
     inputs:
       image_tag:
@@ -12,6 +12,9 @@ on:
 concurrency:
   group: deploy-production
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   validate:
@@ -28,7 +31,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: tag
-        run: echo "value=${{ inputs.image_tag || format('sha-{0}', github.sha) }}" >> "$GITHUB_OUTPUT"
+        env:
+          IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
+          GH_SHA: ${{ github.sha }}
+        run: echo "value=${IMAGE_TAG_INPUT:-sha-$GH_SHA}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -47,16 +53,20 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: SSH deploy
+      - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.tag }}
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_SSH_USER }}
           key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG
           script: |
             set -euo pipefail
             cd /opt/idsms
-            echo "IMAGE_TAG=${{ needs.build-and-push.outputs.tag }}" > .env.deploy
+            echo "IMAGE_TAG=$IMAGE_TAG" > .env.deploy
             docker compose --env-file .env.deploy pull app
             docker compose --env-file .env.deploy up -d --wait
