@@ -84,4 +84,33 @@ describe("GET /api/storage/download (Option B proxy)", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(res.body).toBeTruthy();
   });
+
+  it("403s on a non-numeric exp without calling S3", async () => {
+    const sig = "ignored";
+    const res = await GET(makeReq({ b: CHECKLIST_BUCKET, k: "profile-1/x.pdf", exp: "abc", sig }));
+    expect(res.status).toBe(403);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("404s when S3 returns no Body", async () => {
+    mockSend.mockResolvedValue({ ContentType: "application/pdf" });
+    const exp = nowSec() + 300;
+    const sig = signDownload(CHECKLIST_BUCKET, "profile-1/x.pdf", exp);
+    const res = await GET(
+      makeReq({ b: CHECKLIST_BUCKET, k: "profile-1/x.pdf", exp: String(exp), sig })
+    );
+    expect(res.status).toBe(404);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("404s when S3 send rejects", async () => {
+    mockSend.mockRejectedValue(new Error("NoSuchKey"));
+    const exp = nowSec() + 300;
+    const sig = signDownload(CHECKLIST_BUCKET, "profile-1/x.pdf", exp);
+    const res = await GET(
+      makeReq({ b: CHECKLIST_BUCKET, k: "profile-1/x.pdf", exp: String(exp), sig })
+    );
+    expect(res.status).toBe(404);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
 });

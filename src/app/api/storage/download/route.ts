@@ -13,7 +13,15 @@ export async function GET(req: NextRequest) {
   const exp = Number(p.get("exp"));
   const sig = p.get("sig") ?? "";
 
-  if (!ALLOWED_BUCKETS.has(bucket) || !key || !verifyDownloadSig(bucket, key, exp, sig)) {
+  // Verify signature; if NEXTAUTH_SECRET is unset, createHmac throws — fail closed.
+  let sigValid = false;
+  try {
+    sigValid = verifyDownloadSig(bucket, key, exp, sig);
+  } catch {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  if (!ALLOWED_BUCKETS.has(bucket) || !key || !sigValid) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

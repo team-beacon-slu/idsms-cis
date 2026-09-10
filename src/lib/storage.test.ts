@@ -140,4 +140,10 @@ describe("getSignedUrl (Option B — same-origin proxy URL)", () => {
       .digest("base64url");
     expect(verifyDownloadSig(CHECKLIST_BUCKET, "k", past, sig)).toBe(false);
   });
+  it("verifyDownloadSig rejects NaN exp", () => {
+    expect(verifyDownloadSig(CHECKLIST_BUCKET, "k", NaN, "anything")).toBe(false);
+  });
+  it("verifyDownloadSig rejects non-finite exp (Infinity)", () => {
+    expect(verifyDownloadSig(CHECKLIST_BUCKET, "k", Infinity, "anything")).toBe(false);
+  });
 });

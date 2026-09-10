@@ -62,6 +62,9 @@ export async function uploadFile(bucket: string, path: string, file: File): Prom
 }
 
 // Shared with src/app/api/storage/download/route.ts (Step 4b) to verify.
+// Note: The `bucket:path:exp` message is unescaped; this is safe because the HMAC
+// covers bucket and path, buckets are allow-listed in the route, and only the app
+// signs keys (no user-supplied key reaches signDownload).
 export function signDownload(bucket: string, path: string, exp: number): string {
   return createHmac("sha256", process.env.NEXTAUTH_SECRET!)
     .update(`${bucket}:${path}:${exp}`)
