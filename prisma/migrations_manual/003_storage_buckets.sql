@@ -1,3 +1,11 @@
+-- SUPERSEDED (2026-09-10) — the self-hosted VM stack does NOT use Supabase
+-- Storage. The two buckets are now created by the `minio-init` one-shot service
+-- in docker-compose.yml (`mc mb checklist-documents / moa-documents`). Do not
+-- run this file against the self-hosted stack. Kept only as the record of why
+-- the two buckets exist and what MIME/size policy they carry; see also
+-- docs/migration/from-supabase.md (Stage 6) for the one-time `mc mirror` of
+-- existing objects out of Supabase Storage.
+--
 -- Manual migration — run once against the real Supabase project (SQL editor,
 -- or via the Supabase MCP's apply_migration). Not Prisma-managed at all —
 -- Storage buckets aren't Postgres tables Prisma owns — but numbered and

@@ -26,6 +26,7 @@ yarn-error.log*
 # Local env files
 .env
 .env*.local
+.env.production
 
 # Vercel
 .vercel
@@ -52,3 +53,9 @@ yarn-error.log*
 /.claude
 skills-lock.json
 .worktrees/
+
+# superpowers SDD scratch
+.superpowers/
+
+# Local-only test-credential file — real rows in the shared dev DB, never commit
+TEST_ACCOUNTS.md
