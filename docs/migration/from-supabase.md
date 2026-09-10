@@ -346,7 +346,7 @@ there if you revert.
 
 ---
 
-## Stage 9 — Re-enable continuous deployment (step 12)
+## Stage 9 — Re-enable continuous deployment
 
 Only after Stage 8 is stable:
 

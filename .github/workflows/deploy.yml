@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   # push:
-  #   branches: [main]   # Uncomment on VM cutover — see docs/migration/from-supabase.md step 12
+  #   branches: [main]   # Uncomment on VM cutover — see docs/migration/from-supabase.md Stage 9
   workflow_dispatch:
     inputs:
       image_tag:

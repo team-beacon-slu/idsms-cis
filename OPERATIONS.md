@@ -54,7 +54,7 @@ until a named person owns each row.
 
 ### 3.1 Normal deploy (after cutover)
 
-Once `docs/migration/from-supabase.md` step 12 has re-enabled the `push:` trigger
+Once `docs/migration/from-supabase.md` Stage 9 has re-enabled the `push:` trigger
 in `deploy.yml`:
 
 1. Merge the change to `main` (PR review as usual).
@@ -168,16 +168,71 @@ IMAGE_TAG=stable
 
 ### 4.5 Rotation procedures
 
-| Secret                                                        | How to rotate                                                                                                                                                                                                                                                                                                                                                                                                                 | Impact                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VM_SSH_PRIVATE_KEY`                                          | `ssh-keygen -t ed25519 -f idsms_deploy` locally. Append the `.pub` to `~<VM_SSH_USER>/.ssh/authorized_keys` on the VM. Update the GitHub secret with the new private key. Run **Deploy → Run workflow** to confirm SSH still works. Remove the old public-key line from `authorized_keys`.                                                                                                                                    | None if verified before removing the old key.                                                                                                                                                                                                                                                                                                                 |
-| `VM_HOST`, `VM_SSH_USER`                                      | Update the secret when the VM is rebuilt / the deploy user is renamed. Keep `/opt/idsms` layout identical on the new host.                                                                                                                                                                                                                                                                                                    | Next deploy targets the new host.                                                                                                                                                                                                                                                                                                                             |
-| `POSTGRES_PASSWORD`                                           | `docker compose exec postgres psql -U idsms -d idsms -c "ALTER USER idsms WITH PASSWORD '<new>';"` → update `POSTGRES_PASSWORD` in `.env` **and** the password inside `DATABASE_URL`/`DIRECT_URL` in `.env.production` → `docker compose up -d`.                                                                                                                                                                              | Brief `app` restart. No data change.                                                                                                                                                                                                                                                                                                                          |
-| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`                     | Set new values in `.env` → `docker compose up -d minio minio-init`. These are **admin** credentials; the app should use a **separate** lower-privilege service account (next row), not root.                                                                                                                                                                                                                                  | `minio` restarts.                                                                                                                                                                                                                                                                                                                                             |
-| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` (app service account) | On the VM: `docker run --rm --network idsms_net --entrypoint sh minio/mc:latest -c "mc alias set a http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && mc admin user svcacct add a $MINIO_ROOT_USER"` (or create a dedicated user + `readwrite` policy scoped to the two buckets). Put the new key/secret in `.env.production` → `docker compose up -d app`. Delete the old service account once traffic is confirmed. | Brief `app` restart. In-flight uploads retry.                                                                                                                                                                                                                                                                                                                 |
-| `NEXTAUTH_SECRET`                                             | New value in `.env.production` → `docker compose up -d app`.                                                                                                                                                                                                                                                                                                                                                                  | **Expected and acceptable:** every login session is dropped (users simply sign in again — DB session strategy) **and** every unexpired `/api/storage/download` link stops working, because `src/lib/storage.ts` HMAC-signs those links with this same key. Links regenerate automatically on the next page load. Do it outside class/report-submission hours. |
-| `STUDENT_DEFAULT_PASSWORD_PEPPER`                             | **Do not rotate.** It is the HMAC pepper for default student passwords (FR-UM-03).                                                                                                                                                                                                                                                                                                                                            | Rotating it invalidates the login of **every student who still holds their un-reset default password**. Only ever change it as part of a deliberate migration that re-issues and re-communicates new default passwords to all affected students.                                                                                                              |
-| `GEMINI_API_KEY`, `RESEND_API_KEY`                            | Rotate in the provider console, paste into `.env.production` → `docker compose up -d app`.                                                                                                                                                                                                                                                                                                                                    | Brief `app` restart; AI features / outbound email unavailable for a few seconds.                                                                                                                                                                                                                                                                              |
+| Secret                                                        | How to rotate                                                                                                                                                                                                                                                                              | Impact                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VM_SSH_PRIVATE_KEY`                                          | `ssh-keygen -t ed25519 -f idsms_deploy` locally. Append the `.pub` to `~<VM_SSH_USER>/.ssh/authorized_keys` on the VM. Update the GitHub secret with the new private key. Run **Deploy → Run workflow** to confirm SSH still works. Remove the old public-key line from `authorized_keys`. | None if verified before removing the old key.                                                                                                                                                                                                                                                                                                                 |
+| `VM_HOST`, `VM_SSH_USER`                                      | Update the secret when the VM is rebuilt / the deploy user is renamed. Keep `/opt/idsms` layout identical on the new host.                                                                                                                                                                 | Next deploy targets the new host.                                                                                                                                                                                                                                                                                                                             |
+| `POSTGRES_PASSWORD`                                           | `docker compose exec postgres psql -U idsms -d idsms -c "ALTER USER idsms WITH PASSWORD '<new>';"` → update `POSTGRES_PASSWORD` in `.env` **and** the password inside `DATABASE_URL`/`DIRECT_URL` in `.env.production` → `docker compose up -d`.                                           | Brief `app` restart. No data change.                                                                                                                                                                                                                                                                                                                          |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`                     | Set new values in `.env` → `docker compose up -d minio minio-init`. These are **admin** credentials; the app should use a **separate** lower-privilege service account (next row), not root.                                                                                               | `minio` restarts.                                                                                                                                                                                                                                                                                                                                             |
+| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` (app service account) | See §4.5.1 (detailed procedure).                                                                                                                                                                                                                                                           | Brief `app` restart. In-flight uploads retry.                                                                                                                                                                                                                                                                                                                 |
+| `NEXTAUTH_SECRET`                                             | New value in `.env.production` → `docker compose up -d app`.                                                                                                                                                                                                                               | **Expected and acceptable:** every login session is dropped (users simply sign in again — DB session strategy) **and** every unexpired `/api/storage/download` link stops working, because `src/lib/storage.ts` HMAC-signs those links with this same key. Links regenerate automatically on the next page load. Do it outside class/report-submission hours. |
+| `STUDENT_DEFAULT_PASSWORD_PEPPER`                             | **Do not rotate.** It is the HMAC pepper for default student passwords (FR-UM-03).                                                                                                                                                                                                         | Rotating it invalidates the login of **every student who still holds their un-reset default password**. Only ever change it as part of a deliberate migration that re-issues and re-communicates new default passwords to all affected students.                                                                                                              |
+| `GEMINI_API_KEY`, `RESEND_API_KEY`                            | Rotate in the provider console, paste into `.env.production` → `docker compose up -d app`.                                                                                                                                                                                                 | Brief `app` restart; AI features / outbound email unavailable for a few seconds.                                                                                                                                                                                                                                                                              |
+
+### 4.5.1 MinIO service-account key rotation (detailed procedure)
+
+The app uses a **lower-privilege service account** (not the MinIO root) to access object storage.
+To rotate the app's MinIO credentials:
+
+1. **Generate new credentials:**
+
+   ```bash
+   docker compose exec minio mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+   docker compose exec minio mc admin user svcacct add local "$MINIO_ROOT_USER"
+   ```
+
+   This prints `Access Key:` and `Secret Key:` to stdout. Copy both values.
+
+   **Scriptable variant** (JSON output):
+
+   ```bash
+   docker compose exec minio mc admin user svcacct add --json local "$MINIO_ROOT_USER"
+   ```
+
+   Extract `accessKey` and `secretKey` from the JSON response.
+
+2. **Update `.env.production`:**
+
+   ```bash
+   # Edit /opt/idsms/.env.production and set:
+   MINIO_ACCESS_KEY="<new_access_key>"
+   MINIO_SECRET_KEY="<new_secret_key>"
+   ```
+
+3. **Restart the app:**
+
+   ```bash
+   cd /opt/idsms && docker compose up -d --wait app
+   ```
+
+4. **Verify new credentials:**
+
+   Upload and download a file through the app, or test via:
+
+   ```bash
+   docker compose exec app curl -fsSI http://minio:9000/checklist-documents/
+   ```
+
+5. **Retire the old service account:**
+
+   ```bash
+   docker compose exec minio mc admin user svcacct rm local <OLD_ACCESS_KEY>
+   ```
+
+**Fallback:** if you prefer to create a dedicated lower-privilege user instead of a service account,
+see [`mc admin user add`](https://min.io/docs/minio/linux/reference/minio-mc-admin/mc-admin-user-add.html)
+and [`mc admin policy attach`](https://min.io/docs/minio/linux/reference/minio-mc-admin/mc-admin-policy-attach.html)
+in the MinIO documentation (scope the policy to the `checklist-documents` and `moa-documents` buckets).
 
 ---
 
@@ -270,6 +325,8 @@ Common resolutions:
 ---
 
 ## 7. OS patching and reboots
+
+All commands in this section run as root — prefix with `sudo` or run in a root shell.
 
 1. Enable unattended security updates:
 
