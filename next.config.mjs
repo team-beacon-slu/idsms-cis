@@ -5,6 +5,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Bundles a minimal server + node_modules into .next/standalone so the
+  // Docker runtime stage doesn't need the full dependency tree.
+  output: "standalone",
   // Without this, Next's build tracing infers the workspace root by walking
   // upward and — on Windows — ends up lstat-ing drive-root reserved files
   // (hiberfil.sys, pagefile.sys, etc.), throwing noisy EINVAL Watchpack errors
