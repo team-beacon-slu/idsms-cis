@@ -268,6 +268,13 @@ export async function computeTotalHoursRendered(studentProfileId: string): Promi
 // outside `Date#getDay()`'s 0–6 range (no day could ever match). Validate
 // the runtime shape and treat anything malformed the same as "no schedule to
 // project against" per this function's own null edge case.
+// Hard bound for the day-by-day scan in `computeProjectedCompletionDate`
+// below — ~10 calendar years, past any realistic internship completion
+// date. Guards against a runaway loop regardless of how large `daysNeeded`
+// turns out to be (a degenerately small `hoursPerDay` or an unusually large
+// `requiredHours` can both make it huge).
+const MAX_PROJECTION_CALENDAR_DAYS = 3650;
+
 function isValidScheduleConfig(value: unknown): value is ConfigureWorkScheduleInput {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -311,8 +318,19 @@ export async function computeProjectedCompletionDate(
 
   const projectedDate = new Date();
   let qualifyingDaysCounted = 0;
+  let calendarDaysScanned = 0;
+  // `hoursPerDay` passing `isValidScheduleConfig` only guarantees it's a
+  // positive finite number — a degenerately small one (or a very large
+  // `requiredHours`) can still make `daysNeeded` enormous. Bound the scan
+  // itself rather than trusting `daysNeeded` to be reasonable, so this can
+  // never hang the request; ~10 years out is past any realistic completion
+  // date, so treat it the same as "nothing to project against."
   while (qualifyingDaysCounted < daysNeeded) {
+    if (calendarDaysScanned >= MAX_PROJECTION_CALENDAR_DAYS) {
+      return null;
+    }
     projectedDate.setDate(projectedDate.getDate() + 1);
+    calendarDaysScanned += 1;
     if (workingDays.has(projectedDate.getDay())) {
       qualifyingDaysCounted += 1;
     }

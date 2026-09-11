@@ -289,6 +289,18 @@ describe("computeProjectedCompletionDate", () => {
 
     expect(result?.toISOString().slice(0, 10)).toBe("2026-08-31");
   });
+
+  it("returns null instead of hanging when hoursPerDay is degenerately small", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 1e-10 },
+    } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+      requiredHours: 600,
+    } as never);
+
+    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
+  });
 });
 
 describe("validateScheduleChangeFaculty", () => {
