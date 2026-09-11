@@ -7,14 +7,19 @@ import {
   Program,
   Role,
   ValidationStatus,
+  WeeklyReportStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { logEvent } from "@/lib/services/auditService";
 import { assertCanAccessStudent } from "@/lib/services/userService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 
-// `logEvent` from "@/lib/services/auditService" is intentionally not
-// imported yet — no stub body below calls it (they're all placeholders).
-// Import it when implementing the real logic behind any mutation stub; an
-// unused import fails this project's ESLint no-unused-vars rule.
+export class InvalidScheduleChangeStateError extends Error {
+  constructor(message = "This schedule change request is not awaiting the expected review step") {
+    super(message);
+    this.name = "InvalidScheduleChangeStateError";
+  }
+}
 
 export interface ConfigureWorkScheduleInput {
   daysOfWeek: number[]; // 0=Sunday..6=Saturday
@@ -197,9 +202,39 @@ export async function validateDeviationReport(
 // Edge cases: must never read PENDING/RETURNED/DISREGARDED WeeklyReport
 // rows, or PENDING/REJECTED DeviationReport rows.
 export async function computeTotalHoursRendered(studentProfileId: string): Promise<number> {
-  // TODO(JayPing23): implement per the contract above.
-  void studentProfileId;
-  return 0;
+  const approvedWeeklyReports = await prisma.weeklyReport.findMany({
+    where: {
+      studentProfileId,
+      status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+    },
+    select: { dailyEntries: { select: { actualHours: true } } },
+  });
+
+  const hoursFromApprovedReports = approvedWeeklyReports.reduce(
+    (reportSum, report) =>
+      reportSum +
+      report.dailyEntries.reduce((daySum, entry) => daySum + Number(entry.actualHours ?? 0), 0),
+    0
+  );
+
+  // `DeviationReport` (the VALIDATED-only OVERTIME/ABSENCE/UNDERTIME source
+  // the contract above calls out) has no hours-magnitude field to add or
+  // subtract — a schema gap, not something fixable from inside this stub
+  // (adding one needs a schema change; flagged in the PR's "Assumptions"
+  // section rather than done here, per CONTRIBUTING.md's schema-change
+  // process). A validated deviation's effect on the total is already
+  // reflected in that day's own `DailyReportEntry.actualHours` (an OVERTIME
+  // day already carries a higher actualHours than scheduledHours, an
+  // ABSENCE/UNDERTIME day a lower one), so no separate delta is applied on
+  // top of the sum above.
+  const totalHoursRendered = Math.round(hoursFromApprovedReports * 100) / 100;
+
+  await prisma.studentProfile.update({
+    where: { id: studentProfileId },
+    data: { renderedHours: totalHoursRendered },
+  });
+
+  return totalHoursRendered;
 }
 
 // FR-AT-05 — Owner: JayPing23 (Danielle)
@@ -216,9 +251,44 @@ export async function computeTotalHoursRendered(studentProfileId: string): Promi
 export async function computeProjectedCompletionDate(
   studentProfileId: string
 ): Promise<Date | null> {
-  // TODO(JayPing23): implement per the contract above.
-  void studentProfileId;
-  return null;
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  const scheduleConfig = workPlan?.scheduleConfig as ConfigureWorkScheduleInput | null | undefined;
+
+  if (
+    !workPlan ||
+    !scheduleConfig ||
+    scheduleConfig.daysOfWeek.length === 0 ||
+    scheduleConfig.hoursPerDay <= 0
+  ) {
+    return null;
+  }
+
+  const [renderedHours, studentProfile] = await Promise.all([
+    computeTotalHoursRendered(studentProfileId),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { requiredHours: true },
+    }),
+  ]);
+
+  const remainingHours = studentProfile.requiredHours - renderedHours;
+  if (remainingHours <= 0) {
+    return new Date();
+  }
+
+  const workingDays = new Set(scheduleConfig.daysOfWeek);
+  const daysNeeded = Math.ceil(remainingHours / scheduleConfig.hoursPerDay);
+
+  const projectedDate = new Date();
+  let qualifyingDaysCounted = 0;
+  while (qualifyingDaysCounted < daysNeeded) {
+    projectedDate.setDate(projectedDate.getDate() + 1);
+    if (workingDays.has(projectedDate.getDay())) {
+      qualifyingDaysCounted += 1;
+    }
+  }
+
+  return projectedDate;
 }
 
 // `REQUIRED_HOURS_CONFIG_KEY` is intentionally not defined yet — no stub
@@ -342,11 +412,40 @@ export async function validateScheduleChangeFaculty(
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  // TODO(JayPing23): implement per the contract above.
-  void facultyId;
-  void action;
-  void ipAddress;
-  return { workPlanId, status: "PENDING_FACULTY" };
+  const workPlan = await prisma.workPlan.findUniqueOrThrow({
+    where: { id: workPlanId },
+    select: { scheduleChangeHistory: true },
+  });
+
+  const history = (workPlan.scheduleChangeHistory ?? []) as unknown as ScheduleChangeHistoryEntry[];
+  const latestEntry = history[history.length - 1];
+  if (!latestEntry || latestEntry.status !== "PENDING_FACULTY") {
+    throw new InvalidScheduleChangeStateError();
+  }
+
+  const status = action === "APPROVE" ? "PENDING_COORDINATOR" : "REJECTED_BY_FACULTY";
+
+  return prisma.$transaction(async (tx) => {
+    await logScheduleChangeHistory(
+      workPlanId,
+      { timestamp: new Date().toISOString(), approverId: facultyId, action, status },
+      tx
+    );
+    await logEvent(
+      {
+        userId: facultyId,
+        action:
+          action === "APPROVE"
+            ? "SCHEDULE_CHANGE_FACULTY_APPROVED"
+            : "SCHEDULE_CHANGE_FACULTY_REJECTED",
+        entityType: "WorkPlan",
+        entityId: workPlanId,
+        ipAddress,
+      },
+      tx
+    );
+    return { workPlanId, status };
+  });
 }
 
 // FR-AT-09 (step 2 of 2) — Owner: JayPing23 (Danielle)

@@ -1,4 +1,4 @@
-import { DeviationType, Program, Role, ValidationStatus } from "@prisma/client";
+import { DeviationType, Program, Role, ValidationStatus, WeeklyReportStatus } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   applyScheduleChangeProspectively,
@@ -11,6 +11,7 @@ import {
   getHolidayCalendarForStudent,
   getRequiredHoursConfig,
   getWorkPlanStudentProfileId,
+  InvalidScheduleChangeStateError,
   listDeviationReportsForStudent,
   logScheduleChangeHistory,
   markHolidayApplicable,
@@ -95,14 +96,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     );
   });
 
-  it("computeTotalHoursRendered resolves a number", async () => {
-    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(0);
-  });
-
-  it("computeProjectedCompletionDate resolves null", async () => {
-    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
-  });
-
   it("getRequiredHoursConfig resolves a number", async () => {
     await expect(getRequiredHoursConfig(Program.BSIT)).resolves.toBe(0);
   });
@@ -126,11 +119,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     expect(result.status).toBe("PENDING_FACULTY");
   });
 
-  it("validateScheduleChangeFaculty resolves without throwing", async () => {
-    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE");
-    expect(result.workPlanId).toBe("wp-1");
-  });
-
   it("approveScheduleChangeCoordinator resolves without throwing", async () => {
     const result = await approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE");
     expect(result.workPlanId).toBe("wp-1");
@@ -149,5 +137,171 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
         action: "REQUESTED",
       })
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("computeTotalHoursRendered", () => {
+  it("sums actualHours only from APPROVED/REGARDED weekly reports, treating null as 0", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 8 }, { actualHours: 4 }] },
+      { dailyEntries: [{ actualHours: null }, { actualHours: 6 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    const total = await computeTotalHoursRendered("profile-1");
+
+    expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          studentProfileId: "profile-1",
+          status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+        },
+      })
+    );
+    expect(total).toBe(18);
+  });
+
+  it("writes the computed total to StudentProfile.renderedHours and returns it", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 3.5 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    const total = await computeTotalHoursRendered("profile-1");
+
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: { renderedHours: 3.5 },
+    });
+    expect(total).toBe(3.5);
+  });
+
+  it("returns 0 when the student has no APPROVED/REGARDED weekly reports yet", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(0);
+  });
+});
+
+describe("computeProjectedCompletionDate", () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-08-31T00:00:00.000Z")); // a Monday
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("returns null when the student has no APPROVED work plan yet", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+
+    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
+  });
+
+  it("returns null when the approved work plan has no scheduleConfig set", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({ scheduleConfig: null } as never);
+
+    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
+  });
+
+  it("projects forward only over configured working days until remaining hours are covered", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 }, // Mondays only
+    } as never);
+    // computeTotalHoursRendered internals: 60 rendered hours.
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 60 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+      requiredHours: 76,
+    } as never);
+
+    // remainingHours = 76 - 60 = 16 -> 2 Mondays needed from 2026-08-31.
+    const result = await computeProjectedCompletionDate("profile-1");
+
+    expect(result?.toISOString().slice(0, 10)).toBe("2026-09-14");
+  });
+
+  it("returns today once required hours are already met", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },
+    } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 80 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+      requiredHours: 76,
+    } as never);
+
+    const result = await computeProjectedCompletionDate("profile-1");
+
+    expect(result?.toISOString().slice(0, 10)).toBe("2026-08-31");
+  });
+});
+
+describe("validateScheduleChangeFaculty", () => {
+  function workPlanWithHistoryStatus(status: string) {
+    return {
+      scheduleChangeHistory: [
+        { timestamp: "2026-01-01T00:00:00.000Z", approverId: null, action: "REQUESTED", status },
+      ],
+    };
+  }
+
+  it("throws InvalidScheduleChangeStateError when there is no schedule-change history at all", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [],
+    } as never);
+
+    await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeStateError
+    );
+  });
+
+  it("throws InvalidScheduleChangeStateError when the latest entry is not PENDING_FACULTY", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
+      workPlanWithHistoryStatus("PENDING_COORDINATOR") as never
+    );
+
+    await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeStateError
+    );
+  });
+
+  it("advances a PENDING_FACULTY request to PENDING_COORDINATOR on APPROVE and audit-logs it", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
+      workPlanWithHistoryStatus("PENDING_FACULTY") as never
+    );
+
+    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "PENDING_COORDINATOR" });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "SCHEDULE_CHANGE_FACULTY_APPROVED",
+          entityType: "WorkPlan",
+          entityId: "wp-1",
+        }),
+      })
+    );
+  });
+
+  it("makes REJECT terminal instead of advancing to PENDING_COORDINATOR", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
+      workPlanWithHistoryStatus("PENDING_FACULTY") as never
+    );
+
+    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "REJECT");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "REJECTED_BY_FACULTY" });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "SCHEDULE_CHANGE_FACULTY_REJECTED" }),
+      })
+    );
   });
 });
