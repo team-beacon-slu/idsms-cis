@@ -1,4 +1,4 @@
-import { DeviationType, Program, Role, ValidationStatus } from "@prisma/client";
+import { DeviationType, Program, Role, ValidationStatus, WeeklyReportStatus } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   applyScheduleChangeProspectively,
@@ -95,10 +95,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     );
   });
 
-  it("computeTotalHoursRendered resolves a number", async () => {
-    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(0);
-  });
-
   it("computeProjectedCompletionDate resolves null", async () => {
     await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
   });
@@ -149,5 +145,51 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
         action: "REQUESTED",
       })
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("computeTotalHoursRendered", () => {
+  it("sums actualHours across APPROVED/REGARDED weekly reports and persists it", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 8 }, { actualHours: 4.5 }] },
+      { dailyEntries: [{ actualHours: 7.25 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    const result = await computeTotalHoursRendered("profile-1");
+
+    expect(result).toBe(19.75);
+    expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          studentProfileId: "profile-1",
+          status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+        },
+      })
+    );
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: { renderedHours: 19.75 },
+    });
+    // Deliberately no audit-log assertion: this contract never says "Log via
+    // logEvent" and the function runs on every GET read, so it must not
+    // write to auditLog (see the comment above computeTotalHoursRendered).
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("treats a null actualHours (unrecorded day) as 0", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: null }, { actualHours: 3 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(3);
+  });
+
+  it("resolves 0 when the student has no APPROVED/REGARDED weekly reports yet", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(0);
   });
 });

@@ -7,6 +7,7 @@ import {
   Program,
   Role,
   ValidationStatus,
+  WeeklyReportStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent } from "@/lib/services/userService";
@@ -196,10 +197,62 @@ export async function validateDeviationReport(
 // `reviewWeeklyReport_Approve`/`_Regard` (Task 4) after each approval.
 // Edge cases: must never read PENDING/RETURNED/DISREGARDED WeeklyReport
 // rows, or PENDING/REJECTED DeviationReport rows.
+// SCHEMA GAP: `DeviationReport` has no hours-magnitude column (no
+// `scheduledHours`/`actualHours`-style field — see the model in
+// schema.prisma), so the literal "+overtime/-absence/undertime" delta this
+// FR's issue text describes can't be applied numerically. Approved
+// `DailyReportEntry.actualHours` already reflects what actually happened
+// each day (an absence day nets 0 actualHours, an overtime day nets more
+// than its scheduledHours), so summing it alone already captures validated
+// deviations' real effect. Flagged for Danielle/PM follow-up rather than
+// adding a new schema field unreviewed (same rule `getHolidayCalendarForStudent`
+// above already calls out for its own schema gap).
+//
+// Exported (not module-private) so #9's `computeProjectedCompletionDate`
+// can reuse the same sum without duplicating this query once that issue
+// lands — see that function's own comment for why it can't just call this
+// exported, persisting version directly.
+export async function calculateRenderedHours(
+  studentProfileId: string,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+): Promise<number> {
+  const approvedWeeklyReports = await client.weeklyReport.findMany({
+    where: {
+      studentProfileId,
+      status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+    },
+    select: { dailyEntries: { select: { actualHours: true } } },
+  });
+
+  const totalHours = approvedWeeklyReports.reduce((sum, report) => {
+    const dayHours = report.dailyEntries.reduce(
+      (daySum, entry) => daySum + Number(entry.actualHours ?? 0),
+      0
+    );
+    return sum + dayHours;
+  }, 0);
+
+  return Math.round(totalHours * 100) / 100;
+}
+
+// No `logEvent` call here on purpose: this contract (unlike the file's other
+// mutation stubs) never says "Log via logEvent" — only "Writes the result to
+// StudentProfile.renderedHours" — and this function is invoked on every GET
+// /attendance-summary read, not just on staff actions. Audit-logging a
+// system-triggered cache recompute on every page load would flood the
+// (append-only, NFR-SEC-07/10) audit log with unattributed `userId: null`
+// rows for something that isn't itself a reviewable action.
 export async function computeTotalHoursRendered(studentProfileId: string): Promise<number> {
-  // TODO(JayPing23): implement per the contract above.
-  void studentProfileId;
-  return 0;
+  return prisma.$transaction(async (tx) => {
+    const renderedHours = await calculateRenderedHours(studentProfileId, tx);
+
+    await tx.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { renderedHours },
+    });
+
+    return renderedHours;
+  });
 }
 
 // FR-AT-05 — Owner: JayPing23 (Danielle)
