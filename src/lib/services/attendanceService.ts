@@ -336,17 +336,52 @@ export async function requestScheduleChange(
 // `logScheduleChangeHistory`.
 // Edge cases: must only act on a request currently `PENDING_FACULTY` —
 // reject/throw if called on a request in any other state.
+export class InvalidScheduleChangeStateError extends Error {
+  constructor(message = "This schedule change request is not awaiting Faculty review") {
+    super(message);
+    this.name = "InvalidScheduleChangeStateError";
+  }
+}
+
 export async function validateScheduleChangeFaculty(
   workPlanId: string,
   facultyId: string,
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  // TODO(JayPing23): implement per the contract above.
-  void facultyId;
-  void action;
   void ipAddress;
-  return { workPlanId, status: "PENDING_FACULTY" };
+
+  // The PENDING_FACULTY read and the resulting history append must be one
+  // atomic unit — otherwise two concurrent reviews of the same request (a
+  // double-click, a retried request) could both pass the state gate before
+  // either has written its outcome. Passing `tx` through to
+  // `logScheduleChangeHistory` (which already accepts a transaction client)
+  // is what closes that window once B15 implements the actual write.
+  return prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+    const currentStatus = history.length > 0 ? history[history.length - 1].status : undefined;
+
+    if (currentStatus !== "PENDING_FACULTY") {
+      throw new InvalidScheduleChangeStateError();
+    }
+
+    const nextStatus = action === "APPROVE" ? "PENDING_COORDINATOR" : "REJECTED";
+
+    await logScheduleChangeHistory(
+      workPlanId,
+      {
+        timestamp: new Date().toISOString(),
+        approverId: facultyId,
+        action: action === "APPROVE" ? "FACULTY_APPROVED" : "FACULTY_REJECTED",
+        status: nextStatus,
+      },
+      tx
+    );
+
+    return { workPlanId, status: nextStatus };
+  });
 }
 
 // FR-AT-09 (step 2 of 2) — Owner: JayPing23 (Danielle)
