@@ -304,18 +304,26 @@ describe("computeProjectedCompletionDate", () => {
 });
 
 describe("validateScheduleChangeFaculty", () => {
-  function workPlanWithHistoryStatus(status: string) {
-    return {
-      scheduleChangeHistory: [
-        { timestamp: "2026-01-01T00:00:00.000Z", approverId: null, action: "REQUESTED", status },
-      ],
-    };
+  function lockedRowWithHistoryStatus(status: string) {
+    return [
+      {
+        scheduleChangeHistory: [
+          { timestamp: "2026-01-01T00:00:00.000Z", approverId: null, action: "REQUESTED", status },
+        ],
+      },
+    ];
   }
 
+  it("throws when the locking query finds no such WorkPlan", async () => {
+    prismaMock.$queryRaw.mockResolvedValue([] as never);
+
+    await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
+      "WorkPlan wp-1 not found"
+    );
+  });
+
   it("throws InvalidScheduleChangeStateError when there is no schedule-change history at all", async () => {
-    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
-      scheduleChangeHistory: [],
-    } as never);
+    prismaMock.$queryRaw.mockResolvedValue([{ scheduleChangeHistory: [] }] as never);
 
     await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
       InvalidScheduleChangeStateError
@@ -323,8 +331,8 @@ describe("validateScheduleChangeFaculty", () => {
   });
 
   it("throws InvalidScheduleChangeStateError when the latest entry is not PENDING_FACULTY", async () => {
-    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
-      workPlanWithHistoryStatus("PENDING_COORDINATOR") as never
+    prismaMock.$queryRaw.mockResolvedValue(
+      lockedRowWithHistoryStatus("PENDING_COORDINATOR") as never
     );
 
     await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
@@ -333,8 +341,9 @@ describe("validateScheduleChangeFaculty", () => {
   });
 
   it("advances a PENDING_FACULTY request to PENDING_COORDINATOR on APPROVE, persists it, and audit-logs it", async () => {
+    prismaMock.$queryRaw.mockResolvedValue(lockedRowWithHistoryStatus("PENDING_FACULTY") as never);
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
-      workPlanWithHistoryStatus("PENDING_FACULTY") as never
+      lockedRowWithHistoryStatus("PENDING_FACULTY")[0] as never
     );
     prismaMock.workPlan.update.mockResolvedValue({} as never);
 
@@ -367,8 +376,9 @@ describe("validateScheduleChangeFaculty", () => {
   });
 
   it("makes REJECT terminal instead of advancing to PENDING_COORDINATOR", async () => {
+    prismaMock.$queryRaw.mockResolvedValue(lockedRowWithHistoryStatus("PENDING_FACULTY") as never);
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
-      workPlanWithHistoryStatus("PENDING_FACULTY") as never
+      lockedRowWithHistoryStatus("PENDING_FACULTY")[0] as never
     );
     prismaMock.workPlan.update.mockResolvedValue({} as never);
 

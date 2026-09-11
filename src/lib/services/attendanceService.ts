@@ -462,18 +462,27 @@ export async function validateScheduleChangeFaculty(
 ): Promise<{ workPlanId: string; status: string }> {
   const status = action === "APPROVE" ? "PENDING_COORDINATOR" : "REJECTED_BY_FACULTY";
 
-  // The state check and the append that consumes it happen inside the same
-  // transaction (same pattern as userService.verifyCredentials) so two
-  // concurrent faculty reviews of the same request can't both read
-  // PENDING_FACULTY and both proceed — whichever transaction commits first
-  // leaves the other to find `scheduleChangeHistory` already advanced.
+  // Wrapping the check-then-append in `$transaction` alone isn't enough: a
+  // plain SELECT takes no row lock under Postgres's default READ COMMITTED
+  // isolation, so two concurrent faculty reviews could both read
+  // PENDING_FACULTY and both proceed, the second silently overwriting the
+  // first's committed decision (a lost update) even though both report
+  // success. `SELECT ... FOR UPDATE` locks the row for the rest of this
+  // transaction, so a concurrent review blocks here until this one commits,
+  // then correctly sees the already-advanced state and throws below.
   return prisma.$transaction(async (tx) => {
-    const workPlan = await tx.workPlan.findUniqueOrThrow({
-      where: { id: workPlanId },
-      select: { scheduleChangeHistory: true },
-    });
+    const lockedRows = await tx.$queryRaw<{ scheduleChangeHistory: Prisma.JsonValue }[]>`
+      SELECT schedule_change_history AS "scheduleChangeHistory"
+      FROM work_plans
+      WHERE id = ${workPlanId}::uuid
+      FOR UPDATE
+    `;
+    const lockedWorkPlan = lockedRows[0];
+    if (!lockedWorkPlan) {
+      throw new Error(`WorkPlan ${workPlanId} not found`);
+    }
 
-    const history = (workPlan.scheduleChangeHistory ??
+    const history = (lockedWorkPlan.scheduleChangeHistory ??
       []) as unknown as ScheduleChangeHistoryEntry[];
     const latestEntry = history[history.length - 1];
     if (!latestEntry || latestEntry.status !== "PENDING_FACULTY") {
