@@ -128,15 +128,48 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     const result = await applyScheduleChangeProspectively("wp-1");
     expect(result.effectiveFrom).toBeInstanceOf(Date);
   });
+});
 
-  it("logScheduleChangeHistory resolves without throwing", async () => {
-    await expect(
-      logScheduleChangeHistory("wp-1", {
-        timestamp: new Date().toISOString(),
-        approverId: null,
-        action: "REQUESTED",
-      })
-    ).resolves.toBeUndefined();
+describe("logScheduleChangeHistory", () => {
+  it("appends the entry to an existing scheduleChangeHistory array", async () => {
+    const existingEntry = {
+      timestamp: "2026-01-01T00:00:00.000Z",
+      approverId: null,
+      action: "REQUESTED",
+      status: "PENDING_FACULTY",
+    };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [existingEntry],
+    } as never);
+    prismaMock.workPlan.update.mockResolvedValue({} as never);
+
+    const newEntry = {
+      timestamp: "2026-01-02T00:00:00.000Z",
+      approverId: "faculty-1",
+      action: "APPROVE",
+      status: "PENDING_COORDINATOR",
+    };
+    await logScheduleChangeHistory("wp-1", newEntry);
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: { scheduleChangeHistory: [existingEntry, newEntry] },
+    });
+  });
+
+  it("starts a fresh array when scheduleChangeHistory is empty", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [],
+    } as never);
+    prismaMock.workPlan.update.mockResolvedValue({} as never);
+
+    const entry = { timestamp: "2026-01-01T00:00:00.000Z", approverId: null, action: "REQUESTED" };
+    await logScheduleChangeHistory("wp-1", entry);
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: { scheduleChangeHistory: [entry] },
+    });
   });
 });
 
@@ -205,15 +238,29 @@ describe("computeProjectedCompletionDate", () => {
     await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
   });
 
+  it("returns null instead of throwing when scheduleConfig is malformed JSON", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: { daysOfWeek: "not-an-array" },
+    } as never);
+
+    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
+  });
+
+  it("returns null instead of looping forever when daysOfWeek has an out-of-range day", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: { daysOfWeek: [7], hoursPerDay: 8 }, // 7 never matches Date#getDay()'s 0-6
+    } as never);
+
+    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
+  });
+
   it("projects forward only over configured working days until remaining hours are covered", async () => {
     prismaMock.workPlan.findFirst.mockResolvedValue({
       scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 }, // Mondays only
     } as never);
-    // computeTotalHoursRendered internals: 60 rendered hours.
     prismaMock.weeklyReport.findMany.mockResolvedValue([
       { dailyEntries: [{ actualHours: 60 }] },
     ] as never);
-    prismaMock.studentProfile.update.mockResolvedValue({} as never);
     prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
       requiredHours: 76,
     } as never);
@@ -222,6 +269,9 @@ describe("computeProjectedCompletionDate", () => {
     const result = await computeProjectedCompletionDate("profile-1");
 
     expect(result?.toISOString().slice(0, 10)).toBe("2026-09-14");
+    // Must not persist a second, competing renderedHours write of its own —
+    // that's computeTotalHoursRendered's job, called separately by the route.
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
   });
 
   it("returns today once required hours are already met", async () => {
@@ -231,7 +281,6 @@ describe("computeProjectedCompletionDate", () => {
     prismaMock.weeklyReport.findMany.mockResolvedValue([
       { dailyEntries: [{ actualHours: 80 }] },
     ] as never);
-    prismaMock.studentProfile.update.mockResolvedValue({} as never);
     prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
       requiredHours: 76,
     } as never);
@@ -271,14 +320,29 @@ describe("validateScheduleChangeFaculty", () => {
     );
   });
 
-  it("advances a PENDING_FACULTY request to PENDING_COORDINATOR on APPROVE and audit-logs it", async () => {
+  it("advances a PENDING_FACULTY request to PENDING_COORDINATOR on APPROVE, persists it, and audit-logs it", async () => {
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
       workPlanWithHistoryStatus("PENDING_FACULTY") as never
     );
+    prismaMock.workPlan.update.mockResolvedValue({} as never);
 
     const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE");
 
     expect(result).toEqual({ workPlanId: "wp-1", status: "PENDING_COORDINATOR" });
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wp-1" },
+        data: expect.objectContaining({
+          scheduleChangeHistory: expect.arrayContaining([
+            expect.objectContaining({
+              approverId: "faculty-1",
+              action: "APPROVE",
+              status: "PENDING_COORDINATOR",
+            }),
+          ]),
+        }),
+      })
+    );
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -294,6 +358,7 @@ describe("validateScheduleChangeFaculty", () => {
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue(
       workPlanWithHistoryStatus("PENDING_FACULTY") as never
     );
+    prismaMock.workPlan.update.mockResolvedValue({} as never);
 
     const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "REJECT");
 

@@ -201,8 +201,16 @@ export async function validateDeviationReport(
 // `reviewWeeklyReport_Approve`/`_Regard` (Task 4) after each approval.
 // Edge cases: must never read PENDING/RETURNED/DISREGARDED WeeklyReport
 // rows, or PENDING/REJECTED DeviationReport rows.
-export async function computeTotalHoursRendered(studentProfileId: string): Promise<number> {
-  const approvedWeeklyReports = await prisma.weeklyReport.findMany({
+// Shared by `computeTotalHoursRendered` (which also persists the result) and
+// `computeProjectedCompletionDate` (which only needs the number). Kept
+// private and read-only so a single attendance-summary request — which
+// calls both exported functions — only ever performs one write to
+// `StudentProfile.renderedHours`, not two competing ones.
+async function calculateRenderedHours(
+  studentProfileId: string,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+): Promise<number> {
+  const approvedWeeklyReports = await client.weeklyReport.findMany({
     where: {
       studentProfileId,
       status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
@@ -227,14 +235,18 @@ export async function computeTotalHoursRendered(studentProfileId: string): Promi
   // day already carries a higher actualHours than scheduledHours, an
   // ABSENCE/UNDERTIME day a lower one), so no separate delta is applied on
   // top of the sum above.
-  const totalHoursRendered = Math.round(hoursFromApprovedReports * 100) / 100;
+  return Math.round(hoursFromApprovedReports * 100) / 100;
+}
 
-  await prisma.studentProfile.update({
-    where: { id: studentProfileId },
-    data: { renderedHours: totalHoursRendered },
+export async function computeTotalHoursRendered(studentProfileId: string): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const totalHoursRendered = await calculateRenderedHours(studentProfileId, tx);
+    await tx.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { renderedHours: totalHoursRendered },
+    });
+    return totalHoursRendered;
   });
-
-  return totalHoursRendered;
 }
 
 // FR-AT-05 — Owner: JayPing23 (Danielle)
@@ -248,23 +260,41 @@ export async function computeTotalHoursRendered(studentProfileId: string): Promi
 // (Task 7, which clusters these dates across students).
 // Edge cases: return null when no APPROVED WorkPlan/schedule exists yet —
 // there's nothing to project against.
+// `WorkPlan.scheduleConfig` is an untyped Json field — the submit-work-plan
+// validator accepts any record, so an approved plan's scheduleConfig isn't
+// guaranteed to actually look like `ConfigureWorkScheduleInput` by the time
+// it reaches here. A blind cast would either throw on a malformed shape or,
+// worse, silently infinite-loop below if `daysOfWeek` ever contained a value
+// outside `Date#getDay()`'s 0–6 range (no day could ever match). Validate
+// the runtime shape and treat anything malformed the same as "no schedule to
+// project against" per this function's own null edge case.
+function isValidScheduleConfig(value: unknown): value is ConfigureWorkScheduleInput {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<ConfigureWorkScheduleInput>;
+  return (
+    Array.isArray(candidate.daysOfWeek) &&
+    candidate.daysOfWeek.length > 0 &&
+    candidate.daysOfWeek.every((day) => Number.isInteger(day) && day >= 0 && day <= 6) &&
+    typeof candidate.hoursPerDay === "number" &&
+    Number.isFinite(candidate.hoursPerDay) &&
+    candidate.hoursPerDay > 0
+  );
+}
+
 export async function computeProjectedCompletionDate(
   studentProfileId: string
 ): Promise<Date | null> {
   const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
-  const scheduleConfig = workPlan?.scheduleConfig as ConfigureWorkScheduleInput | null | undefined;
 
-  if (
-    !workPlan ||
-    !scheduleConfig ||
-    scheduleConfig.daysOfWeek.length === 0 ||
-    scheduleConfig.hoursPerDay <= 0
-  ) {
+  if (!workPlan || !isValidScheduleConfig(workPlan.scheduleConfig)) {
     return null;
   }
+  const scheduleConfig = workPlan.scheduleConfig;
 
   const [renderedHours, studentProfile] = await Promise.all([
-    computeTotalHoursRendered(studentProfileId),
+    calculateRenderedHours(studentProfileId),
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: studentProfileId },
       select: { requiredHours: true },
@@ -412,20 +442,26 @@ export async function validateScheduleChangeFaculty(
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  const workPlan = await prisma.workPlan.findUniqueOrThrow({
-    where: { id: workPlanId },
-    select: { scheduleChangeHistory: true },
-  });
-
-  const history = (workPlan.scheduleChangeHistory ?? []) as unknown as ScheduleChangeHistoryEntry[];
-  const latestEntry = history[history.length - 1];
-  if (!latestEntry || latestEntry.status !== "PENDING_FACULTY") {
-    throw new InvalidScheduleChangeStateError();
-  }
-
   const status = action === "APPROVE" ? "PENDING_COORDINATOR" : "REJECTED_BY_FACULTY";
 
+  // The state check and the append that consumes it happen inside the same
+  // transaction (same pattern as userService.verifyCredentials) so two
+  // concurrent faculty reviews of the same request can't both read
+  // PENDING_FACULTY and both proceed — whichever transaction commits first
+  // leaves the other to find `scheduleChangeHistory` already advanced.
   return prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({
+      where: { id: workPlanId },
+      select: { scheduleChangeHistory: true },
+    });
+
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+    const latestEntry = history[history.length - 1];
+    if (!latestEntry || latestEntry.status !== "PENDING_FACULTY") {
+      throw new InvalidScheduleChangeStateError();
+    }
+
     await logScheduleChangeHistory(
       workPlanId,
       { timestamp: new Date().toISOString(), approverId: facultyId, action, status },
@@ -511,9 +547,14 @@ export async function logScheduleChangeHistory(
   entry: ScheduleChangeHistoryEntry,
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<void> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void workPlanId;
-  void entry;
-  void client;
-  return;
+  const workPlan = await client.workPlan.findUniqueOrThrow({
+    where: { id: workPlanId },
+    select: { scheduleChangeHistory: true },
+  });
+  const history = (workPlan.scheduleChangeHistory ?? []) as unknown as ScheduleChangeHistoryEntry[];
+
+  await client.workPlan.update({
+    where: { id: workPlanId },
+    data: { scheduleChangeHistory: [...history, entry] as unknown as Prisma.InputJsonValue },
+  });
 }
