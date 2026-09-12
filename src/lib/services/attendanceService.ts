@@ -359,17 +359,61 @@ export async function validateScheduleChangeFaculty(
 // `logScheduleChangeHistory`.
 // Edge cases: reject/throw if called on a request not currently
 // `PENDING_COORDINATOR`.
+export class InvalidScheduleChangeCoordinatorStateError extends Error {
+  constructor(message = "This schedule change request is not awaiting Coordinator review") {
+    super(message);
+    this.name = "InvalidScheduleChangeCoordinatorStateError";
+  }
+}
+
 export async function approveScheduleChangeCoordinator(
   workPlanId: string,
   coordinatorId: string,
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  // TODO(JayPing23): implement per the contract above.
-  void coordinatorId;
-  void action;
   void ipAddress;
-  return { workPlanId, status: "PENDING_COORDINATOR" };
+
+  // Same reasoning as `validateScheduleChangeFaculty` above: the
+  // PENDING_COORDINATOR read and the resulting history append must be one
+  // atomic unit so two concurrent coordinator reviews of the same request
+  // can't both pass the state gate before either has written its outcome.
+  const nextStatus = await prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+    const currentStatus = history.length > 0 ? history[history.length - 1].status : undefined;
+
+    if (currentStatus !== "PENDING_COORDINATOR") {
+      throw new InvalidScheduleChangeCoordinatorStateError();
+    }
+
+    const resultStatus = action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+    await logScheduleChangeHistory(
+      workPlanId,
+      {
+        timestamp: new Date().toISOString(),
+        approverId: coordinatorId,
+        action: action === "APPROVE" ? "COORDINATOR_APPROVED" : "COORDINATOR_REJECTED",
+        status: resultStatus,
+      },
+      tx
+    );
+
+    return resultStatus;
+  });
+
+  // Applying the schedule change is a separate, already-transactional step
+  // of its own (`applyScheduleChangeProspectively` below) — run after this
+  // transaction commits, not nested inside it, same "commit the decision,
+  // then act on it" split `reviewWeeklyReport_Approve` uses for its own
+  // post-approval side effect.
+  if (nextStatus === "APPROVED") {
+    await applyScheduleChangeProspectively(workPlanId);
+  }
+
+  return { workPlanId, status: nextStatus };
 }
 
 // FR-AT-10 — Owner: JayPing23 (Danielle)
@@ -406,15 +450,13 @@ export async function applyScheduleChangeProspectively(
     const history = (workPlan.scheduleChangeHistory ??
       []) as unknown as ScheduleChangeHistoryEntry[];
 
-    const requestEntry = [...history]
-      .reverse()
-      .find(
-        (
-          entry
-        ): entry is ScheduleChangeHistoryEntry & {
-          newScheduleConfig: ConfigureWorkScheduleInput;
-        } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
-      );
+    const requestEntry = [...history].reverse().find(
+      (
+        entry
+      ): entry is ScheduleChangeHistoryEntry & {
+        newScheduleConfig: ConfigureWorkScheduleInput;
+      } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
+    );
 
     if (!requestEntry) {
       throw new MissingScheduleChangeRequestError();

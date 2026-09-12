@@ -11,6 +11,7 @@ import {
   getHolidayCalendarForStudent,
   getRequiredHoursConfig,
   getWorkPlanStudentProfileId,
+  InvalidScheduleChangeCoordinatorStateError,
   listDeviationReportsForStudent,
   logScheduleChangeHistory,
   markHolidayApplicable,
@@ -132,11 +133,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     expect(result.workPlanId).toBe("wp-1");
   });
 
-  it("approveScheduleChangeCoordinator resolves without throwing", async () => {
-    const result = await approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE");
-    expect(result.workPlanId).toBe("wp-1");
-  });
-
   it("logScheduleChangeHistory resolves without throwing", async () => {
     await expect(
       logScheduleChangeHistory("wp-1", {
@@ -199,6 +195,57 @@ describe("applyScheduleChangeProspectively", () => {
 
     expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { scheduleConfig: latestConfig } })
+    );
+  });
+});
+
+describe("approveScheduleChangeCoordinator", () => {
+  it("throws InvalidScheduleChangeCoordinatorStateError when the request isn't PENDING_COORDINATOR", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_FACULTY" }],
+    } as never);
+
+    await expect(approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeCoordinatorStateError
+    );
+  });
+
+  it("throws when there is no schedule-change history at all", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [],
+    } as never);
+
+    await expect(approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeCoordinatorStateError
+    );
+  });
+
+  it("on REJECT, terminates the request as REJECTED without applying the change", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_COORDINATOR" }],
+    } as never);
+
+    const result = await approveScheduleChangeCoordinator("wp-1", "coord-1", "REJECT");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "REJECTED" });
+    expect(prismaMock.workPlan.update).not.toHaveBeenCalled();
+  });
+
+  it("on APPROVE, advances to APPROVED and applies the schedule change prospectively", async () => {
+    const newScheduleConfig = { daysOfWeek: [1, 2, 3], hoursPerDay: 8 };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+      scheduleChangeHistory: [
+        { status: "PENDING_FACULTY", newScheduleConfig },
+        { status: "PENDING_COORDINATOR" },
+      ],
+    } as never);
+
+    const result = await approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "APPROVED" });
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { scheduleConfig: newScheduleConfig } })
     );
   });
 });
