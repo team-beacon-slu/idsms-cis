@@ -3,6 +3,10 @@
 // monthlyReportService.ts (FR-WR-08).
 import { WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  computeProjectedCompletionDate,
+  computeTotalHoursRendered,
+} from "@/lib/services/attendanceService";
 
 // FR-WR-01 — Owner: Shantea23
 // Requirement: auto-generate weekly report forms based on each student's
@@ -119,10 +123,28 @@ export async function reviewWeeklyReport_Approve(
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(JayPing23): implement per the contract above.
-  void facultyId;
   void ipAddress;
-  return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
+
+  // No dedicated `facultyId` column exists on `WeeklyReport` (see the
+  // model in schema.prisma) — `facultyAction` is the only free-text field
+  // available to record who reviewed it. A single unconditional update
+  // needs no `$transaction` wrapper — there's no read-then-write state
+  // gate here.
+  const { id, status, studentProfileId } = await prisma.weeklyReport.update({
+    where: { id: weeklyReportId },
+    data: {
+      status: WeeklyReportStatus.APPROVED,
+      facultyAction: `APPROVED by ${facultyId}`,
+    },
+    select: { id: true, status: true, studentProfileId: true },
+  });
+
+  // This report's hours now count toward both, per the contract above —
+  // no `logEvent` audit-log call here, the contract doesn't ask for one.
+  await computeTotalHoursRendered(studentProfileId);
+  await computeProjectedCompletionDate(studentProfileId);
+
+  return { id, status };
 }
 
 // FR-WR-06 (Return) — Owner: KennethRusselAvaricio
