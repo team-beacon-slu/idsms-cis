@@ -14,6 +14,7 @@ import {
   listDeviationReportsForStudent,
   logScheduleChangeHistory,
   markHolidayApplicable,
+  MissingScheduleChangeRequestError,
   requestScheduleChange,
   setRequiredHoursConfig,
   submitDeviationReport,
@@ -136,11 +137,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     expect(result.workPlanId).toBe("wp-1");
   });
 
-  it("applyScheduleChangeProspectively resolves an effective date", async () => {
-    const result = await applyScheduleChangeProspectively("wp-1");
-    expect(result.effectiveFrom).toBeInstanceOf(Date);
-  });
-
   it("logScheduleChangeHistory resolves without throwing", async () => {
     await expect(
       logScheduleChangeHistory("wp-1", {
@@ -149,5 +145,60 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
         action: "REQUESTED",
       })
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("applyScheduleChangeProspectively", () => {
+  it("throws MissingScheduleChangeRequestError when no request entry is found", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_COORDINATOR" }],
+    } as never);
+
+    await expect(applyScheduleChangeProspectively("wp-1")).rejects.toThrow(
+      MissingScheduleChangeRequestError
+    );
+  });
+
+  it("applies the requested schedule config and returns an effective date", async () => {
+    const newScheduleConfig = { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+      scheduleChangeHistory: [
+        { status: "PENDING_FACULTY", newScheduleConfig },
+        { status: "PENDING_COORDINATOR" },
+        { status: "APPROVED" },
+      ],
+    } as never);
+
+    const result = await applyScheduleChangeProspectively("wp-1");
+
+    expect(result.workPlanId).toBe("wp-1");
+    expect(result.effectiveFrom).toBeInstanceOf(Date);
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wp-1" },
+        data: { scheduleConfig: newScheduleConfig },
+      })
+    );
+  });
+
+  it("picks the most recent history entry carrying a newScheduleConfig", async () => {
+    const olderConfig = { daysOfWeek: [1], hoursPerDay: 4 };
+    const latestConfig = { daysOfWeek: [1, 2], hoursPerDay: 6 };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+      scheduleChangeHistory: [
+        { status: "PENDING_FACULTY", newScheduleConfig: olderConfig },
+        { status: "APPLIED" },
+        { status: "PENDING_FACULTY", newScheduleConfig: latestConfig },
+        { status: "APPROVED" },
+      ],
+    } as never);
+
+    await applyScheduleChangeProspectively("wp-1");
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { scheduleConfig: latestConfig } })
+    );
   });
 });

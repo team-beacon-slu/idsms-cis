@@ -383,11 +383,70 @@ export async function approveScheduleChangeCoordinator(
 // Edge cases: must NOT touch any already-computed `WeeklyReport` or
 // `DailyReportEntry` row — this is the "prospective, not retroactive" rule
 // FR-AT-10 exists to enforce.
+export class MissingScheduleChangeRequestError extends Error {
+  constructor(message = "No pending schedule-change request found for this work plan") {
+    super(message);
+    this.name = "MissingScheduleChangeRequestError";
+  }
+}
+
+// CONVENTION for `requestScheduleChange` (#13, still unimplemented as of
+// this writing): the entry it appends via `logScheduleChangeHistory` must
+// carry the requested `newScheduleConfig` alongside `status:
+// "PENDING_FACULTY"` — that's the only place this function can read the
+// target schedule from, since its own signature (fixed by the contract
+// above) takes no config argument. Found by scanning history from the end
+// for the most recent entry carrying that key, so a later, unrelated
+// request further down the same array can't be picked up by mistake.
 export async function applyScheduleChangeProspectively(
   workPlanId: string
 ): Promise<{ workPlanId: string; effectiveFrom: Date }> {
-  // TODO(JayPing23): implement per the contract above.
-  return { workPlanId, effectiveFrom: new Date() };
+  const effectiveFrom = await prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+
+    const requestEntry = [...history]
+      .reverse()
+      .find(
+        (
+          entry
+        ): entry is ScheduleChangeHistoryEntry & {
+          newScheduleConfig: ConfigureWorkScheduleInput;
+        } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
+      );
+
+    if (!requestEntry) {
+      throw new MissingScheduleChangeRequestError();
+    }
+
+    const now = new Date();
+
+    await tx.workPlan.update({
+      where: { id: workPlanId },
+      data: {
+        scheduleConfig: requestEntry.newScheduleConfig as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await logScheduleChangeHistory(
+      workPlanId,
+      {
+        timestamp: now.toISOString(),
+        approverId: null,
+        action: "SCHEDULE_APPLIED",
+        status: "APPLIED",
+      },
+      tx
+    );
+
+    return now;
+  });
+
+  const studentProfileId = await getWorkPlanStudentProfileId(workPlanId);
+  await computeProjectedCompletionDate(studentProfileId);
+
+  return { workPlanId, effectiveFrom };
 }
 
 export interface ScheduleChangeHistoryEntry {
