@@ -25,5 +25,8 @@ export const weeklyReportReviewSchema = z
   });
 
 export const monthlyReportSchema = z.object({
-  calendarMonth: z.string().regex(/^\d{4}-\d{2}$/, "Expected YYYY-MM"),
+  // Month must be 01-12 — a shape-only \d{4}-\d{2} check would let
+  // "2026-13" through and silently roll into the wrong calendar year in
+  // monthlyReportService's UTC month-boundary math.
+  calendarMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM"),
 });
