@@ -62,11 +62,6 @@ describe("weeklyReportService stubs — reachable and wired correctly", () => {
     expect(result.id).toBe("wr-1");
   });
 
-  it("reviewWeeklyReport_Disregard resolves without throwing", async () => {
-    const result = await reviewWeeklyReport_Disregard("wr-1", "faculty-1");
-    expect(result.id).toBe("wr-1");
-  });
-
   it("generateReportPdfPreview resolves a null preview", async () => {
     await expect(generateReportPdfPreview("wr-1")).resolves.toEqual({ previewUrl: null });
   });
@@ -101,5 +96,39 @@ describe("weeklyReportService stubs — reachable and wired correctly", () => {
     expect(prismaMock.dailyReportEntry.findUniqueOrThrow).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "entry-1" } })
     );
+  });
+});
+
+describe("reviewWeeklyReport_Disregard", () => {
+  it("deletes the report's daily entries before deleting the report itself", async () => {
+    prismaMock.dailyReportEntry.deleteMany.mockResolvedValue({ count: 5 } as never);
+    prismaMock.weeklyReport.delete.mockResolvedValue({} as never);
+
+    const result = await reviewWeeklyReport_Disregard("wr-1", "faculty-1");
+
+    expect(result).toEqual({ id: "wr-1", status: WeeklyReportStatus.DISREGARDED });
+    expect(prismaMock.dailyReportEntry.deleteMany).toHaveBeenCalledWith({
+      where: { weeklyReportId: "wr-1" },
+    });
+    expect(prismaMock.weeklyReport.delete).toHaveBeenCalledWith({ where: { id: "wr-1" } });
+    // Deliberately no audit-log assertion: this contract never says "Log via
+    // logEvent" (see the comment above reviewWeeklyReport_Disregard).
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("deletes daily entries before the report, within the same transaction", async () => {
+    const callOrder: string[] = [];
+    prismaMock.dailyReportEntry.deleteMany.mockImplementation(() => {
+      callOrder.push("dailyReportEntry.deleteMany");
+      return Promise.resolve({ count: 0 }) as never;
+    });
+    prismaMock.weeklyReport.delete.mockImplementation(() => {
+      callOrder.push("weeklyReport.delete");
+      return Promise.resolve({}) as never;
+    });
+
+    await reviewWeeklyReport_Disregard("wr-1", "faculty-1");
+
+    expect(callOrder).toEqual(["dailyReportEntry.deleteMany", "weeklyReport.delete"]);
   });
 });
