@@ -1,5 +1,7 @@
 // Unified calendar aggregation across roles. See PRD Module 12 (FR-CAL-*).
 import { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { computeProjectedCompletionDate } from "@/lib/services/attendanceService";
 
 export type CalendarEventType = "DEADLINE" | "HOLIDAY" | "DEVIATION" | "COMPLETION";
 
@@ -125,10 +127,67 @@ export async function getCoordinatorCalendarView(coordinatorId: string): Promise
 // flag upcoming load spikes — same "bucket by week, flag over threshold"
 // shape as `detectHighVolumeSubmissionWeeks` above, different event type.
 // Edge cases: none.
+// All internship students/schedules are Philippines-based (see PRD Module
+// 5's Philippine holiday-calendar requirement, FR-AT-02), but this runs on
+// servers/CI in UTC — plain `getUTCDay()`/date-component reads on a raw UTC
+// timestamp can be up to one calendar day behind Manila between 00:00-07:59
+// local time, so week-boundary math is done after shifting to UTC+8 first.
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+// Returns the UTC instant corresponding to 00:00 Manila-local time on the
+// Monday of the week containing `date` — a stable per-week bucket key
+// independent of `date`'s time-of-day component.
+function getManilaWeekStart(date: Date): Date {
+  const manila = new Date(date.getTime() + MANILA_OFFSET_MS);
+  const manilaDayOfWeek = manila.getUTCDay(); // 0=Sun..6=Sat
+  const daysSinceMonday = (manilaDayOfWeek + 6) % 7; // 0=Mon..6=Sun
+  const manilaMidnight = Date.UTC(
+    manila.getUTCFullYear(),
+    manila.getUTCMonth(),
+    manila.getUTCDate()
+  );
+  return new Date(manilaMidnight - daysSinceMonday * 24 * 60 * 60 * 1000 - MANILA_OFFSET_MS);
+}
+
+// No SystemConfig-lookup precedent exists yet for this kind of threshold
+// (getRequiredHoursConfig, the pattern this contract points at, is itself
+// still a stub) — hardcoded documented default per the "implementer's
+// call" allowance this contract shares with `detectHighVolumeSubmissionWeeks`
+// above. Revisit if/when a coordinator-configurable threshold is needed.
+const ENDORSEMENT_SPIKE_THRESHOLD = 3;
+
 export async function detectEndorsementLetterSpikes(
   coordinatorId: string
 ): Promise<{ weekStart: Date; expectedCount: number }[]> {
-  // TODO(JayPing23): implement per the contract above.
+  // The schema has no Department model — this system serves a single
+  // department (SLU SAMCIS) — so there is no per-coordinator filter to
+  // apply; every active student's projected completion date is in scope.
   void coordinatorId;
-  return [];
+
+  const students = await prisma.studentProfile.findMany({
+    where: { deletedAt: null },
+    select: { id: true },
+  });
+
+  const completionDates = await Promise.all(
+    students.map((student) => computeProjectedCompletionDate(student.id))
+  );
+
+  const buckets = new Map<number, { weekStart: Date; expectedCount: number }>();
+  for (const completionDate of completionDates) {
+    if (!completionDate) continue;
+
+    const weekStart = getManilaWeekStart(completionDate);
+    const key = weekStart.getTime();
+    const bucket = buckets.get(key);
+    if (bucket) {
+      bucket.expectedCount += 1;
+    } else {
+      buckets.set(key, { weekStart, expectedCount: 1 });
+    }
+  }
+
+  return Array.from(buckets.values())
+    .filter((bucket) => bucket.expectedCount >= ENDORSEMENT_SPIKE_THRESHOLD)
+    .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
 }
