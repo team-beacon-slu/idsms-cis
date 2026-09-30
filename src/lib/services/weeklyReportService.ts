@@ -198,15 +198,40 @@ export async function reviewWeeklyReport_Regard(
 // Edge cases: deciding "clear vs. delete-and-recreate" for the DISREGARDED
 // row is this function's actual design work — document the choice here for
 // `generateWeeklyReportForm`'s implementer.
+//
+// Design choice for the edge case above: delete-and-recreate. A DISREGARDED
+// report is never displayed again (excluded from every downstream read) and
+// carries no state worth preserving, so the simplest way to free up
+// `[studentProfileId, weekStart]` for a fresh row is to delete this one
+// outright — `generateWeeklyReportForm` (still a stub, owned by
+// Shantea23/Task 4) then needs no special-case handling for a leftover
+// DISREGARDED row; its plain `create` just works. `DailyReportEntry` has no
+// `onDelete: Cascade` back to `WeeklyReport` (see schema.prisma), so its rows
+// are deleted first, in the same transaction. No `logEvent` call: this
+// contract, unlike `configureWorkSchedule`/`submitDeviationReport` above,
+// never says "Log via logEvent" (same reasoning as `reviewWeeklyReport_Approve`'s
+// precedent) — and here there's also no surviving row to attach a
+// `facultyAction` note to before it's deleted.
+// Flag for whoever implements FR-WR-07 (`sendReportStatusEmail`, issue #27,
+// still unassigned): the review route calls it with only `weeklyReportId`
+// right after this function returns, for every action including DISREGARD —
+// by then the row is already gone, so that implementation must not assume
+// the row still exists when `action === "DISREGARD"` (build that email from
+// the id + action alone, don't `findUnique`/`findUniqueOrThrow` it).
 export async function reviewWeeklyReport_Disregard(
   weeklyReportId: string,
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(JayPing23): implement per the contract above.
   void facultyId;
   void ipAddress;
-  return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
+
+  return prisma.$transaction(async (tx) => {
+    await tx.dailyReportEntry.deleteMany({ where: { weeklyReportId } });
+    await tx.weeklyReport.delete({ where: { id: weeklyReportId } });
+
+    return { id: weeklyReportId, status: WeeklyReportStatus.DISREGARDED };
+  });
 }
 
 // FR-WR-09 — Owner: gu457 (Ulrich)
