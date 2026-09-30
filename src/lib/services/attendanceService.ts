@@ -11,6 +11,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent } from "@/lib/services/userService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 
 // `logEvent` from "@/lib/services/auditService" is intentionally not
 // imported yet — no stub body below calls it (they're all placeholders).
@@ -269,9 +270,61 @@ export async function computeTotalHoursRendered(studentProfileId: string): Promi
 export async function computeProjectedCompletionDate(
   studentProfileId: string
 ): Promise<Date | null> {
-  // TODO(JayPing23): implement per the contract above.
-  void studentProfileId;
-  return null;
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  const scheduleConfig = workPlan?.scheduleConfig as unknown as
+    ConfigureWorkScheduleInput | null | undefined;
+
+  if (!workPlan || !scheduleConfig?.daysOfWeek?.length || !scheduleConfig.hoursPerDay) {
+    return null;
+  }
+
+  // Reuses #8's `calculateRenderedHours` (not the exported, persisting
+  // `computeTotalHoursRendered`) so this function doesn't trigger a second,
+  // redundant StudentProfile write on every GET /attendance-summary call —
+  // that route already calls computeTotalHoursRendered directly alongside
+  // this one.
+  const [renderedHours, studentProfile] = await Promise.all([
+    calculateRenderedHours(studentProfileId),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { requiredHours: true },
+    }),
+  ]);
+
+  const remainingHours = studentProfile.requiredHours - renderedHours;
+  if (remainingHours <= 0) {
+    return new Date();
+  }
+
+  // B14 (applyScheduleChangeProspectively, out of scope here) is what keeps
+  // the latest APPROVED WorkPlan's scheduleConfig current for "today
+  // onward" — reading it here is what makes this projection automatically
+  // honor an approved schedule change without duplicating any
+  // history-walking logic of its own.
+  const workingDays = new Set(scheduleConfig.daysOfWeek);
+  const daysNeeded = Math.ceil(remainingHours / scheduleConfig.hoursPerDay);
+
+  let projected = new Date();
+  let workingDaysCounted = 0;
+  while (workingDaysCounted < daysNeeded) {
+    projected = new Date(projected.getTime() + 24 * 60 * 60 * 1000);
+    if (workingDays.has(getManilaDayOfWeek(projected))) {
+      workingDaysCounted += 1;
+    }
+  }
+
+  return projected;
+}
+
+// All internship students/schedules are Philippines-based (see the
+// `getHolidayCalendarForStudent` comment above re: Philippine holidays), but
+// this runs on servers/CI in UTC. `daysOfWeek` was configured against
+// Manila-local weekdays, so day-of-week must be read after shifting to
+// UTC+8 — plain `getUTCDay()` on a raw UTC timestamp is up to one calendar
+// day behind Manila between 00:00-07:59 local time.
+function getManilaDayOfWeek(date: Date): number {
+  const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+  return new Date(date.getTime() + MANILA_OFFSET_MS).getUTCDay();
 }
 
 // `REQUIRED_HOURS_CONFIG_KEY` is intentionally not defined yet — no stub
