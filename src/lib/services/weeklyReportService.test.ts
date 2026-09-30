@@ -47,11 +47,6 @@ describe("weeklyReportService stubs — reachable and wired correctly", () => {
     await expect(validateLateSubmissionReason("wr-1", "Power outage")).resolves.toBeUndefined();
   });
 
-  it("reviewWeeklyReport_Approve resolves without throwing", async () => {
-    const result = await reviewWeeklyReport_Approve("wr-1", "faculty-1");
-    expect(result.id).toBe("wr-1");
-  });
-
   it("reviewWeeklyReport_Return resolves without throwing", async () => {
     const result = await reviewWeeklyReport_Return("wr-1", "faculty-1", "Missing Tuesday entry");
     expect(result.status).toBe(WeeklyReportStatus.PENDING);
@@ -100,6 +95,35 @@ describe("weeklyReportService stubs — reachable and wired correctly", () => {
     expect(result).toBe("wr-1");
     expect(prismaMock.dailyReportEntry.findUniqueOrThrow).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "entry-1" } })
+    );
+  });
+});
+
+describe("reviewWeeklyReport_Approve", () => {
+  it("sets the report APPROVED and records the reviewing faculty in facultyAction", async () => {
+    prismaMock.weeklyReport.update.mockResolvedValue({
+      id: "wr-1",
+      status: WeeklyReportStatus.APPROVED,
+      studentProfileId: "profile-1",
+    } as never);
+    // computeTotalHoursRendered/computeProjectedCompletionDate (#8/#9) are
+    // now real code, not stubs — mock what they touch so this test stays
+    // focused on the status transition itself, which is what it asserts.
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+
+    const result = await reviewWeeklyReport_Approve("wr-1", "faculty-1");
+
+    expect(result).toEqual({ id: "wr-1", status: WeeklyReportStatus.APPROVED });
+    expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wr-1" },
+        data: {
+          status: WeeklyReportStatus.APPROVED,
+          facultyAction: "APPROVED by faculty-1",
+        },
+      })
     );
   });
 });

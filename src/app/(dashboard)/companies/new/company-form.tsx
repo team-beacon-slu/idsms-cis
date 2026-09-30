@@ -43,7 +43,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
   }
 
   return (
-    <Card className="max-w-lg">
+    <Card className="max-w-2xl">
       <CardHeader>
         <CardTitle>Register a company</CardTitle>
         <CardDescription>
@@ -51,7 +51,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-2">
             <Label htmlFor="name">Company name</Label>
             <Input id="name" {...register("name")} />
@@ -71,7 +71,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
             <select
               id="workModality"
               {...register("workModality")}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+              className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {WORK_MODALITIES.map((modality) => (
                 <option key={modality} value={modality}>
@@ -80,21 +80,25 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
               ))}
             </select>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="supervisorName">Supervisor name</Label>
-            <Input id="supervisorName" {...register("supervisorName")} />
-            {errors.supervisorName && (
-              <p className="text-sm text-destructive">{errors.supervisorName.message as string}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="supervisorContact">Supervisor contact</Label>
-            <Input id="supervisorContact" {...register("supervisorContact")} />
-            {errors.supervisorContact && (
-              <p className="text-sm text-destructive">
-                {errors.supervisorContact.message as string}
-              </p>
-            )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="supervisorName">Supervisor name</Label>
+              <Input id="supervisorName" {...register("supervisorName")} />
+              {errors.supervisorName && (
+                <p className="text-sm text-destructive">
+                  {errors.supervisorName.message as string}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supervisorContact">Supervisor contact</Label>
+              <Input id="supervisorContact" {...register("supervisorContact")} />
+              {errors.supervisorContact && (
+                <p className="text-sm text-destructive">
+                  {errors.supervisorContact.message as string}
+                </p>
+              )}
+            </div>
           </div>
           {showPositionTitle && (
             <div className="space-y-2">
@@ -102,7 +106,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
               <Input id="positionTitle" {...register("positionTitle")} />
             </div>
           )}
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
             {isSubmitting ? "Registering..." : "Register company"}
           </Button>
         </form>

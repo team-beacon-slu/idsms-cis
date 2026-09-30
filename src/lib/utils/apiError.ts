@@ -8,6 +8,7 @@ import { InvalidMoaTransitionError } from "@/lib/services/companyService";
 import { WorkPlanPendingError } from "@/lib/services/workPlanService";
 import {
   InvalidScheduleChangeCoordinatorStateError,
+  InvalidScheduleChangeStateError,
   MissingScheduleChangeRequestError,
 } from "@/lib/services/attendanceService";
 
@@ -31,6 +32,9 @@ export function handleApiError(error: unknown): NextResponse {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
   if (error instanceof WorkPlanPendingError) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  if (error instanceof InvalidScheduleChangeStateError) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
   if (error instanceof MissingScheduleChangeRequestError) {
