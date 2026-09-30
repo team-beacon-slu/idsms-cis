@@ -7,9 +7,11 @@ import {
   Program,
   Role,
   ValidationStatus,
+  WeeklyReportStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent } from "@/lib/services/userService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 
 // `logEvent` from "@/lib/services/auditService" is intentionally not
 // imported yet — no stub body below calls it (they're all placeholders).
@@ -196,10 +198,62 @@ export async function validateDeviationReport(
 // `reviewWeeklyReport_Approve`/`_Regard` (Task 4) after each approval.
 // Edge cases: must never read PENDING/RETURNED/DISREGARDED WeeklyReport
 // rows, or PENDING/REJECTED DeviationReport rows.
+// SCHEMA GAP: `DeviationReport` has no hours-magnitude column (no
+// `scheduledHours`/`actualHours`-style field — see the model in
+// schema.prisma), so the literal "+overtime/-absence/undertime" delta this
+// FR's issue text describes can't be applied numerically. Approved
+// `DailyReportEntry.actualHours` already reflects what actually happened
+// each day (an absence day nets 0 actualHours, an overtime day nets more
+// than its scheduledHours), so summing it alone already captures validated
+// deviations' real effect. Flagged for Danielle/PM follow-up rather than
+// adding a new schema field unreviewed (same rule `getHolidayCalendarForStudent`
+// above already calls out for its own schema gap).
+//
+// Exported (not module-private) so #9's `computeProjectedCompletionDate`
+// can reuse the same sum without duplicating this query once that issue
+// lands — see that function's own comment for why it can't just call this
+// exported, persisting version directly.
+export async function calculateRenderedHours(
+  studentProfileId: string,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+): Promise<number> {
+  const approvedWeeklyReports = await client.weeklyReport.findMany({
+    where: {
+      studentProfileId,
+      status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+    },
+    select: { dailyEntries: { select: { actualHours: true } } },
+  });
+
+  const totalHours = approvedWeeklyReports.reduce((sum, report) => {
+    const dayHours = report.dailyEntries.reduce(
+      (daySum, entry) => daySum + Number(entry.actualHours ?? 0),
+      0
+    );
+    return sum + dayHours;
+  }, 0);
+
+  return Math.round(totalHours * 100) / 100;
+}
+
+// No `logEvent` call here on purpose: this contract (unlike the file's other
+// mutation stubs) never says "Log via logEvent" — only "Writes the result to
+// StudentProfile.renderedHours" — and this function is invoked on every GET
+// /attendance-summary read, not just on staff actions. Audit-logging a
+// system-triggered cache recompute on every page load would flood the
+// (append-only, NFR-SEC-07/10) audit log with unattributed `userId: null`
+// rows for something that isn't itself a reviewable action.
 export async function computeTotalHoursRendered(studentProfileId: string): Promise<number> {
-  // TODO(JayPing23): implement per the contract above.
-  void studentProfileId;
-  return 0;
+  return prisma.$transaction(async (tx) => {
+    const renderedHours = await calculateRenderedHours(studentProfileId, tx);
+
+    await tx.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { renderedHours },
+    });
+
+    return renderedHours;
+  });
 }
 
 // FR-AT-05 — Owner: JayPing23 (Danielle)
@@ -216,9 +270,61 @@ export async function computeTotalHoursRendered(studentProfileId: string): Promi
 export async function computeProjectedCompletionDate(
   studentProfileId: string
 ): Promise<Date | null> {
-  // TODO(JayPing23): implement per the contract above.
-  void studentProfileId;
-  return null;
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  const scheduleConfig = workPlan?.scheduleConfig as unknown as
+    ConfigureWorkScheduleInput | null | undefined;
+
+  if (!workPlan || !scheduleConfig?.daysOfWeek?.length || !scheduleConfig.hoursPerDay) {
+    return null;
+  }
+
+  // Reuses #8's `calculateRenderedHours` (not the exported, persisting
+  // `computeTotalHoursRendered`) so this function doesn't trigger a second,
+  // redundant StudentProfile write on every GET /attendance-summary call —
+  // that route already calls computeTotalHoursRendered directly alongside
+  // this one.
+  const [renderedHours, studentProfile] = await Promise.all([
+    calculateRenderedHours(studentProfileId),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { requiredHours: true },
+    }),
+  ]);
+
+  const remainingHours = studentProfile.requiredHours - renderedHours;
+  if (remainingHours <= 0) {
+    return new Date();
+  }
+
+  // B14 (applyScheduleChangeProspectively, out of scope here) is what keeps
+  // the latest APPROVED WorkPlan's scheduleConfig current for "today
+  // onward" — reading it here is what makes this projection automatically
+  // honor an approved schedule change without duplicating any
+  // history-walking logic of its own.
+  const workingDays = new Set(scheduleConfig.daysOfWeek);
+  const daysNeeded = Math.ceil(remainingHours / scheduleConfig.hoursPerDay);
+
+  let projected = new Date();
+  let workingDaysCounted = 0;
+  while (workingDaysCounted < daysNeeded) {
+    projected = new Date(projected.getTime() + 24 * 60 * 60 * 1000);
+    if (workingDays.has(getManilaDayOfWeek(projected))) {
+      workingDaysCounted += 1;
+    }
+  }
+
+  return projected;
+}
+
+// All internship students/schedules are Philippines-based (see the
+// `getHolidayCalendarForStudent` comment above re: Philippine holidays), but
+// this runs on servers/CI in UTC. `daysOfWeek` was configured against
+// Manila-local weekdays, so day-of-week must be read after shifting to
+// UTC+8 — plain `getUTCDay()` on a raw UTC timestamp is up to one calendar
+// day behind Manila between 00:00-07:59 local time.
+function getManilaDayOfWeek(date: Date): number {
+  const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+  return new Date(date.getTime() + MANILA_OFFSET_MS).getUTCDay();
 }
 
 // `REQUIRED_HOURS_CONFIG_KEY` is intentionally not defined yet — no stub
@@ -336,17 +442,52 @@ export async function requestScheduleChange(
 // `logScheduleChangeHistory`.
 // Edge cases: must only act on a request currently `PENDING_FACULTY` —
 // reject/throw if called on a request in any other state.
+export class InvalidScheduleChangeStateError extends Error {
+  constructor(message = "This schedule change request is not awaiting Faculty review") {
+    super(message);
+    this.name = "InvalidScheduleChangeStateError";
+  }
+}
+
 export async function validateScheduleChangeFaculty(
   workPlanId: string,
   facultyId: string,
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  // TODO(JayPing23): implement per the contract above.
-  void facultyId;
-  void action;
   void ipAddress;
-  return { workPlanId, status: "PENDING_FACULTY" };
+
+  // The PENDING_FACULTY read and the resulting history append must be one
+  // atomic unit — otherwise two concurrent reviews of the same request (a
+  // double-click, a retried request) could both pass the state gate before
+  // either has written its outcome. Passing `tx` through to
+  // `logScheduleChangeHistory` (which already accepts a transaction client)
+  // is what closes that window once B15 implements the actual write.
+  return prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+    const currentStatus = history.length > 0 ? history[history.length - 1].status : undefined;
+
+    if (currentStatus !== "PENDING_FACULTY") {
+      throw new InvalidScheduleChangeStateError();
+    }
+
+    const nextStatus = action === "APPROVE" ? "PENDING_COORDINATOR" : "REJECTED";
+
+    await logScheduleChangeHistory(
+      workPlanId,
+      {
+        timestamp: new Date().toISOString(),
+        approverId: facultyId,
+        action: action === "APPROVE" ? "FACULTY_APPROVED" : "FACULTY_REJECTED",
+        status: nextStatus,
+      },
+      tx
+    );
+
+    return { workPlanId, status: nextStatus };
+  });
 }
 
 // FR-AT-09 (step 2 of 2) — Owner: JayPing23 (Danielle)
@@ -406,15 +547,13 @@ export async function applyScheduleChangeProspectively(
     const history = (workPlan.scheduleChangeHistory ??
       []) as unknown as ScheduleChangeHistoryEntry[];
 
-    const requestEntry = [...history]
-      .reverse()
-      .find(
-        (
-          entry
-        ): entry is ScheduleChangeHistoryEntry & {
-          newScheduleConfig: ConfigureWorkScheduleInput;
-        } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
-      );
+    const requestEntry = [...history].reverse().find(
+      (
+        entry
+      ): entry is ScheduleChangeHistoryEntry & {
+        newScheduleConfig: ConfigureWorkScheduleInput;
+      } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
+    );
 
     if (!requestEntry) {
       throw new MissingScheduleChangeRequestError();
