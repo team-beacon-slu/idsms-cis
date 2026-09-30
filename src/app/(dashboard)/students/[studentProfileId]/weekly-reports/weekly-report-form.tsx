@@ -1,5 +1,7 @@
 "use client";
 
+import { NotebookPen } from "lucide-react";
+
 // FR-WR-02, FR-WR-03 — Owner: gu457 (Ulrich)
 // Requirement: daily accomplishment entry UI — one row per scheduled day
 // (hours + accomplishments + tools used), showing live running totals.
@@ -14,8 +16,12 @@
 // Edge cases: none beyond standard form validation.
 export function WeeklyReportForm({ weeklyReportId }: { weeklyReportId: string }) {
   return (
-    <div data-testid="weekly-report-form" className="text-sm text-muted-foreground">
-      Weekly report form for {weeklyReportId} — not yet implemented (see issue #39).
+    <div
+      data-testid="weekly-report-form"
+      className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground"
+    >
+      <NotebookPen className="size-6 text-muted-foreground" aria-hidden="true" />
+      <p>Weekly report form for {weeklyReportId} — not yet implemented (see issue #39).</p>
     </div>
   );
 }

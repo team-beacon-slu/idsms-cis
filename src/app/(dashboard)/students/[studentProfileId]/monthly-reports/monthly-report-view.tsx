@@ -1,5 +1,7 @@
 "use client";
 
+import { Construction } from "lucide-react";
+
 // FR-WR-08 — Owner: AndresBonifaci0 (Matt)
 // Requirement: eligibility status, a submit action, and a read-only rollup
 // of the month's qualifying weekly reports.
@@ -22,8 +24,15 @@ export function MonthlyReportView({
   calendarMonth: string;
 }) {
   return (
-    <div data-testid="monthly-report-view" className="text-sm text-muted-foreground">
-      Monthly report for {studentProfileId} / {calendarMonth} — not yet implemented (see issue #40).
+    <div
+      data-testid="monthly-report-view"
+      className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground"
+    >
+      <Construction className="size-5" aria-hidden="true" />
+      <p>
+        Monthly report for {studentProfileId} / {calendarMonth} — not yet implemented (see issue
+        #40).
+      </p>
     </div>
   );
 }

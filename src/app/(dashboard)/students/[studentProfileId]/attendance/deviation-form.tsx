@@ -1,5 +1,7 @@
 "use client";
 
+import { ClipboardList } from "lucide-react";
+
 // FR-AT-03 — Owner: gu457 (Ulrich)
 // Requirement: date, reason category, supporting document upload for an
 // absence/undertime/overtime deviation.
@@ -11,8 +13,12 @@
 // Edge cases: none beyond standard form validation.
 export function DeviationReportForm({ studentProfileId }: { studentProfileId: string }) {
   return (
-    <div data-testid="deviation-report-form" className="text-sm text-muted-foreground">
-      Deviation report form for {studentProfileId} — not yet implemented (see issue #42).
+    <div
+      data-testid="deviation-report-form"
+      className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground"
+    >
+      <ClipboardList className="size-6 text-muted-foreground" aria-hidden="true" />
+      <p>Deviation report form for {studentProfileId} — not yet implemented (see issue #42).</p>
     </div>
   );
 }

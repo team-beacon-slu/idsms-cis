@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
+import { FileBarChart2 } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { listMonthlyReportsForStudent } from "@/lib/services/monthlyReportService";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonthlyReportView } from "./monthly-report-view";
 
 export default async function MonthlyReportsPage({
@@ -26,16 +27,31 @@ export default async function MonthlyReportsPage({
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Monthly Reports ({reports.length})</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <MonthlyReportView
-          studentProfileId={params.studentProfileId}
-          calendarMonth={currentMonth}
-        />
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <div className="flex items-start gap-3">
+        <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
+          <FileBarChart2 className="size-6" aria-hidden="true" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Monthly Reports</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Aggregated rollups of this student&apos;s qualifying weekly reports.
+          </p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{reports.length} submitted</CardTitle>
+          <CardDescription>Current month: {currentMonth}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MonthlyReportView
+            studentProfileId={params.studentProfileId}
+            calendarMonth={currentMonth}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
