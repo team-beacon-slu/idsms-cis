@@ -106,6 +106,14 @@ describe("reviewWeeklyReport_Approve", () => {
       status: WeeklyReportStatus.APPROVED,
       studentProfileId: "profile-1",
     } as never);
+    // reviewWeeklyReport_Approve also calls attendanceService's
+    // computeTotalHoursRendered/computeProjectedCompletionDate (both real
+    // implementations as of #52/#53) — mocked just enough for those calls
+    // to resolve without throwing; their own behavior is covered by
+    // attendanceService.test.ts.
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
 
     const result = await reviewWeeklyReport_Approve("wr-1", "faculty-1");
 
