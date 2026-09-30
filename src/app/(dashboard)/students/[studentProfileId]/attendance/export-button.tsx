@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // FR-AT-07 — Owner: AndresBonifaci0 (Matt)
@@ -13,8 +14,16 @@ import { Button } from "@/components/ui/button";
 export function AttendanceExportButton({ studentProfileId }: { studentProfileId: string }) {
   void studentProfileId;
   return (
-    <Button size="sm" variant="outline" disabled data-testid="attendance-export-button">
-      Export CSV (not yet implemented — see issue #44)
+    <Button
+      size="sm"
+      variant="outline"
+      disabled
+      data-testid="attendance-export-button"
+      title="Not yet implemented — see issue #44"
+      className="cursor-pointer transition-colors duration-200"
+    >
+      <Download className="size-4" aria-hidden="true" />
+      Export CSV
     </Button>
   );
 }

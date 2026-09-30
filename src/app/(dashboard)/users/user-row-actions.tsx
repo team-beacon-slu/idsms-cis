@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { UserCheck, UserX, LogOut, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface UserRowActionsProps {
@@ -63,17 +64,42 @@ export function UserRowActions({
   }
 
   return (
-    <div className="flex gap-2">
-      <Button size="sm" variant="outline" disabled={disabled || isPending} onClick={toggleActive}>
+    <div className="flex flex-wrap gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        className="cursor-pointer gap-1.5"
+        disabled={disabled || isPending}
+        onClick={toggleActive}
+      >
+        {isActive ? (
+          <UserX className="size-3.5" aria-hidden="true" />
+        ) : (
+          <UserCheck className="size-3.5" aria-hidden="true" />
+        )}
         {isActive ? "Deactivate" : "Activate"}
       </Button>
       {canSuperAdmin && (
-        <Button size="sm" variant="outline" disabled={disabled || isPending} onClick={forceLogout}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="cursor-pointer gap-1.5"
+          disabled={disabled || isPending}
+          onClick={forceLogout}
+        >
+          <LogOut className="size-3.5" aria-hidden="true" />
           Force logout
         </Button>
       )}
       {canSuperAdmin && isLocked && (
-        <Button size="sm" variant="outline" disabled={isPending} onClick={unlock}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="cursor-pointer gap-1.5"
+          disabled={isPending}
+          onClick={unlock}
+        >
+          <Unlock className="size-3.5" aria-hidden="true" />
           Unlock
         </Button>
       )}

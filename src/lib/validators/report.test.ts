@@ -84,4 +84,9 @@ describe("monthlyReportSchema", () => {
   it("rejects a malformed month string", () => {
     expect(() => monthlyReportSchema.parse({ calendarMonth: "August 2026" })).toThrow();
   });
+
+  it("rejects an out-of-range month number", () => {
+    expect(() => monthlyReportSchema.parse({ calendarMonth: "2026-13" })).toThrow();
+    expect(() => monthlyReportSchema.parse({ calendarMonth: "2026-00" })).toThrow();
+  });
 });
