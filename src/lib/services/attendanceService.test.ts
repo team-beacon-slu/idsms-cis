@@ -11,6 +11,7 @@ import {
   getHolidayCalendarForStudent,
   getRequiredHoursConfig,
   getWorkPlanStudentProfileId,
+  InvalidScheduleChangeStateError,
   listDeviationReportsForStudent,
   logScheduleChangeHistory,
   markHolidayApplicable,
@@ -118,11 +119,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     expect(result.status).toBe("PENDING_FACULTY");
   });
 
-  it("validateScheduleChangeFaculty resolves without throwing", async () => {
-    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE");
-    expect(result.workPlanId).toBe("wp-1");
-  });
-
   it("approveScheduleChangeCoordinator resolves without throwing", async () => {
     const result = await approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE");
     expect(result.workPlanId).toBe("wp-1");
@@ -141,6 +137,52 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
         action: "REQUESTED",
       })
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("validateScheduleChangeFaculty", () => {
+  it("throws InvalidScheduleChangeStateError when the request isn't PENDING_FACULTY", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [],
+    } as never);
+
+    await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeStateError
+    );
+  });
+
+  it("throws when the last logged status is something other than PENDING_FACULTY", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_COORDINATOR" }],
+    } as never);
+
+    await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeStateError
+    );
+  });
+
+  // `logScheduleChangeHistory` (bottom of this file) is B15 — a separate,
+  // still-stubbed issue owned by Kenneth — so it's a no-op here. This test
+  // only verifies validateScheduleChangeFaculty's own state-gate and return
+  // value, not that the history entry actually lands in the DB.
+  it("on APPROVE, advances to PENDING_COORDINATOR", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_FACULTY" }],
+    } as never);
+
+    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "PENDING_COORDINATOR" });
+  });
+
+  it("on REJECT, terminates the request as REJECTED", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_FACULTY" }],
+    } as never);
+
+    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "REJECT");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "REJECTED" });
   });
 });
 
