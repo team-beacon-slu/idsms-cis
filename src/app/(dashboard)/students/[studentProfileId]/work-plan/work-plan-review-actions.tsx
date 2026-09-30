@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
   const router = useRouter();
@@ -28,11 +30,27 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
   }
 
   return (
-    <div className="flex gap-2">
-      <Button size="sm" disabled={isPending} onClick={() => review("APPROVE")}>
+    <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+      <Button
+        size="sm"
+        disabled={isPending}
+        onClick={() => review("APPROVE")}
+        className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
+      >
+        <CheckCircle2 className="size-3.5" aria-hidden="true" />
         {isPending ? "Saving..." : "Approve"}
       </Button>
-      <Button size="sm" variant="outline" disabled={isPending} onClick={() => review("RETURN")}>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={isPending}
+        onClick={() => review("RETURN")}
+        className={cn(
+          "cursor-pointer gap-1.5 border-red-200 text-red-700 transition-colors duration-200 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed",
+          "dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+        )}
+      >
+        <RotateCcw className="size-3.5" aria-hidden="true" />
         {isPending ? "Saving..." : "Return"}
       </Button>
     </div>
