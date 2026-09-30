@@ -47,11 +47,6 @@ describe("weeklyReportService stubs — reachable and wired correctly", () => {
     await expect(validateLateSubmissionReason("wr-1", "Power outage")).resolves.toBeUndefined();
   });
 
-  it("reviewWeeklyReport_Approve resolves without throwing", async () => {
-    const result = await reviewWeeklyReport_Approve("wr-1", "faculty-1");
-    expect(result.id).toBe("wr-1");
-  });
-
   it("reviewWeeklyReport_Return resolves without throwing", async () => {
     const result = await reviewWeeklyReport_Return("wr-1", "faculty-1", "Missing Tuesday entry");
     expect(result.status).toBe(WeeklyReportStatus.PENDING);
@@ -130,5 +125,28 @@ describe("reviewWeeklyReport_Disregard", () => {
     await reviewWeeklyReport_Disregard("wr-1", "faculty-1");
 
     expect(callOrder).toEqual(["dailyReportEntry.deleteMany", "weeklyReport.delete"]);
+  });
+});
+
+describe("reviewWeeklyReport_Approve", () => {
+  it("sets the report APPROVED and records the reviewing faculty in facultyAction", async () => {
+    prismaMock.weeklyReport.update.mockResolvedValue({
+      id: "wr-1",
+      status: WeeklyReportStatus.APPROVED,
+      studentProfileId: "profile-1",
+    } as never);
+
+    const result = await reviewWeeklyReport_Approve("wr-1", "faculty-1");
+
+    expect(result).toEqual({ id: "wr-1", status: WeeklyReportStatus.APPROVED });
+    expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wr-1" },
+        data: {
+          status: WeeklyReportStatus.APPROVED,
+          facultyAction: "APPROVED by faculty-1",
+        },
+      })
+    );
   });
 });
