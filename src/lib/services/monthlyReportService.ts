@@ -1,6 +1,7 @@
 // Monthly report aggregation over weekly reports. See PRD Module 6 (FR-WR-08).
-import { DocumentType, WeeklyReportStatus } from "@prisma/client";
+import { DocumentStatus, DocumentType, WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { logEvent } from "@/lib/services/auditService";
 
 // `calendarMonth` is always "YYYY-MM" (see both functions' JSDoc below).
 // Shared here since both the eligibility check and (eventually) any
@@ -79,11 +80,54 @@ export async function submitMonthlyReport(
   actingUserId: string,
   ipAddress?: string | null
 ): Promise<{ generatedDocumentId: string; calendarMonth: string }> {
-  // TODO(JayPing23): implement per the contract above.
-  void studentProfileId;
-  void actingUserId;
-  void ipAddress;
-  return { generatedDocumentId: "", calendarMonth };
+  return prisma.$transaction(async (tx) => {
+    // Idempotency check, same pattern as workPlanService.reviewWorkPlan's
+    // endorsement-letter row: a retried/duplicate submit for a month that
+    // already has a MONTHLY_REPORT row returns the existing one instead of
+    // creating a second, since periodLabel isn't its own unique constraint
+    // the way [studentProfileId, weekStart] is for WeeklyReport.
+    // KNOWN LIMITATION (shared with that same reviewWorkPlan precedent): a
+    // findFirst-then-create inside a default-isolation $transaction isn't
+    // airtight against two truly concurrent submits for the same month —
+    // both could pass the findFirst check before either's create commits.
+    // A real fix needs a DB-level unique constraint on
+    // [studentProfileId, documentType, periodLabel], which is a schema
+    // change flagged for Danielle/PM rather than made unreviewed here (same
+    // rule getHolidayCalendarForStudent's schema-gap note already follows).
+    const existing = await tx.generatedDocument.findFirst({
+      where: {
+        studentProfileId,
+        documentType: DocumentType.MONTHLY_REPORT,
+        periodLabel: calendarMonth,
+      },
+    });
+
+    if (existing) {
+      return { generatedDocumentId: existing.id, calendarMonth };
+    }
+
+    const generatedDocument = await tx.generatedDocument.create({
+      data: {
+        studentProfileId,
+        documentType: DocumentType.MONTHLY_REPORT,
+        status: DocumentStatus.PENDING_DRAFT,
+        periodLabel: calendarMonth,
+      },
+    });
+
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "MONTHLY_REPORT_SUBMITTED",
+        entityType: "GeneratedDocument",
+        entityId: generatedDocument.id,
+        ipAddress,
+      },
+      tx
+    );
+
+    return { generatedDocumentId: generatedDocument.id, calendarMonth };
+  });
 }
 
 // Trivial read — not a stub, matches Phase 2's listCompanies precedent.
