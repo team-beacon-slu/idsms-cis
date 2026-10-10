@@ -7,6 +7,7 @@ import {
 } from "@/lib/services/attendanceService";
 import { listWeeklyReportsForStudent } from "@/lib/services/weeklyReportService";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
+import { getExpiringMoaRecords } from "@/lib/services/companyService";
 
 export type CalendarEventType = "DEADLINE" | "HOLIDAY" | "DEVIATION" | "COMPLETION";
 
@@ -201,9 +202,8 @@ export async function getStudentCalendarView(studentProfileId: string): Promise<
 // aggregated array. Feeds `detectHighVolumeSubmissionWeeks` below.
 // Edge cases: none beyond the aggregation itself.
 export async function getFacultyCalendarView(facultyId: string): Promise<CalendarEvent[]> {
-  // TODO(AndresBonifaci0): implement per the contract above.
-  void facultyId;
-  return [];
+  const events = await getUnifiedCalendarEvents(facultyId, Role.FACULTY_ADVISER);
+  return colorCodeCalendarEvents(events).sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 // FR-CAL-03 — Owner: AndresBonifaci0 (Matt)
@@ -218,9 +218,34 @@ export async function getFacultyCalendarView(facultyId: string): Promise<Calenda
 export async function detectHighVolumeSubmissionWeeks(
   facultyId: string
 ): Promise<{ weekStart: Date; count: number }[]> {
-  // TODO(AndresBonifaci0): implement per the contract above.
-  void facultyId;
-  return [];
+  const config = await prisma.systemConfig.findUnique({
+    where: { configKey: "faculty_submission_threshold" },
+    select: { configValue: true },
+  });
+  // Twenty submissions/week is the default until a SystemConfig override exists.
+  const threshold = config ? config.configValue : 20;
+  if (typeof threshold !== "number" || !Number.isSafeInteger(threshold) || threshold <= 0) {
+    throw new Error("Invalid faculty submission threshold: expected a positive integer");
+  }
+  return bucketHighVolumeSubmissionWeeks(await getFacultyCalendarView(facultyId), threshold);
+}
+
+export function bucketHighVolumeSubmissionWeeks(
+  events: CalendarEvent[],
+  threshold: number
+): { weekStart: Date; count: number }[] {
+  const buckets = new Map<number, { weekStart: Date; count: number }>();
+  for (const event of events) {
+    if (event.type !== "DEADLINE") continue;
+    const weekStart = getManilaWeekStart(event.date);
+    const key = weekStart.getTime();
+    const bucket = buckets.get(key);
+    if (bucket) bucket.count += 1;
+    else buckets.set(key, { weekStart, count: 1 });
+  }
+  return Array.from(buckets.values())
+    .filter(({ count }) => count > threshold)
+    .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
 }
 
 // FR-CAL-04 — Owner: AndresBonifaci0 (Matt)
@@ -235,9 +260,33 @@ export async function detectHighVolumeSubmissionWeeks(
 // `detectEndorsementLetterSpikes` below.
 // Edge cases: none beyond the merge.
 export async function getCoordinatorCalendarView(coordinatorId: string): Promise<CalendarEvent[]> {
-  // TODO(AndresBonifaci0): implement per the contract above.
-  void coordinatorId;
-  return [];
+  const [events, moaRecords] = await Promise.all([
+    getUnifiedCalendarEvents(coordinatorId, Role.DEPARTMENT_COORDINATOR),
+    // Phase 2's shared alert horizon: active agreements expiring within 30 days,
+    // including overdue active agreements that still need coordinator attention.
+    getExpiringMoaRecords(),
+  ]);
+  const companies = moaRecords.length
+    ? await prisma.company.findMany({
+        where: {
+          id: { in: Array.from(new Set(moaRecords.map(({ companyId }) => companyId))) },
+          deletedAt: null,
+        },
+        select: { id: true, name: true },
+      })
+    : [];
+  const companyNames = new Map(companies.map(({ id, name }) => [id, name]));
+  const expiryEvents: CalendarEvent[] = moaRecords
+    .filter(({ companyId }) => companyNames.has(companyId))
+    .map(({ companyId, validTo }) => ({
+      // Expiration is a deadline; preserve the shared four-type event contract.
+      type: "DEADLINE",
+      date: validTo,
+      label: `MOA expiry — ${companyNames.get(companyId)}`,
+    }));
+  return colorCodeCalendarEvents([...events, ...expiryEvents]).sort(
+    (a, b) => a.date.getTime() - b.date.getTime()
+  );
 }
 
 // FR-CAL-04 — Owner: JayPing23 (Danielle)

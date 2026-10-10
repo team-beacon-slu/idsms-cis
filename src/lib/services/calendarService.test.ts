@@ -276,15 +276,21 @@ describe("calendarService stubs — reachable and wired correctly", () => {
     expect(events.every((e) => e.studentProfileId === "profile-1")).toBe(true);
   });
 
-  it("getFacultyCalendarView resolves an empty array", async () => {
+  it("getFacultyCalendarView returns no events and does not query students without assignments", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([]);
     await expect(getFacultyCalendarView("faculty-1")).resolves.toEqual([]);
+    expect(prismaMock.studentProfile.findMany).not.toHaveBeenCalled();
   });
 
   it("detectHighVolumeSubmissionWeeks resolves an empty array", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([]);
     await expect(detectHighVolumeSubmissionWeeks("faculty-1")).resolves.toEqual([]);
   });
 
   it("getCoordinatorCalendarView resolves an empty array", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([]);
+    prismaMock.moaRecord.findMany.mockResolvedValue([]);
     await expect(getCoordinatorCalendarView("coord-1")).resolves.toEqual([]);
   });
 });
