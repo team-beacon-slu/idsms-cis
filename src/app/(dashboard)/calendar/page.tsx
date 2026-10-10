@@ -6,6 +6,8 @@ import {
   colorCodeCalendarEvents,
   getStudentCalendarView,
   getUnifiedCalendarEvents,
+  getCoordinatorCalendarView,
+  detectEndorsementLetterSpikes,
 } from "@/lib/services/calendarService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
@@ -14,6 +16,9 @@ import { UnifiedCalendarView } from "./unified-calendar-view";
 
 export default async function CalendarPage() {
   const user = await requireUserPage();
+  const coordinatorView =
+    user.role === Role.DEPARTMENT_COORDINATOR || user.role === Role.SUPER_ADMIN;
+  const endorsementSpikes = coordinatorView ? await detectEndorsementLetterSpikes(user.id) : [];
 
   // FR-CAL-02: students get their own scoped view plus their work schedule.
   // Other roles keep the role-scoped aggregate until their dedicated views
@@ -31,6 +36,8 @@ export default async function CalendarPage() {
       const schedule = parseScheduleConfig(workPlan?.scheduleConfig);
       scheduleLabel = schedule ? formatSchedule(schedule) : null;
     }
+  } else if (coordinatorView) {
+    events = await getCoordinatorCalendarView(user.id);
   } else {
     events = colorCodeCalendarEvents(await getUnifiedCalendarEvents(user.id, user.role));
   }
@@ -54,6 +61,30 @@ export default async function CalendarPage() {
             <span className="font-medium text-foreground">Work schedule: </span>
             {scheduleLabel ?? "not set yet — configure it on the Attendance page"}
           </p>
+        </div>
+      )}
+
+      {coordinatorView && (
+        <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+          <h2 className="font-medium">Expected endorsement letter demand</h2>
+          {endorsementSpikes.length ? (
+            <ul className="mt-2 space-y-1">
+              {endorsementSpikes.map(({ weekStart, expectedCount }) => (
+                <li key={weekStart.toISOString()}>
+                  Week of{" "}
+                  {weekStart.toLocaleDateString("en-PH", {
+                    timeZone: "Asia/Manila",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                  : {expectedCount} projected completions
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-muted-foreground">No clustered completion weeks detected.</p>
+          )}
         </div>
       )}
 
