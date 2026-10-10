@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
   getConfirmedSubmission,
+  getLatestSignedCopy,
   getLatestSubmission,
   getWeeklyReportHistory,
   isAwaitingReview,
@@ -21,6 +22,7 @@ import { ClipboardCheck, FileBarChart2, FileText, Hash, MessageSquareWarning } f
 import { WeeklyReportForm } from "./weekly-report-form";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
+import { SignedCopyUpload } from "./signed-copy-upload";
 
 function formatDate(date: Date) {
   return date.toLocaleDateString(undefined, {
@@ -159,11 +161,18 @@ export default async function WeeklyReportsPage({
                       )}
                       {submission?.late && <Badge variant="destructive">Late</Badge>}
                       {confirmed && (
-                        <ReportPdfActions
-                          endpoint={`/api/weekly-reports/${report.id}/pdf`}
-                          status={pdfStatus}
-                          canGenerate
-                        />
+                        <>
+                          <ReportPdfActions
+                            endpoint={`/api/weekly-reports/${report.id}/pdf`}
+                            status={pdfStatus}
+                            canGenerate
+                          />
+                          <SignedCopyUpload
+                            weeklyReportId={report.id}
+                            hasSignedCopy={getLatestSignedCopy(report.revisionHistory) !== null}
+                            canUpload={isOwner && report.status !== "DISREGARDED"}
+                          />
+                        </>
                       )}
                       {canReview && (
                         <Link

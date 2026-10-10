@@ -3,6 +3,11 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { ScheduleNotConfiguredError } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 import {
+  attachSignedCopy,
+  getLatestSignedCopy,
+  isAwaitingReview,
+  isWeeklyReportEditable,
+  SignedCopyNotAllowedError,
   LateSubmissionReasonRequiredError,
   recordWeeklyReportSubmission,
   WeeklyReportIncompleteError,
@@ -547,5 +552,59 @@ describe("reviewWeeklyReport_Approve", () => {
         },
       })
     );
+  });
+});
+describe("signed copies (D2)", () => {
+  const actingUser = { id: "student-1", role: Role.STUDENT_INTERN };
+
+  it("stays locked after a signed copy is attached while awaiting review", () => {
+    const report = {
+      status: WeeklyReportStatus.PENDING,
+      revisionHistory: [
+        { type: "SUBMITTED", timestamp: "t1" },
+        { type: "SIGNED_COPY_UPLOADED", timestamp: "t2", path: "p", uploadedBy: "s" },
+      ],
+    };
+    expect(isAwaitingReview(report)).toBe(true);
+    expect(isWeeklyReportEditable(report)).toBe(false);
+  });
+
+  it("appends a SIGNED_COPY_UPLOADED entry without changing status", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.APPROVED,
+      revisionHistory: [{ type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-1" }],
+    } as never);
+
+    const entry = await attachSignedCopy("wr-1", "signed-copies/p-1/wr-1.pdf", actingUser);
+
+    expect(entry).toEqual(
+      expect.objectContaining({ type: "SIGNED_COPY_UPLOADED", path: "signed-copies/p-1/wr-1.pdf" })
+    );
+    const updateArg = prismaMock.weeklyReport.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data).not.toHaveProperty("status");
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "SIGNED_COPY_UPLOADED" }) })
+    );
+  });
+
+  it("refuses a report that was never submitted", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.PENDING,
+      revisionHistory: [],
+    } as never);
+    await expect(attachSignedCopy("wr-1", "x.pdf", actingUser)).rejects.toThrow(
+      SignedCopyNotAllowedError
+    );
+  });
+
+  it("getLatestSignedCopy returns the most recent upload", () => {
+    expect(
+      getLatestSignedCopy([
+        { type: "SIGNED_COPY_UPLOADED", timestamp: "t1", path: "old" },
+        { type: "SIGNED_COPY_UPLOADED", timestamp: "t2", path: "new" },
+      ])?.path
+    ).toBe("new");
   });
 });

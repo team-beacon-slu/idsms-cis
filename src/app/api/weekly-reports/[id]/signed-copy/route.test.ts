@@ -1,0 +1,85 @@
+/** @jest-environment node */
+// Real requireRole, error mapping, and file validation — only the session,
+// report lookup, ownership check, and Storage writes are mocked — so these
+// tests exercise the actual authorization and upload-validation paths.
+jest.mock("@supabase/supabase-js", () => ({ createClient: jest.fn(() => ({ storage: {} })) }));
+jest.mock("@/lib/auth/session", () => ({
+  ...jest.requireActual("@/lib/auth/session"),
+  requireUserApi: jest.fn(),
+}));
+jest.mock("@/lib/services/userService", () => ({
+  ...jest.requireActual("@/lib/services/userService"),
+  assertCanAccessStudent: jest.fn(),
+}));
+jest.mock("@/lib/services/weeklyReportService", () => ({
+  ...jest.requireActual("@/lib/services/weeklyReportService"),
+  getWeeklyReport: jest.fn(),
+  attachSignedCopy: jest.fn(),
+}));
+jest.mock("@/lib/storage", () => ({
+  ...jest.requireActual("@/lib/storage"),
+  uploadFile: jest.fn(),
+  getSignedUrl: jest.fn(),
+}));
+
+import { NextRequest } from "next/server";
+import { requireUserApi } from "@/lib/auth/session";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { attachSignedCopy, getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { uploadFile } from "@/lib/storage";
+import { POST } from "@/app/api/weekly-reports/[id]/signed-copy/route";
+
+const params = { params: { id: "wr-1" } };
+const PDF_BYTES = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31];
+
+function upload(bytes: number[], type: string) {
+  const form = new FormData();
+  form.set("file", new File([new Uint8Array(bytes)], "signed", { type }));
+  return new NextRequest("http://localhost/api/weekly-reports/wr-1/signed-copy", {
+    method: "POST",
+    body: form,
+  });
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  (requireUserApi as jest.Mock).mockResolvedValue({ id: "student-1", role: "STUDENT_INTERN" });
+  (getWeeklyReport as jest.Mock).mockResolvedValue({ id: "wr-1", studentProfileId: "p-1" });
+  (assertCanAccessStudent as jest.Mock).mockResolvedValue(undefined);
+  (uploadFile as jest.Mock).mockImplementation(async (_bucket, path) => path);
+  (attachSignedCopy as jest.Mock).mockResolvedValue({ type: "SIGNED_COPY_UPLOADED" });
+});
+
+describe("POST /api/weekly-reports/[id]/signed-copy", () => {
+  it("stores the owner's PDF under a server-built path", async () => {
+    const res = await POST(upload(PDF_BYTES, "application/pdf"), params);
+    expect(res.status).toBe(201);
+    expect(uploadFile).toHaveBeenCalledWith(
+      "checklist-documents",
+      "signed-copies/p-1/wr-1.pdf",
+      expect.any(File)
+    );
+  });
+
+  it("refuses a faculty adviser (students upload their own signed copies)", async () => {
+    (requireUserApi as jest.Mock).mockResolvedValue({ id: "fac-1", role: "FACULTY_ADVISER" });
+    const res = await POST(upload(PDF_BYTES, "application/pdf"), params);
+    expect(res.status).toBe(401);
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses another student's report", async () => {
+    (assertCanAccessStudent as jest.Mock).mockRejectedValue(new ForbiddenError());
+    const res = await POST(upload(PDF_BYTES, "application/pdf"), params);
+    expect(res.status).toBe(403);
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects an HTML file disguised as a PNG before storing anything", async () => {
+    const html = Array.from("<html><script>alert(1)</script>", (c) => c.charCodeAt(0));
+    const res = await POST(upload(html, "image/png"), params);
+    expect(res.status).toBe(400);
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+});
