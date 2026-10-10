@@ -283,6 +283,8 @@ describe("calendarService stubs — reachable and wired correctly", () => {
   });
 
   it("detectHighVolumeSubmissionWeeks resolves an empty array", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([]);
     await expect(detectHighVolumeSubmissionWeeks("faculty-1")).resolves.toEqual([]);
   });
 

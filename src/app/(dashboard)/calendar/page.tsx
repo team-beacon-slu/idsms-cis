@@ -12,9 +12,12 @@ import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanServ
 import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";
+import { detectHighVolumeSubmissionWeeks } from "@/lib/services/calendarService";
 
 export default async function CalendarPage() {
   const user = await requireUserPage();
+  const highVolumeWeeks =
+    user.role === Role.FACULTY_ADVISER ? await detectHighVolumeSubmissionWeeks(user.id) : [];
 
   // FR-CAL-02: students get their own scoped view plus their work schedule.
   // Other roles keep the role-scoped aggregate until their dedicated views
@@ -57,6 +60,30 @@ export default async function CalendarPage() {
             <span className="font-medium text-foreground">Work schedule: </span>
             {scheduleLabel ?? "not set yet — configure it on the Attendance page"}
           </p>
+        </div>
+      )}
+
+      {user.role === Role.FACULTY_ADVISER && (
+        <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+          <h2 className="font-medium">High submission volume</h2>
+          {highVolumeWeeks.length ? (
+            <ul className="mt-2 space-y-1">
+              {highVolumeWeeks.map(({ weekStart, count }) => (
+                <li key={weekStart.toISOString()}>
+                  Week of{" "}
+                  {weekStart.toLocaleDateString("en-PH", {
+                    timeZone: "Asia/Manila",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                  : {count} submissions expected
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-muted-foreground">No weeks exceed the submission threshold.</p>
+          )}
         </div>
       )}
 

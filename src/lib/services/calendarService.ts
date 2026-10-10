@@ -217,9 +217,34 @@ export async function getFacultyCalendarView(facultyId: string): Promise<Calenda
 export async function detectHighVolumeSubmissionWeeks(
   facultyId: string
 ): Promise<{ weekStart: Date; count: number }[]> {
-  // TODO(AndresBonifaci0): implement per the contract above.
-  void facultyId;
-  return [];
+  const config = await prisma.systemConfig.findUnique({
+    where: { configKey: "faculty_submission_threshold" },
+    select: { configValue: true },
+  });
+  // Twenty submissions/week is the default until a SystemConfig override exists.
+  const threshold = config ? config.configValue : 20;
+  if (typeof threshold !== "number" || !Number.isSafeInteger(threshold) || threshold <= 0) {
+    throw new Error("Invalid faculty submission threshold: expected a positive integer");
+  }
+  return bucketHighVolumeSubmissionWeeks(await getFacultyCalendarView(facultyId), threshold);
+}
+
+export function bucketHighVolumeSubmissionWeeks(
+  events: CalendarEvent[],
+  threshold: number
+): { weekStart: Date; count: number }[] {
+  const buckets = new Map<number, { weekStart: Date; count: number }>();
+  for (const event of events) {
+    if (event.type !== "DEADLINE") continue;
+    const weekStart = getManilaWeekStart(event.date);
+    const key = weekStart.getTime();
+    const bucket = buckets.get(key);
+    if (bucket) bucket.count += 1;
+    else buckets.set(key, { weekStart, count: 1 });
+  }
+  return Array.from(buckets.values())
+    .filter(({ count }) => count > threshold)
+    .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
 }
 
 // FR-CAL-04 — Owner: AndresBonifaci0 (Matt)
