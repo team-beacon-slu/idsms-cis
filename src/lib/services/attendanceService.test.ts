@@ -80,10 +80,54 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
   it("getRequiredHoursConfig resolves a number", async () => {
     await expect(getRequiredHoursConfig(Program.BSIT)).resolves.toBe(0);
   });
+});
 
-  it("setRequiredHoursConfig echoes its input", async () => {
-    const result = await setRequiredHoursConfig(Program.BSIT, 600, "admin-1");
-    expect(result.hours).toBe(600);
+describe("setRequiredHoursConfig", () => {
+  it.each([Program.BSIT, Program.BSCS, Program.BMMA])(
+    "upserts %s and audits without changing enrolled students",
+    async (program) => {
+      prismaMock.systemConfig.upsert.mockResolvedValue({ id: "config-1" } as never);
+      await expect(setRequiredHoursConfig(program, 720, "admin-1", "127.0.0.1")).resolves.toEqual({
+        program,
+        hours: 720,
+      });
+      expect(prismaMock.systemConfig.upsert).toHaveBeenCalledWith({
+        where: { configKey: `required_hours:${program}` },
+        create: { configKey: `required_hours:${program}`, configValue: 720, updatedBy: "admin-1" },
+        update: { configValue: 720, updatedBy: "admin-1" },
+        select: { id: true },
+      });
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: "admin-1",
+            entityId: "config-1",
+            ipAddress: "127.0.0.1",
+            detail: { program, hours: 720 },
+          }),
+        })
+      );
+      expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+      expect(prismaMock.studentProfile.updateMany).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid hours %p before writing", async (hours) => {
+    await expect(setRequiredHoursConfig(Program.BSIT, hours, "admin-1")).rejects.toThrow();
+    expect(prismaMock.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown programs before writing", async () => {
+    await expect(setRequiredHoursConfig("UNKNOWN" as Program, 600, "admin-1")).rejects.toThrow();
+    expect(prismaMock.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it("propagates write failure without a successful audit", async () => {
+    prismaMock.systemConfig.upsert.mockRejectedValue(new Error("Write failed"));
+    await expect(setRequiredHoursConfig(Program.BSIT, 600, "admin-1")).rejects.toThrow(
+      "Write failed"
+    );
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
   });
 });
 
