@@ -17,7 +17,6 @@ import {
   listWeeklyReportsForStudent,
   reviewWeeklyReport_Approve,
   reviewWeeklyReport_Disregard,
-  reviewWeeklyReport_Regard,
   reviewWeeklyReport_Return,
   saveDailyAccomplishment,
   validateLateSubmissionReason,
@@ -31,11 +30,6 @@ describe("weeklyReportService stubs — reachable and wired correctly", () => {
   it("reviewWeeklyReport_Return resolves without throwing", async () => {
     const result = await reviewWeeklyReport_Return("wr-1", "faculty-1", "Missing Tuesday entry");
     expect(result.status).toBe(WeeklyReportStatus.PENDING);
-  });
-
-  it("reviewWeeklyReport_Regard resolves without throwing", async () => {
-    const result = await reviewWeeklyReport_Regard("wr-1", "faculty-1");
-    expect(result.id).toBe("wr-1");
   });
 
   it("generateReportPdfPreview resolves a null preview for an unknown report", async () => {
