@@ -535,10 +535,15 @@ export async function reviewWeeklyReport_Regard(
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void facultyId;
   void ipAddress;
-  return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
+  const { id, status, studentProfileId } = await prisma.weeklyReport.update({
+    where: { id: weeklyReportId },
+    data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
+    select: { id: true, status: true, studentProfileId: true },
+  });
+  await computeTotalHoursRendered(studentProfileId);
+  await computeProjectedCompletionDate(studentProfileId);
+  return { id, status };
 }
 
 // FR-WR-06 (Disregard) — Owner: JayPing23 (Danielle)

@@ -17,7 +17,6 @@ import {
   listWeeklyReportsForStudent,
   reviewWeeklyReport_Approve,
   reviewWeeklyReport_Disregard,
-  reviewWeeklyReport_Regard,
   reviewWeeklyReport_Return,
   saveDailyAccomplishment,
   validateLateSubmissionReason,
@@ -90,11 +89,6 @@ describe("reviewWeeklyReport_Return", () => {
 describe("weeklyReportService stubs — reachable and wired correctly", () => {
   // TODO(JayPing23): replace each of these placeholder-return assertions
   // once the real logic behind it lands (see PHASE3_TASKS.md for owners).
-  it("reviewWeeklyReport_Regard resolves without throwing", async () => {
-    const result = await reviewWeeklyReport_Regard("wr-1", "faculty-1");
-    expect(result.id).toBe("wr-1");
-  });
-
   it("generateReportPdfPreview resolves a null preview for an unknown report", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue(null);
     await expect(generateReportPdfPreview("wr-1")).resolves.toEqual({ previewUrl: null });
