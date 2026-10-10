@@ -11,9 +11,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardNav role={user.role} userEmail={user.email} />
-      <main className="md:pl-64">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8">{children}</div>
+      {/* print:hidden — the weekly report preview is printed to PDF from the browser */}
+      <div className="print:hidden">
+        <DashboardNav role={user.role} userEmail={user.email} />
+      </div>
+      <main className="md:pl-64 print:pl-0">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 print:max-w-none print:p-0">
+          {children}
+        </div>
       </main>
     </div>
   );

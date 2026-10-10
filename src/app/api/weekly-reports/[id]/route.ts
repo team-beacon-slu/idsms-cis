@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await assertCanAccessStudent(user, report.studentProfileId);
 
     const body = await req.json();
-    const { dailyReportEntryId, hours, accomplishments } = dailyEntrySchema.parse(body);
+    const { dailyReportEntryId, hours, accomplishments, toolsUsed } = dailyEntrySchema.parse(body);
 
     const entryWeeklyReportId = await getDailyReportEntryWeeklyReportId(dailyReportEntryId);
     if (entryWeeklyReportId !== params.id) {
@@ -55,7 +55,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       dailyReportEntryId,
       hours,
       accomplishments,
-      user.id
+      user.id,
+      toolsUsed
     );
     const totalHours = await calculateWeeklyTotalHours(params.id);
     const { runningTotal, remainingHours } = await calculateRunningTotalAndRemaining(

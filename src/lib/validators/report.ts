@@ -7,7 +7,8 @@ export const weeklyReportGenerateSchema = z.object({
 export const dailyEntrySchema = z.object({
   dailyReportEntryId: z.uuid(),
   hours: z.number().min(0).max(24),
-  accomplishments: z.string().min(1, "Accomplishments are required"),
+  accomplishments: z.string().trim().min(1, "Accomplishments are required").max(5000),
+  toolsUsed: z.string().trim().max(500).optional(),
 });
 
 export const weeklyReportSubmitSchema = z.object({

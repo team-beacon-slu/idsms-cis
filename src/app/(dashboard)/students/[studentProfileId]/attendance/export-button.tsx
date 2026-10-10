@@ -1,7 +1,8 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 // FR-AT-07 — Owner: AndresBonifaci0 (Matt)
 // Requirement: students can export their attendance log as CSV.
@@ -11,19 +12,21 @@ import { Button } from "@/components/ui/button";
 // just needs to trigger the browser download (`window.open` or an anchor
 // click, not `fetch` + manual blob handling, unless auth requires it).
 // Edge cases: none.
+// Implementation: a plain anchor — the session cookie rides along with the
+// navigation, and the attachment header keeps the user on this page.
 export function AttendanceExportButton({ studentProfileId }: { studentProfileId: string }) {
-  void studentProfileId;
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled
+    <a
+      href={`/api/students/${studentProfileId}/attendance-export`}
+      download
       data-testid="attendance-export-button"
-      title="Not yet implemented — see issue #44"
-      className="cursor-pointer transition-colors duration-200"
+      className={cn(
+        buttonVariants({ size: "sm", variant: "outline" }),
+        "cursor-pointer gap-1.5 transition-colors duration-200"
+      )}
     >
       <Download className="size-4" aria-hidden="true" />
       Export CSV
-    </Button>
+    </a>
   );
 }

@@ -6,6 +6,7 @@ import {
   getHolidayCalendarForStudent,
 } from "@/lib/services/attendanceService";
 import { listWeeklyReportsForStudent } from "@/lib/services/weeklyReportService";
+import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
 
 export type CalendarEventType = "DEADLINE" | "HOLIDAY" | "DEVIATION" | "COMPLETION";
 
@@ -41,11 +42,8 @@ export interface CalendarEvent {
 // same "note the interpretation instead of adding an unreviewed field" rule
 // `getHolidayCalendarForStudent` (attendanceService.ts) already follows for
 // its own gap.
-const TUESDAY_UTC_DAY = 2;
-function weeklyReportDeadline(weekEnd: Date): Date {
-  const daysUntilTuesday = (TUESDAY_UTC_DAY - weekEnd.getUTCDay() + 7) % 7 || 7;
-  return new Date(weekEnd.getTime() + daysUntilTuesday * 24 * 60 * 60 * 1000);
-}
+// The derivation itself lives in `src/lib/utils/reportDeadline.ts`, shared
+// with weeklyReportService's late-submission check so both agree.
 
 // Resolves which students' events `userId`/`role` may see. Mirrors
 // `assertCanAccessStudent`'s (userService.ts) per-role rule exactly, but
@@ -108,7 +106,7 @@ async function getStudentCalendarEvents(studentProfileId: string): Promise<Calen
   for (const report of weeklyReports) {
     events.push({
       type: "DEADLINE",
-      date: weeklyReportDeadline(report.weekEnd),
+      date: getWeeklyReportDueDate(report.weekEnd),
       label: `Weekly report due — week of ${report.weekStart.toISOString().slice(0, 10)}`,
       studentProfileId,
     });
@@ -162,9 +160,15 @@ export async function getUnifiedCalendarEvents(
 // function — sets `CalendarEvent.color`: DEADLINE=red, HOLIDAY=gray,
 // DEVIATION=yellow, COMPLETION=green.
 // Edge cases: none — no I/O, just a `type → color` map.
+export const CALENDAR_EVENT_COLORS: Record<CalendarEventType, string> = {
+  DEADLINE: "red",
+  HOLIDAY: "gray",
+  DEVIATION: "yellow",
+  COMPLETION: "green",
+};
+
 export function colorCodeCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
-  // TODO(AndresBonifaci0): implement per the contract above.
-  return events;
+  return events.map((event) => ({ ...event, color: CALENDAR_EVENT_COLORS[event.type] }));
 }
 
 // FR-CAL-02 — Owner: gu457 (Ulrich)
@@ -176,10 +180,14 @@ export function colorCodeCalendarEvents(events: CalendarEvent[]): CalendarEvent[
 // `getUnifiedCalendarEvents` above scoped to one student, layered with
 // their `WorkPlan.scheduleConfig` (`attendanceService.ts`, Task 3).
 // Edge cases: none beyond what `getUnifiedCalendarEvents` already handles.
+// Implementation note: the caller (calendar/page.tsx) resolves the viewer's
+// own studentProfileId from their session, so this never receives a
+// client-supplied id. The work schedule itself is shown beside the grid by
+// the page — CalendarEventType has no "working day" variant, and one event
+// per working day would drown out the deadlines.
 export async function getStudentCalendarView(studentProfileId: string): Promise<CalendarEvent[]> {
-  // TODO(gu457): implement per the contract above.
-  void studentProfileId;
-  return [];
+  const events = await getStudentCalendarEvents(studentProfileId);
+  return colorCodeCalendarEvents(events).sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 // FR-CAL-03 — Owner: AndresBonifaci0 (Matt)

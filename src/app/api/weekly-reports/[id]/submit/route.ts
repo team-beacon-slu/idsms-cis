@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import {
   generateReportReferenceCode,
   getWeeklyReport,
+  recordWeeklyReportSubmission,
   validateLateSubmissionReason,
 } from "@/lib/services/weeklyReportService";
 import { weeklyReportSubmitSchema } from "@/lib/validators/report";
@@ -10,7 +11,8 @@ import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-// FR-WR-05 + FR-WR-10: student self-only.
+// FR-WR-05 + FR-WR-10: student self-only. The late-reason gate runs first so
+// no reference code is issued for a submission that will be rejected.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUserApi();
@@ -23,8 +25,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { reasonForDelay } = weeklyReportSubmitSchema.parse(await req.json());
     await validateLateSubmissionReason(params.id, reasonForDelay);
-    const result = await generateReportReferenceCode(params.id);
-    return NextResponse.json(result, { status: 201 });
+    const { referenceCode, timestamp } = await generateReportReferenceCode(params.id);
+    const ipAddress = req.headers.get("x-forwarded-for");
+    const submission = await recordWeeklyReportSubmission(
+      params.id,
+      { referenceCode, timestamp, reasonForDelay },
+      user,
+      ipAddress
+    );
+    return NextResponse.json({ referenceCode, timestamp, late: submission.late }, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

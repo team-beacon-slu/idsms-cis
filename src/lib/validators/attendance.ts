@@ -27,6 +27,11 @@ export const deviationValidateSchema = z.object({
   action: z.enum(["VALIDATE", "REJECT"]),
 });
 
+export const holidayApplicableSchema = z.object({
+  holidayEntryId: z.uuid(),
+  applicable: z.boolean(),
+});
+
 export const requiredHoursConfigSchema = z.object({
   program: z.enum(Program),
   hours: z.number().int().positive(),

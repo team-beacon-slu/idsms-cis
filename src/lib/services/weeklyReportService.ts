@@ -1,12 +1,108 @@
 // Weekly report submission and the four-way faculty review action. See PRD
 // Module 6 (FR-WR-01–07, FR-WR-09–10). Monthly aggregation lives in
 // monthlyReportService.ts (FR-WR-08).
-import { WeeklyReportStatus } from "@prisma/client";
+import { randomUUID } from "crypto";
+import { Prisma, Role, WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { logEvent } from "@/lib/services/auditService";
 import {
   computeProjectedCompletionDate,
   computeTotalHoursRendered,
+  getHolidayCalendarForStudent,
+  ScheduleNotConfiguredError,
+  WorkPlanNotApprovedError,
+  type ConfigureWorkScheduleInput,
 } from "@/lib/services/attendanceService";
+import { ForbiddenError } from "@/lib/services/userService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
+import {
+  addDays,
+  getWeekStartMonday,
+  isWeeklyReportLate,
+  toDateKey,
+} from "@/lib/utils/reportDeadline";
+
+// ── Submission state ─────────────────────────────────────────────────────
+// `WeeklyReportStatus` has no "draft vs. submitted" distinction — PENDING
+// covers both a form the student is still filling and one awaiting faculty
+// review. Submission is therefore recorded as a `SUBMITTED` entry appended
+// to `WeeklyReport.revisionHistory` (the Json array `reviewWeeklyReport_Return`
+// also appends to), carrying the FR-WR-10 reference code/timestamp and the
+// FR-WR-05 delay reason. A report is awaiting review when its status is
+// still PENDING/RETURNED and its most recent history entry is `SUBMITTED`;
+// a Return (which appends its own entry and sets RETURNED) reopens it.
+export interface WeeklyReportHistoryEntry {
+  type: string;
+  timestamp: string;
+  [key: string]: unknown;
+}
+
+export interface WeeklyReportSubmissionEntry extends WeeklyReportHistoryEntry {
+  type: "SUBMITTED";
+  referenceCode: string;
+  late: boolean;
+  reasonForDelay: string | null;
+  submittedBy: string;
+}
+
+const FINAL_STATUSES = new Set<WeeklyReportStatus>([
+  WeeklyReportStatus.APPROVED,
+  WeeklyReportStatus.REGARDED,
+  WeeklyReportStatus.DISREGARDED,
+]);
+
+export function getWeeklyReportHistory(revisionHistory: unknown): WeeklyReportHistoryEntry[] {
+  return Array.isArray(revisionHistory) ? (revisionHistory as WeeklyReportHistoryEntry[]) : [];
+}
+
+export function getLatestSubmission(revisionHistory: unknown): WeeklyReportSubmissionEntry | null {
+  const history = getWeeklyReportHistory(revisionHistory);
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i].type === "SUBMITTED") return history[i] as WeeklyReportSubmissionEntry;
+  }
+  return null;
+}
+
+export function isAwaitingReview(report: {
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}): boolean {
+  if (FINAL_STATUSES.has(report.status)) return false;
+  const history = getWeeklyReportHistory(report.revisionHistory);
+  return history[history.length - 1]?.type === "SUBMITTED";
+}
+
+// The student may edit daily entries only while the report is a draft or
+// has been returned for revision.
+export function isWeeklyReportEditable(report: {
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}): boolean {
+  return !FINAL_STATUSES.has(report.status) && !isAwaitingReview(report);
+}
+
+export class WeeklyReportLockedError extends Error {
+  constructor(message = "This weekly report is locked — it is under review or already finalized") {
+    super(message);
+    this.name = "WeeklyReportLockedError";
+  }
+}
+
+export class WeeklyReportIncompleteError extends Error {
+  constructor(message = "Fill in hours and accomplishments for every day before submitting") {
+    super(message);
+    this.name = "WeeklyReportIncompleteError";
+  }
+}
+
+export class LateSubmissionReasonRequiredError extends Error {
+  constructor(
+    message = "This report is past its Tuesday deadline — a reason for delay is required"
+  ) {
+    super(message);
+    this.name = "LateSubmissionReasonRequiredError";
+  }
+}
 
 // FR-WR-01 — Owner: Shantea23
 // Requirement: auto-generate weekly report forms based on each student's
@@ -21,14 +117,76 @@ import {
 // Edge cases: violating the `[studentProfileId, weekStart]` unique
 // constraint means a report for that week already exists — decide whether
 // to return the existing row or throw.
+// Decision: return the existing row (idempotent). The student-facing
+// "Start this week's report" button can be clicked twice or retried without
+// erroring, and a report that already has entries is never overwritten.
+// `weekStart` is normalized to the Monday of its week, so any day of the
+// week maps to the same Mon–Sun report.
 export async function generateWeeklyReportForm(
   studentProfileId: string,
   weekStart: Date
 ): Promise<{ weeklyReportId: string; weekStart: Date; weekEnd: Date }> {
-  // TODO(Shantea23): implement per the contract above.
-  void studentProfileId;
-  const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
-  return { weeklyReportId: "", weekStart, weekEnd };
+  const normalizedWeekStart = getWeekStartMonday(weekStart);
+  const weekEnd = addDays(normalizedWeekStart, 6);
+
+  const existing = await prisma.weeklyReport.findUnique({
+    where: { studentProfileId_weekStart: { studentProfileId, weekStart: normalizedWeekStart } },
+    select: { id: true },
+  });
+  if (existing) {
+    return { weeklyReportId: existing.id, weekStart: normalizedWeekStart, weekEnd };
+  }
+
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  if (!workPlan) {
+    throw new WorkPlanNotApprovedError();
+  }
+  const schedule = workPlan.scheduleConfig as unknown as ConfigureWorkScheduleInput | null;
+  if (!schedule?.daysOfWeek?.length || !schedule.hoursPerDay) {
+    throw new ScheduleNotConfiguredError();
+  }
+
+  const holidays = await getHolidayCalendarForStudent(studentProfileId);
+  const nonWorkingDates = new Set(
+    holidays.filter((h) => h.applicable).map((h) => toDateKey(h.date))
+  );
+  const workingDays = new Set(schedule.daysOfWeek);
+
+  const dailyEntries: Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[] = [];
+  for (let offset = 0; offset < 7; offset += 1) {
+    const day = addDays(normalizedWeekStart, offset);
+    if (!workingDays.has(day.getUTCDay())) continue;
+    if (nonWorkingDates.has(toDateKey(day))) continue;
+    dailyEntries.push({
+      reportDate: day,
+      attendanceStatus: "SCHEDULED",
+      scheduledHours: schedule.hoursPerDay,
+    });
+  }
+
+  try {
+    const report = await prisma.weeklyReport.create({
+      data: {
+        studentProfileId,
+        weekStart: normalizedWeekStart,
+        weekEnd,
+        dailyEntries: { create: dailyEntries },
+      },
+      select: { id: true },
+    });
+    return { weeklyReportId: report.id, weekStart: normalizedWeekStart, weekEnd };
+  } catch (error) {
+    // Lost a race with a concurrent generate for the same week — the unique
+    // constraint did its job, hand back the row the other request created.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const report = await prisma.weeklyReport.findUniqueOrThrow({
+        where: { studentProfileId_weekStart: { studentProfileId, weekStart: normalizedWeekStart } },
+        select: { id: true },
+      });
+      return { weeklyReportId: report.id, weekStart: normalizedWeekStart, weekEnd };
+    }
+    throw error;
+  }
 }
 
 // FR-WR-02 — Owner: KennethRusselAvaricio
@@ -39,9 +197,20 @@ export async function generateWeeklyReportForm(
 // writes `WeeklyReport.totalHours` (Decimal).
 // Edge cases: null `actualHours` (not yet filled in) should count as 0, not throw.
 export async function calculateWeeklyTotalHours(weeklyReportId: string): Promise<number> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void weeklyReportId;
-  return 0;
+  const entries = await prisma.dailyReportEntry.findMany({
+    where: { weeklyReportId },
+    select: { actualHours: true },
+  });
+  const totalHours = roundHours(
+    entries.reduce((sum, entry) => sum + Number(entry.actualHours ?? 0), 0)
+  );
+
+  await prisma.weeklyReport.update({ where: { id: weeklyReportId }, data: { totalHours } });
+  return totalHours;
+}
+
+function roundHours(hours: number): number {
+  return Math.round(hours * 100) / 100;
 }
 
 // FR-WR-02 — Owner: KennethRusselAvaricio
@@ -57,10 +226,42 @@ export async function calculateRunningTotalAndRemaining(
   studentProfileId: string,
   weeklyReportId: string
 ): Promise<{ runningTotal: number; remainingHours: number }> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void studentProfileId;
-  void weeklyReportId;
-  return { runningTotal: 0, remainingHours: 0 };
+  const [report, studentProfile] = await Promise.all([
+    prisma.weeklyReport.findUniqueOrThrow({
+      where: { id: weeklyReportId },
+      select: { weekStart: true, dailyEntries: { select: { actualHours: true } } },
+    }),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { requiredHours: true },
+    }),
+  ]);
+
+  const priorReports = await prisma.weeklyReport.findMany({
+    where: {
+      studentProfileId,
+      id: { not: weeklyReportId },
+      weekStart: { lt: report.weekStart },
+      status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+    },
+    select: { dailyEntries: { select: { actualHours: true } } },
+  });
+
+  const sumEntries = (entries: { actualHours: Prisma.Decimal | null }[]) =>
+    entries.reduce((sum, entry) => sum + Number(entry.actualHours ?? 0), 0);
+
+  const runningTotal = roundHours(
+    priorReports.reduce((sum, prior) => sum + sumEntries(prior.dailyEntries), 0) +
+      sumEntries(report.dailyEntries)
+  );
+  const remainingHours = roundHours(Math.max(0, studentProfile.requiredHours - runningTotal));
+
+  await prisma.weeklyReport.update({
+    where: { id: weeklyReportId },
+    data: { runningTotal, remainingHours },
+  });
+
+  return { runningTotal, remainingHours };
 }
 
 // FR-WR-03 — Owner: gu457 (Ulrich)
@@ -79,11 +280,48 @@ export async function saveDailyAccomplishment(
   dailyReportEntryId: string,
   hours: number,
   accomplishments: string,
-  studentUserId: string
+  studentUserId: string,
+  toolsUsed?: string | null
 ): Promise<{ id: string; hours: number; accomplishments: string }> {
-  // TODO(gu457): implement per the contract above.
-  void studentUserId;
-  return { id: dailyReportEntryId, hours, accomplishments };
+  return prisma.$transaction(async (tx) => {
+    const entry = await tx.dailyReportEntry.findUniqueOrThrow({
+      where: { id: dailyReportEntryId },
+      select: {
+        weeklyReport: {
+          select: {
+            status: true,
+            revisionHistory: true,
+            studentProfile: { select: { userId: true } },
+          },
+        },
+      },
+    });
+
+    if (entry.weeklyReport.studentProfile.userId !== studentUserId) {
+      throw new ForbiddenError("Only the student who owns this report can edit it");
+    }
+    if (!isWeeklyReportEditable(entry.weeklyReport)) {
+      throw new WeeklyReportLockedError();
+    }
+
+    const updated = await tx.dailyReportEntry.update({
+      where: { id: dailyReportEntryId },
+      data: {
+        actualHours: hours,
+        accomplishments,
+        // Optional third column of the daily form; undefined leaves it untouched.
+        ...(toolsUsed !== undefined ? { toolsUsed: toolsUsed || null } : {}),
+        attendanceStatus: hours > 0 ? "PRESENT" : "ABSENT",
+      },
+      select: { id: true, actualHours: true, accomplishments: true },
+    });
+
+    return {
+      id: updated.id,
+      hours: Number(updated.actualHours ?? 0),
+      accomplishments: updated.accomplishments ?? "",
+    };
+  });
 }
 
 // FR-WR-05 — Owner: Shantea23
@@ -98,14 +336,97 @@ export async function saveDailyAccomplishment(
 // is made here in this comment for `reviewWeeklyReport_*`'s implementers to
 // find it.
 // Edge cases: no-op (don't throw) if the report is not actually late.
+// Decision: the delay reason is stored on the `SUBMITTED` revisionHistory
+// entry written by `recordWeeklyReportSubmission` below (field
+// `reasonForDelay`, plus `late: true`) — read it back with
+// `getLatestSubmission(report.revisionHistory)`. "Late" means after
+// 23:59 Manila time on the Tuesday following `weekEnd`
+// (`src/lib/utils/reportDeadline.ts`).
 export async function validateLateSubmissionReason(
   weeklyReportId: string,
   reasonForDelay?: string
 ): Promise<void> {
-  // TODO(Shantea23): implement per the contract above.
-  void weeklyReportId;
-  void reasonForDelay;
-  return;
+  const report = await prisma.weeklyReport.findUniqueOrThrow({
+    where: { id: weeklyReportId },
+    select: { weekEnd: true },
+  });
+
+  if (!isWeeklyReportLate(report.weekEnd)) {
+    return;
+  }
+  if (!reasonForDelay?.trim()) {
+    throw new LateSubmissionReasonRequiredError();
+  }
+}
+
+// Not one of the original Phase 3 stubs — added because nothing else persists
+// the act of submitting (see the "Submission state" note at the top of this
+// file). Called by POST /api/weekly-reports/[id]/submit after
+// `validateLateSubmissionReason` and `generateReportReferenceCode`. Rejects a
+// report that is already awaiting review or finalized, or that still has
+// unfilled days; a RETURNED report goes back to PENDING on resubmission.
+export async function recordWeeklyReportSubmission(
+  weeklyReportId: string,
+  submission: { referenceCode: string; timestamp: Date; reasonForDelay?: string | null },
+  actingUser: { id: string; role: Role },
+  ipAddress?: string | null
+): Promise<WeeklyReportSubmissionEntry> {
+  return prisma.$transaction(async (tx) => {
+    const report = await tx.weeklyReport.findUniqueOrThrow({
+      where: { id: weeklyReportId },
+      select: {
+        status: true,
+        weekEnd: true,
+        revisionHistory: true,
+        dailyEntries: { select: { actualHours: true, accomplishments: true } },
+      },
+    });
+
+    if (!isWeeklyReportEditable(report)) {
+      throw new WeeklyReportLockedError();
+    }
+    const incomplete =
+      report.dailyEntries.length === 0 ||
+      report.dailyEntries.some((e) => e.actualHours == null || !e.accomplishments?.trim());
+    if (incomplete) {
+      throw new WeeklyReportIncompleteError();
+    }
+
+    const late = isWeeklyReportLate(report.weekEnd, submission.timestamp);
+    const entry: WeeklyReportSubmissionEntry = {
+      type: "SUBMITTED",
+      timestamp: submission.timestamp.toISOString(),
+      referenceCode: submission.referenceCode,
+      late,
+      reasonForDelay: late ? (submission.reasonForDelay?.trim() ?? null) : null,
+      submittedBy: actingUser.id,
+    };
+
+    await tx.weeklyReport.update({
+      where: { id: weeklyReportId },
+      data: {
+        status: WeeklyReportStatus.PENDING,
+        revisionHistory: [
+          ...getWeeklyReportHistory(report.revisionHistory),
+          entry,
+        ] as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "WEEKLY_REPORT_SUBMITTED",
+        entityType: "WeeklyReport",
+        entityId: weeklyReportId,
+        ipAddress,
+        detail: { referenceCode: submission.referenceCode, late },
+      },
+      tx
+    );
+
+    return entry;
+  });
 }
 
 // FR-WR-06 (Approve) — Owner: JayPing23 (Danielle)
@@ -242,12 +563,24 @@ export async function reviewWeeklyReport_Disregard(
 // PDF from Module 8's `documentService.ts` (out of scope for Phase 3 — see
 // the design spec's "Out of scope" section).
 // Edge cases: none — read-only rendering.
+// Implementation: points at a print-styled preview page
+// (`/students/[studentProfileId]/weekly-reports/[id]/preview`) that renders
+// the report the way the final document lays it out; the browser's
+// "Save as PDF" produces the file. No server-side PDF engine needed until
+// Module 8 lands.
 export async function generateReportPdfPreview(
   weeklyReportId: string
 ): Promise<{ previewUrl: string | null }> {
-  // TODO(gu457): implement per the contract above.
-  void weeklyReportId;
-  return { previewUrl: null };
+  const report = await prisma.weeklyReport.findUnique({
+    where: { id: weeklyReportId },
+    select: { studentProfileId: true },
+  });
+  if (!report) {
+    return { previewUrl: null };
+  }
+  return {
+    previewUrl: `/students/${report.studentProfileId}/weekly-reports/${weeklyReportId}/preview`,
+  };
 }
 
 // FR-WR-10 — Owner: Shantea23
@@ -260,12 +593,20 @@ export async function generateReportPdfPreview(
 // Edge cases: reference code must be globally unique (matches the pattern
 // `GeneratedDocument.referenceCode`'s `@unique` constraint expects, even
 // though this function doesn't write to that table directly).
+// Format: `WR-<week start YYYYMMDD>-<8 hex chars from a random UUID>`, e.g.
+// `WR-20261005-3F9A1C02`. The random segment gives 2^32 codes per week per
+// system, so collisions are negligible; the date prefix keeps codes
+// human-sortable on printed reports.
 export async function generateReportReferenceCode(
   weeklyReportId: string
 ): Promise<{ referenceCode: string; timestamp: Date }> {
-  // TODO(Shantea23): implement per the contract above.
-  void weeklyReportId;
-  return { referenceCode: "", timestamp: new Date() };
+  const report = await prisma.weeklyReport.findUniqueOrThrow({
+    where: { id: weeklyReportId },
+    select: { weekStart: true },
+  });
+  const datePart = toDateKey(report.weekStart).replace(/-/g, "");
+  const randomPart = randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+  return { referenceCode: `WR-${datePart}-${randomPart}`, timestamp: new Date() };
 }
 
 // Trivial reads — not stubs, match Phase 2's listCompanies precedent.

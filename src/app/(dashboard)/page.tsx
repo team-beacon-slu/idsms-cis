@@ -12,8 +12,15 @@ import {
   CalendarDays,
   UserCircle,
   ArrowRight,
+  Timer,
+  CalendarCheck,
+  FileBarChart2,
 } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
+import {
+  calculateRenderedHours,
+  computeProjectedCompletionDate,
+} from "@/lib/services/attendanceService";
 import { prisma } from "@/lib/prisma";
 import { getUserProfile } from "@/lib/services/userService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
@@ -80,13 +87,19 @@ function getQuickLinks(role: Role): QuickLink[] {
       href: "/attendance",
       label: "Attendance",
       icon: Clock,
-      description: "Log daily hours",
+      description: "Schedule, hours, deviations",
     });
     links.push({
       href: "/weekly-reports",
       label: "Weekly Reports",
       icon: FileText,
       description: "Submit weekly reports",
+    });
+    links.push({
+      href: "/monthly-reports",
+      label: "Monthly Reports",
+      icon: FileBarChart2,
+      description: "Roll up approved weeks",
     });
   }
   links.push({
@@ -167,10 +180,56 @@ export default async function DashboardHomePage() {
   } else if (user.role === Role.STUDENT_INTERN) {
     const profile = await getUserProfile(user.id);
     const studentProfile = profile?.studentProfile;
-    const progress = studentProfile ? await getChecklistProgress(studentProfile.id) : null;
+    const [progress, renderedHours, projectedCompletion, reportsNeedingAction] = studentProfile
+      ? await Promise.all([
+          getChecklistProgress(studentProfile.id),
+          calculateRenderedHours(studentProfile.id),
+          computeProjectedCompletionDate(studentProfile.id),
+          prisma.weeklyReport.count({
+            where: {
+              studentProfileId: studentProfile.id,
+              status: { in: ["PENDING", "RETURNED"] },
+            },
+          }),
+        ])
+      : [null, 0, null, 0];
+    const requiredHours = studentProfile?.requiredHours ?? 0;
 
     stats = (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="Hours rendered"
+          value={`${renderedHours} / ${requiredHours}`}
+          icon={Timer}
+          tone="blue"
+          hint={
+            requiredHours > 0
+              ? `${Math.min(100, Math.round((renderedHours / requiredHours) * 100))}% of required hours`
+              : undefined
+          }
+        />
+        <StatCard
+          label="Projected completion"
+          value={
+            projectedCompletion
+              ? projectedCompletion.toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "—"
+          }
+          icon={CalendarCheck}
+          tone={projectedCompletion ? "green" : "slate"}
+          hint={projectedCompletion ? "Based on your schedule" : "Set your work schedule first"}
+        />
+        <StatCard
+          label="Weekly reports in progress"
+          value={reportsNeedingAction}
+          icon={FileText}
+          tone={reportsNeedingAction > 0 ? "amber" : "slate"}
+          hint="Drafts, submitted, or returned"
+        />
         <StatCard
           label="Pre-deployment checklist"
           value={progress ? `${progress.approvedCount}/${progress.total}` : "—"}

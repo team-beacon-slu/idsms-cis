@@ -122,3 +122,18 @@ or UI** — the framework build wired everything else in, but missed these:
 Each affected issue has a comment explaining what route/wiring the implementer needs to add
 alongside their stub's real logic — this wasn't in the original issue text, flagging it here
 so it isn't lost. Not blocking the Phase 3 framework PR; tracked as follow-up scope.
+
+## Update — 2026-10-10: intern (student) side completed
+
+With adviser approval, the PM implemented every student-path item on
+`feature/intern-side-completion` so the student flow can be demoed end to end; task credit is
+being reassigned to the original owners. Implemented: B1, B2, B3, B4, B10, B11, B15, B16, B17,
+B18, B19, B20, B28, B29, B31, B32, plus F1–F4, F6, F7. Decisions and rationale:
+`docs/superpowers/plans/2026-10-10-intern-side-completion.md`.
+
+Wiring-gap status: B2/B3 now have `GET/PATCH /api/students/[id]/holidays`; B32 is called by
+`calendar/page.tsx` for students; F7 gates `WeeklyReportForm`'s submit. Still unwired:
+B33–B36 (faculty/coordinator calendar views).
+
+Still open (faculty/coordinator/admin side): B5 (#7), B8/B9 (#10/#11), B22/B23 (#24/#25),
+B25 (#27), B33–B35 (#35–#37).
