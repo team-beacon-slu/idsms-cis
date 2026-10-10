@@ -77,13 +77,44 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     );
   });
 
-  it("getRequiredHoursConfig resolves a number", async () => {
-    await expect(getRequiredHoursConfig(Program.BSIT)).resolves.toBe(0);
-  });
-
   it("setRequiredHoursConfig echoes its input", async () => {
     const result = await setRequiredHoursConfig(Program.BSIT, 600, "admin-1");
     expect(result.hours).toBe(600);
+  });
+});
+
+describe("getRequiredHoursConfig", () => {
+  it.each([
+    [Program.BSIT, 600],
+    [Program.BSCS, 240],
+    [Program.BMMA, 500],
+  ])("uses the documented %s default only when unset", async (program, hours) => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    await expect(getRequiredHoursConfig(program as Program)).resolves.toBe(hours);
+  });
+
+  it("reads a numeric administrator override from the program key", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: 720 } as never);
+    await expect(getRequiredHoursConfig(Program.BSIT)).resolves.toBe(720);
+    expect(prismaMock.systemConfig.findUnique).toHaveBeenCalledWith({
+      where: { configKey: "required_hours:BSIT" },
+      select: { configValue: true },
+    });
+  });
+
+  it.each([null, "600", {}, 0, -1, 1.5])(
+    "rejects malformed configured values: %p",
+    async (value) => {
+      prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: value } as never);
+      await expect(getRequiredHoursConfig(Program.BSIT)).rejects.toThrow(
+        "Invalid required-hours configuration"
+      );
+    }
+  );
+
+  it("propagates a read failure instead of treating it as an unset configuration", async () => {
+    prismaMock.systemConfig.findUnique.mockRejectedValue(new Error("Database unavailable"));
+    await expect(getRequiredHoursConfig(Program.BSIT)).rejects.toThrow("Database unavailable");
   });
 });
 
