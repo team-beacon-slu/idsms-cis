@@ -12,6 +12,9 @@ const nextConfig = {
   // (Next 14.x still expects this under `experimental`; it moved to top-level in 15+.)
   experimental: {
     outputFileTracingRoot: __dirname,
+    // Next 14: keep the headless-browser packages as runtime requires so
+    // webpack doesn't try to bundle Chromium's binary/ESM internals.
+    serverComponentsExternalPackages: ["puppeteer-core", "@sparticuz/chromium"],
   },
 };
 

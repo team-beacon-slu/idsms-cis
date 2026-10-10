@@ -4,6 +4,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
+  getConfirmedSubmission,
   getLatestSubmission,
   getWeeklyReportHistory,
   isAwaitingReview,
@@ -15,10 +16,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
-import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
+import { getWeeklyReportDueDate, toDateKey } from "@/lib/utils/reportDeadline";
 import { ClipboardCheck, FileBarChart2, FileText, Hash, MessageSquareWarning } from "lucide-react";
 import { WeeklyReportForm } from "./weekly-report-form";
 import { GenerateWeekButton } from "./generate-week-button";
+import { ReportPdfActions } from "./report-pdf-actions";
 
 function formatDate(date: Date) {
   return date.toLocaleDateString(undefined, {
@@ -50,6 +52,11 @@ export default async function WeeklyReportsPage({
     orderBy: { weekStart: "desc" },
     include: { dailyEntries: { orderBy: { reportDate: "asc" } } },
   });
+  const documents = await prisma.generatedDocument.findMany({
+    where: { studentProfileId: params.studentProfileId, documentType: "WEEKLY_REPORT" },
+    select: { periodLabel: true, status: true, referenceCode: true },
+  });
+  const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
 
@@ -112,6 +119,12 @@ export default async function WeeklyReportsPage({
           ) : (
             reports.map((report, index) => {
               const submission = getLatestSubmission(report.revisionHistory);
+              // PDFs exist only for the submission the student stands behind;
+              // one carrying an older reference code (pre-Return) is stale.
+              const confirmed = getConfirmedSubmission(report);
+              const pdf = pdfByWeek.get(toDateKey(report.weekStart));
+              const pdfStatus =
+                confirmed && pdf?.referenceCode === confirmed.referenceCode ? pdf.status : null;
               const awaitingReview = isAwaitingReview(report);
               const editable = isOwner && isWeeklyReportEditable(report);
               const feedback = getWeeklyReportHistory(report.revisionHistory).filter(
@@ -145,6 +158,13 @@ export default async function WeeklyReportsPage({
                         <StatusBadge status={report.status} />
                       )}
                       {submission?.late && <Badge variant="destructive">Late</Badge>}
+                      {confirmed && (
+                        <ReportPdfActions
+                          endpoint={`/api/weekly-reports/${report.id}/pdf`}
+                          status={pdfStatus}
+                          canGenerate
+                        />
+                      )}
                       {canReview && (
                         <Link
                           href={`/students/${params.studentProfileId}/weekly-reports/${report.id}/review`}

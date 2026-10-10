@@ -14,9 +14,11 @@ jest.mock("@supabase/supabase-js", () => {
 import { createClient } from "@supabase/supabase-js";
 import {
   CHECKLIST_BUCKET,
+  GENERATED_DOCUMENTS_BUCKET,
   InvalidFileError,
   getSignedUrl,
   uploadFile,
+  uploadPdfBuffer,
   validateUpload,
 } from "@/lib/storage";
 
@@ -139,5 +141,36 @@ describe("getSignedUrl", () => {
     mockCreateSignedUrl.mockResolvedValue({ data: null, error: null });
 
     await expect(getSignedUrl(CHECKLIST_BUCKET, "missing.pdf")).rejects.toThrow(InvalidFileError);
+  });
+});
+
+describe("uploadPdfBuffer", () => {
+  it("uploads a PDF buffer with upsert and the PDF content type", async () => {
+    mockUpload.mockResolvedValue({ error: null });
+    const pdf = Buffer.from("%PDF-1.4 test");
+
+    const path = await uploadPdfBuffer(GENERATED_DOCUMENTS_BUCKET, "weekly/p1/wr1.pdf", pdf);
+
+    expect(path).toBe("weekly/p1/wr1.pdf");
+    expect(mockFrom).toHaveBeenCalledWith("generated-documents");
+    expect(mockUpload).toHaveBeenCalledWith("weekly/p1/wr1.pdf", pdf, {
+      upsert: true,
+      contentType: "application/pdf",
+    });
+  });
+
+  it("rejects a buffer over the 5MB PDF cap without calling Storage", async () => {
+    const tooBig = Buffer.alloc(5 * 1024 * 1024 + 1);
+    await expect(uploadPdfBuffer(GENERATED_DOCUMENTS_BUCKET, "x.pdf", tooBig)).rejects.toThrow(
+      InvalidFileError
+    );
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a Storage error as InvalidFileError", async () => {
+    mockUpload.mockResolvedValue({ error: { message: "bucket not found" } });
+    await expect(
+      uploadPdfBuffer(GENERATED_DOCUMENTS_BUCKET, "x.pdf", Buffer.from("%PDF"))
+    ).rejects.toThrow("bucket not found");
   });
 });
