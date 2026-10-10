@@ -12,6 +12,7 @@ import {
   Calendar,
   ClipboardCheck,
   FileText,
+  FileBarChart2,
   Clock,
   NotebookText,
   UserCircle,
@@ -47,6 +48,7 @@ function getNavItems(role: Role): NavItem[] {
     items.push({ href: "/work-plan", label: "Work Plan", icon: NotebookText });
     items.push({ href: "/attendance", label: "Attendance", icon: Clock });
     items.push({ href: "/weekly-reports", label: "Weekly Reports", icon: FileText });
+    items.push({ href: "/monthly-reports", label: "Monthly Reports", icon: FileBarChart2 });
   }
   items.push({ href: "/profile", label: "Profile", icon: UserCircle });
 

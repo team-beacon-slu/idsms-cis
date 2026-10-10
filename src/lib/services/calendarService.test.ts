@@ -237,13 +237,43 @@ describe("detectEndorsementLetterSpikes", () => {
 describe("calendarService stubs — reachable and wired correctly", () => {
   // TODO(JayPing23): replace each of these placeholder-return assertions
   // once the real logic behind it lands.
-  it("colorCodeCalendarEvents is a pure passthrough placeholder", () => {
-    const events = [{ type: "DEADLINE" as const, date: new Date(), label: "Week 1" }];
-    expect(colorCodeCalendarEvents(events)).toBe(events);
+  it("colorCodeCalendarEvents applies the FR-CAL-01 color scheme without mutating input", () => {
+    const date = new Date();
+    const events = [
+      { type: "DEADLINE" as const, date, label: "Week 1" },
+      { type: "HOLIDAY" as const, date, label: "Holiday" },
+      { type: "DEVIATION" as const, date, label: "Absence" },
+      { type: "COMPLETION" as const, date, label: "Done" },
+    ];
+    const colored = colorCodeCalendarEvents(events);
+    expect(colored.map((e) => e.color)).toEqual(["red", "gray", "yellow", "green"]);
+    expect(events[0]).not.toHaveProperty("color");
   });
 
-  it("getStudentCalendarView resolves an empty array", async () => {
-    await expect(getStudentCalendarView("profile-1")).resolves.toEqual([]);
+  it("getStudentCalendarView returns that student's events, colored and date-sorted", async () => {
+    mockedComputeProjectedCompletionDate.mockResolvedValue(new Date("2027-01-15T00:00:00Z"));
+    mockedGetHolidayCalendarForStudent.mockResolvedValue([
+      {
+        id: "h-1",
+        date: new Date("2026-11-01T00:00:00Z"),
+        name: "All Saints' Day",
+        applicable: true,
+      },
+      {
+        id: "h-2",
+        date: new Date("2026-11-30T00:00:00Z"),
+        name: "Bonifacio Day",
+        applicable: false,
+      },
+    ]);
+
+    const events = await getStudentCalendarView("profile-1");
+
+    expect(events.map((e) => [e.type, e.color])).toEqual([
+      ["HOLIDAY", "gray"],
+      ["COMPLETION", "green"],
+    ]);
+    expect(events.every((e) => e.studentProfileId === "profile-1")).toBe(true);
   });
 
   it("getFacultyCalendarView resolves an empty array", async () => {

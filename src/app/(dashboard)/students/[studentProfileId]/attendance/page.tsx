@@ -1,7 +1,17 @@
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { listDeviationReportsForStudent } from "@/lib/services/attendanceService";
+import {
+  calculateRenderedHours,
+  computeProjectedCompletionDate,
+  getHolidayCalendarForStudent,
+  getLatestScheduleChangeStatus,
+  listDeviationReportsForStudent,
+  type ScheduleChangeHistoryEntry,
+} from "@/lib/services/attendanceService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
+import { prisma } from "@/lib/prisma";
+import { parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -16,16 +26,20 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { StatCard } from "@/components/stat-card";
 import {
+  CalendarCheck,
   CalendarClock,
   CalendarX2,
   Clock,
   FileWarning,
+  Hourglass,
   Paperclip,
   ShieldCheck,
+  Timer,
 } from "lucide-react";
-import { AttendanceScheduleForm } from "./schedule-form";
+import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
 import { DeviationReportForm } from "./deviation-form";
 import { AttendanceExportButton } from "./export-button";
+import { HolidayList } from "./holiday-list";
 
 const DEVIATION_TYPE_LABEL: Record<string, string> = {
   ABSENCE: "Absence",
@@ -45,7 +59,52 @@ export default async function AttendancePage({ params }: { params: { studentProf
     throw error;
   }
 
-  const deviationReports = await listDeviationReportsForStudent(params.studentProfileId);
+  // calculateRenderedHours (not computeTotalHoursRendered) — a page view
+  // shouldn't write StudentProfile.renderedHours; approvals already do.
+  const [
+    deviationReports,
+    workPlan,
+    holidays,
+    renderedHours,
+    projectedCompletionDate,
+    studentProfile,
+  ] = await Promise.all([
+    listDeviationReportsForStudent(params.studentProfileId),
+    getLatestApprovedWorkPlanForStudent(params.studentProfileId),
+    getHolidayCalendarForStudent(params.studentProfileId),
+    calculateRenderedHours(params.studentProfileId),
+    computeProjectedCompletionDate(params.studentProfileId),
+    prisma.studentProfile.findUnique({
+      where: { id: params.studentProfileId },
+      select: { requiredHours: true },
+    }),
+  ]);
+
+  const isOwner = user.role === "STUDENT_INTERN";
+  const requiredHours = studentProfile?.requiredHours ?? 0;
+  const remainingHours = Math.max(0, requiredHours - renderedHours);
+  const progressPercent =
+    requiredHours > 0 ? Math.min(100, Math.round((renderedHours / requiredHours) * 100)) : 0;
+
+  const currentSchedule = parseScheduleConfig(workPlan?.scheduleConfig);
+  const changeHistory = (workPlan?.scheduleChangeHistory ?? []) as ScheduleChangeHistoryEntry[];
+  const latestChangeStatus = getLatestScheduleChangeStatus(changeHistory);
+  const pendingRequest =
+    latestChangeStatus === "PENDING_FACULTY" || latestChangeStatus === "PENDING_COORDINATOR"
+      ? [...changeHistory].reverse().find((entry) => entry.action === "REQUESTED")
+      : undefined;
+  const pendingChange: PendingScheduleChange | null =
+    pendingRequest && latestChangeStatus
+      ? {
+          status: latestChangeStatus,
+          requestedAt: pendingRequest.timestamp,
+          reason: String(pendingRequest.reason ?? ""),
+          newScheduleConfig: parseScheduleConfig(pendingRequest.newScheduleConfig) ?? {
+            daysOfWeek: [],
+            hoursPerDay: 0,
+          },
+        }
+      : null;
 
   const pendingCount = deviationReports.filter((r) => r.validationStatus === "PENDING").length;
   const validatedCount = deviationReports.filter((r) => r.validationStatus === "VALIDATED").length;
@@ -62,6 +121,63 @@ export default async function AttendancePage({ params }: { params: { studentProf
           Deployment schedule, hour tracking, and deviation reports for this internship.
         </p>
       </div>
+
+      <Card>
+        <CardContent className="space-y-4 p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="flex items-center gap-3">
+              <Timer className="size-5 text-primary" aria-hidden="true" />
+              <div>
+                <p className="text-sm text-muted-foreground">Hours rendered</p>
+                <p className="text-xl font-semibold text-foreground">
+                  {renderedHours}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    / {requiredHours}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Hourglass className="size-5 text-amber-600" aria-hidden="true" />
+              <div>
+                <p className="text-sm text-muted-foreground">Hours remaining</p>
+                <p className="text-xl font-semibold text-foreground">{remainingHours}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <CalendarCheck className="size-5 text-green-600" aria-hidden="true" />
+              <div>
+                <p className="text-sm text-muted-foreground">Projected completion</p>
+                <p className="text-xl font-semibold text-foreground">
+                  {projectedCompletionDate
+                    ? projectedCompletionDate.toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={progressPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Required hours completed"
+            >
+              <div className="h-full bg-primary" style={{ width: `${progressPercent}%` }} />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {progressPercent}% of required hours · only approved weekly reports count
+              {!currentSchedule && " · set a schedule to see a projected completion date"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
@@ -100,21 +216,51 @@ export default async function AttendancePage({ params }: { params: { studentProf
           </div>
         </CardHeader>
         <CardContent>
-          <AttendanceScheduleForm studentProfileId={params.studentProfileId} />
+          <AttendanceScheduleForm
+            studentProfileId={params.studentProfileId}
+            workPlanApproved={workPlan != null}
+            currentSchedule={currentSchedule}
+            pendingChange={pendingChange}
+            canEdit={isOwner}
+          />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Report a Deviation</CardTitle>
+          <CardTitle>Holidays</CardTitle>
           <CardDescription>
-            Log an absence, overtime, or undertime for faculty validation.
+            Philippine holidays this semester. Uncheck one your host company works through so it
+            appears on your weekly report.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DeviationReportForm studentProfileId={params.studentProfileId} />
+          <HolidayList
+            studentProfileId={params.studentProfileId}
+            holidays={holidays.map((h) => ({
+              id: h.id,
+              date: h.date.toISOString(),
+              name: h.name,
+              applicable: h.applicable,
+            }))}
+            canEdit={isOwner}
+          />
         </CardContent>
       </Card>
+
+      {isOwner && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Report a Deviation</CardTitle>
+            <CardDescription>
+              Log an absence, overtime, or undertime for faculty validation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeviationReportForm studentProfileId={params.studentProfileId} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -167,7 +313,7 @@ export default async function AttendancePage({ params }: { params: { studentProf
                       <TableCell>
                         {report.proofUrl ? (
                           <a
-                            href={report.proofUrl}
+                            href={`/api/deviations/${report.id}/proof`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex cursor-pointer items-center gap-1 text-sm text-primary transition-colors duration-200 hover:underline"
