@@ -2,6 +2,9 @@ import { DocumentStatus, DocumentType } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 
 jest.mock("@/lib/documents/weeklyReportData", () => ({ loadWeeklyReportDocumentData: jest.fn() }));
+jest.mock("@/lib/documents/monthlyReportData", () => ({
+  loadMonthlyReportDocumentData: jest.fn(),
+}));
 jest.mock("@/lib/pdf/renderHtmlToPdf", () => ({ renderHtmlToPdf: jest.fn() }));
 jest.mock("@/lib/storage", () => ({
   GENERATED_DOCUMENTS_BUCKET: "generated-documents",
@@ -10,10 +13,13 @@ jest.mock("@/lib/storage", () => ({
 }));
 
 import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
+import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
 import { renderHtmlToPdf } from "@/lib/pdf/renderHtmlToPdf";
 import { uploadPdfBuffer } from "@/lib/storage";
 import {
   DocumentNotReadyError,
+  generateMonthlyReportPdf,
+  generateMonthlyReportReferenceCode,
   generateWeeklyReportPdf,
   weeklyPeriodLabel,
   withRetry,
@@ -153,5 +159,61 @@ describe("generateWeeklyReportPdf", () => {
 describe("weeklyPeriodLabel", () => {
   it("is the YYYY-MM-DD week start", () => {
     expect(weeklyPeriodLabel(new Date("2026-10-05T00:00:00Z"))).toBe("2026-10-05");
+  });
+});
+describe("generateMonthlyReportPdf", () => {
+  const loadMonthly = loadMonthlyReportDocumentData as jest.Mock;
+
+  it("refuses a row that is not a MONTHLY_REPORT", async () => {
+    prismaMock.generatedDocument.findUnique.mockResolvedValue({
+      id: "doc-w",
+      documentType: DocumentType.WEEKLY_REPORT,
+    } as never);
+    await expect(generateMonthlyReportPdf("doc-w", "u-1", { sleep: noSleep })).rejects.toThrow(
+      DocumentNotReadyError
+    );
+  });
+
+  it("assigns a reference code once, then renders and marks GENERATED", async () => {
+    prismaMock.generatedDocument.findUnique.mockResolvedValue({
+      id: "doc-m",
+      documentType: DocumentType.MONTHLY_REPORT,
+      periodLabel: "2026-09",
+      referenceCode: null,
+      studentProfileId: "p-1",
+    } as never);
+    // Complete data: the real monthly template renders it inside the retry loop.
+    loadMonthly.mockResolvedValue({
+      generatedDocumentId: "doc-m",
+      studentProfileId: "p-1",
+      calendarMonth: "2026-09",
+      referenceCode: "MR-202609-ABCD1234",
+      generatedAt: new Date("2026-10-11T02:00:00Z"),
+      student: submitted.student,
+      company: null,
+      weeks: [],
+      approvedHours: 0,
+    });
+    render.mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("monthly/p-1/2026-09.pdf");
+
+    const result = await generateMonthlyReportPdf("doc-m", "u-1", { sleep: noSleep });
+
+    expect(result.status).toBe(DocumentStatus.GENERATED);
+    expect(loadMonthly).toHaveBeenCalledWith(
+      "doc-m",
+      expect.stringMatching(/^MR-202609-[0-9A-F]{8}$/)
+    );
+    expect(upload).toHaveBeenCalledWith(
+      "generated-documents",
+      "monthly/p-1/2026-09.pdf",
+      expect.any(Buffer)
+    );
+  });
+});
+
+describe("generateMonthlyReportReferenceCode", () => {
+  it("is MR-<YYYYMM>-<8 hex>", () => {
+    expect(generateMonthlyReportReferenceCode("2026-09")).toMatch(/^MR-202609-[0-9A-F]{8}$/);
   });
 });

@@ -1,8 +1,11 @@
 // Server-side PDF generation via Puppeteer, with failure recovery/retry logic.
 // See PRD Module 8 (FR-DG-*), especially FR-DG-07 (retry with exponential backoff).
+import { randomUUID } from "crypto";
 import { DocumentStatus, DocumentType, type GeneratedDocument } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
+import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
+import { renderMonthlyReportHtml } from "@/lib/documents/monthlyReportTemplate";
 import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
 import { renderWeeklyReportHtml } from "@/lib/documents/weeklyReportTemplate";
 import { renderHtmlToPdf } from "@/lib/pdf/renderHtmlToPdf";
@@ -143,4 +146,68 @@ export async function getGeneratedDocumentDownloadUrl(doc: GeneratedDocument): P
     throw new DocumentNotReadyError("This PDF has not been generated yet");
   }
   return getSignedUrl(GENERATED_DOCUMENTS_BUCKET, doc.fileUrl);
+}
+export function generateMonthlyReportReferenceCode(calendarMonth: string): string {
+  const random = randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+  return `MR-${calendarMonth.replace("-", "")}-${random}`;
+}
+
+// The MONTHLY_REPORT row already exists (submitMonthlyReport, FR-WR-08), so
+// FR-DG-05's "confirmed" condition is satisfied by its existence. The
+// reference code is assigned on first generation and kept on regenerate.
+export async function generateMonthlyReportPdf(
+  generatedDocumentId: string,
+  actingUserId: string,
+  opts: { sleep?: (ms: number) => Promise<void> } = {}
+): Promise<{ generatedDocumentId: string; status: DocumentStatus }> {
+  const doc = await prisma.generatedDocument.findUnique({ where: { id: generatedDocumentId } });
+  if (!doc || doc.documentType !== DocumentType.MONTHLY_REPORT || !doc.periodLabel) {
+    throw new DocumentNotReadyError("Submit the monthly report before generating its PDF");
+  }
+
+  const referenceCode = doc.referenceCode ?? generateMonthlyReportReferenceCode(doc.periodLabel);
+  await prisma.generatedDocument.update({
+    where: { id: doc.id },
+    data: { referenceCode, status: DocumentStatus.PENDING_DRAFT },
+  });
+
+  const path = `monthly/${doc.studentProfileId}/${doc.periodLabel}.pdf`;
+  try {
+    await withRetry(
+      async () => {
+        const data = await loadMonthlyReportDocumentData(doc.id, referenceCode);
+        if (!data) throw new DocumentNotReadyError();
+        const pdf = await renderHtmlToPdf(renderMonthlyReportHtml(data));
+        await uploadPdfBuffer(GENERATED_DOCUMENTS_BUCKET, path, pdf);
+      },
+      { sleep: opts.sleep }
+    );
+  } catch (error) {
+    console.error("Monthly report PDF generation failed", { generatedDocumentId, error });
+    await prisma.generatedDocument.update({
+      where: { id: doc.id },
+      data: { status: DocumentStatus.FAILED },
+    });
+    await logEvent({
+      userId: actingUserId,
+      action: "DOCUMENT_GENERATION_FAILED",
+      entityType: "GeneratedDocument",
+      entityId: doc.id,
+      detail: { message: error instanceof Error ? error.message : String(error) },
+    });
+    return { generatedDocumentId: doc.id, status: DocumentStatus.FAILED };
+  }
+
+  await prisma.generatedDocument.update({
+    where: { id: doc.id },
+    data: { status: DocumentStatus.GENERATED, fileUrl: path, generatedAt: new Date() },
+  });
+  await logEvent({
+    userId: actingUserId,
+    action: "DOCUMENT_GENERATED",
+    entityType: "GeneratedDocument",
+    entityId: doc.id,
+    detail: { referenceCode },
+  });
+  return { generatedDocumentId: doc.id, status: DocumentStatus.GENERATED };
 }
