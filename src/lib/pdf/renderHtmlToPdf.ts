@@ -1,0 +1,29 @@
+import puppeteer from "puppeteer-core";
+import Chromium from "@sparticuz/chromium";
+
+// FR-DG-06: server-side Puppeteer rendering. On Vercel/Linux the browser is
+// @sparticuz/chromium's bundled build; on a developer machine (Windows/macOS)
+// set PUPPETEER_EXECUTABLE_PATH to a local Chrome or Edge, since the
+// bundled binary is Linux-only.
+export async function resolveBrowserLaunch(): Promise<{ executablePath: string; args: string[] }> {
+  const local = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (local) {
+    return { executablePath: local, args: [] };
+  }
+  return { executablePath: await Chromium.executablePath(), args: Chromium.args };
+}
+
+export async function renderHtmlToPdf(html: string, timeoutMs = 30_000): Promise<Buffer> {
+  const { executablePath, args } = await resolveBrowserLaunch();
+  const browser = await puppeteer.launch({ executablePath, args, headless: true });
+  try {
+    const page = await browser.newPage();
+    // setContent, not goto — the HTML is already rendered server-side, so no
+    // session cookies ever need to be handed to the headless browser.
+    await page.setContent(html, { waitUntil: "load", timeout: timeoutMs });
+    const pdf = await page.pdf({ format: "A4", printBackground: true, timeout: timeoutMs });
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
+}
