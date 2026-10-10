@@ -552,12 +552,7 @@ function getManilaDayOfWeek(date: Date): number {
   return new Date(date.getTime() + MANILA_OFFSET_MS).getUTCDay();
 }
 
-// `REQUIRED_HOURS_CONFIG_KEY` is intentionally not defined yet — no stub
-// body below calls it (they're all placeholders); an unused top-level
-// const fails ESLint no-unused-vars the same way the removed `logEvent`
-// import did. Define it as `(program: Program) => \`required_hours:${program}\``
-// when implementing the real logic behind `getRequiredHoursConfig` or
-// `setRequiredHoursConfig` below — both should share the same key builder.
+const REQUIRED_HOURS_CONFIG_KEY = (program: Program) => `required_hours:${program}`;
 
 // FR-AT-06 — Owner: 2215428-sys (Gillian)
 // Requirement: required completion hours per program must be configurable
@@ -568,9 +563,18 @@ function getManilaDayOfWeek(date: Date): number {
 // (`system_config` table, unique on `configKey`).
 // Edge cases: fall back to a documented default only if unset — don't throw.
 export async function getRequiredHoursConfig(program: Program): Promise<number> {
-  // TODO(2215428-sys): implement per the contract above.
-  void program;
-  return 0;
+  const config = await prisma.systemConfig.findUnique({
+    where: { configKey: REQUIRED_HOURS_CONFIG_KEY(program) },
+    select: { configValue: true },
+  });
+  // PRD section 1 defaults apply only until an administrator configures the program.
+  const defaults: Record<Program, number> = { BSIT: 600, BSCS: 240, BMMA: 500 };
+  if (!config) return defaults[program];
+  const hours = config.configValue;
+  if (typeof hours !== "number" || !Number.isSafeInteger(hours) || hours <= 0) {
+    throw new Error(`Invalid required-hours configuration for ${program}`);
+  }
+  return hours;
 }
 
 // FR-AT-06 — Owner: 2215428-sys (Gillian)
