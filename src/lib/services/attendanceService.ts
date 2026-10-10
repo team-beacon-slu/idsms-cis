@@ -381,11 +381,31 @@ export async function validateDeviationReport(
   action: "VALIDATE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ id: string; validationStatus: ValidationStatus }> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void facultyId;
-  void action;
-  void ipAddress;
-  return { id: deviationReportId, validationStatus: ValidationStatus.PENDING };
+  if (action !== "VALIDATE" && action !== "REJECT") {
+    throw new Error("Invalid deviation review action");
+  }
+  const validationStatus =
+    action === "VALIDATE" ? ValidationStatus.VALIDATED : ValidationStatus.REJECTED;
+
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.deviationReport.update({
+      where: { id: deviationReportId },
+      data: { validationStatus, facultyId },
+      select: { id: true, validationStatus: true },
+    });
+    await logEvent(
+      {
+        userId: facultyId,
+        action: `DEVIATION_REPORT_${validationStatus}`,
+        entityType: "DeviationReport",
+        entityId: deviationReportId,
+        ipAddress,
+        detail: { validationStatus },
+      },
+      tx
+    );
+    return result;
+  });
 }
 
 // FR-AT-05 — Owner: JayPing23 (Danielle)
@@ -544,9 +564,18 @@ const REQUIRED_HOURS_CONFIG_KEY = (program: Program) => `required_hours:${progra
 // (`system_config` table, unique on `configKey`).
 // Edge cases: fall back to a documented default only if unset — don't throw.
 export async function getRequiredHoursConfig(program: Program): Promise<number> {
-  // TODO(2215428-sys): implement per the contract above.
-  void program;
-  return 0;
+  const config = await prisma.systemConfig.findUnique({
+    where: { configKey: REQUIRED_HOURS_CONFIG_KEY(program) },
+    select: { configValue: true },
+  });
+  // PRD section 1 defaults apply only until an administrator configures the program.
+  const defaults: Record<Program, number> = { BSIT: 600, BSCS: 240, BMMA: 500 };
+  if (!config) return defaults[program];
+  const hours = config.configValue;
+  if (typeof hours !== "number" || !Number.isSafeInteger(hours) || hours <= 0) {
+    throw new Error(`Invalid required-hours configuration for ${program}`);
+  }
+  return hours;
 }
 
 // FR-AT-06 — Owner: 2215428-sys (Gillian)
