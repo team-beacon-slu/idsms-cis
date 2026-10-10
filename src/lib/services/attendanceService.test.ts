@@ -52,11 +52,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     );
   });
 
-  it("validateDeviationReport resolves without throwing", async () => {
-    const result = await validateDeviationReport("dev-1", "faculty-1", "VALIDATE");
-    expect(result.id).toBe("dev-1");
-  });
-
   it("getDeviationReportStudentProfileId calls prisma with the right id", async () => {
     prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
       studentProfileId: "profile-1",
@@ -76,14 +71,134 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
       expect.objectContaining({ where: { id: "wp-1" } })
     );
   });
+});
 
-  it("getRequiredHoursConfig resolves a number", async () => {
-    await expect(getRequiredHoursConfig(Program.BSIT)).resolves.toBe(0);
+describe("setRequiredHoursConfig", () => {
+  it.each([Program.BSIT, Program.BSCS, Program.BMMA])(
+    "upserts %s and audits without changing enrolled students",
+    async (program) => {
+      prismaMock.systemConfig.upsert.mockResolvedValue({ id: "config-1" } as never);
+      await expect(setRequiredHoursConfig(program, 720, "admin-1", "127.0.0.1")).resolves.toEqual({
+        program,
+        hours: 720,
+      });
+      expect(prismaMock.systemConfig.upsert).toHaveBeenCalledWith({
+        where: { configKey: `required_hours:${program}` },
+        create: { configKey: `required_hours:${program}`, configValue: 720, updatedBy: "admin-1" },
+        update: { configValue: 720, updatedBy: "admin-1" },
+        select: { id: true },
+      });
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: "admin-1",
+            entityId: "config-1",
+            ipAddress: "127.0.0.1",
+            detail: { program, hours: 720 },
+          }),
+        })
+      );
+      expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+      expect(prismaMock.studentProfile.updateMany).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid hours %p before writing", async (hours) => {
+    await expect(setRequiredHoursConfig(Program.BSIT, hours, "admin-1")).rejects.toThrow();
+    expect(prismaMock.systemConfig.upsert).not.toHaveBeenCalled();
   });
 
-  it("setRequiredHoursConfig echoes its input", async () => {
-    const result = await setRequiredHoursConfig(Program.BSIT, 600, "admin-1");
-    expect(result.hours).toBe(600);
+  it("rejects unknown programs before writing", async () => {
+    await expect(setRequiredHoursConfig("UNKNOWN" as Program, 600, "admin-1")).rejects.toThrow();
+    expect(prismaMock.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it("propagates write failure without a successful audit", async () => {
+    prismaMock.systemConfig.upsert.mockRejectedValue(new Error("Write failed"));
+    await expect(setRequiredHoursConfig(Program.BSIT, 600, "admin-1")).rejects.toThrow(
+      "Write failed"
+    );
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("validateDeviationReport", () => {
+  it.each([
+    ["VALIDATE", ValidationStatus.VALIDATED],
+    ["REJECT", ValidationStatus.REJECTED],
+  ] as const)("persists %s with the reviewer and an atomic audit event", async (action, status) => {
+    const saved = { id: "dev-1", validationStatus: status };
+    prismaMock.deviationReport.update.mockResolvedValue(saved as never);
+    await expect(
+      validateDeviationReport("dev-1", "faculty-1", action, "127.0.0.1")
+    ).resolves.toEqual(saved);
+    expect(prismaMock.deviationReport.update).toHaveBeenCalledWith({
+      where: { id: "dev-1" },
+      data: { validationStatus: status, facultyId: "faculty-1" },
+      select: { id: true, validationStatus: true },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "faculty-1",
+          entityId: "dev-1",
+          ipAddress: "127.0.0.1",
+        }),
+      })
+    );
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+    expect(prismaMock.dailyReportEntry.aggregate).not.toHaveBeenCalled();
+  });
+
+  it("propagates missing report errors without logging or changing hours", async () => {
+    prismaMock.deviationReport.update.mockRejectedValue(new Error("Not found"));
+    await expect(validateDeviationReport("missing", "faculty-1", "REJECT")).rejects.toThrow(
+      "Not found"
+    );
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported review actions before writing", async () => {
+    await expect(
+      validateDeviationReport("dev-1", "faculty-1", "APPROVE" as "VALIDATE")
+    ).rejects.toThrow("Invalid deviation review action");
+    expect(prismaMock.deviationReport.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("getRequiredHoursConfig", () => {
+  it.each([
+    [Program.BSIT, 600],
+    [Program.BSCS, 240],
+    [Program.BMMA, 500],
+  ])("uses the documented %s default only when unset", async (program, hours) => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    await expect(getRequiredHoursConfig(program as Program)).resolves.toBe(hours);
+  });
+
+  it("reads a numeric administrator override from the program key", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: 720 } as never);
+    await expect(getRequiredHoursConfig(Program.BSIT)).resolves.toBe(720);
+    expect(prismaMock.systemConfig.findUnique).toHaveBeenCalledWith({
+      where: { configKey: "required_hours:BSIT" },
+      select: { configValue: true },
+    });
+  });
+
+  it.each([null, "600", {}, 0, -1, 1.5])(
+    "rejects malformed configured values: %p",
+    async (value) => {
+      prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: value } as never);
+      await expect(getRequiredHoursConfig(Program.BSIT)).rejects.toThrow(
+        "Invalid required-hours configuration"
+      );
+    }
+  );
+
+  it("propagates a read failure instead of treating it as an unset configuration", async () => {
+    prismaMock.systemConfig.findUnique.mockRejectedValue(new Error("Database unavailable"));
+    await expect(getRequiredHoursConfig(Program.BSIT)).rejects.toThrow("Database unavailable");
   });
 });
 
