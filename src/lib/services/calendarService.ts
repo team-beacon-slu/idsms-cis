@@ -7,6 +7,7 @@ import {
 } from "@/lib/services/attendanceService";
 import { listWeeklyReportsForStudent } from "@/lib/services/weeklyReportService";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
+import { getExpiringMoaRecords } from "@/lib/services/companyService";
 
 export type CalendarEventType = "DEADLINE" | "HOLIDAY" | "DEVIATION" | "COMPLETION";
 
@@ -259,9 +260,33 @@ export function bucketHighVolumeSubmissionWeeks(
 // `detectEndorsementLetterSpikes` below.
 // Edge cases: none beyond the merge.
 export async function getCoordinatorCalendarView(coordinatorId: string): Promise<CalendarEvent[]> {
-  // TODO(AndresBonifaci0): implement per the contract above.
-  void coordinatorId;
-  return [];
+  const [events, moaRecords] = await Promise.all([
+    getUnifiedCalendarEvents(coordinatorId, Role.DEPARTMENT_COORDINATOR),
+    // Phase 2's shared alert horizon: active agreements expiring within 30 days,
+    // including overdue active agreements that still need coordinator attention.
+    getExpiringMoaRecords(),
+  ]);
+  const companies = moaRecords.length
+    ? await prisma.company.findMany({
+        where: {
+          id: { in: Array.from(new Set(moaRecords.map(({ companyId }) => companyId))) },
+          deletedAt: null,
+        },
+        select: { id: true, name: true },
+      })
+    : [];
+  const companyNames = new Map(companies.map(({ id, name }) => [id, name]));
+  const expiryEvents: CalendarEvent[] = moaRecords
+    .filter(({ companyId }) => companyNames.has(companyId))
+    .map(({ companyId, validTo }) => ({
+      // Expiration is a deadline; preserve the shared four-type event contract.
+      type: "DEADLINE",
+      date: validTo,
+      label: `MOA expiry — ${companyNames.get(companyId)}`,
+    }));
+  return colorCodeCalendarEvents([...events, ...expiryEvents]).sort(
+    (a, b) => a.date.getTime() - b.date.getTime()
+  );
 }
 
 // FR-CAL-04 — Owner: JayPing23 (Danielle)

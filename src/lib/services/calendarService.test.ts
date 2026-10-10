@@ -289,6 +289,8 @@ describe("calendarService stubs — reachable and wired correctly", () => {
   });
 
   it("getCoordinatorCalendarView resolves an empty array", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([]);
+    prismaMock.moaRecord.findMany.mockResolvedValue([]);
     await expect(getCoordinatorCalendarView("coord-1")).resolves.toEqual([]);
   });
 });
