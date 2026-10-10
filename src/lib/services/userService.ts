@@ -1,7 +1,7 @@
 // User management, RBAC, bulk CSV/Excel import, session revocation.
 // See PRD Module 1 (FR-UM-*), especially FR-UM-11 (instant session revocation).
 import { createHash, randomBytes } from "crypto";
-import { Prisma, PrismaClient, Role, User } from "@prisma/client";
+import { ChecklistRequirementType, Prisma, PrismaClient, Role, User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/utils/password";
 import { generateDefaultPassword } from "@/lib/utils/defaultPassword";
@@ -413,7 +413,7 @@ export async function bulkImportStudents(
           },
         });
 
-        await tx.studentProfile.create({
+        const studentProfile = await tx.studentProfile.create({
           data: {
             userId: user.id,
             studentNumber: row.studentNumber,
@@ -422,6 +422,17 @@ export async function bulkImportStudents(
             semesterId,
             requiredHours: row.requiredHours,
           },
+        });
+
+        // Seed all 9 checklist rows now rather than lazily on first view —
+        // makes "every student has exactly 9 rows" an invariant enforced
+        // once here instead of a defensive check every read path would
+        // otherwise need to reimplement. See checklistService.ts (Phase 2).
+        await tx.preDeploymentChecklistItem.createMany({
+          data: Object.values(ChecklistRequirementType).map((requirementType) => ({
+            studentProfileId: studentProfile.id,
+            requirementType,
+          })),
         });
 
         await logEvent(

@@ -1,4 +1,5 @@
 import { requireUserPage } from "@/lib/auth/session";
+import { AuthShell } from "@/components/auth-shell";
 import { ChangePasswordForm } from "./change-password-form";
 
 // Deliberately outside the (dashboard) route group — that layout redirects
@@ -9,8 +10,8 @@ export default async function ChangePasswordPage() {
   const user = await requireUserPage();
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <AuthShell>
       <ChangePasswordForm forced={user.mustResetPassword} />
-    </div>
+    </AuthShell>
   );
 }

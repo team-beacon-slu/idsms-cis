@@ -18,6 +18,8 @@ jobs:
       NEXTAUTH_URL: "http://localhost:3000"
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
       DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+      SUPABASE_URL: "https://ci-placeholder.supabase.co"
+      SUPABASE_SERVICE_ROLE_KEY: "ci-build-placeholder"
       GEMINI_API_KEY: "ci-build-placeholder"
       RESEND_API_KEY: "ci-build-placeholder"
       STUDENT_DEFAULT_PASSWORD_PEPPER: "ci-build-placeholder-pepper-value-32bytes"

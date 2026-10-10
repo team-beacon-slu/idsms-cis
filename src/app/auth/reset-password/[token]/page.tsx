@@ -5,11 +5,13 @@ import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { passwordSchema } from "@/lib/validators/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/components/auth-shell";
 
 const formSchema = z
   .object({
@@ -59,8 +61,8 @@ export default function ConfirmResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+    <AuthShell>
+      <Card>
         <CardHeader>
           <CardTitle>Set a new password</CardTitle>
           <CardDescription>Choose a new password for your account.</CardDescription>
@@ -81,13 +83,19 @@ export default function ConfirmResetPasswordPage() {
                 <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
               )}
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {error && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>{error}</span>
+              </div>
+            )}
+            <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
               {isSubmitting ? "Saving..." : "Reset password"}
             </Button>
           </form>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

@@ -51,3 +51,7 @@ yarn-error.log*
 /.agents
 /.claude
 skills-lock.json
+.worktrees/
+
+# Local-only test credentials — never commit, delete once you're done testing.
+TEST_ACCOUNTS.md

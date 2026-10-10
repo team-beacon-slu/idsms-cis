@@ -1,0 +1,711 @@
+// Attendance & schedule configuration, deviation reports, hour computation,
+// mid-internship schedule changes. See PRD Module 5 (FR-AT-*).
+import {
+  DeviationType,
+  Prisma,
+  PrismaClient,
+  Program,
+  Role,
+  ValidationStatus,
+  WeeklyReportStatus,
+  WorkPlanStatus,
+} from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { logEvent } from "@/lib/services/auditService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
+import { scheduleConfigSchema } from "@/lib/validators/attendance";
+
+export interface ConfigureWorkScheduleInput {
+  daysOfWeek: number[]; // 0=Sunday..6=Saturday
+  hoursPerDay: number;
+}
+
+// FR-AT-01 — Owner: KennethRusselAvaricio
+// Requirement: upon work plan approval, each student configures their work
+// schedule (daily hours, working days).
+// Connects to: called by POST /api/students/[studentProfileId]/schedule
+// (Task 9 route). Writes `WorkPlan.scheduleConfig` (Json field on the
+// `work_plans` table, prisma.workPlan.updateMany inside a $transaction) — read
+// `WorkPlan.status` (WorkPlanStatus enum) first. Log via
+// `logEvent({ action: "SCHEDULE_CONFIGURED", entityType: "WorkPlan", ... })`
+// from auditService.ts.
+// Edge cases: the latest WorkPlan must be APPROVED, and an already configured
+// schedule cannot be overwritten here. Later changes use the reviewed
+// schedule-change flow (FR-AT-08/09).
+export class WorkScheduleConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkScheduleConfigurationError";
+  }
+}
+
+export async function configureWorkSchedule(
+  studentProfileId: string,
+  input: ConfigureWorkScheduleInput,
+  actingUser: { id: string; role: Role },
+  ipAddress?: string | null
+): Promise<{ studentProfileId: string; scheduleConfig: ConfigureWorkScheduleInput }> {
+  if (actingUser.role !== Role.STUDENT_INTERN) {
+    throw new ForbiddenError("Only the student can configure their work schedule");
+  }
+  await assertCanAccessStudent(actingUser, studentProfileId);
+  const scheduleConfig = scheduleConfigSchema.parse(input);
+
+  return prisma.$transaction(async (tx) => {
+    const latest = await tx.workPlan.findFirst({
+      where: { studentProfileId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true, scheduleConfig: true },
+    });
+
+    if (!latest || latest.status !== WorkPlanStatus.APPROVED) {
+      throw new WorkScheduleConfigurationError("The latest work plan must be approved first");
+    }
+    if (latest.scheduleConfig !== null) {
+      throw new WorkScheduleConfigurationError(
+        "The work schedule is already configured; request a schedule change instead"
+      );
+    }
+
+    // Keep the one-time setup rule atomic if two requests arrive together.
+    const updated = await tx.workPlan.updateMany({
+      where: {
+        id: latest.id,
+        status: WorkPlanStatus.APPROVED,
+        scheduleConfig: { equals: Prisma.AnyNull },
+      },
+      data: { scheduleConfig },
+    });
+    if (updated.count !== 1) {
+      throw new WorkScheduleConfigurationError(
+        "The work schedule is already configured; request a schedule change instead"
+      );
+    }
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "SCHEDULE_CONFIGURED",
+        entityType: "WorkPlan",
+        entityId: latest.id,
+        ipAddress,
+      },
+      tx
+    );
+
+    return { studentProfileId, scheduleConfig };
+  });
+}
+
+export interface HolidayCalendarEntryDTO {
+  id: string;
+  date: Date;
+  name: string;
+  applicable: boolean;
+}
+
+// FR-AT-02 — Owner: 2215428-sys (Gillian)
+// Requirement: populate a calendar-based schedule pre-populated with
+// Philippine national/regional holidays and company-specific non-working
+// days that students can mark as applicable.
+// Connects to: reads `HolidayCalendarEntry` (`holiday_calendar` table) two
+// ways — rows with `semesterId` set and `studentProfileId` null are
+// system-wide (national/regional); rows with `studentProfileId` set are the
+// per-student override `markHolidayApplicable` below writes, reachable via
+// `StudentProfile.holidayOverrides`. Consumed by
+// `weeklyReportService.generateWeeklyReportForm` (Task 4, to skip
+// non-working days) and by `attendance/page.tsx` (Task 14).
+// Edge cases: SCHEMA GAP found while scaffolding — `HolidayCalendarEntry`
+// has no boolean "applicable" field. There's no company-specific
+// non-working-day source in the schema either (`Company` has no such
+// field). Implementer must decide: does a per-student override row mean
+// "this holiday doesn't apply to me" (row = opt-out) or "this is an extra
+// non-working day for me" (row = opt-in)? Whichever is chosen must be
+// documented in this JSDoc and reflected in `markHolidayApplicable` below —
+// don't add a new schema field without raising it with Danielle first
+// (`ScheduleId`-style vestige risk).
+export async function getHolidayCalendarForStudent(
+  studentProfileId: string
+): Promise<HolidayCalendarEntryDTO[]> {
+  // TODO(2215428-sys): implement per the contract above.
+  void studentProfileId;
+  return [];
+}
+
+// FR-AT-02 — Owner: 2215428-sys (Gillian)
+// Requirement: students can mark a pre-populated holiday as applicable/not
+// applicable to their own schedule.
+// Connects to: writes the same `HolidayCalendarEntry` rows
+// `getHolidayCalendarForStudent` above reads (via
+// `StudentProfile.holidayOverrides`) — whatever override representation is
+// chosen there must match here exactly (create/delete/update a row with
+// `studentProfileId` set to this student).
+// Edge cases: same schema-gap note as `getHolidayCalendarForStudent` — this
+// function's implementation is coupled to that decision.
+export async function markHolidayApplicable(
+  studentProfileId: string,
+  holidayEntryId: string,
+  applicable: boolean,
+  actingUser: { id: string; role: Role }
+): Promise<{ holidayEntryId: string; applicable: boolean }> {
+  await assertCanAccessStudent(actingUser, studentProfileId);
+  // TODO(2215428-sys): implement per the contract above.
+  return { holidayEntryId, applicable };
+}
+
+export interface SubmitDeviationReportInput {
+  date: Date;
+  deviationType: DeviationType;
+  reason: string;
+  proofUrl?: string;
+}
+
+// FR-AT-03 — Owner: KennethRusselAvaricio
+// Requirement: absences/undertime/overtime submitted via a structured
+// deviation report form with date, reason category, and optional proof upload.
+// Connects to: called by POST /api/students/[studentProfileId]/deviations
+// (Task 10 route, which also handles the file upload via
+// `src/lib/storage.ts`'s `uploadFile`, Phase 2 pattern, before calling this).
+// Creates a `DeviationReport` row (`deviation_reports` table) — fields
+// `date`, `deviationType` (`DeviationType` enum: ABSENCE/OVERTIME/UNDERTIME),
+// `reason`, `proofUrl`, `validationStatus` (start `PENDING`). Log via
+// `logEvent({ action: "DEVIATION_SUBMITTED", entityType: "DeviationReport" })`.
+// Edge cases: none beyond the standard $transaction + logEvent pattern.
+export async function submitDeviationReport(
+  studentProfileId: string,
+  input: SubmitDeviationReportInput,
+  actingUser: { id: string; role: Role },
+  ipAddress?: string | null
+): Promise<{ id: string; validationStatus: ValidationStatus }> {
+  await assertCanAccessStudent(actingUser, studentProfileId);
+  // TODO(KennethRusselAvaricio): implement per the contract above.
+  void input;
+  void ipAddress;
+  return { id: "", validationStatus: ValidationStatus.PENDING };
+}
+
+// Trivial read — not a stub, matches Phase 2's listCompanies precedent.
+export async function listDeviationReportsForStudent(studentProfileId: string) {
+  return prisma.deviationReport.findMany({
+    where: { studentProfileId },
+    orderBy: { date: "desc" },
+  });
+}
+
+// Trivial read — not a stub. Resolves the owning student for a
+// DeviationReport id, same reason and same pattern as
+// `getWorkPlanStudentProfileId` below: a `deviationReportId` alone carries
+// no ownership information, so PATCH /api/deviations/[id]/validate
+// (Task 10) must call this before `assertCanAccessStudent`.
+export async function getDeviationReportStudentProfileId(
+  deviationReportId: string
+): Promise<string> {
+  const deviationReport = await prisma.deviationReport.findUniqueOrThrow({
+    where: { id: deviationReportId },
+    select: { studentProfileId: true },
+  });
+  return deviationReport.studentProfileId;
+}
+
+// FR-AT-04 — Owner: KennethRusselAvaricio
+// Requirement: all deviation reports must be validated by the faculty
+// adviser before affecting hour computation.
+// Connects to: called by PATCH /api/deviations/[id]/validate (Task 10
+// route, Faculty/Coordinator/Admin-gated). Sets
+// `DeviationReport.validationStatus` (`ValidationStatus` enum:
+// PENDING/VALIDATED/REJECTED — note it is VALIDATED, not APPROVED) and
+// `DeviationReport.facultyId`. Downstream: `computeTotalHoursRendered`
+// below must filter on `validationStatus === VALIDATED` only.
+// Edge cases: a REJECTED row must never be readable by
+// `computeTotalHoursRendered` — this is the whole point of the gate.
+export async function validateDeviationReport(
+  deviationReportId: string,
+  facultyId: string,
+  action: "VALIDATE" | "REJECT",
+  ipAddress?: string | null
+): Promise<{ id: string; validationStatus: ValidationStatus }> {
+  // TODO(KennethRusselAvaricio): implement per the contract above.
+  void facultyId;
+  void action;
+  void ipAddress;
+  return { id: deviationReportId, validationStatus: ValidationStatus.PENDING };
+}
+
+// FR-AT-05 — Owner: JayPing23 (Danielle)
+// Requirement: automatically compute total hours rendered, based only on
+// validated attendance data. This is the system's central value metric —
+// every other module's "hours" display reads from this.
+// Connects to: reads `DailyReportEntry.actualHours` (via `WeeklyReport`,
+// only rows with `WeeklyReportStatus` APPROVED or REGARDED — see
+// `weeklyReportService.ts`'s review actions, Task 4) plus `DeviationReport`
+// rows with `validationStatus === VALIDATED` (`deviationType` OVERTIME
+// adds, ABSENCE/UNDERTIME subtract — see `validateDeviationReport` above).
+// Writes the result to `StudentProfile.renderedHours` (Decimal field,
+// currently unwritten anywhere in the codebase — confirmed via
+// `grep -rn renderedHours src/` during spec research). Called by GET
+// /api/students/[studentProfileId]/attendance-summary (Task 11) and by
+// `reviewWeeklyReport_Approve`/`_Regard` (Task 4) after each approval.
+// Edge cases: must never read PENDING/RETURNED/DISREGARDED WeeklyReport
+// rows, or PENDING/REJECTED DeviationReport rows.
+// SCHEMA GAP: `DeviationReport` has no hours-magnitude column (no
+// `scheduledHours`/`actualHours`-style field — see the model in
+// schema.prisma), so the literal "+overtime/-absence/undertime" delta this
+// FR's issue text describes can't be applied numerically. Approved
+// `DailyReportEntry.actualHours` already reflects what actually happened
+// each day (an absence day nets 0 actualHours, an overtime day nets more
+// than its scheduledHours), so summing it alone already captures validated
+// deviations' real effect. Flagged for Danielle/PM follow-up rather than
+// adding a new schema field unreviewed (same rule `getHolidayCalendarForStudent`
+// above already calls out for its own schema gap).
+//
+// Exported (not module-private) so #9's `computeProjectedCompletionDate`
+// can reuse the same sum without duplicating this query once that issue
+// lands — see that function's own comment for why it can't just call this
+// exported, persisting version directly.
+export async function calculateRenderedHours(
+  studentProfileId: string,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+): Promise<number> {
+  const approvedWeeklyReports = await client.weeklyReport.findMany({
+    where: {
+      studentProfileId,
+      status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+    },
+    select: { dailyEntries: { select: { actualHours: true } } },
+  });
+
+  const totalHours = approvedWeeklyReports.reduce((sum, report) => {
+    const dayHours = report.dailyEntries.reduce(
+      (daySum, entry) => daySum + Number(entry.actualHours ?? 0),
+      0
+    );
+    return sum + dayHours;
+  }, 0);
+
+  return Math.round(totalHours * 100) / 100;
+}
+
+// No `logEvent` call here on purpose: this contract (unlike the file's other
+// mutation stubs) never says "Log via logEvent" — only "Writes the result to
+// StudentProfile.renderedHours" — and this function is invoked on every GET
+// /attendance-summary read, not just on staff actions. Audit-logging a
+// system-triggered cache recompute on every page load would flood the
+// (append-only, NFR-SEC-07/10) audit log with unattributed `userId: null`
+// rows for something that isn't itself a reviewable action.
+export async function computeTotalHoursRendered(studentProfileId: string): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const renderedHours = await calculateRenderedHours(studentProfileId, tx);
+
+    await tx.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { renderedHours },
+    });
+
+    return renderedHours;
+  });
+}
+
+// FR-AT-05 — Owner: JayPing23 (Danielle)
+// Requirement: automatically compute required hours remaining and a
+// projected completion date, based only on validated attendance data.
+// Connects to: calls `computeTotalHoursRendered` above; reads
+// `StudentProfile.requiredHours` (Int) and the active schedule from
+// `WorkPlan.scheduleConfig` (post any `applyScheduleChangeProspectively`
+// change further down this file). Called by the same attendance-summary
+// route (Task 11) and by `calendarService.detectEndorsementLetterSpikes`
+// (Task 7, which clusters these dates across students).
+// Edge cases: return null when no APPROVED WorkPlan/schedule exists yet —
+// there's nothing to project against.
+export async function computeProjectedCompletionDate(
+  studentProfileId: string
+): Promise<Date | null> {
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  const scheduleConfig = workPlan?.scheduleConfig as unknown as
+    ConfigureWorkScheduleInput | null | undefined;
+
+  if (!workPlan || !scheduleConfig?.daysOfWeek?.length || !scheduleConfig.hoursPerDay) {
+    return null;
+  }
+
+  // Reuses #8's `calculateRenderedHours` (not the exported, persisting
+  // `computeTotalHoursRendered`) so this function doesn't trigger a second,
+  // redundant StudentProfile write on every GET /attendance-summary call —
+  // that route already calls computeTotalHoursRendered directly alongside
+  // this one.
+  const [renderedHours, studentProfile] = await Promise.all([
+    calculateRenderedHours(studentProfileId),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { requiredHours: true },
+    }),
+  ]);
+
+  const remainingHours = studentProfile.requiredHours - renderedHours;
+  if (remainingHours <= 0) {
+    return new Date();
+  }
+
+  // B14 (applyScheduleChangeProspectively, out of scope here) is what keeps
+  // the latest APPROVED WorkPlan's scheduleConfig current for "today
+  // onward" — reading it here is what makes this projection automatically
+  // honor an approved schedule change without duplicating any
+  // history-walking logic of its own.
+  const workingDays = new Set(scheduleConfig.daysOfWeek);
+  const daysNeeded = Math.ceil(remainingHours / scheduleConfig.hoursPerDay);
+
+  let projected = new Date();
+  let workingDaysCounted = 0;
+  while (workingDaysCounted < daysNeeded) {
+    projected = new Date(projected.getTime() + 24 * 60 * 60 * 1000);
+    if (workingDays.has(getManilaDayOfWeek(projected))) {
+      workingDaysCounted += 1;
+    }
+  }
+
+  return projected;
+}
+
+// All internship students/schedules are Philippines-based (see the
+// `getHolidayCalendarForStudent` comment above re: Philippine holidays), but
+// this runs on servers/CI in UTC. `daysOfWeek` was configured against
+// Manila-local weekdays, so day-of-week must be read after shifting to
+// UTC+8 — plain `getUTCDay()` on a raw UTC timestamp is up to one calendar
+// day behind Manila between 00:00-07:59 local time.
+function getManilaDayOfWeek(date: Date): number {
+  const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+  return new Date(date.getTime() + MANILA_OFFSET_MS).getUTCDay();
+}
+
+// `REQUIRED_HOURS_CONFIG_KEY` is intentionally not defined yet — no stub
+// body below calls it (they're all placeholders); an unused top-level
+// const fails ESLint no-unused-vars the same way the removed `logEvent`
+// import did. Define it as `(program: Program) => \`required_hours:${program}\``
+// when implementing the real logic behind `getRequiredHoursConfig` or
+// `setRequiredHoursConfig` below — both should share the same key builder.
+
+// FR-AT-06 — Owner: 2215428-sys (Gillian)
+// Requirement: required completion hours per program must be configurable
+// via the admin interface, never hardcoded.
+// Connects to: called by GET /api/config/required-hours (Task 11). Reads
+// `SystemConfig.configValue` (Json) where `configKey` equals a
+// program-specific key (see the key-builder note above)
+// (`system_config` table, unique on `configKey`).
+// Edge cases: fall back to a documented default only if unset — don't throw.
+export async function getRequiredHoursConfig(program: Program): Promise<number> {
+  // TODO(2215428-sys): implement per the contract above.
+  void program;
+  return 0;
+}
+
+// FR-AT-06 — Owner: 2215428-sys (Gillian)
+// Requirement: same as above, the write side.
+// Connects to: called by PATCH /api/config/required-hours (Task 11,
+// Super Admin only — enforced by the route's `requireRole`, this function
+// trusts that gate the same way `companyService.updateCompany` does).
+// Upserts `SystemConfig` at a program-specific key (see the key-builder note above).
+// Edge cases: must NOT retroactively alter already-provisioned
+// `StudentProfile.requiredHours` values (those are set once, at bulk-import
+// time, per Phase 1's `userService.bulkImportStudents`) — this only changes
+// the default for *future* imports.
+export async function setRequiredHoursConfig(
+  program: Program,
+  hours: number,
+  actingUserId: string,
+  ipAddress?: string | null
+): Promise<{ program: Program; hours: number }> {
+  // TODO(2215428-sys): implement per the contract above.
+  void actingUserId;
+  void ipAddress;
+  return { program, hours };
+}
+
+// FR-AT-07 — Owner: Shantea23
+// Requirement: students can export their attendance log as CSV.
+// Connects to: called by GET /api/students/[studentProfileId]/attendance-export
+// (Task 11 route, which sets the CSV response headers — this function only
+// returns the CSV body as a string). Reads `DailyReportEntry` rows (via
+// this student's `WeeklyReport`s) for `reportDate`, `scheduledHours`,
+// `actualHours`, `attendanceStatus`.
+// Edge cases: none — read-only formatting.
+export async function exportAttendanceLogCsv(studentProfileId: string): Promise<string> {
+  // TODO(Shantea23): implement per the contract above.
+  void studentProfileId;
+  return "date,scheduledHours,actualHours,status\n";
+}
+
+export interface RequestScheduleChangeInput {
+  reason: string;
+  newScheduleConfig: ConfigureWorkScheduleInput;
+  supportingDocumentPath?: string;
+}
+
+// Trivial read — not a stub. Resolves the owning student for a WorkPlan id
+// so routes that only receive `workPlanId` (the two schedule-change review
+// routes below, Task 9) can call `assertCanAccessStudent` before acting —
+// same pre-flight fix as Task 12's `weeklyReportId`-only routes. Throws if
+// the WorkPlan doesn't exist, matching `findUniqueOrThrow`'s use elsewhere
+// in this codebase (see `companyService.updateMoaRecordStatus`).
+export async function getWorkPlanStudentProfileId(workPlanId: string): Promise<string> {
+  const workPlan = await prisma.workPlan.findUniqueOrThrow({
+    where: { id: workPlanId },
+    select: { studentProfileId: true },
+  });
+  return workPlan.studentProfileId;
+}
+
+// FR-AT-08 — Owner: Rhaastas (org invite pending — GitHub issue #13
+// created unassigned; assign once they accept)
+// Requirement: students may request a mid-internship schedule change via a
+// structured form, requiring a valid reason and supporting document if applicable.
+// Connects to: called by PATCH /api/students/[studentProfileId]/schedule
+// (Task 9 route). Must call `logScheduleChangeHistory` (bottom of this
+// file) to append a `{ status: "PENDING_FACULTY" }` entry to this
+// student's latest `WorkPlan.scheduleChangeHistory` (Json array). The
+// resulting pending request is picked up next by
+// `validateScheduleChangeFaculty` below.
+// Edge cases: if a supporting document was uploaded, the route has already
+// called `uploadFile` (Phase 2 `storage.ts` pattern) and passed the
+// resulting path in `input.supportingDocumentPath`.
+export async function requestScheduleChange(
+  studentProfileId: string,
+  input: RequestScheduleChangeInput,
+  actingUser: { id: string; role: Role },
+  ipAddress?: string | null
+): Promise<{ workPlanId: string; status: "PENDING_FACULTY" }> {
+  await assertCanAccessStudent(actingUser, studentProfileId);
+  // TODO(Rhaastas): implement per the contract above.
+  void input;
+  void ipAddress;
+  return { workPlanId: "", status: "PENDING_FACULTY" };
+}
+
+// FR-AT-09 (step 1 of 2) — Owner: JayPing23 (Danielle)
+// Requirement: schedule changes require Faculty Adviser validation followed
+// by Department Coordinator final approval — this is step 1.
+// Connects to: called by PATCH
+// /api/work-plans/[id]/schedule-change/faculty-review (Task 9 route,
+// Faculty-only). On APPROVE, advances the pending request (written by
+// `requestScheduleChange` above) to `PENDING_COORDINATOR`, for
+// `approveScheduleChangeCoordinator` below to pick up. On REJECT, the
+// request is terminal — no further action. Log via
+// `logScheduleChangeHistory`.
+// Edge cases: must only act on a request currently `PENDING_FACULTY` —
+// reject/throw if called on a request in any other state.
+export class InvalidScheduleChangeStateError extends Error {
+  constructor(message = "This schedule change request is not awaiting Faculty review") {
+    super(message);
+    this.name = "InvalidScheduleChangeStateError";
+  }
+}
+
+export async function validateScheduleChangeFaculty(
+  workPlanId: string,
+  facultyId: string,
+  action: "APPROVE" | "REJECT",
+  ipAddress?: string | null
+): Promise<{ workPlanId: string; status: string }> {
+  void ipAddress;
+
+  // The PENDING_FACULTY read and the resulting history append must be one
+  // atomic unit — otherwise two concurrent reviews of the same request (a
+  // double-click, a retried request) could both pass the state gate before
+  // either has written its outcome. Passing `tx` through to
+  // `logScheduleChangeHistory` (which already accepts a transaction client)
+  // is what closes that window once B15 implements the actual write.
+  return prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+    const currentStatus = history.length > 0 ? history[history.length - 1].status : undefined;
+
+    if (currentStatus !== "PENDING_FACULTY") {
+      throw new InvalidScheduleChangeStateError();
+    }
+
+    const nextStatus = action === "APPROVE" ? "PENDING_COORDINATOR" : "REJECTED";
+
+    await logScheduleChangeHistory(
+      workPlanId,
+      {
+        timestamp: new Date().toISOString(),
+        approverId: facultyId,
+        action: action === "APPROVE" ? "FACULTY_APPROVED" : "FACULTY_REJECTED",
+        status: nextStatus,
+      },
+      tx
+    );
+
+    return { workPlanId, status: nextStatus };
+  });
+}
+
+// FR-AT-09 (step 2 of 2) — Owner: JayPing23 (Danielle)
+// Requirement: step 2 — Department Coordinator final approval.
+// Connects to: called by PATCH
+// /api/work-plans/[id]/schedule-change/coordinator-review (Task 9 route,
+// Coordinator/Admin-only). Only callable once
+// `validateScheduleChangeFaculty` above set status `PENDING_COORDINATOR`.
+// On final APPROVE, calls `applyScheduleChangeProspectively` below. Log via
+// `logScheduleChangeHistory`.
+// Edge cases: reject/throw if called on a request not currently
+// `PENDING_COORDINATOR`.
+export class InvalidScheduleChangeCoordinatorStateError extends Error {
+  constructor(message = "This schedule change request is not awaiting Coordinator review") {
+    super(message);
+    this.name = "InvalidScheduleChangeCoordinatorStateError";
+  }
+}
+
+export async function approveScheduleChangeCoordinator(
+  workPlanId: string,
+  coordinatorId: string,
+  action: "APPROVE" | "REJECT",
+  ipAddress?: string | null
+): Promise<{ workPlanId: string; status: string }> {
+  void ipAddress;
+
+  // Same reasoning as `validateScheduleChangeFaculty` above: the
+  // PENDING_COORDINATOR read and the resulting history append must be one
+  // atomic unit so two concurrent coordinator reviews of the same request
+  // can't both pass the state gate before either has written its outcome.
+  const nextStatus = await prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+    const currentStatus = history.length > 0 ? history[history.length - 1].status : undefined;
+
+    if (currentStatus !== "PENDING_COORDINATOR") {
+      throw new InvalidScheduleChangeCoordinatorStateError();
+    }
+
+    const resultStatus = action === "APPROVE" ? "APPROVED" : "REJECTED";
+
+    await logScheduleChangeHistory(
+      workPlanId,
+      {
+        timestamp: new Date().toISOString(),
+        approverId: coordinatorId,
+        action: action === "APPROVE" ? "COORDINATOR_APPROVED" : "COORDINATOR_REJECTED",
+        status: resultStatus,
+      },
+      tx
+    );
+
+    return resultStatus;
+  });
+
+  // Applying the schedule change is a separate, already-transactional step
+  // of its own (`applyScheduleChangeProspectively` below) — run after this
+  // transaction commits, not nested inside it, same "commit the decision,
+  // then act on it" split `reviewWeeklyReport_Approve` uses for its own
+  // post-approval side effect.
+  if (nextStatus === "APPROVED") {
+    await applyScheduleChangeProspectively(workPlanId);
+  }
+
+  return { workPlanId, status: nextStatus };
+}
+
+// FR-AT-10 — Owner: JayPing23 (Danielle)
+// Requirement: approved schedule changes do NOT retroactively alter
+// previously validated hours or reports — they only affect future hour
+// computation and update the projected completion date.
+// Connects to: called internally by `approveScheduleChangeCoordinator`
+// above (not its own route). Swaps the active `WorkPlan.scheduleConfig` for
+// future-dated computation only. Must trigger
+// `computeProjectedCompletionDate` (above) to recompute after applying.
+// Edge cases: must NOT touch any already-computed `WeeklyReport` or
+// `DailyReportEntry` row — this is the "prospective, not retroactive" rule
+// FR-AT-10 exists to enforce.
+export class MissingScheduleChangeRequestError extends Error {
+  constructor(message = "No pending schedule-change request found for this work plan") {
+    super(message);
+    this.name = "MissingScheduleChangeRequestError";
+  }
+}
+
+// CONVENTION for `requestScheduleChange` (#13, still unimplemented as of
+// this writing): the entry it appends via `logScheduleChangeHistory` must
+// carry the requested `newScheduleConfig` alongside `status:
+// "PENDING_FACULTY"` — that's the only place this function can read the
+// target schedule from, since its own signature (fixed by the contract
+// above) takes no config argument. Found by scanning history from the end
+// for the most recent entry carrying that key, so a later, unrelated
+// request further down the same array can't be picked up by mistake.
+export async function applyScheduleChangeProspectively(
+  workPlanId: string
+): Promise<{ workPlanId: string; effectiveFrom: Date }> {
+  const effectiveFrom = await prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+    const history = (workPlan.scheduleChangeHistory ??
+      []) as unknown as ScheduleChangeHistoryEntry[];
+
+    const requestEntry = [...history].reverse().find(
+      (
+        entry
+      ): entry is ScheduleChangeHistoryEntry & {
+        newScheduleConfig: ConfigureWorkScheduleInput;
+      } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
+    );
+
+    if (!requestEntry) {
+      throw new MissingScheduleChangeRequestError();
+    }
+
+    const now = new Date();
+
+    await tx.workPlan.update({
+      where: { id: workPlanId },
+      data: {
+        scheduleConfig: requestEntry.newScheduleConfig as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await logScheduleChangeHistory(
+      workPlanId,
+      {
+        timestamp: now.toISOString(),
+        approverId: null,
+        action: "SCHEDULE_APPLIED",
+        status: "APPLIED",
+      },
+      tx
+    );
+
+    return now;
+  });
+
+  const studentProfileId = await getWorkPlanStudentProfileId(workPlanId);
+  await computeProjectedCompletionDate(studentProfileId);
+
+  return { workPlanId, effectiveFrom };
+}
+
+export interface ScheduleChangeHistoryEntry {
+  timestamp: string;
+  approverId: string | null;
+  action: string;
+  [key: string]: unknown;
+}
+
+// FR-AT-11 — Owner: KennethRusselAvaricio
+// Requirement: all schedule changes are logged in
+// `work_plans.scheduleChangeHistory` with timestamps and approver IDs.
+// Connects to: called internally by `requestScheduleChange`,
+// `validateScheduleChangeFaculty`, `approveScheduleChangeCoordinator`, and
+// `applyScheduleChangeProspectively` (all above in this file) — never
+// exposed as its own route. Appends `entry` to `WorkPlan.scheduleChangeHistory`
+// (Json array, `@default("[]")`).
+// Edge cases: none — pure append, no read-modify-write race handling needed
+// beyond what `$transaction` already gives every other mutation in this file.
+export async function logScheduleChangeHistory(
+  workPlanId: string,
+  entry: ScheduleChangeHistoryEntry,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+): Promise<void> {
+  // TODO(KennethRusselAvaricio): implement per the contract above.
+  void workPlanId;
+  void entry;
+  void client;
+  return;
+}
