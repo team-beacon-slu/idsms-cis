@@ -7,10 +7,33 @@ import { ChecklistGateError, ChecklistLockedError } from "@/lib/services/checkli
 import { InvalidMoaTransitionError } from "@/lib/services/companyService";
 import { WorkPlanPendingError } from "@/lib/services/workPlanService";
 import {
+  HolidayNotFoundError,
   InvalidScheduleChangeCoordinatorStateError,
   InvalidScheduleChangeStateError,
   MissingScheduleChangeRequestError,
+  ScheduleAlreadyConfiguredError,
+  ScheduleChangePendingError,
+  ScheduleNotConfiguredError,
+  WorkPlanNotApprovedError,
 } from "@/lib/services/attendanceService";
+import {
+  LateSubmissionReasonRequiredError,
+  WeeklyReportIncompleteError,
+  WeeklyReportLockedError,
+} from "@/lib/services/weeklyReportService";
+
+// Student-facing business-rule violations from Phase 3's attendance and
+// weekly-report flows. Each carries a message written for the student, so
+// the client can show it verbatim.
+const BAD_REQUEST_ERRORS = [
+  WorkPlanNotApprovedError,
+  ScheduleAlreadyConfiguredError,
+  ScheduleNotConfiguredError,
+  ScheduleChangePendingError,
+  WeeklyReportLockedError,
+  WeeklyReportIncompleteError,
+  LateSubmissionReasonRequiredError,
+];
 
 export function handleApiError(error: unknown): NextResponse {
   if (error instanceof UnauthorizedError) {
@@ -42,6 +65,12 @@ export function handleApiError(error: unknown): NextResponse {
   }
   if (error instanceof InvalidScheduleChangeCoordinatorStateError) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  if (BAD_REQUEST_ERRORS.some((ErrorClass) => error instanceof ErrorClass)) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
+  if (error instanceof HolidayNotFoundError) {
+    return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
   console.error(error);

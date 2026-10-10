@@ -8,19 +8,61 @@ import {
   Role,
   ValidationStatus,
   WeeklyReportStatus,
+  WorkPlanStatus,
 } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { logEvent } from "@/lib/services/auditService";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
-
-// `logEvent` from "@/lib/services/auditService" is intentionally not
-// imported yet — no stub body below calls it (they're all placeholders).
-// Import it when implementing the real logic behind any mutation stub; an
-// unused import fails this project's ESLint no-unused-vars rule.
 
 export interface ConfigureWorkScheduleInput {
   daysOfWeek: number[]; // 0=Sunday..6=Saturday
   hoursPerDay: number;
+}
+
+// Thrown by the schedule functions below when the student has no APPROVED
+// work plan yet — FR-AT-01 only lets a schedule be configured "upon work
+// plan approval", so there is nothing to attach a schedule to.
+export class WorkPlanNotApprovedError extends Error {
+  constructor(message = "Your work plan must be approved before you can set a schedule") {
+    super(message);
+    this.name = "WorkPlanNotApprovedError";
+  }
+}
+
+export class ScheduleAlreadyConfiguredError extends Error {
+  constructor(
+    message = "Your schedule is already set — submit a schedule change request to modify it"
+  ) {
+    super(message);
+    this.name = "ScheduleAlreadyConfiguredError";
+  }
+}
+
+export class ScheduleNotConfiguredError extends Error {
+  constructor(message = "Set up your work schedule on the Attendance page first") {
+    super(message);
+    this.name = "ScheduleNotConfiguredError";
+  }
+}
+
+export class ScheduleChangePendingError extends Error {
+  constructor(message = "You already have a schedule change request awaiting review") {
+    super(message);
+    this.name = "ScheduleChangePendingError";
+  }
+}
+
+const PENDING_SCHEDULE_CHANGE_STATUSES = new Set(["PENDING_FACULTY", "PENDING_COORDINATOR"]);
+
+// Latest status recorded in a WorkPlan's scheduleChangeHistory, or undefined
+// when no change has ever been requested. Shared by the request intake
+// below and by the attendance page's "pending request" banner.
+export function getLatestScheduleChangeStatus(scheduleChangeHistory: unknown): string | undefined {
+  const history = (scheduleChangeHistory ?? []) as ScheduleChangeHistoryEntry[];
+  const last = history[history.length - 1];
+  return typeof last?.status === "string" ? last.status : undefined;
 }
 
 // FR-AT-01 — Owner: KennethRusselAvaricio
@@ -36,6 +78,10 @@ export interface ConfigureWorkScheduleInput {
 // (throw, don't silently no-op); scheduleConfig already set (decide
 // overwrite vs. reject — FR-AT-01 doesn't specify, this is a call for the
 // implementer to make and document).
+// Decision: REJECT. Once a schedule exists, hours and projections are
+// computed against it; letting the initial-setup path overwrite it would
+// bypass FR-AT-08/09's two-step approval and FR-AT-10's "prospective only"
+// rule. Any later change goes through `requestScheduleChange` below.
 export async function configureWorkSchedule(
   studentProfileId: string,
   input: ConfigureWorkScheduleInput,
@@ -43,9 +89,43 @@ export async function configureWorkSchedule(
   ipAddress?: string | null
 ): Promise<{ studentProfileId: string; scheduleConfig: ConfigureWorkScheduleInput }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void ipAddress;
-  return { studentProfileId, scheduleConfig: input };
+
+  const scheduleConfig: ConfigureWorkScheduleInput = {
+    daysOfWeek: Array.from(new Set(input.daysOfWeek)).sort((a, b) => a - b),
+    hoursPerDay: input.hoursPerDay,
+  };
+
+  return prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findFirst({
+      where: { studentProfileId, status: WorkPlanStatus.APPROVED },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!workPlan) {
+      throw new WorkPlanNotApprovedError();
+    }
+    if (workPlan.scheduleConfig != null) {
+      throw new ScheduleAlreadyConfiguredError();
+    }
+
+    await tx.workPlan.update({
+      where: { id: workPlan.id },
+      data: { scheduleConfig: scheduleConfig as unknown as Prisma.InputJsonValue },
+    });
+
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "SCHEDULE_CONFIGURED",
+        entityType: "WorkPlan",
+        entityId: workPlan.id,
+        ipAddress,
+        detail: scheduleConfig as unknown as Prisma.InputJsonValue,
+      },
+      tx
+    );
+
+    return { studentProfileId, scheduleConfig };
+  });
 }
 
 export interface HolidayCalendarEntryDTO {
@@ -75,12 +155,50 @@ export interface HolidayCalendarEntryDTO {
 // documented in this JSDoc and reflected in `markHolidayApplicable` below —
 // don't add a new schema field without raising it with Danielle first
 // (`ScheduleId`-style vestige risk).
+//
+// Decision: a per-student row is an OPT-OUT marker. It carries the same
+// `date` as the system-wide holiday it overrides, `studentProfileId` set,
+// and `semesterId` null — "this holiday does not apply to me" (e.g. the host
+// company works through it). A system-wide holiday is `applicable` unless
+// such a marker exists for its date. No schema change needed. Company-
+// specific *extra* non-working days are not modelled yet (no source for them
+// in the schema), so they stay out of scope here.
 export async function getHolidayCalendarForStudent(
   studentProfileId: string
 ): Promise<HolidayCalendarEntryDTO[]> {
-  // TODO(2215428-sys): implement per the contract above.
-  void studentProfileId;
-  return [];
+  const studentProfile = await prisma.studentProfile.findUnique({
+    where: { id: studentProfileId },
+    select: { semesterId: true },
+  });
+  if (!studentProfile) {
+    return [];
+  }
+
+  const [systemHolidays, optOuts] = await Promise.all([
+    prisma.holidayCalendarEntry.findMany({
+      where: { semesterId: studentProfile.semesterId, studentProfileId: null },
+      orderBy: { date: "asc" },
+    }),
+    prisma.holidayCalendarEntry.findMany({
+      where: { studentProfileId },
+      select: { date: true },
+    }),
+  ]);
+
+  const optedOutDates = new Set(optOuts.map((o) => o.date.getTime()));
+  return systemHolidays.map((holiday) => ({
+    id: holiday.id,
+    date: holiday.date,
+    name: holiday.name,
+    applicable: !optedOutDates.has(holiday.date.getTime()),
+  }));
+}
+
+export class HolidayNotFoundError extends Error {
+  constructor(message = "Holiday not found for this student's semester") {
+    super(message);
+    this.name = "HolidayNotFoundError";
+  }
 }
 
 // FR-AT-02 — Owner: 2215428-sys (Gillian)
@@ -100,8 +218,47 @@ export async function markHolidayApplicable(
   actingUser: { id: string; role: Role }
 ): Promise<{ holidayEntryId: string; applicable: boolean }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(2215428-sys): implement per the contract above.
-  return { holidayEntryId, applicable };
+
+  return prisma.$transaction(async (tx) => {
+    const studentProfile = await tx.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { semesterId: true },
+    });
+    // Only a system-wide holiday in this student's own semester can be
+    // toggled — never another student's opt-out row, never an arbitrary id.
+    const holiday = await tx.holidayCalendarEntry.findFirst({
+      where: { id: holidayEntryId, semesterId: studentProfile.semesterId, studentProfileId: null },
+    });
+    if (!holiday) {
+      throw new HolidayNotFoundError();
+    }
+
+    // Always clear first so repeated toggles never stack duplicate markers.
+    await tx.holidayCalendarEntry.deleteMany({ where: { studentProfileId, date: holiday.date } });
+    if (!applicable) {
+      await tx.holidayCalendarEntry.create({
+        data: {
+          date: holiday.date,
+          name: holiday.name,
+          holidayType: holiday.holidayType,
+          semesterId: null,
+          studentProfileId,
+        },
+      });
+    }
+
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: applicable ? "HOLIDAY_MARKED_APPLICABLE" : "HOLIDAY_MARKED_NOT_APPLICABLE",
+        entityType: "HolidayCalendarEntry",
+        entityId: holiday.id,
+      },
+      tx
+    );
+
+    return { holidayEntryId, applicable };
+  });
 }
 
 export interface SubmitDeviationReportInput {
@@ -129,10 +286,58 @@ export async function submitDeviationReport(
   ipAddress?: string | null
 ): Promise<{ id: string; validationStatus: ValidationStatus }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void input;
-  void ipAddress;
-  return { id: "", validationStatus: ValidationStatus.PENDING };
+
+  return prisma.$transaction(async (tx) => {
+    const deviationReport = await tx.deviationReport.create({
+      data: {
+        studentProfileId,
+        date: input.date,
+        deviationType: input.deviationType,
+        reason: input.reason,
+        proofUrl: input.proofUrl ?? null,
+        validationStatus: ValidationStatus.PENDING,
+      },
+    });
+
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "DEVIATION_SUBMITTED",
+        entityType: "DeviationReport",
+        entityId: deviationReport.id,
+        ipAddress,
+        detail: { deviationType: input.deviationType, date: input.date.toISOString() },
+      },
+      tx
+    );
+
+    return { id: deviationReport.id, validationStatus: deviationReport.validationStatus };
+  });
+}
+
+// Storage object paths for student-uploaded attendance documents. No
+// dedicated bucket was provisioned for Phase 3 (see
+// prisma/migrations_manual/003_storage_buckets.sql), so these live in the
+// existing private checklist bucket under their own prefix. Shared by the
+// deviations and schedule routes so both build paths the same way.
+export function buildAttendanceDocumentPath(
+  kind: "deviations" | "schedule-changes",
+  studentProfileId: string,
+  fileName: string
+): string {
+  const extension = fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase() : "bin";
+  return `${kind}/${studentProfileId}/${randomUUID()}.${extension}`;
+}
+
+// `proofUrl` holds either a Storage object path (uploaded through the
+// deviations route) or, for rows written before uploads existed, an
+// external link. Only the former needs a signed URL.
+export function isStoragePath(value: string): boolean {
+  return !/^https?:\/\//i.test(value);
+}
+
+export async function getDeviationReport(deviationReportId: string) {
+  return prisma.deviationReport.findUniqueOrThrow({ where: { id: deviationReportId } });
 }
 
 // Trivial read — not a stub, matches Phase 2's listCompanies precedent.
@@ -379,9 +584,32 @@ export async function setRequiredHoursConfig(
 // `actualHours`, `attendanceStatus`.
 // Edge cases: none — read-only formatting.
 export async function exportAttendanceLogCsv(studentProfileId: string): Promise<string> {
-  // TODO(Shantea23): implement per the contract above.
-  void studentProfileId;
-  return "date,scheduledHours,actualHours,status\n";
+  const entries = await prisma.dailyReportEntry.findMany({
+    where: { weeklyReport: { studentProfileId } },
+    orderBy: { reportDate: "asc" },
+    select: { reportDate: true, scheduledHours: true, actualHours: true, attendanceStatus: true },
+  });
+
+  const rows = entries.map((entry) =>
+    [
+      entry.reportDate.toISOString().slice(0, 10),
+      Number(entry.scheduledHours).toString(),
+      entry.actualHours == null ? "" : Number(entry.actualHours).toString(),
+      entry.attendanceStatus,
+    ]
+      .map(escapeCsvField)
+      .join(",")
+  );
+
+  return ["date,scheduledHours,actualHours,status", ...rows].join("\n") + "\n";
+}
+
+// RFC 4180 quoting, plus a leading-apostrophe guard so a value opening with
+// =, +, - or @ can't be evaluated as a formula when the file is opened in a
+// spreadsheet (CSV injection).
+function escapeCsvField(value: string): string {
+  const guarded = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 }
 
 export interface RequestScheduleChangeInput {
@@ -424,10 +652,65 @@ export async function requestScheduleChange(
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: "PENDING_FACULTY" }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
-  // TODO(Rhaastas): implement per the contract above.
-  void input;
-  void ipAddress;
-  return { workPlanId: "", status: "PENDING_FACULTY" };
+
+  const newScheduleConfig: ConfigureWorkScheduleInput = {
+    daysOfWeek: Array.from(new Set(input.newScheduleConfig.daysOfWeek)).sort((a, b) => a - b),
+    hoursPerDay: input.newScheduleConfig.hoursPerDay,
+  };
+
+  return prisma.$transaction(async (tx) => {
+    const workPlan = await tx.workPlan.findFirst({
+      where: { studentProfileId, status: WorkPlanStatus.APPROVED },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!workPlan) {
+      throw new WorkPlanNotApprovedError();
+    }
+    if (workPlan.scheduleConfig == null) {
+      // Nothing to change yet — the initial schedule goes through
+      // configureWorkSchedule, which needs no approval.
+      throw new ScheduleNotConfiguredError();
+    }
+    // One request in flight at a time: validateScheduleChangeFaculty and
+    // approveScheduleChangeCoordinator gate on the *last* history entry, so
+    // a second request appended on top would orphan the first.
+    const latestStatus = getLatestScheduleChangeStatus(workPlan.scheduleChangeHistory);
+    if (latestStatus && PENDING_SCHEDULE_CHANGE_STATUSES.has(latestStatus)) {
+      throw new ScheduleChangePendingError();
+    }
+
+    // Carries `newScheduleConfig` per the convention
+    // applyScheduleChangeProspectively documents (it reads the target
+    // schedule back from this entry).
+    await logScheduleChangeHistory(
+      workPlan.id,
+      {
+        timestamp: new Date().toISOString(),
+        approverId: null,
+        action: "REQUESTED",
+        status: "PENDING_FACULTY",
+        requestedBy: actingUser.id,
+        reason: input.reason,
+        previousScheduleConfig: workPlan.scheduleConfig,
+        newScheduleConfig,
+        supportingDocumentPath: input.supportingDocumentPath ?? null,
+      },
+      tx
+    );
+
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "SCHEDULE_CHANGE_REQUESTED",
+        entityType: "WorkPlan",
+        entityId: workPlan.id,
+        ipAddress,
+      },
+      tx
+    );
+
+    return { workPlanId: workPlan.id, status: "PENDING_FACULTY" as const };
+  });
 }
 
 // FR-AT-09 (step 1 of 2) — Owner: JayPing23 (Danielle)
@@ -654,9 +937,16 @@ export async function logScheduleChangeHistory(
   entry: ScheduleChangeHistoryEntry,
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<void> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void workPlanId;
-  void entry;
-  void client;
-  return;
+  const workPlan = await client.workPlan.findUniqueOrThrow({
+    where: { id: workPlanId },
+    select: { scheduleChangeHistory: true },
+  });
+  const history = Array.isArray(workPlan.scheduleChangeHistory)
+    ? (workPlan.scheduleChangeHistory as unknown as ScheduleChangeHistoryEntry[])
+    : [];
+
+  await client.workPlan.update({
+    where: { id: workPlanId },
+    data: { scheduleChangeHistory: [...history, entry] as unknown as Prisma.InputJsonValue },
+  });
 }
