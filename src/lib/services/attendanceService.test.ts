@@ -52,11 +52,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     );
   });
 
-  it("validateDeviationReport resolves without throwing", async () => {
-    const result = await validateDeviationReport("dev-1", "faculty-1", "VALIDATE");
-    expect(result.id).toBe("dev-1");
-  });
-
   it("getDeviationReportStudentProfileId calls prisma with the right id", async () => {
     prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
       studentProfileId: "profile-1",
@@ -80,6 +75,51 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
   it("setRequiredHoursConfig echoes its input", async () => {
     const result = await setRequiredHoursConfig(Program.BSIT, 600, "admin-1");
     expect(result.hours).toBe(600);
+  });
+});
+
+describe("validateDeviationReport", () => {
+  it.each([
+    ["VALIDATE", ValidationStatus.VALIDATED],
+    ["REJECT", ValidationStatus.REJECTED],
+  ] as const)("persists %s with the reviewer and an atomic audit event", async (action, status) => {
+    const saved = { id: "dev-1", validationStatus: status };
+    prismaMock.deviationReport.update.mockResolvedValue(saved as never);
+    await expect(
+      validateDeviationReport("dev-1", "faculty-1", action, "127.0.0.1")
+    ).resolves.toEqual(saved);
+    expect(prismaMock.deviationReport.update).toHaveBeenCalledWith({
+      where: { id: "dev-1" },
+      data: { validationStatus: status, facultyId: "faculty-1" },
+      select: { id: true, validationStatus: true },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "faculty-1",
+          entityId: "dev-1",
+          ipAddress: "127.0.0.1",
+        }),
+      })
+    );
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+    expect(prismaMock.dailyReportEntry.aggregate).not.toHaveBeenCalled();
+  });
+
+  it("propagates missing report errors without logging or changing hours", async () => {
+    prismaMock.deviationReport.update.mockRejectedValue(new Error("Not found"));
+    await expect(validateDeviationReport("missing", "faculty-1", "REJECT")).rejects.toThrow(
+      "Not found"
+    );
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported review actions before writing", async () => {
+    await expect(
+      validateDeviationReport("dev-1", "faculty-1", "APPROVE" as "VALIDATE")
+    ).rejects.toThrow("Invalid deviation review action");
+    expect(prismaMock.deviationReport.update).not.toHaveBeenCalled();
   });
 });
 
