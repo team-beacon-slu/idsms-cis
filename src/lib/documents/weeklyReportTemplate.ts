@@ -22,9 +22,19 @@ export interface WeeklyReportDocumentData {
     actualHours: number | null;
     accomplishments: string | null;
     toolsUsed: string | null;
+    attendanceStatus: string; // PRESENT | ABSENT | HOLIDAY | SCHEDULED
+    timeIn: string | null; // "HH:MM"
+    timeOut: string | null;
   }[];
   totals: { totalHours: number; runningTotal: number; remainingHours: number };
 }
+
+const STATUS_LABEL: Record<string, string> = {
+  PRESENT: "Present",
+  ABSENT: "Absent",
+  HOLIDAY: "Holiday",
+  SCHEDULED: "Not filled",
+};
 
 // FR-DG-03/04 weekly report layout. Pure: same input → same HTML, no I/O.
 export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
@@ -34,6 +44,8 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
       (entry) => `
       <tr>
         <td>${escapeHtml(formatCalendarDate(entry.reportDate, { weekday: true }))}</td>
+        <td>${escapeHtml(STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}</td>
+        <td>${entry.timeIn && entry.timeOut ? `${escapeHtml(entry.timeIn)}–${escapeHtml(entry.timeOut)}` : "—"}</td>
         <td>${escapeHtml(entry.actualHours)}</td>
         <td class="text">${escapeHtml(entry.accomplishments)}</td>
         <td>${escapeHtml(entry.toolsUsed)}</td>
@@ -68,7 +80,7 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
   </dl>
 
   <table>
-    <thead><tr><th>Date</th><th>Hours</th><th>Accomplishments</th><th>Tools used</th></tr></thead>
+    <thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Hours</th><th>Accomplishments</th><th>Tools used</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
 

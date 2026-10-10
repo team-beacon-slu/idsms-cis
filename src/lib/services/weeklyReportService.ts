@@ -15,6 +15,7 @@ import {
   type ConfigureWorkScheduleInput,
 } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
+import type { AttendanceStatus } from "@/lib/validators/report";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import {
   addDays,
@@ -293,8 +294,17 @@ export async function saveDailyAccomplishment(
   hours: number,
   accomplishments: string,
   studentUserId: string,
-  toolsUsed?: string | null
+  toolsUsed?: string | null,
+  details: {
+    attendanceStatus?: AttendanceStatus;
+    timeIn?: string | null;
+    timeOut?: string | null;
+  } = {}
 ): Promise<{ id: string; hours: number; accomplishments: string }> {
+  // Explicit status wins; legacy callers (no status) keep the old
+  // hours-derived behaviour. Non-PRESENT days always count 0 hours.
+  const status: AttendanceStatus = details.attendanceStatus ?? (hours > 0 ? "PRESENT" : "ABSENT");
+  const isPresent = status === "PRESENT";
   return prisma.$transaction(async (tx) => {
     const entry = await tx.dailyReportEntry.findUniqueOrThrow({
       where: { id: dailyReportEntryId },
@@ -319,11 +329,13 @@ export async function saveDailyAccomplishment(
     const updated = await tx.dailyReportEntry.update({
       where: { id: dailyReportEntryId },
       data: {
-        actualHours: hours,
+        actualHours: isPresent ? hours : 0,
         accomplishments,
         // Optional third column of the daily form; undefined leaves it untouched.
         ...(toolsUsed !== undefined ? { toolsUsed: toolsUsed || null } : {}),
-        attendanceStatus: hours > 0 ? "PRESENT" : "ABSENT",
+        attendanceStatus: status,
+        ...(details.timeIn !== undefined ? { timeIn: details.timeIn } : {}),
+        ...(details.timeOut !== undefined ? { timeOut: details.timeOut } : {}),
       },
       select: { id: true, actualHours: true, accomplishments: true },
     });
@@ -390,7 +402,9 @@ export async function recordWeeklyReportSubmission(
         status: true,
         weekEnd: true,
         revisionHistory: true,
-        dailyEntries: { select: { actualHours: true, accomplishments: true } },
+        dailyEntries: {
+          select: { actualHours: true, accomplishments: true, attendanceStatus: true },
+        },
       },
     });
 
@@ -399,7 +413,11 @@ export async function recordWeeklyReportSubmission(
     }
     const incomplete =
       report.dailyEntries.length === 0 ||
-      report.dailyEntries.some((e) => e.actualHours == null || !e.accomplishments?.trim());
+      report.dailyEntries.some((e) => {
+        if (e.actualHours == null || e.attendanceStatus === "SCHEDULED") return true;
+        // Absent/holiday days carry no accomplishments.
+        return e.attendanceStatus === "PRESENT" && !e.accomplishments?.trim();
+      });
     if (incomplete) {
       throw new WeeklyReportIncompleteError();
     }

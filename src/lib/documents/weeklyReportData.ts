@@ -22,7 +22,15 @@ export async function loadWeeklyReportDocumentData(
       revisionHistory: true,
       dailyEntries: {
         orderBy: { reportDate: "asc" },
-        select: { reportDate: true, actualHours: true, accomplishments: true, toolsUsed: true },
+        select: {
+          reportDate: true,
+          actualHours: true,
+          accomplishments: true,
+          toolsUsed: true,
+          attendanceStatus: true,
+          timeIn: true,
+          timeOut: true,
+        },
       },
       studentProfile: {
         select: {
@@ -65,6 +73,9 @@ export async function loadWeeklyReportDocumentData(
       actualHours: e.actualHours == null ? null : Number(e.actualHours),
       accomplishments: e.accomplishments,
       toolsUsed: e.toolsUsed,
+      attendanceStatus: e.attendanceStatus,
+      timeIn: e.timeIn,
+      timeOut: e.timeOut,
     })),
     totals: {
       totalHours: Number(report.totalHours),

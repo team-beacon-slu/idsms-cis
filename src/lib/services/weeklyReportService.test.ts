@@ -307,6 +307,32 @@ describe("saveDailyAccomplishment", () => {
       expect.objectContaining({ hours: 0 })
     );
   });
+
+  it("ABSENT forces 0 hours and stores status and times", async () => {
+    mockEntry(WeeklyReportStatus.PENDING);
+    prismaMock.dailyReportEntry.update.mockResolvedValue({
+      id: "entry-1",
+      actualHours: 0,
+      accomplishments: "",
+    } as never);
+
+    await saveDailyAccomplishment("entry-1", 5, "", "student-1", undefined, {
+      attendanceStatus: "ABSENT",
+      timeIn: null,
+      timeOut: null,
+    });
+
+    expect(prismaMock.dailyReportEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actualHours: 0,
+          attendanceStatus: "ABSENT",
+          timeIn: null,
+          timeOut: null,
+        }),
+      })
+    );
+  });
 });
 
 describe("validateLateSubmissionReason (FR-WR-05)", () => {
@@ -334,7 +360,44 @@ describe("validateLateSubmissionReason (FR-WR-05)", () => {
 
 describe("recordWeeklyReportSubmission", () => {
   const actingUser = { id: "student-1", role: Role.STUDENT_INTERN };
-  const filledEntries = [{ actualHours: 8, accomplishments: "Built the login page" }];
+  const filledEntries = [
+    { actualHours: 8, accomplishments: "Built the login page", attendanceStatus: "PRESENT" },
+  ];
+
+  it("submittable when all days are ABSENT/HOLIDAY (no accomplishments needed)", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.PENDING,
+      weekEnd: new Date("2026-10-11T00:00:00Z"),
+      revisionHistory: [],
+      dailyEntries: [
+        { actualHours: 0, accomplishments: null, attendanceStatus: "HOLIDAY" },
+        { actualHours: 0, accomplishments: "", attendanceStatus: "ABSENT" },
+      ],
+    } as never);
+    await expect(
+      recordWeeklyReportSubmission(
+        "wr-1",
+        { referenceCode: "WR-1", timestamp: new Date("2026-10-12T02:00:00Z") },
+        actingUser
+      )
+    ).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+  });
+
+  it("still rejects an unfilled SCHEDULED day", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.PENDING,
+      weekEnd: new Date("2026-10-11T00:00:00Z"),
+      revisionHistory: [],
+      dailyEntries: [{ actualHours: null, accomplishments: null, attendanceStatus: "SCHEDULED" }],
+    } as never);
+    await expect(
+      recordWeeklyReportSubmission(
+        "wr-1",
+        { referenceCode: "x", timestamp: new Date() },
+        actingUser
+      )
+    ).rejects.toThrow(WeeklyReportIncompleteError);
+  });
 
   it("appends a SUBMITTED entry with the reference code and audit-logs it", async () => {
     prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({

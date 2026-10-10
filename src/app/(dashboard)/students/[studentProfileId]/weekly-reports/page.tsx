@@ -225,6 +225,9 @@ export default async function WeeklyReportsPage({
                         actualHours: e.actualHours == null ? null : Number(e.actualHours),
                         accomplishments: e.accomplishments,
                         toolsUsed: e.toolsUsed,
+                        attendanceStatus: e.attendanceStatus,
+                        timeIn: e.timeIn,
+                        timeOut: e.timeOut,
                       }))}
                     />
                   </div>
