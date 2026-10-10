@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
+import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
 
 export interface ConfigureWorkScheduleInput {
   daysOfWeek: number[]; // 0=Sunday..6=Saturday
@@ -593,10 +594,31 @@ export async function setRequiredHoursConfig(
   actingUserId: string,
   ipAddress?: string | null
 ): Promise<{ program: Program; hours: number }> {
-  // TODO(2215428-sys): implement per the contract above.
-  void actingUserId;
-  void ipAddress;
-  return { program, hours };
+  const input = requiredHoursConfigSchema.parse({ program, hours });
+  return prisma.$transaction(async (tx) => {
+    const config = await tx.systemConfig.upsert({
+      where: { configKey: REQUIRED_HOURS_CONFIG_KEY(input.program) },
+      create: {
+        configKey: REQUIRED_HOURS_CONFIG_KEY(input.program),
+        configValue: input.hours,
+        updatedBy: actingUserId,
+      },
+      update: { configValue: input.hours, updatedBy: actingUserId },
+      select: { id: true },
+    });
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "REQUIRED_HOURS_CONFIG_UPDATED",
+        entityType: "SystemConfig",
+        entityId: config.id,
+        ipAddress,
+        detail: input,
+      },
+      tx
+    );
+    return input;
+  });
 }
 
 // FR-AT-07 — Owner: Shantea23
