@@ -6,6 +6,7 @@ beforeEach(() => resetPrismaMock());
 const row = {
   id: "wr-1",
   studentProfileId: "p-1",
+  status: "PENDING",
   weekStart: new Date("2026-10-05T00:00:00Z"),
   weekEnd: new Date("2026-10-11T00:00:00Z"),
   totalHours: 8,
@@ -57,6 +58,20 @@ describe("loadWeeklyReportDocumentData", () => {
       })
     );
     expect(data!.entries[0]).toEqual(expect.objectContaining({ actualHours: 8 }));
+  });
+
+  it("returns referenceCode null for a returned report being revised (FR-DG-05)", async () => {
+    prismaMock.weeklyReport.findUnique.mockResolvedValue({
+      ...row,
+      status: "RETURNED",
+      revisionHistory: [
+        ...row.revisionHistory,
+        { type: "RETURNED", timestamp: "2026-10-13T02:00:00.000Z", notes: "Add details" },
+      ],
+    } as never);
+    const data = await loadWeeklyReportDocumentData("wr-1");
+    expect(data!.referenceCode).toBeNull();
+    expect(data!.submittedAt).toBeNull();
   });
 
   it("returns referenceCode null for a draft (never submitted)", async () => {

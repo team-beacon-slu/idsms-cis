@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { CheckCircle2, CircleDashed, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
-import { ReportPdfActions } from "../weekly-reports/report-pdf-actions";
+import { generatePdfInBackground, ReportPdfActions } from "../weekly-reports/report-pdf-actions";
 
 // FR-WR-08 — Owner: AndresBonifaci0 (Matt)
 // Requirement: eligibility status, a submit action, and a read-only rollup
@@ -83,12 +83,15 @@ export function MonthlyReportView({
       return;
     }
     toast.success(`${monthLabel(calendarMonth)} monthly report submitted`);
+    router.refresh();
     // Module 8: render the PDF in the background; a failure shows as
     // "Regenerate PDF" instead of failing the submission.
-    const body = await res.json();
-    void fetch(`/api/monthly-reports/${body.generatedDocumentId}/pdf`, { method: "POST" }).finally(
-      () => router.refresh()
-    );
+    const body = await res.json().catch(() => ({}));
+    if (typeof body.generatedDocumentId === "string") {
+      void generatePdfInBackground(`/api/monthly-reports/${body.generatedDocumentId}/pdf`, () =>
+        router.refresh()
+      );
+    }
   }
 
   if (months.length === 0) {

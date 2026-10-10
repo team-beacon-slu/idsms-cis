@@ -13,9 +13,18 @@ export async function resolveBrowserLaunch(): Promise<{ executablePath: string; 
   return { executablePath: await Chromium.executablePath(), args: Chromium.args };
 }
 
-export async function renderHtmlToPdf(html: string, timeoutMs = 30_000): Promise<Buffer> {
+const CLOSE_TIMEOUT_MS = 5_000;
+
+// Each step (launch, load, print) gets `timeoutMs`, so one attempt is bounded
+// at ~3× that — documentService's retry deadline is sized against it.
+export async function renderHtmlToPdf(html: string, timeoutMs = 15_000): Promise<Buffer> {
   const { executablePath, args } = await resolveBrowserLaunch();
-  const browser = await puppeteer.launch({ executablePath, args, headless: true });
+  const browser = await puppeteer.launch({
+    executablePath,
+    args,
+    headless: true,
+    timeout: timeoutMs,
+  });
   try {
     const page = await browser.newPage();
     // setContent, not goto — the HTML is already rendered server-side, so no
@@ -24,6 +33,11 @@ export async function renderHtmlToPdf(html: string, timeoutMs = 30_000): Promise
     const pdf = await page.pdf({ format: "A4", printBackground: true, timeout: timeoutMs });
     return Buffer.from(pdf);
   } finally {
-    await browser.close();
+    // A crashed or hung Chrome must neither replace the real error nor
+    // discard a PDF that already printed, so close is time-boxed and logged.
+    await Promise.race([
+      browser.close(),
+      new Promise((resolve) => setTimeout(resolve, CLOSE_TIMEOUT_MS).unref?.()),
+    ]).catch((error) => console.error("Failed to close headless Chrome", error));
   }
 }

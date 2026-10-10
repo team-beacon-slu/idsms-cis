@@ -4,6 +4,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
+  getConfirmedSubmission,
   getLatestSubmission,
   getWeeklyReportHistory,
   isAwaitingReview,
@@ -53,9 +54,9 @@ export default async function WeeklyReportsPage({
   });
   const documents = await prisma.generatedDocument.findMany({
     where: { studentProfileId: params.studentProfileId, documentType: "WEEKLY_REPORT" },
-    select: { periodLabel: true, status: true },
+    select: { periodLabel: true, status: true, referenceCode: true },
   });
-  const pdfStatusByWeek = new Map(documents.map((d) => [d.periodLabel, d.status]));
+  const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
 
@@ -118,6 +119,12 @@ export default async function WeeklyReportsPage({
           ) : (
             reports.map((report, index) => {
               const submission = getLatestSubmission(report.revisionHistory);
+              // PDFs exist only for the submission the student stands behind;
+              // one carrying an older reference code (pre-Return) is stale.
+              const confirmed = getConfirmedSubmission(report);
+              const pdf = pdfByWeek.get(toDateKey(report.weekStart));
+              const pdfStatus =
+                confirmed && pdf?.referenceCode === confirmed.referenceCode ? pdf.status : null;
               const awaitingReview = isAwaitingReview(report);
               const editable = isOwner && isWeeklyReportEditable(report);
               const feedback = getWeeklyReportHistory(report.revisionHistory).filter(
@@ -151,10 +158,10 @@ export default async function WeeklyReportsPage({
                         <StatusBadge status={report.status} />
                       )}
                       {submission?.late && <Badge variant="destructive">Late</Badge>}
-                      {submission && (
+                      {confirmed && (
                         <ReportPdfActions
                           endpoint={`/api/weekly-reports/${report.id}/pdf`}
-                          status={pdfStatusByWeek.get(toDateKey(report.weekStart)) ?? null}
+                          status={pdfStatus}
                           canGenerate
                         />
                       )}

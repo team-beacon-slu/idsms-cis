@@ -30,6 +30,15 @@ export class InvalidFileError extends Error {
   }
 }
 
+// Deterministic: re-rendering the same content yields the same size, so the
+// PDF retry loop must not retry it.
+export class PdfTooLargeError extends InvalidFileError {
+  constructor(message: string) {
+    super(message);
+    this.name = "PdfTooLargeError";
+  }
+}
+
 // NFR-SEC-03 / Phase 4's file-size-cap task pulled forward as defense-in-depth
 // from day one — leaving Storage uncapped for two phases isn't worth the risk.
 export function validateUpload(file: File): void {
@@ -65,7 +74,7 @@ export async function uploadFile(bucket: string, path: string, file: File): Prom
 // is fixed here and only the size cap needs enforcing.
 export async function uploadPdfBuffer(bucket: string, path: string, pdf: Buffer): Promise<string> {
   if (pdf.byteLength > MAX_PDF_BYTES) {
-    throw new InvalidFileError(
+    throw new PdfTooLargeError(
       `Generated PDF exceeds the ${MAX_PDF_BYTES / (1024 * 1024)}MB limit`
     );
   }

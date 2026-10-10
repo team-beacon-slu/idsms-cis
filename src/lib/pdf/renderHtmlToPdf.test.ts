@@ -76,4 +76,24 @@ describe("renderHtmlToPdf", () => {
     await expect(renderHtmlToPdf("<p>hi</p>")).rejects.toThrow("Target closed");
     expect(browser.close).toHaveBeenCalled();
   });
+
+  it("keeps a good PDF when closing the browser fails", async () => {
+    process.env.PUPPETEER_EXECUTABLE_PATH = "chrome";
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    const { browser } = fakeBrowser();
+    browser.close.mockRejectedValue(new Error("Browser already gone"));
+    launch.mockResolvedValue(browser);
+
+    await expect(renderHtmlToPdf("<p>hi</p>")).resolves.toBeInstanceOf(Buffer);
+  });
+
+  it("bounds the browser launch with the same timeout", async () => {
+    process.env.PUPPETEER_EXECUTABLE_PATH = "chrome";
+    const { browser } = fakeBrowser();
+    launch.mockResolvedValue(browser);
+
+    await renderHtmlToPdf("<p>hi</p>", 15_000);
+
+    expect(launch).toHaveBeenCalledWith(expect.objectContaining({ timeout: 15_000 }));
+  });
 });

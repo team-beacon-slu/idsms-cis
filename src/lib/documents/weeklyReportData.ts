@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getLatestSubmission } from "@/lib/services/weeklyReportService";
+import { getConfirmedSubmission } from "@/lib/services/weeklyReportService";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
 import type { WeeklyReportDocumentData } from "@/lib/documents/weeklyReportTemplate";
 
@@ -18,6 +18,7 @@ export async function loadWeeklyReportDocumentData(
       totalHours: true,
       runningTotal: true,
       remainingHours: true,
+      status: true,
       revisionHistory: true,
       dailyEntries: {
         orderBy: { reportDate: "asc" },
@@ -37,7 +38,9 @@ export async function loadWeeklyReportDocumentData(
   });
   if (!report) return null;
 
-  const submission = getLatestSubmission(report.revisionHistory);
+  // Null while a draft or returned for revision, so the preview shows the
+  // PREVIEW watermark and generation is refused (FR-DG-05).
+  const submission = getConfirmedSubmission(report);
   const profile = report.studentProfile;
 
   return {

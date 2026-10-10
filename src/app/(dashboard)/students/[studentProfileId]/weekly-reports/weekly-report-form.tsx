@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, isWeeklyReportLate } from "@/lib/utils/reportDeadline";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
+import { generatePdfInBackground } from "./report-pdf-actions";
 
 // FR-WR-02, FR-WR-03 — Owner: gu457 (Ulrich)
 // Requirement: daily accomplishment entry UI — one row per scheduled day
@@ -242,12 +243,12 @@ export function WeeklyReportForm({
     }
     const body = await res.json();
     toast.success(`Report submitted · reference ${body.referenceCode}`);
+    router.refresh();
     // Module 8: render the signed-copy PDF in the background. Failures are
     // recorded server-side as FAILED and offered as "Regenerate PDF".
-    void fetch(`/api/weekly-reports/${weeklyReportId}/pdf`, { method: "POST" }).finally(() =>
+    void generatePdfInBackground(`/api/weekly-reports/${weeklyReportId}/pdf`, () =>
       router.refresh()
     );
-    router.refresh();
   }
 
   if (entries.length === 0) {

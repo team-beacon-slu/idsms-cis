@@ -6,21 +6,26 @@ jest.mock("@/lib/documents/monthlyReportData", () => ({
   loadMonthlyReportDocumentData: jest.fn(),
 }));
 jest.mock("@/lib/pdf/renderHtmlToPdf", () => ({ renderHtmlToPdf: jest.fn() }));
-jest.mock("@/lib/storage", () => ({
-  GENERATED_DOCUMENTS_BUCKET: "generated-documents",
-  uploadPdfBuffer: jest.fn(),
-  getSignedUrl: jest.fn(),
-}));
+jest.mock("@/lib/storage", () => {
+  class PdfTooLargeError extends Error {}
+  return {
+    GENERATED_DOCUMENTS_BUCKET: "generated-documents",
+    PdfTooLargeError,
+    uploadPdfBuffer: jest.fn(),
+    getSignedUrl: jest.fn(),
+  };
+});
 
 import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
 import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
 import { renderHtmlToPdf } from "@/lib/pdf/renderHtmlToPdf";
-import { uploadPdfBuffer } from "@/lib/storage";
+import { PdfTooLargeError, uploadPdfBuffer } from "@/lib/storage";
 import {
   DocumentNotReadyError,
   generateMonthlyReportPdf,
   generateMonthlyReportReferenceCode,
   generateWeeklyReportPdf,
+  getWeeklyReportDocument,
   weeklyPeriodLabel,
   withRetry,
 } from "@/lib/services/documentService";
@@ -215,5 +220,104 @@ describe("generateMonthlyReportPdf", () => {
 describe("generateMonthlyReportReferenceCode", () => {
   it("is MR-<YYYYMM>-<8 hex>", () => {
     expect(generateMonthlyReportReferenceCode("2026-09")).toMatch(/^MR-202609-[0-9A-F]{8}$/);
+  });
+});
+
+// Final-review fix pass: retry policy, deadline, guarded bookkeeping,
+// monthly not-ready, stale-document detection.
+describe("withRetry failure policy", () => {
+  it("does not retry a non-retryable error (not-ready, oversized PDF)", async () => {
+    const notReady = jest.fn().mockRejectedValue(new DocumentNotReadyError());
+    await expect(withRetry(notReady, { sleep: noSleep })).rejects.toThrow(DocumentNotReadyError);
+    expect(notReady).toHaveBeenCalledTimes(1);
+
+    const tooBig = jest.fn().mockRejectedValue(new PdfTooLargeError("too big"));
+    await expect(withRetry(tooBig, { sleep: noSleep })).rejects.toThrow("too big");
+    expect(tooBig).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops retrying once the next attempt would start past the deadline", async () => {
+    const fn = jest.fn().mockRejectedValue(new Error("Navigation timeout"));
+    const clock = jest.fn().mockReturnValueOnce(0).mockReturnValue(59_500);
+    await expect(withRetry(fn, { sleep: noSleep, deadlineMs: 60_000, now: clock })).rejects.toThrow(
+      "Navigation timeout"
+    );
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(noSleep).not.toHaveBeenCalled();
+  });
+});
+
+describe("generation bookkeeping failures", () => {
+  it("still reports FAILED when marking the row FAILED throws", async () => {
+    loadData.mockResolvedValue(submitted);
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({ id: "doc-1" } as never);
+    render.mockRejectedValue(new Error("Failed to launch the browser process"));
+    prismaMock.generatedDocument.update
+      .mockResolvedValueOnce({} as never) // PENDING_DRAFT
+      .mockRejectedValueOnce(new Error("Connection pool timeout")); // FAILED
+
+    const result = await generateWeeklyReportPdf("wr-1", "u-1", { sleep: noSleep });
+
+    expect(result).toEqual({ generatedDocumentId: "doc-1", status: DocumentStatus.FAILED });
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("bookkeeping"),
+      expect.objectContaining({ documentId: "doc-1" })
+    );
+  });
+
+  it("returns GENERATED when only the audit log write fails", async () => {
+    loadData.mockResolvedValue(submitted);
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({ id: "doc-1" } as never);
+    render.mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("weekly/p-1/wr-1.pdf");
+    prismaMock.auditLog.create.mockRejectedValue(new Error("audit insert failed"));
+
+    const result = await generateWeeklyReportPdf("wr-1", "u-1", { sleep: noSleep });
+
+    expect(result.status).toBe(DocumentStatus.GENERATED);
+  });
+
+  it("refuses a monthly report whose data is gone, without rendering or retrying", async () => {
+    prismaMock.generatedDocument.findUnique.mockResolvedValue({
+      id: "doc-m",
+      documentType: DocumentType.MONTHLY_REPORT,
+      periodLabel: "2026-09",
+      referenceCode: "MR-202609-ABCD1234",
+      studentProfileId: "p-1",
+    } as never);
+    (loadMonthlyReportDocumentData as jest.Mock).mockResolvedValue(null);
+
+    await expect(generateMonthlyReportPdf("doc-m", "u-1", { sleep: noSleep })).rejects.toThrow(
+      DocumentNotReadyError
+    );
+    expect(render).not.toHaveBeenCalled();
+  });
+});
+
+describe("getWeeklyReportDocument", () => {
+  const confirmedReport = {
+    studentProfileId: "p-1",
+    weekStart: new Date("2026-10-05T00:00:00Z"),
+    status: "PENDING",
+    revisionHistory: [
+      { type: "SUBMITTED", timestamp: "2026-10-12T02:00:00.000Z", referenceCode: "WR-NEW" },
+    ],
+  };
+
+  it("treats a PDF carrying an older submission's reference code as not generated", async () => {
+    prismaMock.weeklyReport.findUnique.mockResolvedValue(confirmedReport as never);
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({
+      id: "doc-1",
+      referenceCode: "WR-OLD",
+      status: DocumentStatus.GENERATED,
+    } as never);
+    await expect(getWeeklyReportDocument("wr-1")).resolves.toBeNull();
+  });
+
+  it("returns the document when it matches the current submission", async () => {
+    prismaMock.weeklyReport.findUnique.mockResolvedValue(confirmedReport as never);
+    const doc = { id: "doc-1", referenceCode: "WR-NEW", status: DocumentStatus.GENERATED };
+    prismaMock.generatedDocument.findFirst.mockResolvedValue(doc as never);
+    await expect(getWeeklyReportDocument("wr-1")).resolves.toEqual(doc);
   });
 });

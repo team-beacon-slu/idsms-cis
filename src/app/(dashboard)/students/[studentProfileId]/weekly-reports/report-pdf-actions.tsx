@@ -9,6 +9,25 @@ import { cn } from "@/lib/utils";
 
 type PdfStatus = "GENERATED" | "FAILED" | "PENDING_DRAFT" | null;
 
+// Fired right after a successful submit. The submission is already saved, so
+// any PDF problem is reported as a warning pointing at "Regenerate PDF" —
+// never thrown, so it can't surface as an unhandled rejection.
+export async function generatePdfInBackground(
+  endpoint: string,
+  onSettled: () => void
+): Promise<void> {
+  const warning = "Report saved, but its PDF could not be generated — use Regenerate PDF";
+  try {
+    const res = await fetch(endpoint, { method: "POST" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.status === "FAILED") toast.error(warning);
+  } catch {
+    toast.error(warning);
+  } finally {
+    onSettled();
+  }
+}
+
 // FR-DG-07 UI: Download when ready, Generate/Regenerate otherwise. `endpoint`
 // is the document's /pdf route (GET downloads, POST generates), so the same
 // component serves weekly and monthly reports.
@@ -26,17 +45,22 @@ export function ReportPdfActions({
 
   async function generate() {
     setIsPending(true);
-    const res = await fetch(endpoint, { method: "POST" });
-    setIsPending(false);
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(body.error ?? "Could not generate the PDF");
-    } else if (body.status === "FAILED") {
-      toast.error("PDF generation failed after 3 retries — try Regenerate again shortly");
-    } else {
-      toast.success("PDF ready");
+    try {
+      const res = await fetch(endpoint, { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not generate the PDF");
+      } else if (body.status === "FAILED") {
+        toast.error("PDF generation failed after 3 retries — try Regenerate again shortly");
+      } else {
+        toast.success("PDF ready");
+      }
+    } catch {
+      toast.error("Could not reach the server — check your connection and try again");
+    } finally {
+      setIsPending(false);
+      router.refresh();
     }
-    router.refresh();
   }
 
   if (status === "GENERATED") {

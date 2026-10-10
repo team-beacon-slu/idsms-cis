@@ -82,6 +82,17 @@ export function isWeeklyReportEditable(report: {
   return !FINAL_STATUSES.has(report.status) && !isAwaitingReview(report);
 }
 
+// The submission the student currently stands behind — none while the report
+// is a draft or has been returned for revision, even though an earlier
+// SUBMITTED entry remains in the history (FR-DG-05: documents only reflect
+// confirmed content).
+export function getConfirmedSubmission(report: {
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}): WeeklyReportSubmissionEntry | null {
+  return isWeeklyReportEditable(report) ? null : getLatestSubmission(report.revisionHistory);
+}
+
 export class WeeklyReportLockedError extends Error {
   constructor(message = "This weekly report is locked — it is under review or already finalized") {
     super(message);
