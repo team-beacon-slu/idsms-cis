@@ -2,15 +2,14 @@ import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
-  calculateRenderedHours,
   computeProjectedCompletionDate,
+  getHoursSummary,
   getHolidayCalendarForStudent,
   getLatestScheduleChangeStatus,
   listDeviationReportsForStudent,
   type ScheduleChangeHistoryEntry,
 } from "@/lib/services/attendanceService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
-import { prisma } from "@/lib/prisma";
 import { parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -59,30 +58,21 @@ export default async function AttendancePage({ params }: { params: { studentProf
     throw error;
   }
 
-  // calculateRenderedHours (not computeTotalHoursRendered) — a page view
-  // shouldn't write StudentProfile.renderedHours; approvals already do.
-  const [
-    deviationReports,
-    workPlan,
-    holidays,
-    renderedHours,
-    projectedCompletionDate,
-    studentProfile,
-  ] = await Promise.all([
-    listDeviationReportsForStudent(params.studentProfileId),
-    getLatestApprovedWorkPlanForStudent(params.studentProfileId),
-    getHolidayCalendarForStudent(params.studentProfileId),
-    calculateRenderedHours(params.studentProfileId),
-    computeProjectedCompletionDate(params.studentProfileId),
-    prisma.studentProfile.findUnique({
-      where: { id: params.studentProfileId },
-      select: { requiredHours: true },
-    }),
-  ]);
+  // getHoursSummary is read-only (no StudentProfile.renderedHours write) —
+  // a page view shouldn't persist hours; approvals already do.
+  const [deviationReports, workPlan, holidays, summary, projectedCompletionDate] =
+    await Promise.all([
+      listDeviationReportsForStudent(params.studentProfileId),
+      getLatestApprovedWorkPlanForStudent(params.studentProfileId),
+      getHolidayCalendarForStudent(params.studentProfileId),
+      getHoursSummary(params.studentProfileId),
+      computeProjectedCompletionDate(params.studentProfileId),
+    ]);
 
   const isOwner = user.role === "STUDENT_INTERN";
-  const requiredHours = studentProfile?.requiredHours ?? 0;
-  const remainingHours = Math.max(0, requiredHours - renderedHours);
+  const renderedHours = summary.confirmedHours;
+  const requiredHours = summary.requiredHours;
+  const remainingHours = summary.remainingHours;
   const progressPercent =
     requiredHours > 0 ? Math.min(100, Math.round((renderedHours / requiredHours) * 100)) : 0;
 
@@ -135,6 +125,11 @@ export default async function AttendancePage({ params }: { params: { studentProf
                     / {requiredHours}
                   </span>
                 </p>
+                {summary.pendingHours > 0 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    +{summary.pendingHours} hrs pending faculty review
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -172,7 +167,9 @@ export default async function AttendancePage({ params }: { params: { studentProf
               <div className="h-full bg-primary" style={{ width: `${progressPercent}%` }} />
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {progressPercent}% of required hours · only approved weekly reports count
+              {progressPercent}% confirmed · pending hours count only after faculty approval
+              {summary.pendingHours > 0 &&
+                ` · ${summary.remainingIfPendingApproved} hrs left if pending reports are approved`}
               {!currentSchedule && " · set a schedule to see a projected completion date"}
             </p>
           </div>

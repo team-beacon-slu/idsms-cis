@@ -996,3 +996,67 @@ export async function logScheduleChangeHistory(
     data: { scheduleChangeHistory: [...history, entry] as unknown as Prisma.InputJsonValue },
   });
 }
+export interface HoursSummary {
+  requiredHours: number;
+  confirmedHours: number; // APPROVED/REGARDED only — the "true" hours (FR-AT-05)
+  pendingHours: number; // submitted, awaiting faculty review — "temporary"
+  remainingHours: number; // against confirmed only
+  remainingIfPendingApproved: number;
+}
+
+// Lifecycle entry types in WeeklyReport.revisionHistory (see
+// weeklyReportService). Kept here as a literal set to avoid an import cycle.
+const REVISION_LIFECYCLE_TYPES = new Set(["SUBMITTED", "RETURNED"]);
+
+function isSubmittedAwaitingReview(revisionHistory: unknown): boolean {
+  const history = Array.isArray(revisionHistory) ? (revisionHistory as { type?: string }[]) : [];
+  const lifecycle = history.filter((e) => e?.type && REVISION_LIFECYCLE_TYPES.has(e.type));
+  return lifecycle[lifecycle.length - 1]?.type === "SUBMITTED";
+}
+
+// Read-only (no StudentProfile write) — safe to call on every page view.
+export async function getHoursSummary(studentProfileId: string): Promise<HoursSummary> {
+  const confirmedHours = await calculateRenderedHours(studentProfileId);
+  const [openReports, profile] = await Promise.all([
+    prisma.weeklyReport.findMany({
+      where: {
+        studentProfileId,
+        status: { in: [WeeklyReportStatus.PENDING, WeeklyReportStatus.RETURNED] },
+      },
+      select: {
+        status: true,
+        revisionHistory: true,
+        dailyEntries: { select: { actualHours: true } },
+      },
+    }),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { requiredHours: true },
+    }),
+  ]);
+
+  const pendingHours =
+    Math.round(
+      openReports
+        .filter(
+          (r) =>
+            r.status === WeeklyReportStatus.PENDING && isSubmittedAwaitingReview(r.revisionHistory)
+        )
+        .reduce(
+          (sum, r) => sum + r.dailyEntries.reduce((s, e) => s + Number(e.actualHours ?? 0), 0),
+          0
+        ) * 100
+    ) / 100;
+
+  const required = profile.requiredHours;
+  return {
+    requiredHours: required,
+    confirmedHours,
+    pendingHours,
+    remainingHours: Math.max(0, Math.round((required - confirmedHours) * 100) / 100),
+    remainingIfPendingApproved: Math.max(
+      0,
+      Math.round((required - confirmedHours - pendingHours) * 100) / 100
+    ),
+  };
+}

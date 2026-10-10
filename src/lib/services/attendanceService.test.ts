@@ -27,6 +27,7 @@ import {
   submitDeviationReport,
   validateDeviationReport,
   validateScheduleChangeFaculty,
+  getHoursSummary,
 } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 
@@ -710,5 +711,42 @@ describe("approveScheduleChangeCoordinator", () => {
     expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { scheduleConfig: newScheduleConfig } })
     );
+  });
+});
+describe("getHoursSummary", () => {
+  it("pending hours are reported separately and never counted as confirmed", async () => {
+    // calculateRenderedHours: APPROVED/REGARDED reports only
+    prismaMock.weeklyReport.findMany
+      .mockResolvedValueOnce([{ dailyEntries: [{ actualHours: 40 }] }] as never)
+      // reports awaiting review: one submitted (counts), one draft (doesn't)
+      .mockResolvedValueOnce([
+        {
+          status: "PENDING",
+          revisionHistory: [{ type: "SUBMITTED", timestamp: "t" }],
+          dailyEntries: [{ actualHours: 8 }, { actualHours: 8 }],
+        },
+        { status: "PENDING", revisionHistory: [], dailyEntries: [{ actualHours: 8 }] },
+      ] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+
+    await expect(getHoursSummary("profile-1")).resolves.toEqual({
+      requiredHours: 600,
+      confirmedHours: 40,
+      pendingHours: 16,
+      remainingHours: 560,
+      remainingIfPendingApproved: 544,
+    });
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("never reports negative remaining hours", async () => {
+    prismaMock.weeklyReport.findMany
+      .mockResolvedValueOnce([{ dailyEntries: [{ actualHours: 610 }] }] as never)
+      .mockResolvedValueOnce([] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+
+    const summary = await getHoursSummary("profile-1");
+    expect(summary.remainingHours).toBe(0);
+    expect(summary.remainingIfPendingApproved).toBe(0);
   });
 });
