@@ -137,3 +137,19 @@ B33–B36 (faculty/coordinator calendar views).
 
 Still open (faculty/coordinator/admin side): B5 (#7), B8/B9 (#10/#11), B22/B23 (#24/#25),
 B25 (#27), B33–B35 (#35–#37).
+
+## Update — 2026-10-11: Phase 3 complete
+
+All 43 Phase 3 items are implemented and merged to `develop`, and every Phase 3 issue is
+closed. The remaining faculty/coordinator/admin items landed from Kenneth (KennethRusselAvaricio):
+
+- #65 (B5, #7), #66 (B8, #10), #67 (B9, #11): merged individually.
+- #68–#74 (B22 #24, B23 #25, B25 #27, B33 #35, B34 #36, B35 #37, F5 #43): integrated as
+  #75. Cross-PR conflicts in `weeklyReportService.test.ts`, `api/calendar/route.ts`, and
+  `calendar/page.tsx` were resolved there.
+
+Wiring-gap status: closed. B33–B36 are reached through role branches in `GET /api/calendar`
+and `calendar/page.tsx` (faculty: high-volume weeks; coordinator/admin: endorsement-letter
+spikes).
+
+Not part of Phase 3 and still unbuilt: Module 8 server-side PDF generation (`documentService.ts`).
