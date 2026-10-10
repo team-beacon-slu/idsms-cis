@@ -1,4 +1,7 @@
 // 12 automated notification triggers via Resend. See PRD Module 11 (FR-NT-*).
+import { Resend } from "resend";
+import { prisma } from "@/lib/prisma";
+import { WeeklyReportStatusEmail } from "@/components/emails/weekly-report-status-email";
 
 // FR-WR-07 — Owner: Rhaastas (org invite pending — GitHub issue #27
 // created unassigned; assign once they accept)
@@ -19,8 +22,88 @@ export async function sendReportStatusEmail(
   weeklyReportId: string,
   action: "APPROVE" | "RETURN" | "REGARD" | "DISREGARD"
 ): Promise<{ sent: boolean }> {
-  // TODO(Rhaastas): implement per the contract above.
-  void weeklyReportId;
-  void action;
-  return { sent: false };
+  // Disregard deletes the report before this hook; its recipients no longer exist.
+  // Submission email belongs to Module 11's separate submission trigger.
+  if (action === "DISREGARD") return { sent: false };
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !from) return { sent: false };
+  try {
+    const report = await prisma.weeklyReport.findUnique({
+      where: { id: weeklyReportId },
+      select: {
+        weekStart: true,
+        weekEnd: true,
+        revisionHistory: true,
+        studentProfileId: true,
+        studentProfile: {
+          select: {
+            deletedAt: true,
+            classGroupId: true,
+            semesterId: true,
+            user: { select: { email: true, isActive: true, deletedAt: true } },
+          },
+        },
+      },
+    });
+    if (!report || report.studentProfile.deletedAt) return { sent: false };
+    const assignments = await prisma.facultyClassGroup.findMany({
+      where: {
+        classGroupId: report.studentProfile.classGroupId,
+        semesterId: report.studentProfile.semesterId,
+      },
+      select: { faculty: { select: { email: true, isActive: true, deletedAt: true } } },
+    });
+    const recipients = Array.from(
+      new Set(
+        [report.studentProfile.user, ...assignments.map(({ faculty }) => faculty)]
+          .filter((user) => user.isActive && !user.deletedAt && user.email)
+          .map((user) => user.email)
+      )
+    );
+    if (!recipients.length) return { sent: false };
+    const status = { APPROVE: "approved", RETURN: "returned", REGARD: "regarded" }[action];
+    const history = Array.isArray(report.revisionHistory) ? report.revisionHistory : [];
+    const lastReturn = [...history]
+      .reverse()
+      .find(
+        (entry) =>
+          entry && typeof entry === "object" && !Array.isArray(entry) && entry.type === "RETURNED"
+      );
+    const notes =
+      action === "RETURN" &&
+      lastReturn &&
+      typeof lastReturn === "object" &&
+      !Array.isArray(lastReturn) &&
+      typeof lastReturn.notes === "string"
+        ? lastReturn.notes
+        : undefined;
+    const reportPath = `/students/${report.studentProfileId}/weekly-reports/${weeklyReportId}`;
+    const baseUrl = process.env.NEXTAUTH_URL;
+    const reportUrl =
+      baseUrl && /^https?:\/\//.test(baseUrl) ? new URL(reportPath, baseUrl).href : undefined;
+    const email = WeeklyReportStatusEmail({
+      status,
+      weekStart: report.weekStart,
+      weekEnd: report.weekEnd,
+      notes,
+      reportUrl,
+    });
+    const resend = new Resend(apiKey);
+    // Separate messages keep the recipients' addresses private.
+    const results = await Promise.all(
+      recipients.map((to) =>
+        resend.emails.send({
+          from,
+          to,
+          subject: `IDSMS-CIS: weekly report ${status}`,
+          react: email,
+        })
+      )
+    );
+    return { sent: results.every(({ data, error }) => !!data?.id && !error) };
+  } catch {
+    // The review has already committed successfully; delivery is best effort.
+    return { sent: false };
+  }
 }
