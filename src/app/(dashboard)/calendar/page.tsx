@@ -63,7 +63,7 @@ export default async function CalendarPage() {
           <CardDescription>Color-coded by event type — see the legend below.</CardDescription>
         </CardHeader>
         <CardContent>
-          <UnifiedCalendarView events={events} />
+          <UnifiedCalendarView events={events} role={user.role} />
         </CardContent>
       </Card>
     </div>
