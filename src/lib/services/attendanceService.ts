@@ -380,11 +380,31 @@ export async function validateDeviationReport(
   action: "VALIDATE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ id: string; validationStatus: ValidationStatus }> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void facultyId;
-  void action;
-  void ipAddress;
-  return { id: deviationReportId, validationStatus: ValidationStatus.PENDING };
+  if (action !== "VALIDATE" && action !== "REJECT") {
+    throw new Error("Invalid deviation review action");
+  }
+  const validationStatus =
+    action === "VALIDATE" ? ValidationStatus.VALIDATED : ValidationStatus.REJECTED;
+
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.deviationReport.update({
+      where: { id: deviationReportId },
+      data: { validationStatus, facultyId },
+      select: { id: true, validationStatus: true },
+    });
+    await logEvent(
+      {
+        userId: facultyId,
+        action: `DEVIATION_REPORT_${validationStatus}`,
+        entityType: "DeviationReport",
+        entityId: deviationReportId,
+        ipAddress,
+        detail: { validationStatus },
+      },
+      tx
+    );
+    return result;
+  });
 }
 
 // FR-AT-05 — Owner: JayPing23 (Danielle)
