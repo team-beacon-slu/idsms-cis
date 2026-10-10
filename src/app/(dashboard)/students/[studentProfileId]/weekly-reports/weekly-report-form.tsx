@@ -242,6 +242,11 @@ export function WeeklyReportForm({
     }
     const body = await res.json();
     toast.success(`Report submitted · reference ${body.referenceCode}`);
+    // Module 8: render the signed-copy PDF in the background. Failures are
+    // recorded server-side as FAILED and offered as "Regenerate PDF".
+    void fetch(`/api/weekly-reports/${weeklyReportId}/pdf`, { method: "POST" }).finally(() =>
+      router.refresh()
+    );
     router.refresh();
   }
 
