@@ -17,6 +17,7 @@ if (process.env.NODE_ENV !== "production") {
 
 export const CHECKLIST_BUCKET = "checklist-documents";
 export const MOA_BUCKET = "moa-documents";
+export const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
 const MAX_PDF_BYTES = 5 * 1024 * 1024; // 5MB
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
@@ -50,6 +51,28 @@ export async function uploadFile(bucket: string, path: string, file: File): Prom
   const { error } = await supabaseAdmin.storage.from(bucket).upload(path, file, {
     upsert: true,
     contentType: file.type,
+  });
+
+  if (error) {
+    throw new InvalidFileError(error.message);
+  }
+
+  return path;
+}
+
+// Server-generated PDFs (Module 8) arrive as Buffers, not browser Files, so
+// validateUpload()'s File-based MIME check doesn't apply — the content type
+// is fixed here and only the size cap needs enforcing.
+export async function uploadPdfBuffer(bucket: string, path: string, pdf: Buffer): Promise<string> {
+  if (pdf.byteLength > MAX_PDF_BYTES) {
+    throw new InvalidFileError(
+      `Generated PDF exceeds the ${MAX_PDF_BYTES / (1024 * 1024)}MB limit`
+    );
+  }
+
+  const { error } = await supabaseAdmin.storage.from(bucket).upload(path, pdf, {
+    upsert: true,
+    contentType: "application/pdf",
   });
 
   if (error) {
