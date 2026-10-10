@@ -4,6 +4,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
   colorCodeCalendarEvents,
+  getFacultyCalendarView,
   getStudentCalendarView,
   getUnifiedCalendarEvents,
 } from "@/lib/services/calendarService";
@@ -31,6 +32,8 @@ export default async function CalendarPage() {
       const schedule = parseScheduleConfig(workPlan?.scheduleConfig);
       scheduleLabel = schedule ? formatSchedule(schedule) : null;
     }
+  } else if (user.role === Role.FACULTY_ADVISER) {
+    events = await getFacultyCalendarView(user.id);
   } else {
     events = colorCodeCalendarEvents(await getUnifiedCalendarEvents(user.id, user.role));
   }

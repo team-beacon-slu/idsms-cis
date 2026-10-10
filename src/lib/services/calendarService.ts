@@ -201,9 +201,8 @@ export async function getStudentCalendarView(studentProfileId: string): Promise<
 // aggregated array. Feeds `detectHighVolumeSubmissionWeeks` below.
 // Edge cases: none beyond the aggregation itself.
 export async function getFacultyCalendarView(facultyId: string): Promise<CalendarEvent[]> {
-  // TODO(AndresBonifaci0): implement per the contract above.
-  void facultyId;
-  return [];
+  const events = await getUnifiedCalendarEvents(facultyId, Role.FACULTY_ADVISER);
+  return colorCodeCalendarEvents(events).sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 // FR-CAL-03 — Owner: AndresBonifaci0 (Matt)
