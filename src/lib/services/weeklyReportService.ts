@@ -2,6 +2,7 @@
 // Module 6 (FR-WR-01–07, FR-WR-09–10). Monthly aggregation lives in
 // monthlyReportService.ts (FR-WR-08).
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { Prisma, Role, WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
@@ -482,11 +483,43 @@ export async function reviewWeeklyReport_Return(
   notes: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  // TODO(KennethRusselAvaricio): implement per the contract above.
-  void facultyId;
-  void notes;
-  void ipAddress;
-  return { id: weeklyReportId, status: WeeklyReportStatus.PENDING };
+  const revisionNotes = z.string().trim().min(1, "Revision notes are required").parse(notes);
+  return prisma.$transaction(async (tx) => {
+    const report = await tx.weeklyReport.findUniqueOrThrow({
+      where: { id: weeklyReportId },
+      select: { revisionHistory: true },
+    });
+    const entry = {
+      type: "RETURNED",
+      timestamp: new Date().toISOString(),
+      facultyId,
+      notes: revisionNotes,
+    };
+    const result = await tx.weeklyReport.update({
+      where: { id: weeklyReportId },
+      data: {
+        status: WeeklyReportStatus.RETURNED,
+        facultyAction: `RETURNED by ${facultyId}`,
+        revisionHistory: [
+          ...getWeeklyReportHistory(report.revisionHistory),
+          entry,
+        ] as unknown as Prisma.InputJsonValue,
+      },
+      select: { id: true, status: true },
+    });
+    await logEvent(
+      {
+        userId: facultyId,
+        action: "WEEKLY_REPORT_RETURNED",
+        entityType: "WeeklyReport",
+        entityId: weeklyReportId,
+        ipAddress,
+        detail: { notes: revisionNotes },
+      },
+      tx
+    );
+    return result;
+  });
 }
 
 // FR-WR-06 (Regard) — Owner: KennethRusselAvaricio

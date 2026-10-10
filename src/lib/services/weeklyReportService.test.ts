@@ -25,14 +25,71 @@ import {
 
 beforeEach(() => resetPrismaMock());
 
+describe("reviewWeeklyReport_Return", () => {
+  it.each([[], [{ type: "SUBMITTED", timestamp: "2026-10-10", referenceCode: "WR-1" }], null])(
+    "preserves history %p and appends revision notes without recalculating hours",
+    async (history) => {
+      prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+        revisionHistory: history,
+      } as never);
+      prismaMock.weeklyReport.update.mockResolvedValue({
+        id: "wr-1",
+        status: WeeklyReportStatus.RETURNED,
+      } as never);
+      await expect(
+        reviewWeeklyReport_Return("wr-1", "faculty-1", "  Add Tuesday details  ", "127.0.0.1")
+      ).resolves.toEqual({ id: "wr-1", status: WeeklyReportStatus.RETURNED });
+      expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
+        where: { id: "wr-1" },
+        data: {
+          status: WeeklyReportStatus.RETURNED,
+          facultyAction: "RETURNED by faculty-1",
+          revisionHistory: [
+            ...(history ?? []),
+            {
+              type: "RETURNED",
+              timestamp: expect.any(String),
+              facultyId: "faculty-1",
+              notes: "Add Tuesday details",
+            },
+          ],
+        },
+        select: { id: true, status: true },
+      });
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: "faculty-1",
+            entityId: "wr-1",
+            ipAddress: "127.0.0.1",
+          }),
+        })
+      );
+      expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+      expect(prismaMock.dailyReportEntry.aggregate).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["", "   "])("rejects blank notes %p without changing the report", async (notes) => {
+    await expect(reviewWeeklyReport_Return("wr-1", "faculty-1", notes)).rejects.toThrow(
+      "Revision notes are required"
+    );
+    expect(prismaMock.weeklyReport.update).not.toHaveBeenCalled();
+  });
+
+  it("propagates missing reports without writing or logging", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockRejectedValue(new Error("Not found"));
+    await expect(reviewWeeklyReport_Return("missing", "faculty-1", "Add detail")).rejects.toThrow(
+      "Not found"
+    );
+    expect(prismaMock.weeklyReport.update).not.toHaveBeenCalled();
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("weeklyReportService stubs — reachable and wired correctly", () => {
   // TODO(JayPing23): replace each of these placeholder-return assertions
   // once the real logic behind it lands (see PHASE3_TASKS.md for owners).
-  it("reviewWeeklyReport_Return resolves without throwing", async () => {
-    const result = await reviewWeeklyReport_Return("wr-1", "faculty-1", "Missing Tuesday entry");
-    expect(result.status).toBe(WeeklyReportStatus.PENDING);
-  });
-
   it("reviewWeeklyReport_Regard resolves without throwing", async () => {
     const result = await reviewWeeklyReport_Regard("wr-1", "faculty-1");
     expect(result.id).toBe("wr-1");
