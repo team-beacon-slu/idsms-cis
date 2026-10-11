@@ -108,6 +108,13 @@ export async function CoordinatorDashboard({
   if (status) exportParams.set("status", status);
   const exportQuery = exportParams.toString();
   const exportHref = `/api/compliance/export${exportQuery ? `?${exportQuery}` : ""}`;
+  // The weekly summary takes the same semester/program filters; its status
+  // column already shows each report's state, so the status filter is not sent.
+  const weeklyParams = new URLSearchParams();
+  if (semesterId && !semesterNotFound) weeklyParams.set("semesterId", semesterId);
+  if (program) weeklyParams.set("program", program);
+  const weeklyQuery = weeklyParams.toString();
+  const weeklySummaryHref = `/api/compliance/weekly-summary${weeklyQuery ? `?${weeklyQuery}` : ""}`;
 
   return (
     <div className="space-y-4">
@@ -197,17 +204,30 @@ export async function CoordinatorDashboard({
               </CardDescription>
             </div>
             {semester && (
-              <a
-                href={exportHref}
-                download
-                className={cn(
-                  buttonVariants({ size: "sm", variant: "outline" }),
-                  "cursor-pointer gap-1.5 transition-colors duration-200"
-                )}
-              >
-                <Download className="size-4" aria-hidden="true" />
-                Export to Excel
-              </a>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={exportHref}
+                  download
+                  className={cn(
+                    buttonVariants({ size: "sm", variant: "outline" }),
+                    "cursor-pointer gap-1.5 transition-colors duration-200"
+                  )}
+                >
+                  <Download className="size-4" aria-hidden="true" />
+                  Export to Excel
+                </a>
+                <a
+                  href={weeklySummaryHref}
+                  download
+                  className={cn(
+                    buttonVariants({ size: "sm", variant: "outline" }),
+                    "cursor-pointer gap-1.5 transition-colors duration-200"
+                  )}
+                >
+                  <Download className="size-4" aria-hidden="true" />
+                  Weekly summary (Excel)
+                </a>
+              </div>
             )}
           </div>
         </CardHeader>

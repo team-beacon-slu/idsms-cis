@@ -6,29 +6,18 @@ import {
   queryAuditLogs,
   type AuditLogRow,
 } from "@/lib/services/auditLogQuery";
-import { buildWorkbook, toSheetRows, xlsxResponse } from "@/lib/utils/excelExport";
+import {
+  buildWorkbook,
+  formatManilaDateTime,
+  toSheetRows,
+  xlsxResponse,
+} from "@/lib/utils/excelExport";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";
 
 const MAX_ROWS = 10_000;
 const MAX_DETAIL_CHARS = 2_000;
-
-const manilaStamp = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Manila",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-// "YYYY-MM-DD HH:mm" in Manila time.
-function formatManila(date: Date): string {
-  const p = Object.fromEntries(manilaStamp.formatToParts(date).map((x) => [x.type, x.value]));
-  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
-}
 
 function detailText(detail: unknown): string {
   if (detail === null || detail === undefined) return "";
@@ -57,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     const records = rows.map((r) => ({
       ...r,
-      timestamp: formatManila(r.timestamp),
+      timestamp: formatManilaDateTime(r.timestamp),
       detail: detailText(r.detail),
     }));
     const sheets = [{ name: "Audit log", rows: toSheetRows(records, COLUMNS) }];

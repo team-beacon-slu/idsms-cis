@@ -2,6 +2,7 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   filterRows,
   getComplianceRows,
+  getWeeklySummaryRows,
   reportState,
   resolveComplianceScope,
   resolveDepartmentSemester,
@@ -404,5 +405,103 @@ describe("filterRows", () => {
 
   it("returns an empty list when nothing matches", () => {
     expect(filterRows(rows, { status: "COMPLETED" })).toEqual([]);
+  });
+});
+
+describe("getWeeklySummaryRows", () => {
+  const WEEK = new Date("2026-10-05T00:00:00Z"); // Mon; weekEnd Sun 10-11, due Tue 10-13 EOD Manila
+  const DEPT = { kind: "department", semesterId: "sem-1" } as const;
+
+  const report = (over: Record<string, unknown> = {}) => ({
+    status: "PENDING",
+    revisionHistory: [],
+    dailyEntries: entries(8, 8, 4),
+    ...over,
+  });
+
+  it("lists a student with no report that week as NOT_STARTED with 0 hours", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([profile({ weeklyReports: [] })] as never);
+
+    const [row] = await getWeeklySummaryRows(DEPT, WEEK);
+
+    expect(row).toEqual({
+      studentNumber: "2021-0001",
+      fullName: "Ana Cruz",
+      program: "BSIT",
+      classGroup: "BSIT 4A",
+      state: "NOT_STARTED",
+      hours: 0,
+      submittedAt: null,
+      late: false,
+    });
+  });
+
+  it("filters the nested report query to the requested week", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
+
+    await getWeeklySummaryRows(DEPT, WEEK);
+
+    const args = prismaMock.studentProfile.findMany.mock.calls[0][0] as {
+      select: { weeklyReports: { where: unknown } };
+    };
+    expect(args.select.weeklyReports.where).toEqual({ weekStart: WEEK });
+  });
+
+  it("sums that week's hours and reports the last SUBMITTED time in Manila", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      profile({
+        weeklyReports: [
+          report({
+            revisionHistory: [
+              { type: "SUBMITTED", timestamp: "2026-10-12T01:30:00.000Z" },
+              { type: "RETURNED", timestamp: "2026-10-12T02:00:00.000Z" },
+              { type: "SUBMITTED", timestamp: "2026-10-12T05:05:00.000Z" },
+            ],
+          }),
+        ],
+      }),
+    ] as never);
+
+    const [row] = await getWeeklySummaryRows(DEPT, WEEK);
+
+    expect(row.state).toBe("SUBMITTED");
+    expect(row.hours).toBe(20);
+    expect(row.submittedAt).toBe("2026-10-12 13:05"); // 05:05Z = 13:05 Manila
+    expect(row.late).toBe(false);
+  });
+
+  it("flags a submission after Tuesday 23:59 Manila as late", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      profile({
+        weeklyReports: [
+          report({
+            revisionHistory: [{ type: "SUBMITTED", timestamp: "2026-10-14T00:00:00.000Z" }], // Wed 08:00 Manila
+          }),
+        ],
+      }),
+    ] as never);
+
+    const [row] = await getWeeklySummaryRows(DEPT, WEEK);
+
+    expect(row.late).toBe(true);
+  });
+
+  it("gives an unsubmitted draft no submittedAt, not late, and tolerates null hours", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      profile({ weeklyReports: [report({ dailyEntries: entries(null, null) })] }),
+    ] as never);
+
+    const [row] = await getWeeklySummaryRows(DEPT, WEEK);
+
+    expect(row).toMatchObject({ state: "DRAFT", hours: 0, submittedAt: null, late: false });
+  });
+
+  it("returns nothing for a faculty adviser with no class-group pairs", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([] as never);
+
+    await expect(
+      getWeeklySummaryRows({ kind: "faculty", facultyId: "f-1" }, WEEK)
+    ).resolves.toEqual([]);
+    expect(prismaMock.studentProfile.findMany).not.toHaveBeenCalled();
   });
 });

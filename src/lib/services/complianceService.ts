@@ -3,7 +3,13 @@ import { Role, type Prisma, type Program, type WeeklyReportStatus } from "@prism
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/services/userService";
 import { getLatestSubmission, isAwaitingReview } from "@/lib/services/weeklyReportService";
-import { addDays, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";
+import { formatManilaDateTime } from "@/lib/utils/excelExport";
+import {
+  addDays,
+  getWeekStartMonday,
+  isWeeklyReportLate,
+  toDateKey,
+} from "@/lib/utils/reportDeadline";
 
 export type ReportState =
   "NOT_STARTED" | "DRAFT" | "SUBMITTED" | "RETURNED" | "APPROVED" | "REGARDED" | "DISREGARDED";
@@ -189,6 +195,72 @@ export async function getComplianceRows(
       dueWeekState,
       awaitingReview,
       status,
+    };
+  });
+}
+
+export interface WeeklySummaryRow {
+  studentNumber: string;
+  fullName: string | null;
+  program: Program;
+  classGroup: string;
+  state: ReportState;
+  hours: number; // that week's logged hours; 0 when there is no report
+  submittedAt: string | null; // last SUBMITTED entry, "YYYY-MM-DD HH:mm" Manila
+  late: boolean;
+}
+
+// FR-DB-06: one row per student in scope for the week starting `weekStart`
+// (a Monday, UTC midnight). Students with no report that week still appear as
+// NOT_STARTED with 0 hours. Hours are everything logged that week, whatever
+// the report's review status. The unique (studentProfileId, weekStart) index
+// serves the nested report filter, and there are no per-student queries.
+export async function getWeeklySummaryRows(
+  scope: ComplianceScope,
+  weekStart: Date
+): Promise<WeeklySummaryRow[]> {
+  const where = await scopeWhere(scope);
+  if (!where) return [];
+
+  const weekEnd = addDays(weekStart, 6);
+  const students = await prisma.studentProfile.findMany({
+    where,
+    select: {
+      studentNumber: true,
+      fullName: true,
+      program: true,
+      classGroup: { select: { name: true } },
+      weeklyReports: {
+        where: { weekStart },
+        select: {
+          status: true,
+          revisionHistory: true,
+          dailyEntries: { select: { actualHours: true } },
+        },
+      },
+    },
+    orderBy: { studentNumber: "asc" },
+  });
+
+  return students.map((s) => {
+    const report = s.weeklyReports[0];
+    let hours = 0;
+    for (const entry of report?.dailyEntries ?? []) hours += Number(entry.actualHours ?? 0);
+
+    const submission = report ? getLatestSubmission(report.revisionHistory) : null;
+    const submittedInstant = submission ? new Date(submission.timestamp) : null;
+    const submittedAt =
+      submittedInstant && !Number.isNaN(submittedInstant.getTime()) ? submittedInstant : null;
+
+    return {
+      studentNumber: s.studentNumber,
+      fullName: s.fullName,
+      program: s.program,
+      classGroup: s.classGroup.name,
+      state: reportState(report),
+      hours: Math.round(hours * 100) / 100,
+      submittedAt: submittedAt ? formatManilaDateTime(submittedAt) : null,
+      late: submittedAt ? isWeeklyReportLate(weekEnd, submittedAt) : false,
     };
   });
 }

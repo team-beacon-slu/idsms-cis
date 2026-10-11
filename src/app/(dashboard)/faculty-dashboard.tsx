@@ -55,17 +55,30 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
                 Hours, documents and weekly reports for your assigned class groups.
               </CardDescription>
             </div>
-            <a
-              href="/api/compliance/export"
-              download
-              className={cn(
-                buttonVariants({ size: "sm", variant: "outline" }),
-                "cursor-pointer gap-1.5 transition-colors duration-200"
-              )}
-            >
-              <Download className="size-4" aria-hidden="true" />
-              Export to Excel
-            </a>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="/api/compliance/export"
+                download
+                className={cn(
+                  buttonVariants({ size: "sm", variant: "outline" }),
+                  "cursor-pointer gap-1.5 transition-colors duration-200"
+                )}
+              >
+                <Download className="size-4" aria-hidden="true" />
+                Export to Excel
+              </a>
+              <a
+                href="/api/compliance/weekly-summary"
+                download
+                className={cn(
+                  buttonVariants({ size: "sm", variant: "outline" }),
+                  "cursor-pointer gap-1.5 transition-colors duration-200"
+                )}
+              >
+                <Download className="size-4" aria-hidden="true" />
+                Weekly summary (Excel)
+              </a>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
