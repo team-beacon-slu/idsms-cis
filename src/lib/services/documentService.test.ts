@@ -441,33 +441,44 @@ describe("generateEndorsementReferenceCode", () => {
 });
 
 describe("generateBulkEndorsementLetters", () => {
-  it("classifies each student and honours the semester scope", async () => {
-    prismaMock.studentProfile.findMany.mockResolvedValue([
-      { id: "p-ok" },
-      { id: "p-gate" },
-    ] as never);
-    (isEndorsementGateSatisfied as jest.Mock).mockImplementation(
-      async (id: string) => id === "p-ok"
-    );
-    (loadEndorsementLetterData as jest.Mock).mockResolvedValue({
-      studentProfileId: "p-ok",
-      referenceCode: "EL-1",
-      endorsementDate: new Date("2026-10-11T00:00:00Z"),
-      student: {
-        fullName: "A",
-        studentNumber: "1",
-        program: "BSIT",
-        positionTitle: null,
-        requiredHours: 600,
-      },
-      company: { name: "Acme", address: "Baguio", supervisorName: "M", supervisorPosition: null },
-    });
+  const letterData = {
+    studentProfileId: "p-ok",
+    referenceCode: "EL-1",
+    endorsementDate: new Date("2026-10-11T00:00:00Z"),
+    student: {
+      fullName: "A",
+      studentNumber: "1",
+      program: "BSIT",
+      positionTitle: null,
+      requiredHours: 600,
+    },
+    company: { name: "Acme", address: "Baguio", supervisorName: "M", supervisorPosition: null },
+  };
+  const student = (id: string, letterStatus?: DocumentStatus) => ({
+    id,
+    studentNumber: `2026-${id}`,
+    fullName: `Name ${id}`,
+    generatedDocuments: letterStatus ? [{ status: letterStatus }] : [],
+  });
+
+  beforeEach(() => {
+    (loadEndorsementLetterData as jest.Mock).mockResolvedValue(letterData);
     prismaMock.generatedDocument.findFirst.mockResolvedValue({
       id: "doc-ok",
       referenceCode: "EL-1",
     } as never);
     render.mockResolvedValue(Buffer.from("%PDF"));
     upload.mockResolvedValue("endorsement/p-ok.pdf");
+  });
+
+  it("names each student, honours the semester scope, and skips gate failures", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      student("p-ok"),
+      student("p-gate"),
+    ] as never);
+    (isEndorsementGateSatisfied as jest.Mock).mockImplementation(
+      async (id: string) => id === "p-ok"
+    );
 
     const result = await generateBulkEndorsementLetters("cg-1", "fac-1", ["sem-1"]);
 
@@ -476,14 +487,59 @@ describe("generateBulkEndorsementLetters", () => {
         where: { classGroupId: "cg-1", deletedAt: null, semesterId: { in: ["sem-1"] } },
       })
     );
-    expect(result.generated).toEqual(["p-ok"]);
+    expect(result.generated).toEqual([{ studentProfileId: "p-ok", label: "2026-p-ok Name p-ok" }]);
     expect(result.skipped).toEqual([
       expect.objectContaining({
         studentProfileId: "p-gate",
+        label: "2026-p-gate Name p-gate",
         reason: expect.stringMatching(/checklist/i),
       }),
     ]);
-    expect(result.failed).toEqual([]);
+  });
+
+  it("reports unexpected errors as failed with a generic reason, and logs them", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([student("p-db")] as never);
+    (isEndorsementGateSatisfied as jest.Mock).mockRejectedValue(
+      new Error("Invalid `prisma.checklistItem.findMany()` invocation in C:\\srv\\x.ts")
+    );
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1");
+
+    expect(result.skipped).toEqual([]);
+    expect(result.failed).toEqual([
+      expect.objectContaining({
+        studentProfileId: "p-db",
+        reason: expect.not.stringMatching(/prisma|C:\\/i),
+      }),
+    ]);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it("leaves already-generated letters alone instead of re-rendering them", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      student("p-done", DocumentStatus.GENERATED),
+    ] as never);
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1");
+
+    expect(result.alreadyGenerated).toEqual([
+      { studentProfileId: "p-done", label: "2026-p-done Name p-done" },
+    ]);
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("stops starting new students once the time budget is spent", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([student("p-1"), student("p-2")] as never);
+    (isEndorsementGateSatisfied as jest.Mock).mockResolvedValue(true);
+    const clock = jest.fn().mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(200_000);
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1", undefined, {
+      budgetMs: 180_000,
+      now: clock,
+    });
+
+    expect(result.generated.map((e) => e.studentProfileId)).toEqual(["p-1"]);
+    expect(result.notAttempted).toEqual([{ studentProfileId: "p-2", label: "2026-p-2 Name p-2" }]);
   });
 });
 describe("generateFinalCoverPdf", () => {

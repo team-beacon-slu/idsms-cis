@@ -9,7 +9,10 @@ import { ChecklistGateError, isEndorsementGateSatisfied } from "@/lib/services/c
 import { calculateRenderedHours, getFinalReportThreshold } from "@/lib/services/attendanceService";
 import { DocumentNotReadyError, FinalReportLockedError } from "@/lib/documents/errors";
 import { renderFinalCoverHtml } from "@/lib/documents/finalCoverTemplate";
-import { loadEndorsementLetterData } from "@/lib/documents/endorsementLetterData";
+import {
+  EndorsementDataIncompleteError,
+  loadEndorsementLetterData,
+} from "@/lib/documents/endorsementLetterData";
 import { renderEndorsementLetterHtml } from "@/lib/documents/endorsementLetterTemplate";
 import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
 import { renderMonthlyReportHtml } from "@/lib/documents/monthlyReportTemplate";
@@ -364,11 +367,24 @@ export async function getEndorsementLetterDocument(
   });
 }
 
-export interface BulkEndorsementResult {
-  generated: string[];
-  skipped: { studentProfileId: string; reason: string }[];
-  failed: string[];
+export interface BulkStudentEntry {
+  studentProfileId: string;
+  label: string; // "<student number> <full name>" — what the adviser recognises
 }
+
+export interface BulkEndorsementResult {
+  generated: BulkStudentEntry[];
+  alreadyGenerated: BulkStudentEntry[];
+  skipped: (BulkStudentEntry & { reason: string })[]; // expected: gate / incomplete profile
+  failed: (BulkStudentEntry & { reason: string })[]; // rendering or unexpected errors
+  notAttempted: BulkStudentEntry[]; // time budget spent — run again for these
+}
+
+// The bulk route allows 300s (maxDuration). Each student can take up to
+// ~105s worst case (60s retry deadline + one in-flight attempt), so no new
+// student starts after 180s — the run always returns with partial results
+// instead of being killed mid-render and leaving a row in PENDING_DRAFT.
+export const BULK_BUDGET_MS = 180_000;
 
 // FR-DG-02. `semesterIds` scopes a faculty adviser to the semesters they
 // advise this class group for (same rule as assertCanAccessStudent); staff
@@ -377,28 +393,68 @@ export interface BulkEndorsementResult {
 export async function generateBulkEndorsementLetters(
   classGroupId: string,
   actingUserId: string,
-  semesterIds?: string[]
+  semesterIds?: string[],
+  opts: { budgetMs?: number; now?: () => number } = {}
 ): Promise<BulkEndorsementResult> {
+  const { budgetMs = BULK_BUDGET_MS, now = Date.now } = opts;
+  const startedAt = now();
   const students = await prisma.studentProfile.findMany({
     where: {
       classGroupId,
       deletedAt: null,
       ...(semesterIds ? { semesterId: { in: semesterIds } } : {}),
     },
-    select: { id: true },
+    select: {
+      id: true,
+      studentNumber: true,
+      fullName: true,
+      generatedDocuments: {
+        where: { documentType: DocumentType.ENDORSEMENT_LETTER },
+        select: { status: true },
+      },
+    },
     orderBy: { studentNumber: "asc" },
   });
-  const result: BulkEndorsementResult = { generated: [], skipped: [], failed: [] };
-  for (const { id } of students) {
+
+  const result: BulkEndorsementResult = {
+    generated: [],
+    alreadyGenerated: [],
+    skipped: [],
+    failed: [],
+    notAttempted: [],
+  };
+  for (const s of students) {
+    const entry = {
+      studentProfileId: s.id,
+      label: [s.studentNumber, s.fullName?.trim()].filter(Boolean).join(" "),
+    };
+    // A good letter stays as it is: re-rendering risks downgrading it to
+    // FAILED on a transient Chrome error and spends the time budget.
+    if (s.generatedDocuments.some((d) => d.status === DocumentStatus.GENERATED)) {
+      result.alreadyGenerated.push(entry);
+      continue;
+    }
+    if (now() - startedAt >= budgetMs) {
+      result.notAttempted.push(entry);
+      continue;
+    }
     try {
-      const { status } = await generateEndorsementLetterPdf(id, actingUserId);
-      (status === DocumentStatus.GENERATED ? result.generated : result.failed).push(id);
+      const { status } = await generateEndorsementLetterPdf(s.id, actingUserId);
+      if (status === DocumentStatus.GENERATED) result.generated.push(entry);
+      else result.failed.push({ ...entry, reason: "PDF generation failed — use Regenerate" });
     } catch (error) {
-      // Gate not met / profile incomplete are expected per-student outcomes.
-      result.skipped.push({
-        studentProfileId: id,
-        reason: error instanceof Error ? error.message : String(error),
-      });
+      if (error instanceof ChecklistGateError || error instanceof EndorsementDataIncompleteError) {
+        // Expected per-student outcomes; their messages are written for staff.
+        result.skipped.push({ ...entry, reason: error.message });
+      } else {
+        // Never show internal error text (Prisma paths, queries) to staff.
+        console.error("Bulk endorsement letter failed unexpectedly", {
+          classGroupId,
+          studentProfileId: s.id,
+          error,
+        });
+        result.failed.push({ ...entry, reason: "Unexpected error — try again later" });
+      }
     }
   }
   return result;

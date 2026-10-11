@@ -1073,8 +1073,13 @@ export async function getFinalReportThreshold(
     where: { configKey: FINAL_REPORT_THRESHOLD_KEY(program) },
     select: { configValue: true },
   });
-  if (config && typeof config.configValue === "number" && config.configValue > 0) {
-    return config.configValue;
-  }
-  return program === Program.BSIT ? 500 : Math.ceil((requiredHours * 5) / 6);
+  const threshold =
+    config && typeof config.configValue === "number" && config.configValue > 0
+      ? config.configValue
+      : program === Program.BSIT
+        ? 500
+        : Math.ceil((requiredHours * 5) / 6);
+  // Never above the student's own requirement, or a student who completes
+  // every hour (e.g. required_hours set to 486) could never unlock the cover.
+  return Math.min(threshold, requiredHours);
 }

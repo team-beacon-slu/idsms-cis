@@ -38,6 +38,20 @@ it("bulk refuses a wrong password", async () => {
   expect(generateBulkEndorsementLetters).not.toHaveBeenCalled();
 });
 
+it("tells a locked-out user they are locked, not that the password was wrong", async () => {
+  (verifyCredentials as jest.Mock).mockResolvedValue({
+    ok: false,
+    reason: "ACCOUNT_LOCKED",
+    lockedUntil: new Date("2026-10-11T06:30:00Z"),
+  });
+  const res = await POST(req({ password: "right" }), params);
+  expect(res.status).toBe(423);
+  await expect(res.json()).resolves.toEqual(
+    expect.objectContaining({ error: expect.stringMatching(/too many failed attempts/i) })
+  );
+  expect(generateBulkEndorsementLetters).not.toHaveBeenCalled();
+});
+
 it("bulk refuses a class group the faculty member doesn't advise", async () => {
   (verifyCredentials as jest.Mock).mockResolvedValue({ ok: true });
   (prisma.facultyClassGroup.findMany as jest.Mock).mockResolvedValue([]);

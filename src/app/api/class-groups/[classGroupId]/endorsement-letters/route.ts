@@ -24,6 +24,19 @@ export async function POST(req: NextRequest, { params }: { params: { classGroupI
     const { password } = schema.parse(await req.json());
     const auth = await verifyCredentials(user.email, password, req.headers.get("x-forwarded-for"));
     if (!auth.ok) {
+      // The caller is already signed in, so naming the lock leaks nothing —
+      // and otherwise they'd keep retrying a correct password.
+      if (auth.reason === "ACCOUNT_LOCKED") {
+        const until = auth.lockedUntil.toLocaleTimeString("en-PH", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "Asia/Manila",
+        });
+        return NextResponse.json(
+          { error: `Too many failed attempts — try again after ${until}` },
+          { status: 423 }
+        );
+      }
       return NextResponse.json({ error: "Password confirmation failed" }, { status: 401 });
     }
 

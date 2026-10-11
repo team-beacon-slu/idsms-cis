@@ -1,4 +1,4 @@
-import { escapeHtml, formatCalendarDate, formatInstant, PRINT_CSS } from "@/lib/documents/html";
+import { escapeHtml, formatInstant, formatManilaDate, PRINT_CSS } from "@/lib/documents/html";
 import { LETTER_CSS, renderLetterhead } from "@/lib/documents/letterhead";
 
 export interface EndorsementLetterData {
@@ -37,7 +37,7 @@ export function renderEndorsementLetterHtml(data: EndorsementLetterData): string
   ${renderLetterhead()}
   <p class="ref">Ref. ${escapeHtml(data.referenceCode)}</p>
   <div class="letter">
-    <p>${escapeHtml(formatCalendarDate(data.endorsementDate))}</p>
+    <p>${escapeHtml(formatManilaDate(data.endorsementDate))}</p>
     <p class="addressee">
       <strong>${escapeHtml(data.company.supervisorName)}</strong><br />
       ${position}${escapeHtml(data.company.name)}<br />
@@ -59,7 +59,7 @@ export function renderEndorsementLetterHtml(data: EndorsementLetterData): string
     <p class="closing">Respectfully,</p>
     <p><br /><br />Department Internship Coordinator<br />SAMCIS, Saint Louis University</p>
   </div>
-  <footer>${escapeHtml(data.referenceCode)} · generated ${escapeHtml(formatInstant(new Date()))} · IDSMS-CIS</footer>
+  <footer>${escapeHtml(data.referenceCode)} · generated ${escapeHtml(formatInstant(data.endorsementDate))} · IDSMS-CIS</footer>
 </body>
 </html>`;
 }

@@ -47,3 +47,13 @@ it("omits the position line cleanly when the supervisor position is unknown", ()
   });
   expect(html).not.toContain("—<br");
 });
+
+it("dates the letter in Manila time, not UTC", () => {
+  // 23:30 UTC on Oct 11 is 07:30 on Oct 12 in Manila.
+  const html = renderEndorsementLetterHtml({
+    ...data,
+    endorsementDate: new Date("2026-10-11T23:30:00Z"),
+  });
+  expect(html).toContain("October 12, 2026");
+  expect(html).not.toContain("October 11, 2026");
+});

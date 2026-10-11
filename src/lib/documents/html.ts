@@ -29,6 +29,18 @@ export function formatCalendarDate(date: Date, opts: { weekday?: boolean } = {})
   });
 }
 
+// The Manila calendar date of a real instant (e.g. the day a letter is
+// issued). Unlike formatCalendarDate, this must not use UTC: 07:30 Manila is
+// still the previous day in UTC.
+export function formatManilaDate(date: Date): string {
+  return date.toLocaleDateString("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  });
+}
+
 // Real instants (submission time, generation time) are shown in Manila time.
 export function formatInstant(date: Date): string {
   return date.toLocaleString("en-PH", {
