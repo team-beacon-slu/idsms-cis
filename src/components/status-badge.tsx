@@ -27,10 +27,13 @@ const DOT_CLASSES: Record<StatusTone, string> = {
 const STATUS_TONE: Record<string, StatusTone> = {
   APPROVED: "green",
   APPROVED_ACTIVE: "green",
+  ACTIVE: "green",
   VALIDATED: "green",
   GENERATED: "green",
   SENT: "green",
   REGARDED: "green",
+  COMPLETED: "green",
+  ON_TRACK: "blue",
 
   PENDING: "amber",
   PENDING_DRAFT: "amber",
@@ -39,12 +42,14 @@ const STATUS_TONE: Record<string, StatusTone> = {
   FOR_HTE_REVIEW: "amber",
   FOR_UNIVERSITY_REVIEW: "amber",
   EXPIRING: "amber",
+  DRAFT: "amber",
 
   RETURNED: "red",
   REJECTED: "red",
   EXPIRED: "red",
   FAILED: "red",
   DISREGARDED: "red",
+  NEEDS_ATTENTION: "red",
 
   ARCHIVED: "blue",
   LOCKED: "blue",

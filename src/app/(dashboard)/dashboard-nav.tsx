@@ -10,11 +10,13 @@ import {
   Users,
   Building2,
   Calendar,
+  CalendarRange,
   ClipboardCheck,
   FileText,
   FileBarChart2,
   Clock,
   NotebookText,
+  ScrollText,
   UserCircle,
   LogOut,
   Menu,
@@ -38,6 +40,10 @@ function getNavItems(role: Role): NavItem[] {
 
   if (STAFF_ROLES.includes(role)) {
     items.push({ href: "/users", label: "Users", icon: Users });
+    items.push({ href: "/semesters", label: "Semesters", icon: CalendarRange });
+  }
+  if (role === Role.SUPER_ADMIN) {
+    items.push({ href: "/audit-log", label: "Audit log", icon: ScrollText });
   }
   items.push({ href: "/companies", label: "Companies", icon: Building2 });
   items.push({ href: "/calendar", label: "Calendar", icon: Calendar });

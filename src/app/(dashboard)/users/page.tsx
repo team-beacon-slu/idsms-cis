@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Role } from "@prisma/client";
+import { Program, Role } from "@prisma/client";
 import { Users as UsersIcon, UserCheck, UserX, Upload } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { listUsers } from "@/lib/services/userService";
@@ -18,6 +18,8 @@ import { StatCard } from "@/components/stat-card";
 import { cn } from "@/lib/utils";
 import { UserRowActions } from "./user-row-actions";
 import { NotificationSettingsForm } from "./notification-settings-form";
+import { RequiredHoursForm } from "./required-hours-form";
+import { getRequiredHoursConfig } from "@/lib/services/attendanceService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getNotificationSettings } from "@/lib/services/scheduledNotifications";
 
@@ -60,11 +62,20 @@ export default async function UsersPage() {
   }
 
   const isSuperAdmin = currentUser.role === Role.SUPER_ADMIN;
-  const [{ users, total }, { total: activeTotal }, notificationSettings] = await Promise.all([
-    listUsers(),
-    listUsers({ isActive: true }),
-    isSuperAdmin ? getNotificationSettings() : Promise.resolve(null),
-  ]);
+  const [{ users, total }, { total: activeTotal }, notificationSettings, requiredHours] =
+    await Promise.all([
+      listUsers(),
+      listUsers({ isActive: true }),
+      isSuperAdmin ? getNotificationSettings() : Promise.resolve(null),
+      isSuperAdmin
+        ? Promise.all(
+            Object.values(Program).map(async (program) => ({
+              program,
+              hours: await getRequiredHoursConfig(program),
+            }))
+          )
+        : Promise.resolve(null),
+    ]);
   const inactiveTotal = total - activeTotal;
 
   return (
@@ -105,6 +116,21 @@ export default async function UsersPage() {
           </CardHeader>
           <CardContent>
             <NotificationSettingsForm initial={notificationSettings} />
+          </CardContent>
+        </Card>
+      )}
+
+      {requiredHours && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Required internship hours</CardTitle>
+            <CardDescription>
+              Hours each program must complete (FR-AT-06). Sets the default for students imported
+              after you save. Existing students keep their current required hours.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RequiredHoursForm initial={requiredHours} />
           </CardContent>
         </Card>
       )}

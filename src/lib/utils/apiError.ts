@@ -18,6 +18,7 @@ import {
   ScheduleNotConfiguredError,
   WorkPlanNotApprovedError,
 } from "@/lib/services/attendanceService";
+import { SemesterStateError } from "@/lib/services/semesterService";
 import {
   LateSubmissionReasonRequiredError,
   WeeklyReportIncompleteError,
@@ -73,6 +74,9 @@ export function handleApiError(error: unknown): NextResponse {
   }
   if (BAD_REQUEST_ERRORS.some((ErrorClass) => error instanceof ErrorClass)) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
+  if (error instanceof SemesterStateError) {
+    return NextResponse.json({ error: error.message }, { status: 409 });
   }
   if (error instanceof HolidayNotFoundError) {
     return NextResponse.json({ error: error.message }, { status: 404 });
