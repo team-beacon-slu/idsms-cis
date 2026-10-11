@@ -646,7 +646,7 @@ To ensure systematic delivery, mitigate risks, and accommodate the 8-person caps
 **Key Tasks:**
 
 - Build Puppeteer server-side PDF generation for Weekly/Monthly Reports first (reference codes, FR-DG-07 retry), then Endorsement Letters (individual + bulk) and Final Cover Pages.
-- Close the adviser's weekly-report gaps: confirmed vs. pending hours, per-day attendance status and time in/out, signed-copy upload.
+- Close the adviser's weekly-report gaps: confirmed vs. pending hours, per-day attendance status and time in/out. (Signed copies go to Google Classroom only — never uploaded to IDSMS, decision D2, 2026-10-11.)
 - Finalize role-specific dashboards (Student, Faculty, Coordinator, Super Admin) with KPI cards and Excel export; semester archiving (FR-DB-01..08).
 - Implement the Super Admin Export Center with re-authentication, the DSAR workflow (NFR-DP-07), and the quarterly file-retention flagging job (NFR-DP-08); verify append-only `audit_logs` RLS.
 - Implement Module 7 Final Technical Report (FR-FT-01..03) if time allows (Should).

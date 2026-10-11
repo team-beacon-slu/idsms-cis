@@ -23,7 +23,7 @@ downloads, `/api/health`, `OPERATIONS.md`, and `docs/migration/from-supabase.md`
 | Deploy         | GitHub Actions SSH into the VM        | No inbound SSH                                          | **Pull-based deploy:** a deploy script on the lab PC (`git pull` + `docker compose up -d --build`), run manually or by a GitHub self-hosted runner on the PC. `deploy.yml` is replaced.                                                                                                                       |
 | Scheduling     | n/a (Vercel Cron in Phase 4)          | No Vercel                                               | A small `cron` container (or host Task Scheduler/cron) calls `GET /api/cron/daily` with `Authorization: Bearer $CRON_SECRET` daily at 08:00 Manila (portability rule 3).                                                                                                                                      |
 | PDF rendering  | —                                     | No `@sparticuz/chromium`                                | The app image installs Chromium (`apk add chromium` / `apt-get install chromium`) and sets `PUPPETEER_EXECUTABLE_PATH` (portability rule 4).                                                                                                                                                                  |
-| Storage        | MinIO                                 | same                                                    | Add the `generated-documents` bucket (Phase 4 A) to `minio-init`; signed-copy and deviation prefixes live in `checklist-documents`.                                                                                                                                                                           |
+| Storage        | MinIO                                 | same                                                    | Add the `generated-documents` bucket (Phase 4 A) to `minio-init`; deviation proofs live in `checklist-documents`.                                                                                                                                                                                             |
 | Power / uptime | Cloud SLA                             | A desktop in a lab                                      | UPS; BIOS "restart on AC power loss"; OS sleep and auto-update reboot disabled or scheduled; Docker `restart: unless-stopped`; health monitoring (§4).                                                                                                                                                        |
 | Backups        | Cloud snapshots                       | Single disk                                             | Nightly `pg_dump` + MinIO mirror to a second disk **and** an off-site copy (decision H4). Restore is tested before go-live.                                                                                                                                                                                   |
 
@@ -62,7 +62,7 @@ Each stage ends with a check that must pass before the next one starts.
   - Add a `cloudflared` service (tunnel token from env).
   - Make Caddy LAN-only, or remove it when the tunnel points straight at `app:3000`.
 - Replace `deploy.yml` with `scripts/deploy.sh` (pull, build, `docker compose up -d`, health check, roll back to the previous image tag on failure).
-- Re-run the whole suite: tsc, lint, jest, build, and `docker compose up` locally. Every Phase 4 flow (PDF, signed copy, cron, notifications) must work against MinIO and local Postgres.
+- Re-run the whole suite: tsc, lint, jest, build, and `docker compose up` locally. Every Phase 4 flow (PDF, cron, notifications) must work against MinIO and local Postgres.
 - **Check:** CI green; a full student walkthrough passes against the local Docker stack.
 
 ### Stage 2: Provision the lab PC (1 day)
@@ -80,10 +80,10 @@ Each stage ends with a check that must pass before the next one starts.
 
 - Follow `docs/migration/from-supabase.md`:
   - `pg_dump` the Supabase database (data only, schema from Prisma), then restore.
-  - Copy every Storage object (checklist, MOA, generated documents, signed copies) into the matching MinIO buckets with `rclone`, keeping the object paths identical so stored paths stay valid.
+  - Copy every Storage object (checklist, MOA, generated documents) into the matching MinIO buckets with `rclone`, keeping the object paths identical so stored paths stay valid.
 - **Rehearse once on a copy** and compare row counts per table and object counts per bucket.
 - Decide what to do with test data (R3): drop the test accounts and demo data before go-live unless UAT needs them.
-- **Check:** counts match; a known student's checklist files, PDFs and signed copies open in the new system.
+- **Check:** counts match; a known student's checklist files and PDFs open in the new system.
 
 ### Stage 4: Cutover (announce a 2-hour window)
 

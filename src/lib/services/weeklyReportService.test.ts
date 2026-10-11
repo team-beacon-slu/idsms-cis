@@ -3,12 +3,8 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { ScheduleNotConfiguredError } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 import {
-  attachSignedCopy,
-  getCurrentSignedCopy,
-  getLatestSignedCopy,
   isAwaitingReview,
   isWeeklyReportEditable,
-  SignedCopyNotAllowedError,
   LateSubmissionReasonRequiredError,
   recordWeeklyReportSubmission,
   WeeklyReportIncompleteError,
@@ -610,113 +606,27 @@ describe("reviewWeeklyReport_Approve", () => {
     );
   });
 });
-describe("signed copies (D2)", () => {
+describe("review lifecycle", () => {
   const actingUser = { id: "student-1", role: Role.STUDENT_INTERN };
 
-  it("stays locked after a signed copy is attached while awaiting review", () => {
-    const report = {
+  it("ignores non-lifecycle history entries when deciding the lock", () => {
+    const awaiting = {
       status: WeeklyReportStatus.PENDING,
       revisionHistory: [
         { type: "SUBMITTED", timestamp: "t1" },
-        { type: "SIGNED_COPY_UPLOADED", timestamp: "t2", path: "p", uploadedBy: "s" },
+        { type: "NOTE", timestamp: "t2" },
       ],
     };
-    expect(isAwaitingReview(report)).toBe(true);
-    expect(isWeeklyReportEditable(report)).toBe(false);
-  });
+    expect(isAwaitingReview(awaiting)).toBe(true);
+    expect(isWeeklyReportEditable(awaiting)).toBe(false);
 
-  it("appends a SIGNED_COPY_UPLOADED entry without changing status", async () => {
-    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
-      status: WeeklyReportStatus.APPROVED,
-      revisionHistory: [{ type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-1" }],
-    } as never);
-
-    const entry = await attachSignedCopy("wr-1", "signed-copies/p-1/wr-1.pdf", actingUser);
-
-    expect(entry).toEqual(
-      expect.objectContaining({ type: "SIGNED_COPY_UPLOADED", path: "signed-copies/p-1/wr-1.pdf" })
-    );
-    const updateArg = prismaMock.weeklyReport.update.mock.calls[0][0] as {
-      data: Record<string, unknown>;
-    };
-    expect(updateArg.data).not.toHaveProperty("status");
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: "SIGNED_COPY_UPLOADED" }) })
-    );
-  });
-
-  it("refuses a report that was never submitted", async () => {
-    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
-      status: WeeklyReportStatus.PENDING,
-      revisionHistory: [],
-    } as never);
-    await expect(attachSignedCopy("wr-1", "x.pdf", actingUser)).rejects.toThrow(
-      SignedCopyNotAllowedError
-    );
-  });
-
-  it("getLatestSignedCopy returns the most recent upload", () => {
-    expect(
-      getLatestSignedCopy([
-        { type: "SIGNED_COPY_UPLOADED", timestamp: "t1", path: "old" },
-        { type: "SIGNED_COPY_UPLOADED", timestamp: "t2", path: "new" },
-      ])?.path
-    ).toBe("new");
-  });
-
-  it("records the confirmed submission's reference code on the entry", async () => {
-    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
-      status: WeeklyReportStatus.APPROVED,
-      revisionHistory: [{ type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-1" }],
-    } as never);
-    await expect(attachSignedCopy("wr-1", "p.pdf", actingUser)).resolves.toEqual(
-      expect.objectContaining({ referenceCode: "WR-1" })
-    );
-  });
-
-  it("refuses a returned report that is being revised", async () => {
-    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
-      status: WeeklyReportStatus.RETURNED,
-      revisionHistory: [
-        { type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-1" },
-        { type: "RETURNED", timestamp: "t2", notes: "Fix" },
-      ],
-    } as never);
-    await expect(attachSignedCopy("wr-1", "p.pdf", actingUser)).rejects.toThrow(
-      SignedCopyNotAllowedError
-    );
-  });
-
-  it("a signed copy from before a Return + resubmit is not current", () => {
-    const report = {
-      status: WeeklyReportStatus.PENDING,
-      revisionHistory: [
-        { type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-OLD" },
-        { type: "SIGNED_COPY_UPLOADED", timestamp: "t2", path: "old", referenceCode: "WR-OLD" },
-        { type: "RETURNED", timestamp: "t3", notes: "Fix" },
-        { type: "SUBMITTED", timestamp: "t4", referenceCode: "WR-NEW" },
-      ],
-    };
-    expect(getCurrentSignedCopy(report)).toBeNull();
-    expect(
-      getCurrentSignedCopy({
-        ...report,
-        revisionHistory: [
-          ...report.revisionHistory,
-          { type: "SIGNED_COPY_UPLOADED", timestamp: "t5", path: "new", referenceCode: "WR-NEW" },
-        ],
-      })?.path
-    ).toBe("new");
-  });
-
-  it("a signed copy never re-locks a returned report", () => {
     expect(
       isWeeklyReportEditable({
         status: WeeklyReportStatus.RETURNED,
         revisionHistory: [
           { type: "SUBMITTED", timestamp: "t1" },
           { type: "RETURNED", timestamp: "t2" },
-          { type: "SIGNED_COPY_UPLOADED", timestamp: "t3", path: "p" },
+          { type: "NOTE", timestamp: "t3" },
         ],
       })
     ).toBe(true);

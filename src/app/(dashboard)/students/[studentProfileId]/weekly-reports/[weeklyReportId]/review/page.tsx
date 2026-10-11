@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { Role } from "@prisma/client";
-import { getCurrentSignedCopy, getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { getWeeklyReport } from "@/lib/services/weeklyReportService";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { ClipboardList, Copy, Sparkles } from "lucide-react";
 import { WeeklyReportReviewActions } from "./review-actions";
-import { SignedCopyUpload } from "../../signed-copy-upload";
 
 const SENTIMENT_LABEL: Record<string, string> = {
   POSITIVE: "Positive",
@@ -59,11 +58,9 @@ export default async function WeeklyReportReviewPage({
             Week of {new Date(report!.weekStart).toLocaleDateString()} –{" "}
             {new Date(report!.weekEnd).toLocaleDateString()}
           </CardDescription>
-          {getCurrentSignedCopy(report!) ? (
-            <SignedCopyUpload weeklyReportId={report!.id} hasSignedCopy canUpload={false} />
-          ) : (
-            <p className="text-xs text-muted-foreground">No signed copy uploaded yet</p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Supervisor-signed copies are submitted on Google Classroom, not in IDSMS.
+          </p>
         </CardHeader>
 
         {hasAiSignal && (

@@ -65,8 +65,8 @@ export function getLatestSubmission(revisionHistory: unknown): WeeklyReportSubmi
   return null;
 }
 
-// Only these entry types move a report through review. Informational entries
-// (e.g. SIGNED_COPY_UPLOADED) must never change locked/unlocked state.
+// Only these entry types move a report through review; any other history
+// entry type must never change locked/unlocked state.
 const LIFECYCLE_ENTRY_TYPES = new Set(["SUBMITTED", "RETURNED"]);
 
 export function isAwaitingReview(report: {
@@ -720,103 +720,4 @@ export async function getDailyReportEntryWeeklyReportId(
     select: { weeklyReportId: true },
   });
   return dailyReportEntry.weeklyReportId;
-}
-
-export interface SignedCopyEntry extends WeeklyReportHistoryEntry {
-  type: "SIGNED_COPY_UPLOADED";
-  path: string;
-  uploadedBy: string;
-  // The submission the manager signed. Older entries (before this field)
-  // have none and are never treated as current.
-  referenceCode?: string;
-}
-
-export class SignedCopyNotAllowedError extends Error {
-  constructor(message = "Submit the report before uploading its signed copy") {
-    super(message);
-    this.name = "SignedCopyNotAllowedError";
-  }
-}
-
-export function getLatestSignedCopy(revisionHistory: unknown): SignedCopyEntry | null {
-  const history = getWeeklyReportHistory(revisionHistory);
-  for (let i = history.length - 1; i >= 0; i -= 1) {
-    if (history[i].type === "SIGNED_COPY_UPLOADED") return history[i] as SignedCopyEntry;
-  }
-  return null;
-}
-
-// D2 default: optional evidence of the company supervisor's signature,
-// recorded on the report's history (no schema change). Allowed any time
-// after submission — including after approval, when signing usually happens
-// — but never on a disregarded report.
-export async function attachSignedCopy(
-  weeklyReportId: string,
-  path: string,
-  actingUser: { id: string; role: Role },
-  ipAddress?: string | null
-): Promise<SignedCopyEntry> {
-  return prisma.$transaction(async (tx) => {
-    const report = await tx.weeklyReport.findUniqueOrThrow({
-      where: { id: weeklyReportId },
-      select: { status: true, revisionHistory: true },
-    });
-    if (report.status === WeeklyReportStatus.DISREGARDED) {
-      throw new SignedCopyNotAllowedError();
-    }
-    const submission = assertSignedCopyAllowed(report);
-
-    const entry: SignedCopyEntry = {
-      type: "SIGNED_COPY_UPLOADED",
-      timestamp: new Date().toISOString(),
-      path,
-      uploadedBy: actingUser.id,
-      referenceCode: submission.referenceCode,
-    };
-    await tx.weeklyReport.update({
-      where: { id: weeklyReportId },
-      data: {
-        revisionHistory: [
-          ...getWeeklyReportHistory(report.revisionHistory),
-          entry,
-        ] as unknown as Prisma.InputJsonValue,
-      },
-    });
-    await logEvent(
-      {
-        userId: actingUser.id,
-        action: "SIGNED_COPY_UPLOADED",
-        entityType: "WeeklyReport",
-        entityId: weeklyReportId,
-        ipAddress,
-      },
-      tx
-    );
-    return entry;
-  });
-}
-
-// A signed copy can only be attached to the submission the student currently
-// stands behind (not a draft, not a returned report under revision, not a
-// disregarded one). Returns that submission so callers can key the file to
-// its reference code. Pure, so the route can check before storing anything.
-export function assertSignedCopyAllowed(report: {
-  status: WeeklyReportStatus;
-  revisionHistory: unknown;
-}): WeeklyReportSubmissionEntry {
-  const submission =
-    report.status === WeeklyReportStatus.DISREGARDED ? null : getConfirmedSubmission(report);
-  if (!submission) throw new SignedCopyNotAllowedError();
-  return submission;
-}
-
-// The signed copy for the current confirmed submission, or null. A copy from
-// before a Return + resubmit carries the old reference code and is stale.
-export function getCurrentSignedCopy(report: {
-  status: WeeklyReportStatus;
-  revisionHistory: unknown;
-}): SignedCopyEntry | null {
-  const submission = getConfirmedSubmission(report);
-  const signed = getLatestSignedCopy(report.revisionHistory);
-  return submission && signed?.referenceCode === submission.referenceCode ? signed : null;
 }
