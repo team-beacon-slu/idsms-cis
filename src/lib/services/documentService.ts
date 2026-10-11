@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { getConfirmedSubmission } from "@/lib/services/weeklyReportService";
 import { ChecklistGateError, isEndorsementGateSatisfied } from "@/lib/services/checklistService";
-import { DocumentNotReadyError } from "@/lib/documents/errors";
+import { calculateRenderedHours, getFinalReportThreshold } from "@/lib/services/attendanceService";
+import { DocumentNotReadyError, FinalReportLockedError } from "@/lib/documents/errors";
+import { renderFinalCoverHtml } from "@/lib/documents/finalCoverTemplate";
 import { loadEndorsementLetterData } from "@/lib/documents/endorsementLetterData";
 import { renderEndorsementLetterHtml } from "@/lib/documents/endorsementLetterTemplate";
 import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
@@ -22,7 +24,7 @@ import {
 } from "@/lib/storage";
 import { toDateKey } from "@/lib/utils/reportDeadline";
 
-export { DocumentNotReadyError };
+export { DocumentNotReadyError, FinalReportLockedError };
 
 type Sleep = (ms: number) => Promise<void>;
 type GenerationResult = { generatedDocumentId: string; status: DocumentStatus };
@@ -400,4 +402,96 @@ export async function generateBulkEndorsementLetters(
     }
   }
   return result;
+}
+
+export function generateFinalCoverReferenceCode(date: Date): string {
+  return referenceCode("FC", date);
+}
+
+// FR-DG-03 + FR-FT-01: the final report cover, unlocked once confirmed
+// (APPROVED/REGARDED) hours reach the program's threshold. One
+// FINAL_REPORT_COVER row per student; regenerating overwrites it.
+export async function generateFinalCoverPdf(
+  studentProfileId: string,
+  actingUserId: string,
+  opts: { sleep?: Sleep } = {}
+): Promise<GenerationResult> {
+  const profile = await prisma.studentProfile.findUniqueOrThrow({
+    where: { id: studentProfileId },
+    select: {
+      id: true,
+      program: true,
+      requiredHours: true,
+      fullName: true,
+      studentNumber: true,
+      company: { select: { name: true } },
+      semester: { select: { name: true, academicYear: true } },
+    },
+  });
+  const renderedHours = await calculateRenderedHours(studentProfileId);
+  const threshold = await getFinalReportThreshold(profile.program, profile.requiredHours);
+  if (renderedHours < threshold) {
+    const remaining = Math.round((threshold - renderedHours) * 100) / 100;
+    throw new FinalReportLockedError(
+      `The final report cover unlocks at ${threshold} confirmed hours — ${remaining} more hours to go`
+    );
+  }
+  const fullName = profile.fullName?.trim();
+  if (!fullName) {
+    throw new FinalReportLockedError("Set your full name on the Profile page first");
+  }
+
+  const now = new Date();
+  const existing = await prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.FINAL_REPORT_COVER },
+    select: { id: true, referenceCode: true },
+  });
+  const code = existing?.referenceCode ?? generateFinalCoverReferenceCode(now);
+
+  let documentId: string;
+  if (existing) {
+    await prisma.generatedDocument.update({
+      where: { id: existing.id },
+      data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
+    });
+    documentId = existing.id;
+  } else {
+    const created = await prisma.generatedDocument.create({
+      data: {
+        studentProfileId,
+        documentType: DocumentType.FINAL_REPORT_COVER,
+        referenceCode: code,
+        status: DocumentStatus.PENDING_DRAFT,
+      },
+    });
+    documentId = created.id;
+  }
+
+  const status = await renderAndStoreDocument({
+    documentId,
+    path: `final-cover/${studentProfileId}.pdf`,
+    buildHtml: () =>
+      renderFinalCoverHtml({
+        referenceCode: code,
+        generatedAt: now,
+        student: { fullName, studentNumber: profile.studentNumber, program: profile.program },
+        company: profile.company,
+        renderedHours,
+        requiredHours: profile.requiredHours,
+        academicYear: profile.semester.academicYear,
+        semesterName: profile.semester.name,
+      }),
+    actingUserId,
+    detail: { studentProfileId, referenceCode: code },
+    sleep: opts.sleep,
+  });
+  return { generatedDocumentId: documentId, status };
+}
+
+export async function getFinalCoverDocument(
+  studentProfileId: string
+): Promise<GeneratedDocument | null> {
+  return prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.FINAL_REPORT_COVER },
+  });
 }

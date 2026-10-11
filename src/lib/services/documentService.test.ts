@@ -362,6 +362,7 @@ import {
   generateEndorsementLetterPdf,
   generateEndorsementReferenceCode,
   generateBulkEndorsementLetters,
+  generateFinalCoverPdf,
 } from "@/lib/services/documentService";
 
 describe("generateEndorsementLetterPdf", () => {
@@ -483,5 +484,26 @@ describe("generateBulkEndorsementLetters", () => {
       }),
     ]);
     expect(result.failed).toEqual([]);
+  });
+});
+describe("generateFinalCoverPdf", () => {
+  it("refuses below the final-report threshold and says how many hours remain", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+      id: "p-1",
+      program: "BSIT",
+      requiredHours: 600,
+      fullName: "Juan",
+      studentNumber: "1",
+      company: null,
+      semester: { name: "1st Semester", academicYear: "2026-2027" },
+    } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 120 }] },
+    ] as never);
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+
+    await expect(generateFinalCoverPdf("p-1", "student-1", { sleep: noSleep })).rejects.toThrow(
+      /380 more hours/
+    );
   });
 });
