@@ -32,6 +32,8 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { FacultyDashboard } from "./faculty-dashboard";
 import { CoordinatorDashboard } from "./coordinator-dashboard";
+import { StudentDashboardTables } from "./student-dashboard";
+import { weeklyHistory } from "@/lib/services/complianceService";
 
 const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -155,6 +157,21 @@ export default async function DashboardHomePage({
       : [null, null];
     const coverUnlocked = finalThreshold !== null && confirmedHours >= finalThreshold;
     const attention = studentProfile ? await getAttentionItems(studentProfile.id) : null;
+    const reportHistory = studentProfile
+      ? weeklyHistory(
+          await prisma.weeklyReport.findMany({
+            where: { studentProfileId: studentProfile.id },
+            select: {
+              id: true,
+              weekStart: true,
+              weekEnd: true,
+              status: true,
+              revisionHistory: true,
+            },
+            orderBy: { weekStart: "desc" },
+          })
+        )
+      : [];
     const attentionRows = attention
       ? [
           {
@@ -284,6 +301,7 @@ export default async function DashboardHomePage({
             tone="blue"
           />
         </div>
+        <StudentDashboardTables requirements={progress?.items ?? []} history={reportHistory} />
       </>
     );
   }

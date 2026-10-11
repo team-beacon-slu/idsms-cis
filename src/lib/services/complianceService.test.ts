@@ -7,6 +7,7 @@ import {
   resolveDepartmentSemester,
   summarize,
   summarizeByProgram,
+  weeklyHistory,
   type ComplianceRow,
 } from "@/lib/services/complianceService";
 
@@ -48,6 +49,62 @@ describe("reportState", () => {
     [{ status: "PENDING", revisionHistory: [] }, "DRAFT"],
   ] as const)("%j -> %s", (report, expected) => {
     expect(reportState(report as never)).toBe(expected);
+  });
+});
+
+describe("weeklyHistory", () => {
+  const submitted = (referenceCode: string) => ({
+    type: "SUBMITTED",
+    timestamp: "2026-10-01T00:00:00.000Z",
+    referenceCode,
+    late: false,
+    reasonForDelay: null,
+    submittedBy: "u1",
+  });
+  const week = (id: string, start: string, end: string, over: Record<string, unknown> = {}) => ({
+    id,
+    weekStart: new Date(`${start}T00:00:00Z`),
+    weekEnd: new Date(`${end}T00:00:00Z`),
+    status: "PENDING" as const,
+    revisionHistory: [] as unknown,
+    ...over,
+  });
+
+  it("orders newest week first and labels the week range in UTC", () => {
+    const result = weeklyHistory([
+      week("old", "2026-09-28", "2026-10-04"),
+      week("new", "2026-10-05", "2026-10-11"),
+    ]);
+    expect(result.map((r) => r.id)).toEqual(["new", "old"]);
+    expect(result[0].week).toBe("Oct 5 – Oct 11, 2026");
+  });
+
+  it("separates DRAFT from SUBMITTED for pending reports", () => {
+    const result = weeklyHistory([
+      week("draft", "2026-10-05", "2026-10-11"),
+      week("sub", "2026-09-28", "2026-10-04", { revisionHistory: [submitted("WR-1")] }),
+    ]);
+    expect(result.find((r) => r.id === "draft")?.state).toBe("DRAFT");
+    expect(result.find((r) => r.id === "sub")?.state).toBe("SUBMITTED");
+  });
+
+  it("uses the reference code of the latest SUBMITTED entry, or null if never submitted", () => {
+    const result = weeklyHistory([
+      week("resub", "2026-10-05", "2026-10-11", {
+        status: "RETURNED",
+        revisionHistory: [
+          submitted("WR-OLD"),
+          { type: "RETURNED", timestamp: "x" },
+          submitted("WR-NEW"),
+        ],
+      }),
+      week("none", "2026-09-28", "2026-10-04"),
+    ]);
+    expect(result.find((r) => r.id === "resub")).toMatchObject({
+      state: "RETURNED",
+      referenceCode: "WR-NEW",
+    });
+    expect(result.find((r) => r.id === "none")?.referenceCode).toBeNull();
   });
 });
 

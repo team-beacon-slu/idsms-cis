@@ -2,7 +2,7 @@ import { Role, type Prisma, type Program, type WeeklyReportStatus } from "@prism
 
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/services/userService";
-import { isAwaitingReview } from "@/lib/services/weeklyReportService";
+import { getLatestSubmission, isAwaitingReview } from "@/lib/services/weeklyReportService";
 import { addDays, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";
 
 export type ReportState =
@@ -45,6 +45,45 @@ export function reportState(
   if (!r) return "NOT_STARTED";
   if (r.status === "PENDING") return isAwaitingReview(r) ? "SUBMITTED" : "DRAFT";
   return r.status;
+}
+
+export interface WeeklyHistoryInput {
+  id: string;
+  weekStart: Date;
+  weekEnd: Date;
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}
+
+export interface WeeklyHistoryRow {
+  id: string;
+  week: string;
+  state: ReportState;
+  referenceCode: string | null;
+}
+
+const WEEK_LABEL = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC", // week dates are stored as UTC midnight
+});
+
+// FR-DB-02: student's weekly report history, newest week first. The reference
+// code lives on the latest SUBMITTED history entry (no column on the report).
+export function weeklyHistory(reports: WeeklyHistoryInput[]): WeeklyHistoryRow[] {
+  return [...reports]
+    .sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime())
+    .map((r) => ({
+      id: r.id,
+      week:
+        WEEK_LABEL.format(r.weekStart) +
+        " – " +
+        WEEK_LABEL.format(r.weekEnd) +
+        ", " +
+        r.weekEnd.getUTCFullYear(),
+      state: reportState(r),
+      referenceCode: getLatestSubmission(r.revisionHistory)?.referenceCode ?? null,
+    }));
 }
 
 async function scopeWhere(scope: ComplianceScope): Promise<Prisma.StudentProfileWhereInput | null> {
