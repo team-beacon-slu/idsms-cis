@@ -23,6 +23,7 @@ import {
   getHoursSummary,
 } from "@/lib/services/attendanceService";
 import { getFinalCoverDocument } from "@/lib/services/documentService";
+import { getAttentionItems } from "@/lib/services/attentionService";
 import { ReportPdfActions } from "./students/[studentProfileId]/weekly-reports/report-pdf-actions";
 import { prisma } from "@/lib/prisma";
 import { getUserProfile } from "@/lib/services/userService";
@@ -205,9 +206,59 @@ export default async function DashboardHomePage() {
         ])
       : [null, null];
     const coverUnlocked = finalThreshold !== null && confirmedHours >= finalThreshold;
+    const attention = studentProfile ? await getAttentionItems(studentProfile.id) : null;
+    const attentionRows = attention
+      ? [
+          {
+            count: attention.returnedReports,
+            label: "Weekly reports returned for revision",
+            href: "/weekly-reports",
+          },
+          {
+            count: attention.reportsDueSoon,
+            label: "Weekly reports due within 48 hours",
+            href: "/weekly-reports",
+          },
+          {
+            count: attention.pendingDeviations,
+            label: "Deviation reports awaiting validation",
+            href: "/attendance",
+          },
+          {
+            count: attention.incompleteChecklistItems,
+            label: "Checklist items not yet approved",
+            href: "/checklist",
+          },
+        ].filter((row) => row.count > 0)
+      : [];
 
     stats = (
       <>
+        {attentionRows.length > 0 && (
+          <Card className="mb-4 border-amber-300 dark:border-amber-500/40">
+            <CardHeader>
+              <CardTitle>Needs attention</CardTitle>
+              <CardDescription>Items that need action from you (FR-NT-03).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1">
+                {attentionRows.map((row) => (
+                  <li key={row.label}>
+                    <Link
+                      href={row.href}
+                      className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
+                    >
+                      <span>{row.label}</span>
+                      <span className="font-semibold text-amber-700 dark:text-amber-400">
+                        {row.count}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
         {studentProfile && finalThreshold !== null && (
           <Card className="mb-4">
             <CardHeader>
