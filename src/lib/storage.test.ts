@@ -8,7 +8,12 @@
 jest.mock("@supabase/supabase-js", () => {
   const mockUpload = jest.fn();
   const mockCreateSignedUrl = jest.fn();
-  const mockFrom = jest.fn(() => ({ upload: mockUpload, createSignedUrl: mockCreateSignedUrl }));
+  const mockRemove = jest.fn();
+  const mockFrom = jest.fn(() => ({
+    upload: mockUpload,
+    createSignedUrl: mockCreateSignedUrl,
+    remove: mockRemove,
+  }));
   return { createClient: jest.fn(() => ({ storage: { from: mockFrom } })) };
 });
 
@@ -17,6 +22,8 @@ import {
   CHECKLIST_BUCKET,
   GENERATED_DOCUMENTS_BUCKET,
   InvalidFileError,
+  StorageDeleteError,
+  deleteObject,
   getSignedUrl,
   uploadFile,
   uploadPdfBuffer,
@@ -29,7 +36,7 @@ import {
 const mockedCreateClient = createClient as jest.Mock;
 const supabaseInstance = mockedCreateClient.mock.results[0].value;
 const mockFrom = supabaseInstance.storage.from as jest.Mock;
-const { upload: mockUpload, createSignedUrl: mockCreateSignedUrl } = mockFrom();
+const { upload: mockUpload, createSignedUrl: mockCreateSignedUrl, remove: mockRemove } = mockFrom();
 
 function makeFile(sizeBytes: number, type: string) {
   return new File([new Uint8Array(sizeBytes)], "file", { type });
@@ -38,7 +45,35 @@ function makeFile(sizeBytes: number, type: string) {
 beforeEach(() => {
   mockUpload.mockReset();
   mockCreateSignedUrl.mockReset();
+  mockRemove.mockReset();
   mockFrom.mockClear();
+});
+
+describe("deleteObject", () => {
+  it("removes the given path from the given bucket", async () => {
+    mockRemove.mockResolvedValue({ data: [], error: null });
+
+    await expect(
+      deleteObject(GENERATED_DOCUMENTS_BUCKET, "weekly/p1/wr1.pdf")
+    ).resolves.toBeUndefined();
+
+    expect(mockFrom).toHaveBeenCalledWith(GENERATED_DOCUMENTS_BUCKET);
+    expect(mockRemove).toHaveBeenCalledWith(["weekly/p1/wr1.pdf"]);
+  });
+
+  it("is idempotent: a 'not found' error resolves", async () => {
+    mockRemove.mockResolvedValue({ data: null, error: { message: "Object not found" } });
+
+    await expect(deleteObject(CHECKLIST_BUCKET, "gone.pdf")).resolves.toBeUndefined();
+  });
+
+  it("throws StorageDeleteError for any other failure", async () => {
+    mockRemove.mockResolvedValue({ data: null, error: { message: "permission denied" } });
+
+    const err = await deleteObject(CHECKLIST_BUCKET, "x.pdf").catch((e) => e);
+    expect(err).toBeInstanceOf(StorageDeleteError);
+    expect(err.message).toBe("permission denied");
+  });
 });
 
 describe("validateUpload", () => {

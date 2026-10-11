@@ -106,3 +106,17 @@ export async function getSignedUrl(
 
   return data.signedUrl;
 }
+
+export class StorageDeleteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StorageDeleteError";
+  }
+}
+
+// Idempotent: a missing object is success, so a retried delete (or one whose
+// object is already gone) doesn't fail the caller.
+export async function deleteObject(bucket: string, path: string): Promise<void> {
+  const { error } = await supabaseAdmin.storage.from(bucket).remove([path]);
+  if (error && !/not found/i.test(error.message)) throw new StorageDeleteError(error.message);
+}
