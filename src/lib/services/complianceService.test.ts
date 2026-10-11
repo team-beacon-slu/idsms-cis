@@ -1,5 +1,6 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
+  filterRows,
   getComplianceRows,
   reportState,
   resolveComplianceScope,
@@ -325,5 +326,26 @@ describe("resolveComplianceScope", () => {
         semesterId: "sem-1",
       }
     );
+  });
+});
+
+describe("filterRows", () => {
+  const mk = (id: string, status: ComplianceRow["status"]) =>
+    ({ studentProfileId: id, status }) as ComplianceRow;
+  const rows = [mk("a", "ON_TRACK"), mk("b", "NEEDS_ATTENTION"), mk("c", "ON_TRACK")];
+
+  it("returns all rows when no status is given", () => {
+    expect(filterRows(rows, {})).toEqual(rows);
+  });
+
+  it("keeps only rows with the requested status", () => {
+    expect(filterRows(rows, { status: "ON_TRACK" }).map((r) => r.studentProfileId)).toEqual([
+      "a",
+      "c",
+    ]);
+  });
+
+  it("returns an empty list when nothing matches", () => {
+    expect(filterRows(rows, { status: "COMPLETED" })).toEqual([]);
   });
 });

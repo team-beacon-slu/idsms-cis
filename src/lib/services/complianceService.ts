@@ -170,6 +170,14 @@ export function summarize(rows: ComplianceRow[]): {
   };
 }
 
+// Program is filtered in the query; status is derived, so it is filtered here.
+export function filterRows(
+  rows: ComplianceRow[],
+  filter: { status?: ComplianceStatus }
+): ComplianceRow[] {
+  return filter.status ? rows.filter((r) => r.status === filter.status) : rows;
+}
+
 export function summarizeByProgram(rows: ComplianceRow[]): Array<{
   program: Program;
   students: number;

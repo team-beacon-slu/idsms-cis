@@ -4,7 +4,6 @@ import { Role } from "@prisma/client";
 import {
   Users,
   Building2,
-  FileClock,
   ClipboardCheck,
   NotebookText,
   Clock,
@@ -27,12 +26,12 @@ import { getAttentionItems } from "@/lib/services/attentionService";
 import { ReportPdfActions } from "./students/[studentProfileId]/weekly-reports/report-pdf-actions";
 import { prisma } from "@/lib/prisma";
 import { getUserProfile } from "@/lib/services/userService";
-import { getExpiringMoaRecords } from "@/lib/services/companyService";
 import { getChecklistProgress } from "@/lib/services/checklistService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { FacultyDashboard } from "./faculty-dashboard";
+import { CoordinatorDashboard } from "./coordinator-dashboard";
 
 const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -116,44 +115,18 @@ function getQuickLinks(role: Role): QuickLink[] {
   return links;
 }
 
-export default async function DashboardHomePage() {
+export default async function DashboardHomePage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const user = await requireUserPage();
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
 
   let stats: React.ReactNode = null;
 
   if (STAFF_ROLES.includes(user.role)) {
-    const [totalUsers, totalCompanies, verifiedCompanies, expiringMoas] = await Promise.all([
-      prisma.user.count({ where: { deletedAt: null } }),
-      prisma.company.count({ where: { deletedAt: null } }),
-      prisma.company.count({ where: { deletedAt: null, isVerified: true } }),
-      getExpiringMoaRecords(30),
-    ]);
-
-    stats = (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total users" value={totalUsers} icon={Users} tone="blue" />
-        <StatCard
-          label="Registered companies"
-          value={totalCompanies}
-          icon={Building2}
-          tone="slate"
-        />
-        <StatCard
-          label="Verified companies"
-          value={verifiedCompanies}
-          icon={Building2}
-          tone="green"
-        />
-        <StatCard
-          label="MOAs expiring soon"
-          value={expiringMoas.length}
-          icon={FileClock}
-          tone={expiringMoas.length > 0 ? "amber" : "slate"}
-          hint="Next 30 days"
-        />
-      </div>
-    );
+    stats = <CoordinatorDashboard role={user.role} searchParams={searchParams} />;
   } else if (user.role === Role.FACULTY_ADVISER) {
     stats = <FacultyDashboard facultyId={user.id} />;
   } else if (user.role === Role.STUDENT_INTERN) {

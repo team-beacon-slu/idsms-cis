@@ -13,7 +13,7 @@ import {
 import type { ComplianceRow } from "@/lib/services/complianceService";
 
 const linkClass =
-  "cursor-pointer text-xs font-medium text-primary transition-colors duration-200 hover:text-primary/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-block cursor-pointer py-1 text-xs font-medium text-primary transition-colors duration-200 hover:text-primary/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // FR-DB-03: shared per-student compliance table (faculty dashboard now;
 // coordinator and admin dashboards reuse it with showProgram).
@@ -71,7 +71,7 @@ export function ComplianceTable({
                       aria-valuenow={row.hoursPercent}
                       aria-valuemin={0}
                       aria-valuemax={100}
-                      aria-label="Hours progress"
+                      aria-label={`Hours progress for ${name}`}
                       aria-valuetext={`${row.confirmedHours} of ${row.requiredHours} hours, ${row.hoursPercent}%`}
                       className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
                     >
@@ -82,7 +82,9 @@ export function ComplianceTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{row.checklistApproved}/9</TableCell>
+                <TableCell>
+                  {row.checklistApproved}/{row.checklistTotal}
+                </TableCell>
                 <TableCell>
                   <div className="flex flex-col items-start gap-1">
                     <StatusBadge status={row.dueWeekState} />
