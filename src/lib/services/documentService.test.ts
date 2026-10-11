@@ -25,6 +25,7 @@ import {
   generateMonthlyReportPdf,
   generateMonthlyReportReferenceCode,
   generateWeeklyReportPdf,
+  renderAndStoreDocument,
   getWeeklyReportDocument,
   weeklyPeriodLabel,
   withRetry,
@@ -319,5 +320,31 @@ describe("getWeeklyReportDocument", () => {
     const doc = { id: "doc-1", referenceCode: "WR-NEW", status: DocumentStatus.GENERATED };
     prismaMock.generatedDocument.findFirst.mockResolvedValue(doc as never);
     await expect(getWeeklyReportDocument("wr-1")).resolves.toEqual(doc);
+  });
+});
+
+describe("renderAndStoreDocument", () => {
+  it("rebuilds the HTML on each retry attempt and marks GENERATED on success", async () => {
+    const buildHtml = jest.fn().mockResolvedValue("<p>x</p>");
+    render.mockRejectedValueOnce(new Error("cold start")).mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("endorsement/p-1.pdf");
+
+    const status = await renderAndStoreDocument({
+      documentId: "doc-1",
+      path: "endorsement/p-1.pdf",
+      buildHtml,
+      actingUserId: "u-1",
+      sleep: noSleep,
+    });
+
+    expect(status).toBe(DocumentStatus.GENERATED);
+    expect(buildHtml).toHaveBeenCalledTimes(2);
+    expect(prismaMock.generatedDocument.update).toHaveBeenLastCalledWith({
+      where: { id: "doc-1" },
+      data: expect.objectContaining({
+        status: DocumentStatus.GENERATED,
+        fileUrl: "endorsement/p-1.pdf",
+      }),
+    });
   });
 });

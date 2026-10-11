@@ -96,22 +96,25 @@ function markFailed(documentId: string) {
   );
 }
 
-// Shared lifecycle for every document type: render + upload with retry, then
+// Shared lifecycle for every document type (weekly, monthly, endorsement
+// letter, final cover): build HTML + render + upload with retry, then
 // GENERATED, or — per FR-DG-07 — keep the submission, log, mark FAILED and
-// let the user regenerate. The row must already be PENDING_DRAFT.
-async function runGeneration(args: {
+// let the user regenerate. The row must already be PENDING_DRAFT. buildHtml
+// runs inside each attempt, so data loaded there is fresh on retry; load
+// anything whose absence is permanent *before* calling this (it isn't retried).
+export async function renderAndStoreDocument(args: {
   documentId: string;
   path: string;
+  buildHtml: () => string | Promise<string>;
   actingUserId: string;
-  renderHtml: () => string;
-  auditDetail: Record<string, string>;
+  detail?: Record<string, string>;
   sleep?: Sleep;
-}): Promise<GenerationResult> {
-  const { documentId, path, actingUserId, auditDetail } = args;
+}): Promise<DocumentStatus> {
+  const { documentId, path, actingUserId, detail: auditDetail = {} } = args;
   try {
     await withRetry(
       async () => {
-        const pdf = await renderHtmlToPdf(args.renderHtml());
+        const pdf = await renderHtmlToPdf(await args.buildHtml());
         await uploadPdfBuffer(GENERATED_DOCUMENTS_BUCKET, path, pdf);
       },
       { sleep: args.sleep, deadlineMs: GENERATION_DEADLINE_MS }
@@ -128,7 +131,7 @@ async function runGeneration(args: {
         detail: { ...auditDetail, message: error instanceof Error ? error.message : String(error) },
       })
     );
-    return { generatedDocumentId: documentId, status: DocumentStatus.FAILED };
+    return DocumentStatus.FAILED;
   }
 
   try {
@@ -144,7 +147,7 @@ async function runGeneration(args: {
       error,
     });
     await markFailed(documentId);
-    return { generatedDocumentId: documentId, status: DocumentStatus.FAILED };
+    return DocumentStatus.FAILED;
   }
   await bestEffort("audit", documentId, () =>
     logEvent({
@@ -155,7 +158,7 @@ async function runGeneration(args: {
       detail: auditDetail,
     })
   );
-  return { generatedDocumentId: documentId, status: DocumentStatus.GENERATED };
+  return DocumentStatus.GENERATED;
 }
 
 // Weekly rows are created here on first generation (the weekly report has no
@@ -200,14 +203,15 @@ export async function generateWeeklyReportPdf(
     documentId = created.id;
   }
 
-  return runGeneration({
+  const status = await renderAndStoreDocument({
     documentId,
     path: `weekly/${data.studentProfileId}/${weeklyReportId}.pdf`,
     actingUserId,
-    renderHtml: () => renderWeeklyReportHtml(data),
-    auditDetail: { weeklyReportId, referenceCode: data.referenceCode },
+    buildHtml: () => renderWeeklyReportHtml(data),
+    detail: { weeklyReportId, referenceCode: data.referenceCode },
     sleep: opts.sleep,
   });
+  return { generatedDocumentId: documentId, status };
 }
 
 // The week's document, or null when there is none for the submission the
@@ -270,12 +274,13 @@ export async function generateMonthlyReportPdf(
     data: { referenceCode, status: DocumentStatus.PENDING_DRAFT },
   });
 
-  return runGeneration({
+  const status = await renderAndStoreDocument({
     documentId: doc.id,
     path: `monthly/${doc.studentProfileId}/${doc.periodLabel}.pdf`,
     actingUserId,
-    renderHtml: () => renderMonthlyReportHtml(data),
-    auditDetail: { referenceCode },
+    buildHtml: () => renderMonthlyReportHtml(data),
+    detail: { referenceCode },
     sleep: opts.sleep,
   });
+  return { generatedDocumentId: doc.id, status };
 }
