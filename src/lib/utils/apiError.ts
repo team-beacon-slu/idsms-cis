@@ -4,6 +4,7 @@ import { UnauthorizedError } from "@/lib/auth/errors";
 import { ForbiddenError } from "@/lib/services/userService";
 import { InvalidFileError } from "@/lib/storage";
 import { DocumentNotReadyError } from "@/lib/documents/errors";
+import { EndorsementDataIncompleteError } from "@/lib/documents/endorsementLetterData";
 import { ChecklistGateError, ChecklistLockedError } from "@/lib/services/checklistService";
 import { InvalidMoaTransitionError } from "@/lib/services/companyService";
 import { WorkPlanPendingError } from "@/lib/services/workPlanService";
@@ -36,6 +37,7 @@ const BAD_REQUEST_ERRORS = [
   WeeklyReportIncompleteError,
   LateSubmissionReasonRequiredError,
   DocumentNotReadyError,
+  EndorsementDataIncompleteError,
   SignedCopyNotAllowedError,
 ];
 
