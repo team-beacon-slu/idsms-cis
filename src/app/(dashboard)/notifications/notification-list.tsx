@@ -23,7 +23,12 @@ export function NotificationList({ items }: { items: InboxItem[] }) {
 
   async function open(item: InboxItem) {
     if (!item.read) {
-      await fetch(`/api/notifications/${item.id}/read`, { method: "PATCH" }).catch(() => {});
+      // Still follow the link on failure — but say so, or the item would
+      // silently stay unread.
+      const res = await fetch(`/api/notifications/${item.id}/read`, { method: "PATCH" }).catch(
+        () => null
+      );
+      if (!res?.ok) toast.error("Could not mark this notification as read");
     }
     const target = safeInternalPath(item.link);
     if (target) router.push(target);

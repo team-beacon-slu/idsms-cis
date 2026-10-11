@@ -22,5 +22,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const result = await runDailyNotifications(new Date());
-  return NextResponse.json(result);
+  // Partial failure still delivered what it could; 500 makes the scheduler
+  // (Vercel Cron logs / host cron exit code) surface it instead of a green run.
+  return NextResponse.json(result, { status: result.errors.length > 0 ? 500 : 200 });
 }

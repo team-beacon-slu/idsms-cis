@@ -56,6 +56,12 @@ function notifyAccountCreatedMany(userIds: string[]) {
 // per-recipient email body: notify() never persists emailOverrides.
 export async function notifyPasswordReset(userId: string, token: string) {
   const title = "Reset your IDSMS password";
+  const link = `/auth/reset-password/${token}`;
+  const text = [
+    title,
+    "This link expires in 1 hour. If you didn't request it, ignore this email.",
+    `${process.env.NEXTAUTH_URL ?? ""}${link}`,
+  ].join("\n\n");
   await notify({
     userIds: [userId],
     trigger: "PASSWORD_RESET",
@@ -67,9 +73,10 @@ export async function notifyPasswordReset(userId: string, token: string) {
       [userId]: NotificationEmail({
         title,
         body: "This link expires in 1 hour. If you didn't request it, ignore this email.",
-        link: `/auth/reset-password/${token}`,
+        link,
       }),
     },
+    textOverrides: { [userId]: text },
   });
 }
 

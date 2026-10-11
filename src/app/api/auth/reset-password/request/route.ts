@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { requestPasswordResetSchema } from "@/lib/validators/auth";
 import { requestPasswordReset } from "@/lib/services/userService";
 import { notifyPasswordReset } from "@/lib/services/notificationEvents";
@@ -15,7 +16,10 @@ export async function POST(req: NextRequest) {
 
     if (result) {
       // FR-NT-01 #2 — email only; the token lives only in the email body.
-      await notifyPasswordReset(result.userId, result.token);
+      // Sent after the response: awaiting it would make "account exists"
+      // measurably slower than "no account" (enumeration by timing).
+      // waitUntil keeps it alive on Vercel; on a long-lived server it just runs.
+      waitUntil(notifyPasswordReset(result.userId, result.token));
     }
     // Without Resend configured (decision D4) there is no email, so in dev
     // log the link locally — never in production; the raw token is otherwise

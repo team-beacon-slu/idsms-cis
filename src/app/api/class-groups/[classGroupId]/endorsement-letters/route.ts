@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -70,10 +71,15 @@ export async function POST(req: NextRequest, { params }: { params: { classGroupI
     }
 
     const result = await generateBulkEndorsementLetters(params.classGroupId, user.id, semesterIds);
-    // FR-NT-01 #7 for every newly generated letter (never throws).
-    for (const { studentProfileId } of result.generated) {
-      await notifyEndorsementReady(studentProfileId);
-    }
+    // FR-NT-01 #7 for every newly generated letter (never throws). After the
+    // response: PDF generation already uses most of the time budget.
+    waitUntil(
+      (async () => {
+        for (const { studentProfileId } of result.generated) {
+          await notifyEndorsementReady(studentProfileId);
+        }
+      })()
+    );
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);

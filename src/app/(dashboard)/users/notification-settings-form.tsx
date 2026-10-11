@@ -24,6 +24,10 @@ export function NotificationSettingsForm({
       .map((h) => h.trim())
       .filter(Boolean)
       .map(Number);
+    if (deadlineReminderHours.some(Number.isNaN) || Number.isNaN(Number(moaDays))) {
+      toast.error("Use whole numbers only, e.g. 48, 24");
+      return;
+    }
     setIsPending(true);
     try {
       const res = await fetch("/api/config/notifications", {
@@ -56,7 +60,8 @@ export function NotificationSettingsForm({
           aria-describedby="reminder-hours-help"
         />
         <p id="reminder-hours-help" className="text-xs text-muted-foreground">
-          Up to 3 values, comma-separated (1–168), e.g. 48, 24
+          Up to 3 values, comma-separated (16–168), e.g. 48, 24. The daily job runs at 8 AM, so the
+          last chance before the Tuesday 11:59 PM deadline is about 16 hours out.
         </p>
       </div>
       <div className="space-y-2">

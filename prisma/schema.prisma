@@ -462,6 +462,9 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id])
 
+  // Unread badge + inbox. The IN_APP dedupe unique index is partial and on a
+  // JSON expression, so it lives only in migrations_manual/006.
+  @@index([userId, channel, readAt])
   @@map("notifications")
 }
 

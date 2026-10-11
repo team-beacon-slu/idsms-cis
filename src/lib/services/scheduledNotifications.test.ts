@@ -13,12 +13,110 @@ jest.mock("@/lib/services/notificationRecipients", () => ({
 import { notify } from "@/lib/services/notify";
 import {
   getNotificationSettings,
+  notificationSettingsSchema,
   runDailyNotifications,
 } from "@/lib/services/scheduledNotifications";
 
 beforeEach(() => {
   resetPrismaMock();
   (notify as jest.Mock).mockClear();
+  jest
+    .spyOn(console, "error")
+    .mockImplementation(() => {})
+    .mockClear();
+  // Deployed students without a report row for the week: none unless a test says so.
+  prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
+});
+
+const NOW = new Date("2026-10-12T00:00:00Z"); // Mon 08:00 Manila
+const openReport = (id: string, profileId: string, userId: string) => ({
+  id,
+  weekStart: new Date("2026-10-05T00:00:00Z"),
+  weekEnd: new Date("2026-10-11T00:00:00Z"),
+  status: "PENDING",
+  revisionHistory: [],
+  studentProfile: { id: profileId, userId },
+});
+
+it("keeps reminding other students when one report fails, and reports the error", async () => {
+  prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+  prismaMock.weeklyReport.findMany.mockResolvedValue([
+    openReport("wr-1", "p-1", "u-1"),
+    openReport("wr-2", "p-2", "u-2"),
+  ] as never);
+  prismaMock.notification.findFirst
+    .mockRejectedValueOnce(new Error("db blip"))
+    .mockResolvedValue(null);
+
+  const result = await runDailyNotifications(NOW);
+
+  expect(result.deadlineReminders).toBe(1);
+  expect(result.errors).toHaveLength(1);
+  expect(notify).toHaveBeenCalledWith(expect.objectContaining({ userIds: ["u-2"] }));
+});
+
+it("counts only reminders notify actually delivered", async () => {
+  prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+  prismaMock.weeklyReport.findMany.mockResolvedValue([openReport("wr-1", "p-1", "u-1")] as never);
+  prismaMock.notification.findFirst.mockResolvedValue(null);
+  (notify as jest.Mock).mockResolvedValueOnce({ inApp: 0, emailed: 0, failed: 0 });
+
+  const result = await runDailyNotifications(NOW);
+  expect(result.deadlineReminders).toBe(0);
+});
+
+it("only scans reports from recent weeks", async () => {
+  prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+  prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+  await runDailyNotifications(NOW);
+  expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ weekEnd: { gte: new Date("2026-10-02T00:00:00Z") } }),
+    })
+  );
+});
+
+it("reminds deployed students who have not started last week's report", async () => {
+  prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+  prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+  prismaMock.studentProfile.findMany.mockResolvedValue([{ id: "p-9", userId: "u-9" }] as never);
+  prismaMock.notification.findFirst.mockResolvedValue(null);
+
+  const result = await runDailyNotifications(NOW);
+
+  expect(result.deadlineReminders).toBe(1);
+  expect(notify).toHaveBeenCalledWith(
+    expect.objectContaining({ userIds: ["u-9"], dedupeKey: "deadline:p-9:2026-10-05:48" })
+  );
+  expect(prismaMock.studentProfile.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({
+        companyId: { not: null },
+        weeklyReports: { none: { weekStart: new Date("2026-10-05T00:00:00Z") } },
+      }),
+    })
+  );
+});
+
+it("logs when stored settings are invalid and falls back to defaults", async () => {
+  prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: "garbage" } as never);
+  await expect(getNotificationSettings()).resolves.toEqual({
+    deadlineReminderHours: [48, 24],
+    moaWarningDays: 30,
+  });
+  expect(console.error).toHaveBeenCalled();
+});
+
+it("rejects reminder windows a once-a-day job can never hit", () => {
+  // Runs at 08:00 Manila; the closest run to Tue 23:59 is ~16h before it.
+  expect(
+    notificationSettingsSchema.safeParse({ deadlineReminderHours: [12], moaWarningDays: 30 })
+      .success
+  ).toBe(false);
+  expect(
+    notificationSettingsSchema.safeParse({ deadlineReminderHours: [16], moaWarningDays: 30 })
+      .success
+  ).toBe(true);
 });
 
 it("defaults to 48h and 24h reminders and a 30-day MOA warning", async () => {
@@ -51,7 +149,7 @@ it("reminds students whose open report is due within the window, once", async ()
     expect.objectContaining({
       userIds: ["u-1"],
       trigger: "DEADLINE_REMINDER",
-      dedupeKey: "deadline:wr-1:48",
+      dedupeKey: "deadline:p-1:2026-10-05:48",
       email: true,
     })
   );

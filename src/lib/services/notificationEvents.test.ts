@@ -92,6 +92,8 @@ it("password reset is email-only and keeps the link out of the stored text", asy
   // The token may only live in the per-recipient email body, never in title/body/link.
   expect(`${call.title} ${call.body} ${call.link ?? ""}`).not.toContain("tok-secret");
   expect(call.emailOverrides["u-1"]).toBeDefined();
+  // Plain-text twin for text-only clients carries the same link.
+  expect(call.textOverrides["u-1"]).toContain("/auth/reset-password/tok-secret");
 });
 
 it.each([

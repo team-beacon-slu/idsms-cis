@@ -29,6 +29,18 @@ export interface NotifyInput {
   inApp?: boolean; // default true; false for PASSWORD_RESET
   dedupeKey?: string; // cron idempotency, stored in payload
   emailOverrides?: Record<string, ReactElement>; // per-recipient custom body (e.g. reset link)
+  textOverrides?: Record<string, string>; // plain-text twin of emailOverrides
+}
+
+function isResendConfigured(): boolean {
+  return !!process.env.RESEND_API_KEY && !!process.env.RESEND_FROM_EMAIL;
+}
+
+// Migration 006 puts a unique index on (user, trigger, dedupeKey) for IN_APP
+// rows, so a second concurrent cron run fails the insert instead of sending
+// the same reminder twice.
+function isDuplicateDedupe(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === "P2002";
 }
 
 // `text` is the plain-text alternative: it improves deliverability and is
@@ -51,55 +63,88 @@ export async function notify(
   input: NotifyInput
 ): Promise<{ inApp: number; emailed: number; failed: number }> {
   const counts = { inApp: 0, emailed: 0, failed: 0 };
+  let users: { id: string; email: string }[];
   try {
-    const users = await prisma.user.findMany({
+    users = await prisma.user.findMany({
       where: { id: { in: Array.from(new Set(input.userIds)) }, isActive: true, deletedAt: null },
       select: { id: true, email: true },
     });
-    const payload = {
-      title: input.title,
-      body: input.body,
-      link: input.link ?? null,
-      dedupeKey: input.dedupeKey ?? null,
-    } satisfies Prisma.InputJsonValue;
+  } catch (error) {
+    console.error("notify() could not load recipients", { trigger: input.trigger, error });
+    return counts;
+  }
 
-    for (const user of users) {
+  const payload = {
+    title: input.title,
+    body: input.body,
+    link: input.link ?? null,
+    dedupeKey: input.dedupeKey ?? null,
+  } satisfies Prisma.InputJsonValue;
+
+  // Email is requested but cannot go out. In development that is the normal
+  // D4 state; in production it means a password reset (email-only) would
+  // vanish without trace, so record it as FAILED and say so in the logs.
+  const emailUnavailable =
+    !!input.email && !isResendConfigured() && process.env.NODE_ENV === "production";
+  if (emailUnavailable) {
+    console.error("Email requested but Resend is not configured", { trigger: input.trigger });
+  }
+
+  const appUrl = process.env.NEXTAUTH_URL;
+  if (input.email && input.link && !appUrl && isResendConfigured()) {
+    console.error("NEXTAUTH_URL is not set — emailed links will be relative", {
+      trigger: input.trigger,
+    });
+  }
+
+  // One recipient's failure must not cost the others their notification.
+  for (const user of users) {
+    try {
       if (input.inApp !== false) {
-        await prisma.notification.create({
-          data: {
-            userId: user.id,
-            triggerType: input.trigger,
-            channel: NotificationChannel.IN_APP,
-            status: NotificationStatus.SENT,
-            payload,
-            sentAt: new Date(),
-          },
-        });
+        try {
+          await prisma.notification.create({
+            data: {
+              userId: user.id,
+              triggerType: input.trigger,
+              channel: NotificationChannel.IN_APP,
+              status: NotificationStatus.SENT,
+              payload,
+              sentAt: new Date(),
+            },
+          });
+        } catch (error) {
+          if (input.dedupeKey && isDuplicateDedupe(error)) continue; // already sent
+          throw error;
+        }
         counts.inApp += 1;
       }
 
-      if (input.email && process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL) {
+      if (input.email && (isResendConfigured() || emailUnavailable)) {
         let status: NotificationStatus = NotificationStatus.SENT;
-        try {
-          const react =
-            input.emailOverrides?.[user.id] ??
-            NotificationEmail({ title: input.title, body: input.body, link: input.link });
-          const appUrl = process.env.NEXTAUTH_URL ?? "";
-          const text = input.emailOverrides?.[user.id]
-            ? undefined // custom bodies (e.g. a reset link) supply their own content
-            : [input.title, input.body, input.link ? `${appUrl}${input.link}` : ""]
-                .filter(Boolean)
-                .join("\n\n");
-          await sendEmail(user.email, input.title, react, text);
-          counts.emailed += 1;
-        } catch (error) {
-          console.error("Notification email failed", {
-            trigger: input.trigger,
-            userId: user.id,
-            error,
-          });
+        if (emailUnavailable) {
           status = NotificationStatus.FAILED;
           counts.failed += 1;
+        } else {
+          try {
+            const react =
+              input.emailOverrides?.[user.id] ??
+              NotificationEmail({ title: input.title, body: input.body, link: input.link });
+            const text = input.emailOverrides?.[user.id]
+              ? input.textOverrides?.[user.id] // custom bodies supply their own text
+              : [input.title, input.body, input.link ? `${appUrl ?? ""}${input.link}` : ""]
+                  .filter(Boolean)
+                  .join("\n\n");
+            await sendEmail(user.email, input.title, react, text);
+            counts.emailed += 1;
+          } catch (error) {
+            console.error("Notification email failed", {
+              trigger: input.trigger,
+              userId: user.id,
+              error,
+            });
+            status = NotificationStatus.FAILED;
+            counts.failed += 1;
+          }
         }
         await prisma.notification.create({
           data: {
@@ -113,9 +158,14 @@ export async function notify(
           },
         });
       }
+    } catch (error) {
+      console.error("Notification failed for recipient", {
+        trigger: input.trigger,
+        userId: user.id,
+        error,
+      });
+      counts.failed += 1;
     }
-  } catch (error) {
-    console.error("notify() failed", { trigger: input.trigger, error });
   }
   return counts;
 }

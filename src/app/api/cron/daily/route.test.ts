@@ -1,6 +1,8 @@
 /** @jest-environment node */
 jest.mock("@/lib/services/scheduledNotifications", () => ({
-  runDailyNotifications: jest.fn().mockResolvedValue({ deadlineReminders: 0, moaWarnings: 0 }),
+  runDailyNotifications: jest
+    .fn()
+    .mockResolvedValue({ deadlineReminders: 0, moaWarnings: 0, errors: [] }),
 }));
 import { NextRequest } from "next/server";
 import { runDailyNotifications } from "@/lib/services/scheduledNotifications";
@@ -33,6 +35,24 @@ it("runs with the right secret", async () => {
     })
   );
   expect(res.status).toBe(200);
+});
+
+it("answers 500 when part of the run failed, so the scheduler sees it", async () => {
+  process.env.CRON_SECRET = "s3cret";
+  (runDailyNotifications as jest.Mock).mockResolvedValueOnce({
+    deadlineReminders: 3,
+    moaWarnings: 0,
+    errors: ["deadline:p-1"],
+  });
+  const res = await GET(
+    new NextRequest("http://localhost/api/cron/daily", {
+      headers: { authorization: "Bearer s3cret" },
+    })
+  );
+  expect(res.status).toBe(500);
+  await expect(res.json()).resolves.toEqual(
+    expect.objectContaining({ deadlineReminders: 3, errors: ["deadline:p-1"] })
+  );
 });
 
 it("refuses to run when CRON_SECRET is not configured at all", async () => {
