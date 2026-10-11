@@ -20,6 +20,11 @@ import {
 } from "@/lib/services/attendanceService";
 import { SemesterStateError } from "@/lib/services/semesterService";
 import {
+  ComplianceNotFoundError,
+  DataRequestStateError,
+  RetentionStateError,
+} from "@/lib/errors/compliance";
+import {
   LateSubmissionReasonRequiredError,
   WeeklyReportIncompleteError,
   WeeklyReportLockedError,
@@ -75,10 +80,14 @@ export function handleApiError(error: unknown): NextResponse {
   if (BAD_REQUEST_ERRORS.some((ErrorClass) => error instanceof ErrorClass)) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
-  if (error instanceof SemesterStateError) {
+  if (
+    error instanceof SemesterStateError ||
+    error instanceof DataRequestStateError ||
+    error instanceof RetentionStateError
+  ) {
     return NextResponse.json({ error: error.message }, { status: 409 });
   }
-  if (error instanceof HolidayNotFoundError) {
+  if (error instanceof HolidayNotFoundError || error instanceof ComplianceNotFoundError) {
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
