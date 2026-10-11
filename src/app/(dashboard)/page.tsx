@@ -17,10 +17,7 @@ import {
   FileBarChart2,
 } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import {
-  calculateRenderedHours,
-  computeProjectedCompletionDate,
-} from "@/lib/services/attendanceService";
+import { getHoursSummary, computeProjectedCompletionDate } from "@/lib/services/attendanceService";
 import { prisma } from "@/lib/prisma";
 import { getUserProfile } from "@/lib/services/userService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
@@ -180,10 +177,10 @@ export default async function DashboardHomePage() {
   } else if (user.role === Role.STUDENT_INTERN) {
     const profile = await getUserProfile(user.id);
     const studentProfile = profile?.studentProfile;
-    const [progress, renderedHours, projectedCompletion, reportsNeedingAction] = studentProfile
+    const [progress, hours, projectedCompletion, reportsNeedingAction] = studentProfile
       ? await Promise.all([
           getChecklistProgress(studentProfile.id),
-          calculateRenderedHours(studentProfile.id),
+          getHoursSummary(studentProfile.id),
           computeProjectedCompletionDate(studentProfile.id),
           prisma.weeklyReport.count({
             where: {
@@ -192,20 +189,23 @@ export default async function DashboardHomePage() {
             },
           }),
         ])
-      : [null, 0, null, 0];
-    const requiredHours = studentProfile?.requiredHours ?? 0;
+      : [null, null, null, 0];
+    const confirmedHours = hours?.confirmedHours ?? 0;
+    const requiredHours = hours?.requiredHours ?? 0;
 
     stats = (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          label="Hours rendered"
-          value={`${renderedHours} / ${requiredHours}`}
+          label="Hours rendered (confirmed)"
+          value={`${confirmedHours} / ${requiredHours}`}
           icon={Timer}
           tone="blue"
           hint={
-            requiredHours > 0
-              ? `${Math.min(100, Math.round((renderedHours / requiredHours) * 100))}% of required hours`
-              : undefined
+            hours && hours.pendingHours > 0
+              ? `+${hours.pendingHours} hrs pending review`
+              : requiredHours > 0
+                ? `${Math.min(100, Math.round((confirmedHours / requiredHours) * 100))}% of required hours`
+                : undefined
           }
         />
         <StatCard

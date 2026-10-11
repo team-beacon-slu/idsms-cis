@@ -1,5 +1,7 @@
 import {
   dailyEntrySchema,
+  isAttendanceStatus,
+  minutesBetween,
   monthlyReportSchema,
   weeklyReportGenerateSchema,
   weeklyReportReviewSchema,
@@ -88,5 +90,94 @@ describe("monthlyReportSchema", () => {
   it("rejects an out-of-range month number", () => {
     expect(() => monthlyReportSchema.parse({ calendarMonth: "2026-13" })).toThrow();
     expect(() => monthlyReportSchema.parse({ calendarMonth: "2026-00" })).toThrow();
+  });
+});
+
+const base = { dailyReportEntryId: "8a213754-eeaf-4ddb-abf2-b78af4a2af61" };
+
+describe("dailyEntrySchema attendance status and times", () => {
+  it("defaults to PRESENT and requires accomplishments when present", () => {
+    expect(dailyEntrySchema.safeParse({ ...base, hours: 8, accomplishments: "" }).success).toBe(
+      false
+    );
+    const ok = dailyEntrySchema.parse({ ...base, hours: 8, accomplishments: "Built login" });
+    expect(ok.attendanceStatus).toBe("PRESENT");
+  });
+
+  it("ABSENT and HOLIDAY need no accomplishments and must be 0 hours", () => {
+    expect(
+      dailyEntrySchema.safeParse({
+        ...base,
+        hours: 0,
+        accomplishments: "",
+        attendanceStatus: "ABSENT",
+      }).success
+    ).toBe(true);
+    expect(
+      dailyEntrySchema.safeParse({
+        ...base,
+        hours: 4,
+        accomplishments: "",
+        attendanceStatus: "HOLIDAY",
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects time out before time in", () => {
+    const r = dailyEntrySchema.safeParse({
+      ...base,
+      hours: 8,
+      accomplishments: "x",
+      timeIn: "17:00",
+      timeOut: "08:00",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects hours larger than the time window", () => {
+    const r = dailyEntrySchema.safeParse({
+      ...base,
+      hours: 9,
+      accomplishments: "x",
+      timeIn: "08:00",
+      timeOut: "16:00",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts hours within the window (lunch excluded by the student)", () => {
+    const r = dailyEntrySchema.safeParse({
+      ...base,
+      hours: 8,
+      accomplishments: "x",
+      timeIn: "08:00",
+      timeOut: "17:00",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects malformed times", () => {
+    expect(
+      dailyEntrySchema.safeParse({
+        ...base,
+        hours: 1,
+        accomplishments: "x",
+        timeIn: "8am",
+        timeOut: "09:00",
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("minutesBetween", () => {
+  it("counts minutes between HH:MM times", () => {
+    expect(minutesBetween("08:00", "17:30")).toBe(570);
+  });
+});
+
+describe("isAttendanceStatus", () => {
+  it("narrows only the three stored statuses", () => {
+    expect(isAttendanceStatus("ABSENT")).toBe(true);
+    expect(isAttendanceStatus("SCHEDULED")).toBe(false);
   });
 });

@@ -15,6 +15,7 @@ import {
   type ConfigureWorkScheduleInput,
 } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
+import type { AttendanceStatus } from "@/lib/validators/report";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import {
   addDays,
@@ -64,13 +65,19 @@ export function getLatestSubmission(revisionHistory: unknown): WeeklyReportSubmi
   return null;
 }
 
+// Only these entry types move a report through review. Informational entries
+// (e.g. SIGNED_COPY_UPLOADED) must never change locked/unlocked state.
+const LIFECYCLE_ENTRY_TYPES = new Set(["SUBMITTED", "RETURNED"]);
+
 export function isAwaitingReview(report: {
   status: WeeklyReportStatus;
   revisionHistory: unknown;
 }): boolean {
   if (FINAL_STATUSES.has(report.status)) return false;
-  const history = getWeeklyReportHistory(report.revisionHistory);
-  return history[history.length - 1]?.type === "SUBMITTED";
+  const lifecycle = getWeeklyReportHistory(report.revisionHistory).filter((e) =>
+    LIFECYCLE_ENTRY_TYPES.has(e.type)
+  );
+  return lifecycle[lifecycle.length - 1]?.type === "SUBMITTED";
 }
 
 // The student may edit daily entries only while the report is a draft or
@@ -293,8 +300,17 @@ export async function saveDailyAccomplishment(
   hours: number,
   accomplishments: string,
   studentUserId: string,
-  toolsUsed?: string | null
+  toolsUsed?: string | null,
+  details: {
+    attendanceStatus?: AttendanceStatus;
+    timeIn?: string | null;
+    timeOut?: string | null;
+  } = {}
 ): Promise<{ id: string; hours: number; accomplishments: string }> {
+  // Explicit status wins; legacy callers (no status) keep the old
+  // hours-derived behaviour. Non-PRESENT days always count 0 hours.
+  const status: AttendanceStatus = details.attendanceStatus ?? (hours > 0 ? "PRESENT" : "ABSENT");
+  const isPresent = status === "PRESENT";
   return prisma.$transaction(async (tx) => {
     const entry = await tx.dailyReportEntry.findUniqueOrThrow({
       where: { id: dailyReportEntryId },
@@ -319,11 +335,18 @@ export async function saveDailyAccomplishment(
     const updated = await tx.dailyReportEntry.update({
       where: { id: dailyReportEntryId },
       data: {
-        actualHours: hours,
-        accomplishments,
-        // Optional third column of the daily form; undefined leaves it untouched.
-        ...(toolsUsed !== undefined ? { toolsUsed: toolsUsed || null } : {}),
-        attendanceStatus: hours > 0 ? "PRESENT" : "ABSENT",
+        attendanceStatus: status,
+        ...(isPresent
+          ? {
+              actualHours: hours,
+              accomplishments,
+              // Optional third column of the daily form; undefined leaves it untouched.
+              ...(toolsUsed !== undefined ? { toolsUsed: toolsUsed || null } : {}),
+              ...(details.timeIn !== undefined ? { timeIn: details.timeIn } : {}),
+              ...(details.timeOut !== undefined ? { timeOut: details.timeOut } : {}),
+            }
+          : // Absent/holiday days carry nothing that could print on the PDF.
+            { actualHours: 0, accomplishments: "", toolsUsed: null, timeIn: null, timeOut: null }),
       },
       select: { id: true, actualHours: true, accomplishments: true },
     });
@@ -390,7 +413,9 @@ export async function recordWeeklyReportSubmission(
         status: true,
         weekEnd: true,
         revisionHistory: true,
-        dailyEntries: { select: { actualHours: true, accomplishments: true } },
+        dailyEntries: {
+          select: { actualHours: true, accomplishments: true, attendanceStatus: true },
+        },
       },
     });
 
@@ -399,7 +424,11 @@ export async function recordWeeklyReportSubmission(
     }
     const incomplete =
       report.dailyEntries.length === 0 ||
-      report.dailyEntries.some((e) => e.actualHours == null || !e.accomplishments?.trim());
+      report.dailyEntries.some((e) => {
+        if (e.actualHours == null || e.attendanceStatus === "SCHEDULED") return true;
+        // Absent/holiday days carry no accomplishments.
+        return e.attendanceStatus === "PRESENT" && !e.accomplishments?.trim();
+      });
     if (incomplete) {
       throw new WeeklyReportIncompleteError();
     }
@@ -691,4 +720,103 @@ export async function getDailyReportEntryWeeklyReportId(
     select: { weeklyReportId: true },
   });
   return dailyReportEntry.weeklyReportId;
+}
+
+export interface SignedCopyEntry extends WeeklyReportHistoryEntry {
+  type: "SIGNED_COPY_UPLOADED";
+  path: string;
+  uploadedBy: string;
+  // The submission the manager signed. Older entries (before this field)
+  // have none and are never treated as current.
+  referenceCode?: string;
+}
+
+export class SignedCopyNotAllowedError extends Error {
+  constructor(message = "Submit the report before uploading its signed copy") {
+    super(message);
+    this.name = "SignedCopyNotAllowedError";
+  }
+}
+
+export function getLatestSignedCopy(revisionHistory: unknown): SignedCopyEntry | null {
+  const history = getWeeklyReportHistory(revisionHistory);
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i].type === "SIGNED_COPY_UPLOADED") return history[i] as SignedCopyEntry;
+  }
+  return null;
+}
+
+// D2 default: optional evidence of the company supervisor's signature,
+// recorded on the report's history (no schema change). Allowed any time
+// after submission — including after approval, when signing usually happens
+// — but never on a disregarded report.
+export async function attachSignedCopy(
+  weeklyReportId: string,
+  path: string,
+  actingUser: { id: string; role: Role },
+  ipAddress?: string | null
+): Promise<SignedCopyEntry> {
+  return prisma.$transaction(async (tx) => {
+    const report = await tx.weeklyReport.findUniqueOrThrow({
+      where: { id: weeklyReportId },
+      select: { status: true, revisionHistory: true },
+    });
+    if (report.status === WeeklyReportStatus.DISREGARDED) {
+      throw new SignedCopyNotAllowedError();
+    }
+    const submission = assertSignedCopyAllowed(report);
+
+    const entry: SignedCopyEntry = {
+      type: "SIGNED_COPY_UPLOADED",
+      timestamp: new Date().toISOString(),
+      path,
+      uploadedBy: actingUser.id,
+      referenceCode: submission.referenceCode,
+    };
+    await tx.weeklyReport.update({
+      where: { id: weeklyReportId },
+      data: {
+        revisionHistory: [
+          ...getWeeklyReportHistory(report.revisionHistory),
+          entry,
+        ] as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "SIGNED_COPY_UPLOADED",
+        entityType: "WeeklyReport",
+        entityId: weeklyReportId,
+        ipAddress,
+      },
+      tx
+    );
+    return entry;
+  });
+}
+
+// A signed copy can only be attached to the submission the student currently
+// stands behind (not a draft, not a returned report under revision, not a
+// disregarded one). Returns that submission so callers can key the file to
+// its reference code. Pure, so the route can check before storing anything.
+export function assertSignedCopyAllowed(report: {
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}): WeeklyReportSubmissionEntry {
+  const submission =
+    report.status === WeeklyReportStatus.DISREGARDED ? null : getConfirmedSubmission(report);
+  if (!submission) throw new SignedCopyNotAllowedError();
+  return submission;
+}
+
+// The signed copy for the current confirmed submission, or null. A copy from
+// before a Return + resubmit carries the old reference code and is stale.
+export function getCurrentSignedCopy(report: {
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}): SignedCopyEntry | null {
+  const submission = getConfirmedSubmission(report);
+  const signed = getLatestSignedCopy(report.revisionHistory);
+  return submission && signed?.referenceCode === submission.referenceCode ? signed : null;
 }

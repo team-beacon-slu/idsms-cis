@@ -52,6 +52,27 @@ export function validateUpload(file: File): void {
   }
 }
 
+// file.type is whatever the browser (or an attacker) declared, so the
+// leading bytes must match it too — otherwise e.g. an HTML page renamed
+// .png would be stored and later served as an "image".
+const FILE_SIGNATURES: Record<string, number[][]> = {
+  "application/pdf": [[0x25, 0x50, 0x44, 0x46]], // %PDF
+  "image/png": [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  "image/jpeg": [[0xff, 0xd8, 0xff]],
+};
+
+export async function assertFileSignature(file: File): Promise<void> {
+  const signatures = FILE_SIGNATURES[file.type];
+  if (!signatures) {
+    throw new InvalidFileError(`Unsupported file type: ${file.type || "unknown"}`);
+  }
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  const matches = signatures.some((sig) => sig.every((byte, i) => head[i] === byte));
+  if (!matches) {
+    throw new InvalidFileError("File contents don't match its type");
+  }
+}
+
 // upsert:true so a Return -> re-upload cycle overwrites in place rather than
 // accumulating orphaned versions against the 1GB free-tier cap.
 export async function uploadFile(bucket: string, path: string, file: File): Promise<string> {

@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, isWeeklyReportLate } from "@/lib/utils/reportDeadline";
+import { isAttendanceStatus, minutesBetween, type AttendanceStatus } from "@/lib/validators/report";
+import { autoHoursFromTimes } from "./auto-hours";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
 
@@ -38,6 +40,9 @@ export interface DailyEntryRow {
   actualHours: number | null;
   accomplishments: string | null;
   toolsUsed: string | null;
+  attendanceStatus: string; // PRESENT | ABSENT | HOLIDAY | SCHEDULED (unfilled)
+  timeIn: string | null; // "HH:MM"
+  timeOut: string | null;
 }
 
 export interface WeeklyTotals {
@@ -47,10 +52,29 @@ export interface WeeklyTotals {
 }
 
 interface RowState {
+  status: AttendanceStatus;
   hours: string;
+  timeIn: string;
+  timeOut: string;
   accomplishments: string;
   toolsUsed: string;
   dirty: boolean;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  PRESENT: "Present",
+  ABSENT: "Absent",
+  HOLIDAY: "Holiday",
+  SCHEDULED: "Not filled",
+};
+
+// Pre-fills hours from the time pair (see auto-hours.ts); the student can
+// still edit hours down.
+function withAutoHours(row: RowState): Partial<RowState> {
+  const hours = autoHoursFromTimes(row.timeIn, row.timeOut);
+  return hours === null
+    ? { timeIn: row.timeIn, timeOut: row.timeOut }
+    : { timeIn: row.timeIn, timeOut: row.timeOut, hours: String(hours) };
 }
 
 function formatDay(iso: string) {
@@ -102,7 +126,11 @@ export function WeeklyReportForm({
       entries.map((e) => [
         e.id,
         {
+          // An unfilled (SCHEDULED) day starts as Present.
+          status: isAttendanceStatus(e.attendanceStatus) ? e.attendanceStatus : "PRESENT",
           hours: e.actualHours == null ? "" : String(e.actualHours),
+          timeIn: e.timeIn ?? "",
+          timeOut: e.timeOut ?? "",
           accomplishments: e.accomplishments ?? "",
           toolsUsed: e.toolsUsed ?? "",
           dirty: false,
@@ -121,15 +149,18 @@ export function WeeklyReportForm({
   // Entry id → why it was flagged. Previous-week matches take precedence.
   const copyPasteFlags = useMemo(() => {
     const flags: Record<string, string> = {};
+    const textOf = (id: string) =>
+      rows[id]?.status === "PRESENT" ? (rows[id]?.accomplishments ?? "") : "";
     entries.forEach((entry, index) => {
-      const text = rows[entry.id]?.accomplishments ?? "";
+      if (rows[entry.id]?.status !== "PRESENT") return;
+      const text = textOf(entry.id);
       if (priorAccomplishments.some((prior) => detectCopyPasteWarning(text, prior))) {
         flags[entry.id] = "Nearly identical to an entry from your previous week";
         return;
       }
       const earlier = entries
         .slice(0, index)
-        .find((other) => detectCopyPasteWarning(text, rows[other.id]?.accomplishments ?? ""));
+        .find((other) => detectCopyPasteWarning(text, textOf(other.id)));
       if (earlier) {
         flags[entry.id] = `Nearly identical to ${formatDay(earlier.reportDate)}`;
       }
@@ -146,9 +177,16 @@ export function WeeklyReportForm({
 
   function rowProblem(entry: DailyEntryRow): string | null {
     const row = rows[entry.id];
+    // Absent and holiday days count 0 hours and need no description.
+    if (row.status !== "PRESENT") return null;
     const hours = Number(row.hours);
-    if (row.hours === "" || Number.isNaN(hours)) return "Enter hours worked (0 if absent)";
+    if (row.hours === "" || Number.isNaN(hours)) return "Enter hours worked";
     if (hours < 0 || hours > 24) return "Hours must be between 0 and 24";
+    if (row.timeIn && row.timeOut) {
+      const window = minutesBetween(row.timeIn, row.timeOut);
+      if (window <= 0) return "Time out must be after time in";
+      if (hours * 60 > window + 0.5) return "Hours can't exceed the time between time in and out";
+    }
     if (!row.accomplishments.trim()) return "Describe what you accomplished";
     return null;
   }
@@ -168,9 +206,12 @@ export function WeeklyReportForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dailyReportEntryId: entry.id,
-          hours: Number(row.hours),
-          accomplishments: row.accomplishments.trim(),
-          toolsUsed: row.toolsUsed.trim() || undefined,
+          hours: row.status === "PRESENT" ? Number(row.hours) : 0,
+          accomplishments: row.status === "PRESENT" ? row.accomplishments.trim() : "",
+          toolsUsed: (row.status === "PRESENT" && row.toolsUsed.trim()) || undefined,
+          attendanceStatus: row.status,
+          timeIn: (row.status === "PRESENT" && row.timeIn) || undefined,
+          timeOut: (row.status === "PRESENT" && row.timeOut) || undefined,
         }),
       });
       if (!res.ok) {
@@ -268,6 +309,8 @@ export function WeeklyReportForm({
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="py-2 pr-3 font-medium">Day</th>
+                <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 pr-3 font-medium">Time</th>
                 <th className="py-2 pr-3 font-medium">Hours</th>
                 <th className="py-2 pr-3 font-medium">Accomplishments</th>
                 <th className="py-2 font-medium">Tools used</th>
@@ -278,6 +321,12 @@ export function WeeklyReportForm({
                 <tr key={entry.id} className="border-b align-top last:border-0">
                   <td className="whitespace-nowrap py-2 pr-3 text-muted-foreground">
                     {formatDay(entry.reportDate)}
+                  </td>
+                  <td className="py-2 pr-3">
+                    {STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus}
+                  </td>
+                  <td className="whitespace-nowrap py-2 pr-3 text-muted-foreground">
+                    {entry.timeIn && entry.timeOut ? `${entry.timeIn}–${entry.timeOut}` : "—"}
                   </td>
                   <td className="py-2 pr-3">
                     {entry.actualHours ?? "—"}
@@ -306,7 +355,7 @@ export function WeeklyReportForm({
             <div
               key={entry.id}
               className={cn(
-                "grid gap-3 rounded-lg border p-3 sm:grid-cols-[8rem_6rem_1fr]",
+                "grid gap-3 rounded-lg border p-3 sm:grid-cols-[8rem_10rem_1fr]",
                 flag &&
                   "border-amber-300 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/5"
               )}
@@ -318,42 +367,112 @@ export function WeeklyReportForm({
                 </p>
                 {row.dirty && <p className="mt-1 text-xs text-amber-600">Unsaved</p>}
               </div>
-              <div className="space-y-1">
-                <Label htmlFor={`hours-${entry.id}`} className="text-xs">
-                  Hours
-                </Label>
-                <Input
-                  id={`hours-${entry.id}`}
-                  type="number"
-                  min={0}
-                  max={24}
-                  step={0.25}
-                  value={row.hours}
-                  disabled={isPending}
-                  onChange={(e) => updateRow(entry.id, { hours: e.target.value })}
-                />
-              </div>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <Label htmlFor={`acc-${entry.id}`} className="text-xs">
-                    Accomplishments
+                  <Label htmlFor={`status-${entry.id}`} className="text-xs">
+                    Status
                   </Label>
-                  <Textarea
-                    id={`acc-${entry.id}`}
-                    rows={2}
-                    value={row.accomplishments}
+                  <select
+                    id={`status-${entry.id}`}
+                    value={row.status}
                     disabled={isPending}
-                    onChange={(e) => updateRow(entry.id, { accomplishments: e.target.value })}
-                    placeholder="What did you work on and finish today?"
-                  />
+                    onChange={(e) => {
+                      const status = e.target.value;
+                      if (!isAttendanceStatus(status)) return;
+                      updateRow(
+                        entry.id,
+                        status === "PRESENT"
+                          ? { status }
+                          : { status, hours: "0", timeIn: "", timeOut: "", toolsUsed: "" }
+                      );
+                    }}
+                    className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-2 text-sm disabled:cursor-not-allowed"
+                  >
+                    <option value="PRESENT">Present</option>
+                    <option value="ABSENT">Absent</option>
+                    <option value="HOLIDAY">Holiday</option>
+                  </select>
                 </div>
-                <Input
-                  aria-label={`Tools used on ${formatDay(entry.reportDate)}`}
-                  value={row.toolsUsed}
-                  disabled={isPending}
-                  onChange={(e) => updateRow(entry.id, { toolsUsed: e.target.value })}
-                  placeholder="Tools used (optional) — e.g. VS Code, Figma"
-                />
+                {row.status === "PRESENT" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label htmlFor={`in-${entry.id}`} className="text-xs">
+                          Time in
+                        </Label>
+                        <Input
+                          id={`in-${entry.id}`}
+                          type="time"
+                          value={row.timeIn}
+                          disabled={isPending}
+                          onChange={(e) =>
+                            updateRow(entry.id, withAutoHours({ ...row, timeIn: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`out-${entry.id}`} className="text-xs">
+                          Time out
+                        </Label>
+                        <Input
+                          id={`out-${entry.id}`}
+                          type="time"
+                          value={row.timeOut}
+                          disabled={isPending}
+                          onChange={(e) =>
+                            updateRow(entry.id, withAutoHours({ ...row, timeOut: e.target.value }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`hours-${entry.id}`} className="text-xs">
+                        Hours
+                      </Label>
+                      <Input
+                        id={`hours-${entry.id}`}
+                        type="number"
+                        min={0}
+                        max={24}
+                        step={0.25}
+                        value={row.hours}
+                        disabled={isPending}
+                        onChange={(e) => updateRow(entry.id, { hours: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="space-y-2">
+                {row.status === "PRESENT" ? (
+                  <>
+                    <div className="space-y-1">
+                      <Label htmlFor={`acc-${entry.id}`} className="text-xs">
+                        Accomplishments
+                      </Label>
+                      <Textarea
+                        id={`acc-${entry.id}`}
+                        rows={2}
+                        value={row.accomplishments}
+                        disabled={isPending}
+                        onChange={(e) => updateRow(entry.id, { accomplishments: e.target.value })}
+                        placeholder="What did you work on and finish today?"
+                      />
+                    </div>
+                    <Input
+                      aria-label={`Tools used on ${formatDay(entry.reportDate)}`}
+                      value={row.toolsUsed}
+                      disabled={isPending}
+                      onChange={(e) => updateRow(entry.id, { toolsUsed: e.target.value })}
+                      placeholder="Tools used (optional) — e.g. VS Code, Figma"
+                    />
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {row.status === "HOLIDAY" ? "Holiday" : "Absent"} — counts 0 hours; no
+                    accomplishments needed.
+                  </p>
+                )}
                 {flag && (
                   <p className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                     <AlertTriangle className="size-3.5" aria-hidden="true" />

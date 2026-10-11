@@ -28,6 +28,9 @@ function sample(overrides: Partial<WeeklyReportDocumentData> = {}): WeeklyReport
         actualHours: 8,
         accomplishments: "Built the login page",
         toolsUsed: "VS Code",
+        attendanceStatus: "PRESENT",
+        timeIn: "08:00",
+        timeOut: "17:00",
       },
     ],
     totals: { totalHours: 8, runningTotal: 48, remainingHours: 552 },
@@ -74,6 +77,9 @@ describe("renderWeeklyReportHtml", () => {
             actualHours: 8,
             accomplishments: "<script>alert(1)</script></td>",
             toolsUsed: `"quoted" & <b>`,
+            attendanceStatus: "<u>PRESENT</u>",
+            timeIn: "<i>08:00",
+            timeOut: "17:00",
           },
         ],
         company: { name: "A&B <Corp>", supervisorName: "O'Neil" },
@@ -82,8 +88,40 @@ describe("renderWeeklyReportHtml", () => {
     );
     expect(html).not.toContain("<script>alert(1)");
     expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("<i>08:00");
+    expect(html).not.toContain("<u>PRESENT");
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;&lt;/td&gt;");
     expect(html).toContain("A&amp;B &lt;Corp&gt;");
+  });
+
+  it("shows each day's attendance status and time in/out", () => {
+    const html = renderWeeklyReportHtml(
+      sample({
+        entries: [
+          {
+            reportDate: new Date("2026-10-05T00:00:00Z"),
+            actualHours: 8,
+            accomplishments: "Built the login page",
+            toolsUsed: null,
+            attendanceStatus: "PRESENT",
+            timeIn: "08:00",
+            timeOut: "17:00",
+          },
+          {
+            reportDate: new Date("2026-10-06T00:00:00Z"),
+            actualHours: 0,
+            accomplishments: null,
+            toolsUsed: null,
+            attendanceStatus: "HOLIDAY",
+            timeIn: null,
+            timeOut: null,
+          },
+        ],
+      })
+    );
+    expect(html).toContain("<th>Status</th>");
+    expect(html).toContain("08:00–17:00");
+    expect(html).toContain("Holiday");
   });
 
   it("shows the delay reason only when present", () => {
