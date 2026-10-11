@@ -4,6 +4,7 @@ import { bulkImportRequestSchema, bulkImportRowSchema } from "@/lib/validators/u
 import { bulkImportStudents, BulkImportInputRow } from "@/lib/services/userService";
 import { parseImportFile } from "@/lib/utils/fileImport";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
+import { notifyAccountsCreatedByEmail } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function POST(req: NextRequest) {
@@ -44,6 +45,10 @@ export async function POST(req: NextRequest) {
       semesterId,
       user.id,
       ipAddress
+    );
+    // FR-NT-01 #1 for each created student (passwords never leave this response).
+    await notifyAccountsCreatedByEmail(
+      result.results.filter((r) => r.status === "created").map((r) => r.email)
     );
 
     return NextResponse.json({

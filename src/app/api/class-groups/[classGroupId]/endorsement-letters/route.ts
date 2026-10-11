@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { verifyCredentials } from "@/lib/services/userService";
 import { generateBulkEndorsementLetters } from "@/lib/services/documentService";
+import { notifyEndorsementReady } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";
@@ -68,9 +69,12 @@ export async function POST(req: NextRequest, { params }: { params: { classGroupI
       );
     }
 
-    return NextResponse.json(
-      await generateBulkEndorsementLetters(params.classGroupId, user.id, semesterIds)
-    );
+    const result = await generateBulkEndorsementLetters(params.classGroupId, user.id, semesterIds);
+    // FR-NT-01 #7 for every newly generated letter (never throws).
+    for (const { studentProfileId } of result.generated) {
+      await notifyEndorsementReady(studentProfileId);
+    }
+    return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);
   }

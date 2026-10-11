@@ -9,6 +9,7 @@ import {
 import { weeklyReportSubmitSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
+import { notifyReportSubmitted } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-05 + FR-WR-10: student self-only. The late-reason gate runs first so
@@ -33,6 +34,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       user,
       ipAddress
     );
+    // FR-NT-01 #3 — never throws, so it can't fail the submission.
+    await notifyReportSubmitted({
+      studentUserId: user.id,
+      studentProfileId: report.studentProfileId,
+      referenceCode,
+      late: submission.late,
+    });
     return NextResponse.json({ referenceCode, timestamp, late: submission.late }, { status: 201 });
   } catch (error) {
     return handleApiError(error);

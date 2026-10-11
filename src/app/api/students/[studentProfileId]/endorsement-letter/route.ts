@@ -7,6 +7,7 @@ import {
   getEndorsementLetterDocument,
   getGeneratedDocumentDownloadUrl,
 } from "@/lib/services/documentService";
+import { notifyEndorsementReady } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";
@@ -35,7 +36,11 @@ export async function POST(req: NextRequest, { params }: { params: { studentProf
     const user = await requireUserApi();
     requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN, Role.FACULTY_ADVISER]);
     await assertCanAccessStudent(user, params.studentProfileId);
-    return NextResponse.json(await generateEndorsementLetterPdf(params.studentProfileId, user.id));
+    const result = await generateEndorsementLetterPdf(params.studentProfileId, user.id);
+    if (result.status === "GENERATED") {
+      await notifyEndorsementReady(params.studentProfileId); // FR-NT-01 #7
+    }
+    return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);
   }
