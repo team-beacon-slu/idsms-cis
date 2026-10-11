@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
+import { CHECKLIST_REQUIRED } from "@/lib/utils/checklist";
 import { StatusBadge } from "@/components/status-badge";
 import {
   Table,
@@ -83,7 +84,7 @@ export function ComplianceTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  {row.checklistApproved}/{row.checklistTotal}
+                  {row.checklistApproved}/{CHECKLIST_REQUIRED}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col items-start gap-1">

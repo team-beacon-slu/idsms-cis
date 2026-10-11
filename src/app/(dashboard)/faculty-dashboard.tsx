@@ -14,7 +14,8 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
   const [rows, assigned] = await Promise.all([
     getComplianceRows({ kind: "faculty", facultyId }),
     prisma.facultyClassGroup.findMany({
-      where: { facultyId },
+      // Same scope as the KPIs: archived semesters are last term's cohort.
+      where: { facultyId, semester: { archivedAt: null } },
       select: { classGroupId: true, classGroup: { select: { name: true } } },
     }),
   ]);

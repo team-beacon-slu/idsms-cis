@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Program } from "@prisma/client";
+import { Program, Role } from "@prisma/client";
 import { z } from "zod";
-import { requireUserApi } from "@/lib/auth/session";
+import { requireRole, requireUserApi } from "@/lib/auth/session";
 import {
   getComplianceRows,
   resolveComplianceScope,
   type ComplianceRow,
 } from "@/lib/services/complianceService";
 import { buildWorkbook, toSheetRows, xlsxResponse } from "@/lib/utils/excelExport";
+import { CHECKLIST_REQUIRED } from "@/lib/utils/checklist";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";
 
 const querySchema = z.object({
-  semesterId: z.string().min(1).optional(),
+  semesterId: z.string().uuid().optional(),
   program: z.nativeEnum(Program).optional(),
   status: z.enum(["NOT_DEPLOYED", "NEEDS_ATTENTION", "ON_TRACK", "COMPLETED"]).optional(),
 });
@@ -38,7 +39,7 @@ const COLUMNS: Array<{ key: string; header: string }> = [
 
 const toRecord = (r: ComplianceRow): ExportRecord => ({
   ...r,
-  checklistApproved: `${r.checklistApproved}/${r.checklistTotal}`,
+  checklistApproved: `${r.checklistApproved}/${CHECKLIST_REQUIRED}`,
 });
 
 // FR-DB-03 / FR-DB-04 / FR-DB-08: compliance spreadsheet. Faculty always get
@@ -48,6 +49,7 @@ const toRecord = (r: ComplianceRow): ExportRecord => ({
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUserApi();
+    requireRole(user, [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR, Role.FACULTY_ADVISER]);
     const query = querySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
     const scope = await resolveComplianceScope(user, {
       semesterId: query.semesterId,

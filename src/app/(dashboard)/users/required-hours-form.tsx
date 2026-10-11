@@ -50,7 +50,7 @@ export function RequiredHoursForm({ initial }: { initial: Row[] }) {
           continue;
         }
         setSaved((s) => ({ ...s, [program]: hours }));
-        toast.success(`${program} required hours saved`);
+        toast.success(`${program} default saved for newly imported students`);
       }
     } catch {
       toast.error("Could not reach the server — check your connection and try again");

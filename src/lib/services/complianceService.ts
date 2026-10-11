@@ -3,6 +3,7 @@ import { Role, type Prisma, type Program, type WeeklyReportStatus } from "@prism
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/services/userService";
 import { getLatestSubmission, isAwaitingReview } from "@/lib/services/weeklyReportService";
+import { CHECKLIST_REQUIRED } from "@/lib/utils/checklist";
 import { formatManilaDateTime } from "@/lib/utils/excelExport";
 import {
   addDays,
@@ -38,7 +39,6 @@ export interface ComplianceRow {
   status: ComplianceStatus;
 }
 
-const CHECKLIST_REQUIRED = 9;
 const CONFIRMING_STATUSES = new Set<WeeklyReportStatus>(["APPROVED", "REGARDED"]);
 const UNSUBMITTED_STATES = new Set<ReportState>(["NOT_STARTED", "DRAFT", "RETURNED"]);
 const SUBMITTED_STATES = new Set<ReportState>(["SUBMITTED", "APPROVED", "REGARDED", "DISREGARDED"]);
@@ -103,7 +103,9 @@ async function scopeWhere(scope: ComplianceScope): Promise<Prisma.StudentProfile
     };
   }
   const pairs = await prisma.facultyClassGroup.findMany({
-    where: { facultyId: scope.facultyId },
+    // Archived semesters are last term's cohort; they leave the adviser's
+    // working scope (the department view still reads them, FR-DB-07).
+    where: { facultyId: scope.facultyId, semester: { archivedAt: null } },
     select: { classGroupId: true, semesterId: true },
   });
   // Zero pairs means zero students; never send an empty `OR: []`.
@@ -328,8 +330,11 @@ export async function resolveComplianceScope(
   user: { id: string; role: Role },
   params: { semesterId?: string | null; program?: Program }
 ): Promise<ComplianceScope | null> {
-  if (user.role === Role.STUDENT_INTERN) throw new ForbiddenError();
+  // Fail closed: only explicitly listed staff roles get a scope.
   if (user.role === Role.FACULTY_ADVISER) return { kind: "faculty", facultyId: user.id };
+  if (user.role !== Role.SUPER_ADMIN && user.role !== Role.DEPARTMENT_COORDINATOR) {
+    throw new ForbiddenError();
+  }
   const semester = await resolveDepartmentSemester(params.semesterId);
   if (!semester) return null;
   return {

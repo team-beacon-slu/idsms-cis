@@ -13,7 +13,6 @@ import { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
 import { requireUserApi } from "@/lib/auth/session";
 import { getWeeklySummaryRows, resolveComplianceScope } from "@/lib/services/complianceService";
-import { ForbiddenError } from "@/lib/services/userService";
 import { GET } from "@/app/api/compliance/weekly-summary/route";
 
 type SummaryRow = Awaited<ReturnType<typeof getWeeklySummaryRows>>[number];
@@ -55,7 +54,9 @@ it("exports Summary and Students sheets for a faculty adviser's own students", a
     row({ studentNumber: "2021-0002", state: "NOT_STARTED", hours: 0, submittedAt: null }),
   ]);
 
-  const res = await GET(request("?weekStart=2026-10-05&semesterId=sem-x&program=BSCS"));
+  const res = await GET(
+    request("?weekStart=2026-10-05&semesterId=22222222-2222-4222-8222-222222222222&program=BSCS")
+  );
 
   expect(res.status).toBe(200);
   expect(res.headers.get("Content-Type")).toBe(XLSX_TYPE);
@@ -123,17 +124,19 @@ it("gives a coordinator the department scope with the semester and program filte
   asUser("DEPARTMENT_COORDINATOR", "c-1");
   (resolveComplianceScope as jest.Mock).mockResolvedValue({
     kind: "department",
-    semesterId: "sem-1",
+    semesterId: "11111111-1111-4111-8111-111111111111",
     program: "BSIT",
   });
   (getWeeklySummaryRows as jest.Mock).mockResolvedValue([]);
 
-  const res = await GET(request("?weekStart=2026-10-05&semesterId=sem-1&program=BSIT"));
+  const res = await GET(
+    request("?weekStart=2026-10-05&semesterId=11111111-1111-4111-8111-111111111111&program=BSIT")
+  );
 
   expect(res.status).toBe(200);
   expect(resolveComplianceScope).toHaveBeenCalledWith(
     { id: "c-1", role: "DEPARTMENT_COORDINATOR" },
-    { semesterId: "sem-1", program: "BSIT" }
+    { semesterId: "11111111-1111-4111-8111-111111111111", program: "BSIT" }
   );
 });
 
@@ -196,12 +199,22 @@ it("answers 404 when a coordinator has no active semester", async () => {
   expect(getWeeklySummaryRows).not.toHaveBeenCalled();
 });
 
-it("refuses students with 403", async () => {
+it("refuses students at the route with the requireRole rejection (401)", async () => {
   asUser("STUDENT_INTERN", "s-1");
-  (resolveComplianceScope as jest.Mock).mockRejectedValue(new ForbiddenError());
 
   const res = await GET(request("?weekStart=2026-10-05"));
 
-  expect(res.status).toBe(403);
+  expect(res.status).toBe(401);
+  await expect(res.json()).resolves.toEqual({ error: "Insufficient role" });
+  expect(resolveComplianceScope).not.toHaveBeenCalled();
   expect(getWeeklySummaryRows).not.toHaveBeenCalled();
+});
+
+it("rejects a non-UUID semesterId with 400 instead of a 500", async () => {
+  asUser("DEPARTMENT_COORDINATOR");
+
+  const res = await GET(request("?semesterId=not-a-uuid"));
+
+  expect(res.status).toBe(400);
+  expect(resolveComplianceScope).not.toHaveBeenCalled();
 });

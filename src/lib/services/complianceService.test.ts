@@ -220,6 +220,23 @@ describe("getComplianceRows", () => {
     });
   });
 
+  it("excludes class-group pairs from archived semesters from faculty scope", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+      { classGroupId: "cg-1", semesterId: "sem-active" },
+    ] as never);
+    prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
+    await getComplianceRows({ kind: "faculty", facultyId: "f-1" }, NOW);
+
+    const pairQuery = prismaMock.facultyClassGroup.findMany.mock.calls[0][0] as {
+      where: unknown;
+    };
+    expect(pairQuery.where).toEqual({ facultyId: "f-1", semester: { archivedAt: null } });
+    const args = prismaMock.studentProfile.findMany.mock.calls[0][0] as { where: unknown };
+    expect(args.where).toMatchObject({
+      OR: [{ classGroupId: "cg-1", semesterId: "sem-active" }],
+    });
+  });
+
   it("filters department scope by semester and program only (archived semesters stay readable)", async () => {
     prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
     await getComplianceRows({ kind: "department", semesterId: "sem-old", program: "BSCS" }, NOW);
@@ -339,6 +356,13 @@ describe("resolveComplianceScope", () => {
     await expect(resolveComplianceScope({ id: "u-1", role: "STUDENT_INTERN" }, {})).rejects.toThrow(
       ForbiddenError
     );
+  });
+
+  it("fails closed for a role that is not staff", async () => {
+    await expect(
+      resolveComplianceScope({ id: "x-1", role: "SOMETHING_ELSE" as never }, {})
+    ).rejects.toThrow(ForbiddenError);
+    expect(prismaMock.semester.findFirst).not.toHaveBeenCalled();
   });
 
   it("gives faculty their own scope and ignores semester and program params", async () => {

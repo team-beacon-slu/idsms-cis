@@ -216,17 +216,20 @@ export async function CoordinatorDashboard({
                   <Download className="size-4" aria-hidden="true" />
                   Export to Excel
                 </a>
-                <a
-                  href={weeklySummaryHref}
-                  download
-                  className={cn(
-                    buttonVariants({ size: "sm", variant: "outline" }),
-                    "cursor-pointer gap-1.5 transition-colors duration-200"
-                  )}
-                >
-                  <Download className="size-4" aria-hidden="true" />
-                  Weekly summary (Excel)
-                </a>
+                {/* An archived semester has no due week to report on: the sheet would be all "Not started". */}
+                {!semester.archivedAt && (
+                  <a
+                    href={weeklySummaryHref}
+                    download
+                    className={cn(
+                      buttonVariants({ size: "sm", variant: "outline" }),
+                      "cursor-pointer gap-1.5 transition-colors duration-200"
+                    )}
+                  >
+                    <Download className="size-4" aria-hidden="true" />
+                    Weekly summary (Excel)
+                  </a>
+                )}
               </div>
             )}
           </div>

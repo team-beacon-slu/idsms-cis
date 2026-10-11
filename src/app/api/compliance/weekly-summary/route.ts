@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Program } from "@prisma/client";
+import { Program, Role } from "@prisma/client";
 import { z } from "zod";
-import { requireUserApi } from "@/lib/auth/session";
+import { requireRole, requireUserApi } from "@/lib/auth/session";
 import {
   getWeeklySummaryRows,
   resolveComplianceScope,
@@ -30,7 +30,7 @@ const mondayDate = z
 
 const querySchema = z.object({
   weekStart: mondayDate.optional(),
-  semesterId: z.string().min(1).optional(),
+  semesterId: z.string().uuid().optional(),
   program: z.nativeEnum(Program).optional(),
 });
 
@@ -63,6 +63,7 @@ const STUDENT_COLUMNS: Array<{ key: keyof WeeklySummaryRow; header: string }> = 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUserApi();
+    requireRole(user, [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR, Role.FACULTY_ADVISER]);
     const query = querySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
     const scope = await resolveComplianceScope(user, {
       semesterId: query.semesterId,

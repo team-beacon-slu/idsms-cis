@@ -17,7 +17,6 @@ import {
   resolveComplianceScope,
   type ComplianceRow,
 } from "@/lib/services/complianceService";
-import { ForbiddenError } from "@/lib/services/userService";
 import { GET } from "@/app/api/compliance/export/route";
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -58,7 +57,7 @@ it("exports a faculty adviser's own students as xlsx", async () => {
   (resolveComplianceScope as jest.Mock).mockResolvedValue({ kind: "faculty", facultyId: "f-1" });
   (getComplianceRows as jest.Mock).mockResolvedValue([row()]);
 
-  const res = await GET(request("?semesterId=sem-x&program=BSCS"));
+  const res = await GET(request("?semesterId=22222222-2222-4222-8222-222222222222&program=BSCS"));
 
   expect(res.status).toBe(200);
   expect(res.headers.get("Content-Type")).toBe(XLSX_TYPE);
@@ -88,7 +87,7 @@ it("gives a coordinator the department scope, program filter and status filter",
   (requireUserApi as jest.Mock).mockResolvedValue({ id: "c-1", role: "DEPARTMENT_COORDINATOR" });
   (resolveComplianceScope as jest.Mock).mockResolvedValue({
     kind: "department",
-    semesterId: "sem-1",
+    semesterId: "11111111-1111-4111-8111-111111111111",
     program: "BSIT",
   });
   (getComplianceRows as jest.Mock).mockResolvedValue([
@@ -96,16 +95,18 @@ it("gives a coordinator the department scope, program filter and status filter",
     row({ studentNumber: "2021-0002", status: "ON_TRACK" }),
   ]);
 
-  const res = await GET(request("?semesterId=sem-1&program=BSIT&status=NEEDS_ATTENTION"));
+  const res = await GET(
+    request("?semesterId=11111111-1111-4111-8111-111111111111&program=BSIT&status=NEEDS_ATTENTION")
+  );
 
   expect(res.status).toBe(200);
   expect(resolveComplianceScope).toHaveBeenCalledWith(
     { id: "c-1", role: "DEPARTMENT_COORDINATOR" },
-    { semesterId: "sem-1", program: "BSIT" }
+    { semesterId: "11111111-1111-4111-8111-111111111111", program: "BSIT" }
   );
   expect(getComplianceRows).toHaveBeenCalledWith({
     kind: "department",
-    semesterId: "sem-1",
+    semesterId: "11111111-1111-4111-8111-111111111111",
     program: "BSIT",
   });
   const rows = await readSheet(res);
@@ -133,14 +134,36 @@ it("answers 404 when a coordinator has no active semester", async () => {
   expect(getComplianceRows).not.toHaveBeenCalled();
 });
 
-it("refuses students with 403", async () => {
+it("refuses students at the route with the requireRole rejection (401)", async () => {
   (requireUserApi as jest.Mock).mockResolvedValue({ id: "s-1", role: "STUDENT_INTERN" });
-  (resolveComplianceScope as jest.Mock).mockRejectedValue(new ForbiddenError());
 
   const res = await GET(request());
 
-  expect(res.status).toBe(403);
+  expect(res.status).toBe(401);
+  await expect(res.json()).resolves.toEqual({ error: "Insufficient role" });
+  expect(resolveComplianceScope).not.toHaveBeenCalled();
   expect(getComplianceRows).not.toHaveBeenCalled();
+});
+
+it("rejects a non-UUID semesterId with 400 instead of a 500", async () => {
+  (requireUserApi as jest.Mock).mockResolvedValue({ id: "c-1", role: "DEPARTMENT_COORDINATOR" });
+
+  const res = await GET(request("?semesterId=not-a-uuid"));
+
+  expect(res.status).toBe(400);
+  expect(resolveComplianceScope).not.toHaveBeenCalled();
+});
+
+it("shows the approved count over the 9 required items, even with no checklist rows", async () => {
+  (requireUserApi as jest.Mock).mockResolvedValue({ id: "c-1", role: "DEPARTMENT_COORDINATOR" });
+  (resolveComplianceScope as jest.Mock).mockResolvedValue({ kind: "department", semesterId: "s1" });
+  (getComplianceRows as jest.Mock).mockResolvedValue([
+    row({ checklistApproved: 0, checklistTotal: 0 }),
+  ]);
+
+  const [first] = await readSheet(await GET(request()));
+
+  expect(first["Checklist approved"]).toBe("0/9");
 });
 
 it("rejects an unknown program with 400", async () => {
