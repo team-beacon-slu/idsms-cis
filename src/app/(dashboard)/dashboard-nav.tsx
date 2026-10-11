@@ -17,6 +17,7 @@ import {
   Clock,
   NotebookText,
   ScrollText,
+  Download,
   UserCircle,
   LogOut,
   Menu,
@@ -44,6 +45,7 @@ function getNavItems(role: Role): NavItem[] {
   }
   if (role === Role.SUPER_ADMIN) {
     items.push({ href: "/audit-log", label: "Audit log", icon: ScrollText });
+    items.push({ href: "/admin/export-center", label: "Export Center", icon: Download });
   }
   items.push({ href: "/companies", label: "Companies", icon: Building2 });
   items.push({ href: "/calendar", label: "Calendar", icon: Calendar });
