@@ -19,7 +19,6 @@ import {
   WorkPlanNotApprovedError,
 } from "@/lib/services/attendanceService";
 import {
-  SignedCopyNotAllowedError,
   LateSubmissionReasonRequiredError,
   WeeklyReportIncompleteError,
   WeeklyReportLockedError,
@@ -39,7 +38,6 @@ const BAD_REQUEST_ERRORS = [
   DocumentNotReadyError,
   EndorsementDataIncompleteError,
   FinalReportLockedError,
-  SignedCopyNotAllowedError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {

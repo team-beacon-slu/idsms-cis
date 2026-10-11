@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
   getConfirmedSubmission,
-  getCurrentSignedCopy,
   getLatestSubmission,
   getWeeklyReportHistory,
   isAwaitingReview,
@@ -22,7 +21,6 @@ import { ClipboardCheck, FileBarChart2, FileText, Hash, MessageSquareWarning } f
 import { WeeklyReportForm } from "./weekly-report-form";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
-import { SignedCopyUpload } from "./signed-copy-upload";
 
 function formatDate(date: Date) {
   return date.toLocaleDateString(undefined, {
@@ -74,6 +72,13 @@ export default async function WeeklyReportsPage({
             Daily accomplishments for each week of the internship. Reports are due the Tuesday after
             each week ends.
           </p>
+          {isOwner && (
+            <p className="text-sm text-muted-foreground">
+              After submitting, download the PDF and have your supervisor sign it. Upload the signed
+              copy to <span className="font-medium text-foreground">Google Classroom</span> — signed
+              documents are never uploaded to IDSMS.
+            </p>
+          )}
         </div>
         <Link
           href={`/students/${params.studentProfileId}/monthly-reports`}
@@ -161,18 +166,11 @@ export default async function WeeklyReportsPage({
                       )}
                       {submission?.late && <Badge variant="destructive">Late</Badge>}
                       {confirmed && (
-                        <>
-                          <ReportPdfActions
-                            endpoint={`/api/weekly-reports/${report.id}/pdf`}
-                            status={pdfStatus}
-                            canGenerate
-                          />
-                          <SignedCopyUpload
-                            weeklyReportId={report.id}
-                            hasSignedCopy={getCurrentSignedCopy(report) !== null}
-                            canUpload={isOwner && report.status !== "DISREGARDED"}
-                          />
-                        </>
+                        <ReportPdfActions
+                          endpoint={`/api/weekly-reports/${report.id}/pdf`}
+                          status={pdfStatus}
+                          canGenerate
+                        />
                       )}
                       {canReview && (
                         <Link

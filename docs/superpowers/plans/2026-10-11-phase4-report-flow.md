@@ -675,6 +675,8 @@ git commit -m "Add per-day attendance status and time in/out to weekly reports"
 
 ### Task 4: Signed-copy upload (D2 default: optional)
 
+> **Superseded 2026-10-11 (Jay's decision on D2).** Signed copies contain the supervisor's signature, which is sensitive, so IDSMS will **not** accept them; all signed and sensitive documents go to Google Classroom. This task shipped in PR #79 and was removed in the follow-up PR (no signed copies had been stored). The Weekly Reports page now tells students to upload signed copies to Google Classroom.
+
 **Files:**
 
 - Modify: `src/lib/services/weeklyReportService.ts` (`isAwaitingReview`; new `attachSignedCopy`, `getLatestSignedCopy`)

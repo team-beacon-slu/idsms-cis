@@ -285,7 +285,7 @@ export function WeeklyReportForm({
     const body = await res.json();
     toast.success(`Report submitted · reference ${body.referenceCode}`);
     router.refresh();
-    // Module 8: render the signed-copy PDF in the background. Failures are
+    // Module 8: render the PDF (for supervisor signing) in the background. Failures are
     // recorded server-side as FAILED and offered as "Regenerate PDF".
     void generatePdfInBackground(`/api/weekly-reports/${weeklyReportId}/pdf`, () =>
       router.refresh()

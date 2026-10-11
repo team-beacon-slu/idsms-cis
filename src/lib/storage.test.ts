@@ -14,7 +14,6 @@ jest.mock("@supabase/supabase-js", () => {
 
 import { createClient } from "@supabase/supabase-js";
 import {
-  assertFileSignature,
   CHECKLIST_BUCKET,
   GENERATED_DOCUMENTS_BUCKET,
   InvalidFileError,
@@ -174,37 +173,5 @@ describe("uploadPdfBuffer", () => {
     await expect(
       uploadPdfBuffer(GENERATED_DOCUMENTS_BUCKET, "x.pdf", Buffer.from("%PDF"))
     ).rejects.toThrow("bucket not found");
-  });
-});
-
-// The browser-declared MIME type is attacker-controlled; the leading bytes
-// must match it (secure-code-guardian: never trust input as declared).
-describe("assertFileSignature", () => {
-  const fileOf = (bytes: number[], type: string) =>
-    new File([new Uint8Array(bytes)], "upload", { type });
-
-  it("accepts real PDF, PNG and JPEG signatures", async () => {
-    await expect(
-      assertFileSignature(fileOf([0x25, 0x50, 0x44, 0x46, 0x2d], "application/pdf"))
-    ).resolves.toBeUndefined();
-    await expect(
-      assertFileSignature(fileOf([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], "image/png"))
-    ).resolves.toBeUndefined();
-    await expect(
-      assertFileSignature(fileOf([0xff, 0xd8, 0xff, 0xe0], "image/jpeg"))
-    ).resolves.toBeUndefined();
-  });
-
-  it("rejects an HTML file declared as an image", async () => {
-    const html = Array.from("<html><script>", (c) => c.charCodeAt(0));
-    await expect(assertFileSignature(fileOf(html, "image/png"))).rejects.toThrow(InvalidFileError);
-  });
-
-  it("rejects a PNG declared as a PDF", async () => {
-    await expect(
-      assertFileSignature(
-        fileOf([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], "application/pdf")
-      )
-    ).rejects.toThrow(InvalidFileError);
   });
 });
