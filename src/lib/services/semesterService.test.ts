@@ -42,6 +42,19 @@ describe("activateSemester", () => {
     });
   });
 
+  it("locks the semester rows first, before any state read or write", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({ id: "s1", archivedAt: null } as never);
+
+    await activateSemester("s1", "admin-1");
+
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+    const sql = (prismaMock.$queryRaw as jest.Mock).mock.calls[0][0].join("");
+    expect(sql).toMatch(/FROM semesters FOR UPDATE/);
+    expect(callOrder(prismaMock.$queryRaw)).toBeLessThan(callOrder(prismaMock.semester.findUnique));
+    expect(callOrder(prismaMock.$queryRaw)).toBeLessThan(callOrder(prismaMock.semester.updateMany));
+    expect(callOrder(prismaMock.$queryRaw)).toBeLessThan(callOrder(prismaMock.semester.update));
+  });
+
   it("refuses an archived semester", async () => {
     prismaMock.semester.findUnique.mockResolvedValue({
       id: "s1",
@@ -76,6 +89,16 @@ describe("archiveSemester", () => {
     expect(prismaMock.semester.delete).not.toHaveBeenCalled();
     expect(prismaMock.semester.deleteMany).not.toHaveBeenCalled();
     expect(prismaMock.studentProfile.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("locks the semester rows first, before the archive update", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({ id: "s1", archivedAt: null } as never);
+
+    await archiveSemester("s1", "admin-1");
+
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(callOrder(prismaMock.$queryRaw)).toBeLessThan(callOrder(prismaMock.semester.findUnique));
+    expect(callOrder(prismaMock.$queryRaw)).toBeLessThan(callOrder(prismaMock.semester.update));
   });
 
   it("refuses an already archived semester", async () => {

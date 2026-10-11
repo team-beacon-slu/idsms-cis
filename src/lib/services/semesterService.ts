@@ -58,11 +58,18 @@ async function getSemesterOrThrow(tx: Prisma.TransactionClient, id: string) {
   return semester;
 }
 
-// Single transaction: deactivate every semester, then activate the chosen one,
-// so there is never a moment (or a failure mode) with zero or two active.
+// Serializes concurrent activate/archive calls: Postgres READ COMMITTED alone
+// can't stop two transactions both ending up with an active semester. The
+// second caller blocks here until the first commits, then sees its result.
+function lockSemesters(tx: Prisma.TransactionClient) {
+  return tx.$queryRaw`SELECT id FROM semesters FOR UPDATE`;
+}
+
+// Single transaction: lock, deactivate every semester, then activate the chosen
+// one, so exactly one semester is active when it commits.
 export async function activateSemester(id: string, actingUserId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    // Checked inside the transaction so an archive racing this call can't slip through.
+    await lockSemesters(tx);
     const semester = await getSemesterOrThrow(tx, id);
     if (semester.archivedAt) throw new SemesterStateError("Archived semesters can't be activated");
     await tx.semester.updateMany({ where: { isActive: true }, data: { isActive: false } });
@@ -78,6 +85,7 @@ export async function activateSemester(id: string, actingUserId: string): Promis
 // students, reports and documents stay attached to the semester (FR-DB-07).
 export async function archiveSemester(id: string, actingUserId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await lockSemesters(tx);
     const semester = await getSemesterOrThrow(tx, id);
     if (semester.archivedAt) throw new SemesterStateError("This semester is already archived");
     await tx.semester.update({ where: { id }, data: { archivedAt: new Date(), isActive: false } });
