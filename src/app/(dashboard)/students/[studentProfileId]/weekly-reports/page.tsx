@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
   getConfirmedSubmission,
-  getLatestSignedCopy,
+  getCurrentSignedCopy,
   getLatestSubmission,
   getWeeklyReportHistory,
   isAwaitingReview,
@@ -169,7 +169,7 @@ export default async function WeeklyReportsPage({
                           />
                           <SignedCopyUpload
                             weeklyReportId={report.id}
-                            hasSignedCopy={getLatestSignedCopy(report.revisionHistory) !== null}
+                            hasSignedCopy={getCurrentSignedCopy(report) !== null}
                             canUpload={isOwner && report.status !== "DISREGARDED"}
                           />
                         </>

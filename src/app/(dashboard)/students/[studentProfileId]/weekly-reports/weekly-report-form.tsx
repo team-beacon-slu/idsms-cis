@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, isWeeklyReportLate } from "@/lib/utils/reportDeadline";
 import { isAttendanceStatus, minutesBetween, type AttendanceStatus } from "@/lib/validators/report";
+import { autoHoursFromTimes } from "./auto-hours";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
 
@@ -67,18 +68,13 @@ const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "Not filled",
 };
 
-// Fills hours from the time window, minus a 1-hour lunch for spans over
-// 5 h, rounded to the quarter hour. The student can still edit hours down.
+// Pre-fills hours from the time pair (see auto-hours.ts); the student can
+// still edit hours down.
 function withAutoHours(row: RowState): Partial<RowState> {
-  if (!row.timeIn || !row.timeOut) return { timeIn: row.timeIn, timeOut: row.timeOut };
-  const minutes = minutesBetween(row.timeIn, row.timeOut);
-  if (minutes <= 0) return { timeIn: row.timeIn, timeOut: row.timeOut };
-  const worked = minutes > 300 ? minutes - 60 : minutes;
-  return {
-    timeIn: row.timeIn,
-    timeOut: row.timeOut,
-    hours: String(Math.round((worked / 60) * 4) / 4),
-  };
+  const hours = autoHoursFromTimes(row.timeIn, row.timeOut);
+  return hours === null
+    ? { timeIn: row.timeIn, timeOut: row.timeOut }
+    : { timeIn: row.timeIn, timeOut: row.timeOut, hours: String(hours) };
 }
 
 function formatDay(iso: string) {
@@ -212,7 +208,7 @@ export function WeeklyReportForm({
           dailyReportEntryId: entry.id,
           hours: row.status === "PRESENT" ? Number(row.hours) : 0,
           accomplishments: row.status === "PRESENT" ? row.accomplishments.trim() : "",
-          toolsUsed: row.toolsUsed.trim() || undefined,
+          toolsUsed: (row.status === "PRESENT" && row.toolsUsed.trim()) || undefined,
           attendanceStatus: row.status,
           timeIn: (row.status === "PRESENT" && row.timeIn) || undefined,
           timeOut: (row.status === "PRESENT" && row.timeOut) || undefined,
@@ -387,7 +383,7 @@ export function WeeklyReportForm({
                         entry.id,
                         status === "PRESENT"
                           ? { status }
-                          : { status, hours: "0", timeIn: "", timeOut: "" }
+                          : { status, hours: "0", timeIn: "", timeOut: "", toolsUsed: "" }
                       );
                     }}
                     className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-2 text-sm disabled:cursor-not-allowed"

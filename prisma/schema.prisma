@@ -458,7 +458,7 @@ model Notification {
   status      NotificationStatus  @default(PENDING)
   payload     Json?
   sentAt      DateTime?           @map("sent_at")
-  readAt      DateTime?           @map("read_at") // IN_APP only; null = unread
+  readAt      DateTime?           @map("read_at") @db.Timestamptz(3) // IN_APP only; null = unread
 
   user User @relation(fields: [userId], references: [id])
 

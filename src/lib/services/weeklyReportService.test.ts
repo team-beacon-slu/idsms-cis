@@ -4,6 +4,7 @@ import { ScheduleNotConfiguredError } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 import {
   attachSignedCopy,
+  getCurrentSignedCopy,
   getLatestSignedCopy,
   isAwaitingReview,
   isWeeklyReportEditable,
@@ -338,6 +339,61 @@ describe("saveDailyAccomplishment", () => {
       })
     );
   });
+
+  it("clears stale tools, times and text when a day is marked non-PRESENT", async () => {
+    mockEntry(WeeklyReportStatus.PENDING);
+    prismaMock.dailyReportEntry.update.mockResolvedValue({
+      id: "entry-1",
+      actualHours: 0,
+      accomplishments: "",
+    } as never);
+
+    await saveDailyAccomplishment("entry-1", 8, "Old text", "student-1", "VS Code", {
+      attendanceStatus: "HOLIDAY",
+      timeIn: "08:00",
+      timeOut: "17:00",
+    });
+
+    expect(prismaMock.dailyReportEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actualHours: 0,
+          accomplishments: "",
+          toolsUsed: null,
+          timeIn: null,
+          timeOut: null,
+          attendanceStatus: "HOLIDAY",
+        }),
+      })
+    );
+  });
+
+  it("stores times for a PRESENT day and leaves them untouched for legacy callers", async () => {
+    mockEntry(WeeklyReportStatus.PENDING);
+    prismaMock.dailyReportEntry.update.mockResolvedValue({
+      id: "entry-1",
+      actualHours: 8,
+      accomplishments: "x",
+    } as never);
+
+    await saveDailyAccomplishment("entry-1", 8, "x", "student-1", undefined, {
+      attendanceStatus: "PRESENT",
+      timeIn: "08:00",
+      timeOut: "17:00",
+    });
+    expect(prismaMock.dailyReportEntry.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ actualHours: 8, timeIn: "08:00", timeOut: "17:00" }),
+      })
+    );
+
+    await saveDailyAccomplishment("entry-1", 8, "x", "student-1");
+    const legacy = prismaMock.dailyReportEntry.update.mock.calls.at(-1)![0] as {
+      data: Record<string, unknown>;
+    };
+    expect(legacy.data).not.toHaveProperty("timeIn");
+    expect(legacy.data).not.toHaveProperty("timeOut");
+  });
 });
 
 describe("validateLateSubmissionReason (FR-WR-05)", () => {
@@ -606,5 +662,79 @@ describe("signed copies (D2)", () => {
         { type: "SIGNED_COPY_UPLOADED", timestamp: "t2", path: "new" },
       ])?.path
     ).toBe("new");
+  });
+
+  it("records the confirmed submission's reference code on the entry", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.APPROVED,
+      revisionHistory: [{ type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-1" }],
+    } as never);
+    await expect(attachSignedCopy("wr-1", "p.pdf", actingUser)).resolves.toEqual(
+      expect.objectContaining({ referenceCode: "WR-1" })
+    );
+  });
+
+  it("refuses a returned report that is being revised", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.RETURNED,
+      revisionHistory: [
+        { type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-1" },
+        { type: "RETURNED", timestamp: "t2", notes: "Fix" },
+      ],
+    } as never);
+    await expect(attachSignedCopy("wr-1", "p.pdf", actingUser)).rejects.toThrow(
+      SignedCopyNotAllowedError
+    );
+  });
+
+  it("a signed copy from before a Return + resubmit is not current", () => {
+    const report = {
+      status: WeeklyReportStatus.PENDING,
+      revisionHistory: [
+        { type: "SUBMITTED", timestamp: "t1", referenceCode: "WR-OLD" },
+        { type: "SIGNED_COPY_UPLOADED", timestamp: "t2", path: "old", referenceCode: "WR-OLD" },
+        { type: "RETURNED", timestamp: "t3", notes: "Fix" },
+        { type: "SUBMITTED", timestamp: "t4", referenceCode: "WR-NEW" },
+      ],
+    };
+    expect(getCurrentSignedCopy(report)).toBeNull();
+    expect(
+      getCurrentSignedCopy({
+        ...report,
+        revisionHistory: [
+          ...report.revisionHistory,
+          { type: "SIGNED_COPY_UPLOADED", timestamp: "t5", path: "new", referenceCode: "WR-NEW" },
+        ],
+      })?.path
+    ).toBe("new");
+  });
+
+  it("a signed copy never re-locks a returned report", () => {
+    expect(
+      isWeeklyReportEditable({
+        status: WeeklyReportStatus.RETURNED,
+        revisionHistory: [
+          { type: "SUBMITTED", timestamp: "t1" },
+          { type: "RETURNED", timestamp: "t2" },
+          { type: "SIGNED_COPY_UPLOADED", timestamp: "t3", path: "p" },
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it("still blocks submitting a PRESENT day with hours but a blank description", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.PENDING,
+      weekEnd: new Date("2026-10-11T00:00:00Z"),
+      revisionHistory: [],
+      dailyEntries: [{ actualHours: 8, accomplishments: "  ", attendanceStatus: "PRESENT" }],
+    } as never);
+    await expect(
+      recordWeeklyReportSubmission(
+        "wr-1",
+        { referenceCode: "x", timestamp: new Date() },
+        actingUser
+      )
+    ).rejects.toThrow(WeeklyReportIncompleteError);
   });
 });

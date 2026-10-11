@@ -28,6 +28,9 @@ const row = {
       actualHours: 8,
       accomplishments: "Built the login page",
       toolsUsed: null,
+      attendanceStatus: "PRESENT",
+      timeIn: "08:00",
+      timeOut: "17:00",
     },
   ],
   studentProfile: {
@@ -57,7 +60,14 @@ describe("loadWeeklyReportDocumentData", () => {
         totals: { totalHours: 8, runningTotal: 48, remainingHours: 552 },
       })
     );
-    expect(data!.entries[0]).toEqual(expect.objectContaining({ actualHours: 8 }));
+    expect(data!.entries[0]).toEqual(
+      expect.objectContaining({
+        actualHours: 8,
+        attendanceStatus: "PRESENT",
+        timeIn: "08:00",
+        timeOut: "17:00",
+      })
+    );
   });
 
   it("returns referenceCode null for a returned report being revised (FR-DG-05)", async () => {

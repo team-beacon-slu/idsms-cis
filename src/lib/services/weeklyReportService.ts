@@ -335,13 +335,18 @@ export async function saveDailyAccomplishment(
     const updated = await tx.dailyReportEntry.update({
       where: { id: dailyReportEntryId },
       data: {
-        actualHours: isPresent ? hours : 0,
-        accomplishments,
-        // Optional third column of the daily form; undefined leaves it untouched.
-        ...(toolsUsed !== undefined ? { toolsUsed: toolsUsed || null } : {}),
         attendanceStatus: status,
-        ...(details.timeIn !== undefined ? { timeIn: details.timeIn } : {}),
-        ...(details.timeOut !== undefined ? { timeOut: details.timeOut } : {}),
+        ...(isPresent
+          ? {
+              actualHours: hours,
+              accomplishments,
+              // Optional third column of the daily form; undefined leaves it untouched.
+              ...(toolsUsed !== undefined ? { toolsUsed: toolsUsed || null } : {}),
+              ...(details.timeIn !== undefined ? { timeIn: details.timeIn } : {}),
+              ...(details.timeOut !== undefined ? { timeOut: details.timeOut } : {}),
+            }
+          : // Absent/holiday days carry nothing that could print on the PDF.
+            { actualHours: 0, accomplishments: "", toolsUsed: null, timeIn: null, timeOut: null }),
       },
       select: { id: true, actualHours: true, accomplishments: true },
     });
@@ -721,6 +726,9 @@ export interface SignedCopyEntry extends WeeklyReportHistoryEntry {
   type: "SIGNED_COPY_UPLOADED";
   path: string;
   uploadedBy: string;
+  // The submission the manager signed. Older entries (before this field)
+  // have none and are never treated as current.
+  referenceCode?: string;
 }
 
 export class SignedCopyNotAllowedError extends Error {
@@ -753,18 +761,17 @@ export async function attachSignedCopy(
       where: { id: weeklyReportId },
       select: { status: true, revisionHistory: true },
     });
-    if (
-      report.status === WeeklyReportStatus.DISREGARDED ||
-      !getLatestSubmission(report.revisionHistory)
-    ) {
+    if (report.status === WeeklyReportStatus.DISREGARDED) {
       throw new SignedCopyNotAllowedError();
     }
+    const submission = assertSignedCopyAllowed(report);
 
     const entry: SignedCopyEntry = {
       type: "SIGNED_COPY_UPLOADED",
       timestamp: new Date().toISOString(),
       path,
       uploadedBy: actingUser.id,
+      referenceCode: submission.referenceCode,
     };
     await tx.weeklyReport.update({
       where: { id: weeklyReportId },
@@ -787,4 +794,29 @@ export async function attachSignedCopy(
     );
     return entry;
   });
+}
+
+// A signed copy can only be attached to the submission the student currently
+// stands behind (not a draft, not a returned report under revision, not a
+// disregarded one). Returns that submission so callers can key the file to
+// its reference code. Pure, so the route can check before storing anything.
+export function assertSignedCopyAllowed(report: {
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}): WeeklyReportSubmissionEntry {
+  const submission =
+    report.status === WeeklyReportStatus.DISREGARDED ? null : getConfirmedSubmission(report);
+  if (!submission) throw new SignedCopyNotAllowedError();
+  return submission;
+}
+
+// The signed copy for the current confirmed submission, or null. A copy from
+// before a Return + resubmit carries the old reference code and is stale.
+export function getCurrentSignedCopy(report: {
+  status: WeeklyReportStatus;
+  revisionHistory: unknown;
+}): SignedCopyEntry | null {
+  const submission = getConfirmedSubmission(report);
+  const signed = getLatestSignedCopy(report.revisionHistory);
+  return submission && signed?.referenceCode === submission.referenceCode ? signed : null;
 }

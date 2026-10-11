@@ -3,8 +3,9 @@ import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import {
+  assertSignedCopyAllowed,
   attachSignedCopy,
-  getLatestSignedCopy,
+  getCurrentSignedCopy,
   getWeeklyReport,
 } from "@/lib/services/weeklyReportService";
 import {
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });
     await assertCanAccessStudent(user, report.studentProfileId);
 
+    // Checked before anything is stored, so a refused upload leaves no orphan.
+    const submission = assertSignedCopyAllowed(report);
+
     const file = (await req.formData()).get("file");
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
@@ -35,9 +39,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // The declared type is client-controlled; check the actual bytes too.
     await assertFileSignature(file);
     const ext = file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : "jpg";
+    // Keyed to the signed submission, so a resubmission's copy never
+    // overwrites the evidence for an earlier one.
     const path = await uploadFile(
       CHECKLIST_BUCKET,
-      `signed-copies/${report.studentProfileId}/${params.id}.${ext}`,
+      `signed-copies/${report.studentProfileId}/${params.id}-${submission.referenceCode}.${ext}`,
       file
     );
     const entry = await attachSignedCopy(params.id, path, user, req.headers.get("x-forwarded-for"));
@@ -54,7 +60,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const report = await getWeeklyReport(params.id);
     if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });
     await assertCanAccessStudent(user, report.studentProfileId);
-    const signed = getLatestSignedCopy(report.revisionHistory);
+    const signed = getCurrentSignedCopy(report);
     if (!signed) return NextResponse.json({ error: "No signed copy uploaded" }, { status: 404 });
     return NextResponse.redirect(await getSignedUrl(CHECKLIST_BUCKET, signed.path));
   } catch (error) {

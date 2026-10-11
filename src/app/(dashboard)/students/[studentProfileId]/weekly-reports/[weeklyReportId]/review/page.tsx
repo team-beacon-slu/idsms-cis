@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { Role } from "@prisma/client";
-import { getLatestSignedCopy, getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { getCurrentSignedCopy, getWeeklyReport } from "@/lib/services/weeklyReportService";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
@@ -59,7 +59,7 @@ export default async function WeeklyReportReviewPage({
             Week of {new Date(report!.weekStart).toLocaleDateString()} –{" "}
             {new Date(report!.weekEnd).toLocaleDateString()}
           </CardDescription>
-          {getLatestSignedCopy(report!.revisionHistory) ? (
+          {getCurrentSignedCopy(report!) ? (
             <SignedCopyUpload weeklyReportId={report!.id} hasSignedCopy canUpload={false} />
           ) : (
             <p className="text-xs text-muted-foreground">No signed copy uploaded yet</p>
