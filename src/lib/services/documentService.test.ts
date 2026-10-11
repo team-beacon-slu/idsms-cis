@@ -6,6 +6,14 @@ jest.mock("@/lib/documents/monthlyReportData", () => ({
   loadMonthlyReportDocumentData: jest.fn(),
 }));
 jest.mock("@/lib/pdf/renderHtmlToPdf", () => ({ renderHtmlToPdf: jest.fn() }));
+jest.mock("@/lib/services/checklistService", () => {
+  class ChecklistGateError extends Error {}
+  return { ChecklistGateError, isEndorsementGateSatisfied: jest.fn() };
+});
+jest.mock("@/lib/documents/endorsementLetterData", () => ({
+  loadEndorsementLetterData: jest.fn(),
+  EndorsementDataIncompleteError: class extends Error {},
+}));
 jest.mock("@/lib/storage", () => {
   class PdfTooLargeError extends Error {}
   return {
@@ -25,6 +33,7 @@ import {
   generateMonthlyReportPdf,
   generateMonthlyReportReferenceCode,
   generateWeeklyReportPdf,
+  renderAndStoreDocument,
   getWeeklyReportDocument,
   weeklyPeriodLabel,
   withRetry,
@@ -319,5 +328,238 @@ describe("getWeeklyReportDocument", () => {
     const doc = { id: "doc-1", referenceCode: "WR-NEW", status: DocumentStatus.GENERATED };
     prismaMock.generatedDocument.findFirst.mockResolvedValue(doc as never);
     await expect(getWeeklyReportDocument("wr-1")).resolves.toEqual(doc);
+  });
+});
+
+describe("renderAndStoreDocument", () => {
+  it("rebuilds the HTML on each retry attempt and marks GENERATED on success", async () => {
+    const buildHtml = jest.fn().mockResolvedValue("<p>x</p>");
+    render.mockRejectedValueOnce(new Error("cold start")).mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("endorsement/p-1.pdf");
+
+    const status = await renderAndStoreDocument({
+      documentId: "doc-1",
+      path: "endorsement/p-1.pdf",
+      buildHtml,
+      actingUserId: "u-1",
+      sleep: noSleep,
+    });
+
+    expect(status).toBe(DocumentStatus.GENERATED);
+    expect(buildHtml).toHaveBeenCalledTimes(2);
+    expect(prismaMock.generatedDocument.update).toHaveBeenLastCalledWith({
+      where: { id: "doc-1" },
+      data: expect.objectContaining({
+        status: DocumentStatus.GENERATED,
+        fileUrl: "endorsement/p-1.pdf",
+      }),
+    });
+  });
+});
+import { ChecklistGateError, isEndorsementGateSatisfied } from "@/lib/services/checklistService";
+import { loadEndorsementLetterData } from "@/lib/documents/endorsementLetterData";
+import {
+  generateEndorsementLetterPdf,
+  generateEndorsementReferenceCode,
+  generateBulkEndorsementLetters,
+  generateFinalCoverPdf,
+} from "@/lib/services/documentService";
+
+describe("generateEndorsementLetterPdf", () => {
+  const gate = isEndorsementGateSatisfied as jest.Mock;
+  const loadLetter = loadEndorsementLetterData as jest.Mock;
+
+  it("refuses when the checklist gate is not satisfied (FR-CK-04)", async () => {
+    gate.mockResolvedValue(false);
+    await expect(
+      generateEndorsementLetterPdf("p-1", "coord-1", { sleep: noSleep })
+    ).rejects.toThrow(ChecklistGateError);
+    expect(prismaMock.generatedDocument.create).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("validates FR-DG-01 data before touching the document row", async () => {
+    gate.mockResolvedValue(true);
+    loadLetter.mockRejectedValue(new Error("The student's full name is missing"));
+    await expect(
+      generateEndorsementLetterPdf("p-1", "coord-1", { sleep: noSleep })
+    ).rejects.toThrow(/full name/);
+    expect(prismaMock.generatedDocument.update).not.toHaveBeenCalled();
+  });
+
+  it("reuses the FR-WP-05 queued row, assigns a code once, and generates", async () => {
+    gate.mockResolvedValue(true);
+    // Complete letter data: the real template renders it inside the retry loop.
+    loadLetter.mockResolvedValue({
+      studentProfileId: "p-1",
+      referenceCode: "EL-20261011-ABCD1234",
+      endorsementDate: new Date("2026-10-11T00:00:00Z"),
+      student: {
+        fullName: "Juan Dela Cruz",
+        studentNumber: "1",
+        program: "BSIT",
+        positionTitle: null,
+        requiredHours: 600,
+      },
+      company: {
+        name: "Acme",
+        address: "Baguio",
+        supervisorName: "Maria",
+        supervisorPosition: null,
+      },
+    });
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({
+      id: "doc-el",
+      referenceCode: null,
+    } as never);
+    render.mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("endorsement/p-1.pdf");
+
+    const result = await generateEndorsementLetterPdf("p-1", "coord-1", { sleep: noSleep });
+
+    expect(result).toEqual({ generatedDocumentId: "doc-el", status: DocumentStatus.GENERATED });
+    expect(prismaMock.generatedDocument.update).toHaveBeenCalledWith({
+      where: { id: "doc-el" },
+      data: expect.objectContaining({
+        referenceCode: expect.stringMatching(/^EL-\d{8}-[0-9A-F]{8}$/),
+      }),
+    });
+    expect(upload).toHaveBeenCalledWith(
+      "generated-documents",
+      "endorsement/p-1.pdf",
+      expect.any(Buffer)
+    );
+  });
+});
+
+describe("generateEndorsementReferenceCode", () => {
+  it("is EL-<YYYYMMDD>-<8 hex>", () => {
+    expect(generateEndorsementReferenceCode(new Date("2026-10-11T03:00:00Z"))).toMatch(
+      /^EL-20261011-[0-9A-F]{8}$/
+    );
+  });
+});
+
+describe("generateBulkEndorsementLetters", () => {
+  const letterData = {
+    studentProfileId: "p-ok",
+    referenceCode: "EL-1",
+    endorsementDate: new Date("2026-10-11T00:00:00Z"),
+    student: {
+      fullName: "A",
+      studentNumber: "1",
+      program: "BSIT",
+      positionTitle: null,
+      requiredHours: 600,
+    },
+    company: { name: "Acme", address: "Baguio", supervisorName: "M", supervisorPosition: null },
+  };
+  const student = (id: string, letterStatus?: DocumentStatus) => ({
+    id,
+    studentNumber: `2026-${id}`,
+    fullName: `Name ${id}`,
+    generatedDocuments: letterStatus ? [{ status: letterStatus }] : [],
+  });
+
+  beforeEach(() => {
+    (loadEndorsementLetterData as jest.Mock).mockResolvedValue(letterData);
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({
+      id: "doc-ok",
+      referenceCode: "EL-1",
+    } as never);
+    render.mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("endorsement/p-ok.pdf");
+  });
+
+  it("names each student, honours the semester scope, and skips gate failures", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      student("p-ok"),
+      student("p-gate"),
+    ] as never);
+    (isEndorsementGateSatisfied as jest.Mock).mockImplementation(
+      async (id: string) => id === "p-ok"
+    );
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1", ["sem-1"]);
+
+    expect(prismaMock.studentProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { classGroupId: "cg-1", deletedAt: null, semesterId: { in: ["sem-1"] } },
+      })
+    );
+    expect(result.generated).toEqual([{ studentProfileId: "p-ok", label: "2026-p-ok Name p-ok" }]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({
+        studentProfileId: "p-gate",
+        label: "2026-p-gate Name p-gate",
+        reason: expect.stringMatching(/checklist/i),
+      }),
+    ]);
+  });
+
+  it("reports unexpected errors as failed with a generic reason, and logs them", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([student("p-db")] as never);
+    (isEndorsementGateSatisfied as jest.Mock).mockRejectedValue(
+      new Error("Invalid `prisma.checklistItem.findMany()` invocation in C:\\srv\\x.ts")
+    );
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1");
+
+    expect(result.skipped).toEqual([]);
+    expect(result.failed).toEqual([
+      expect.objectContaining({
+        studentProfileId: "p-db",
+        reason: expect.not.stringMatching(/prisma|C:\\/i),
+      }),
+    ]);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it("leaves already-generated letters alone instead of re-rendering them", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      student("p-done", DocumentStatus.GENERATED),
+    ] as never);
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1");
+
+    expect(result.alreadyGenerated).toEqual([
+      { studentProfileId: "p-done", label: "2026-p-done Name p-done" },
+    ]);
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("stops starting new students once the time budget is spent", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([student("p-1"), student("p-2")] as never);
+    (isEndorsementGateSatisfied as jest.Mock).mockResolvedValue(true);
+    const clock = jest.fn().mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(200_000);
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1", undefined, {
+      budgetMs: 180_000,
+      now: clock,
+    });
+
+    expect(result.generated.map((e) => e.studentProfileId)).toEqual(["p-1"]);
+    expect(result.notAttempted).toEqual([{ studentProfileId: "p-2", label: "2026-p-2 Name p-2" }]);
+  });
+});
+describe("generateFinalCoverPdf", () => {
+  it("refuses below the final-report threshold and says how many hours remain", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+      id: "p-1",
+      program: "BSIT",
+      requiredHours: 600,
+      fullName: "Juan",
+      studentNumber: "1",
+      company: null,
+      semester: { name: "1st Semester", academicYear: "2026-2027" },
+    } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 120 }] },
+    ] as never);
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+
+    await expect(generateFinalCoverPdf("p-1", "student-1", { sleep: noSleep })).rejects.toThrow(
+      /380 more hours/
+    );
   });
 });

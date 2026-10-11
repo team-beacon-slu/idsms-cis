@@ -17,7 +17,13 @@ import {
   FileBarChart2,
 } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { getHoursSummary, computeProjectedCompletionDate } from "@/lib/services/attendanceService";
+import {
+  computeProjectedCompletionDate,
+  getFinalReportThreshold,
+  getHoursSummary,
+} from "@/lib/services/attendanceService";
+import { getFinalCoverDocument } from "@/lib/services/documentService";
+import { ReportPdfActions } from "./students/[studentProfileId]/weekly-reports/report-pdf-actions";
 import { prisma } from "@/lib/prisma";
 import { getUserProfile } from "@/lib/services/userService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
@@ -192,64 +198,94 @@ export default async function DashboardHomePage() {
       : [null, null, null, 0];
     const confirmedHours = hours?.confirmedHours ?? 0;
     const requiredHours = hours?.requiredHours ?? 0;
+    const [finalThreshold, finalCover] = studentProfile
+      ? await Promise.all([
+          getFinalReportThreshold(studentProfile.program, studentProfile.requiredHours),
+          getFinalCoverDocument(studentProfile.id),
+        ])
+      : [null, null];
+    const coverUnlocked = finalThreshold !== null && confirmedHours >= finalThreshold;
 
     stats = (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Hours rendered (confirmed)"
-          value={`${confirmedHours} / ${requiredHours}`}
-          icon={Timer}
-          tone="blue"
-          hint={
-            hours && hours.pendingHours > 0
-              ? `+${hours.pendingHours} hrs pending review`
-              : requiredHours > 0
-                ? `${Math.min(100, Math.round((confirmedHours / requiredHours) * 100))}% of required hours`
-                : undefined
-          }
-        />
-        <StatCard
-          label="Projected completion"
-          value={
-            projectedCompletion
-              ? projectedCompletion.toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })
-              : "—"
-          }
-          icon={CalendarCheck}
-          tone={projectedCompletion ? "green" : "slate"}
-          hint={projectedCompletion ? "Based on your schedule" : "Set your work schedule first"}
-        />
-        <StatCard
-          label="Weekly reports in progress"
-          value={reportsNeedingAction}
-          icon={FileText}
-          tone={reportsNeedingAction > 0 ? "amber" : "slate"}
-          hint="Drafts, submitted, or returned"
-        />
-        <StatCard
-          label="Pre-deployment checklist"
-          value={progress ? `${progress.approvedCount}/${progress.total}` : "—"}
-          icon={ClipboardCheck}
-          tone={progress?.gateSatisfied ? "green" : "amber"}
-          hint={progress ? `${progress.percentage}% approved` : undefined}
-        />
-        <StatCard
-          label="Host company"
-          value={studentProfile?.companyId ? "Assigned" : "Not yet"}
-          icon={Building2}
-          tone={studentProfile?.companyId ? "green" : "slate"}
-        />
-        <StatCard
-          label="Program"
-          value={studentProfile?.program ?? "—"}
-          icon={UserCircle}
-          tone="blue"
-        />
-      </div>
+      <>
+        {studentProfile && finalThreshold !== null && (
+          <Card className="mb-4">
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle>Final report cover</CardTitle>
+                  <CardDescription>
+                    {coverUnlocked
+                      ? "Unlocked — generate the cover page for your final internship report."
+                      : `Unlocks at ${finalThreshold} confirmed hours (${confirmedHours} / ${finalThreshold} so far).`}
+                  </CardDescription>
+                </div>
+                <ReportPdfActions
+                  endpoint={`/api/students/${studentProfile.id}/final-cover`}
+                  status={finalCover?.status ?? null}
+                  canGenerate={coverUnlocked}
+                />
+              </div>
+            </CardHeader>
+          </Card>
+        )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard
+            label="Hours rendered (confirmed)"
+            value={`${confirmedHours} / ${requiredHours}`}
+            icon={Timer}
+            tone="blue"
+            hint={
+              hours && hours.pendingHours > 0
+                ? `+${hours.pendingHours} hrs pending review`
+                : requiredHours > 0
+                  ? `${Math.min(100, Math.round((confirmedHours / requiredHours) * 100))}% of required hours`
+                  : undefined
+            }
+          />
+          <StatCard
+            label="Projected completion"
+            value={
+              projectedCompletion
+                ? projectedCompletion.toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "—"
+            }
+            icon={CalendarCheck}
+            tone={projectedCompletion ? "green" : "slate"}
+            hint={projectedCompletion ? "Based on your schedule" : "Set your work schedule first"}
+          />
+          <StatCard
+            label="Weekly reports in progress"
+            value={reportsNeedingAction}
+            icon={FileText}
+            tone={reportsNeedingAction > 0 ? "amber" : "slate"}
+            hint="Drafts, submitted, or returned"
+          />
+          <StatCard
+            label="Pre-deployment checklist"
+            value={progress ? `${progress.approvedCount}/${progress.total}` : "—"}
+            icon={ClipboardCheck}
+            tone={progress?.gateSatisfied ? "green" : "amber"}
+            hint={progress ? `${progress.percentage}% approved` : undefined}
+          />
+          <StatCard
+            label="Host company"
+            value={studentProfile?.companyId ? "Assigned" : "Not yet"}
+            icon={Building2}
+            tone={studentProfile?.companyId ? "green" : "slate"}
+          />
+          <StatCard
+            label="Program"
+            value={studentProfile?.program ?? "—"}
+            icon={UserCircle}
+            tone="blue"
+          />
+        </div>
+      </>
     );
   }
 

@@ -5,7 +5,15 @@ import { DocumentStatus, DocumentType, type GeneratedDocument } from "@prisma/cl
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { getConfirmedSubmission } from "@/lib/services/weeklyReportService";
-import { DocumentNotReadyError } from "@/lib/documents/errors";
+import { ChecklistGateError, isEndorsementGateSatisfied } from "@/lib/services/checklistService";
+import { calculateRenderedHours, getFinalReportThreshold } from "@/lib/services/attendanceService";
+import { DocumentNotReadyError, FinalReportLockedError } from "@/lib/documents/errors";
+import { renderFinalCoverHtml } from "@/lib/documents/finalCoverTemplate";
+import {
+  EndorsementDataIncompleteError,
+  loadEndorsementLetterData,
+} from "@/lib/documents/endorsementLetterData";
+import { renderEndorsementLetterHtml } from "@/lib/documents/endorsementLetterTemplate";
 import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
 import { renderMonthlyReportHtml } from "@/lib/documents/monthlyReportTemplate";
 import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
@@ -19,7 +27,7 @@ import {
 } from "@/lib/storage";
 import { toDateKey } from "@/lib/utils/reportDeadline";
 
-export { DocumentNotReadyError };
+export { DocumentNotReadyError, FinalReportLockedError };
 
 type Sleep = (ms: number) => Promise<void>;
 type GenerationResult = { generatedDocumentId: string; status: DocumentStatus };
@@ -96,22 +104,25 @@ function markFailed(documentId: string) {
   );
 }
 
-// Shared lifecycle for every document type: render + upload with retry, then
+// Shared lifecycle for every document type (weekly, monthly, endorsement
+// letter, final cover): build HTML + render + upload with retry, then
 // GENERATED, or — per FR-DG-07 — keep the submission, log, mark FAILED and
-// let the user regenerate. The row must already be PENDING_DRAFT.
-async function runGeneration(args: {
+// let the user regenerate. The row must already be PENDING_DRAFT. buildHtml
+// runs inside each attempt, so data loaded there is fresh on retry; load
+// anything whose absence is permanent *before* calling this (it isn't retried).
+export async function renderAndStoreDocument(args: {
   documentId: string;
   path: string;
+  buildHtml: () => string | Promise<string>;
   actingUserId: string;
-  renderHtml: () => string;
-  auditDetail: Record<string, string>;
+  detail?: Record<string, string>;
   sleep?: Sleep;
-}): Promise<GenerationResult> {
-  const { documentId, path, actingUserId, auditDetail } = args;
+}): Promise<DocumentStatus> {
+  const { documentId, path, actingUserId, detail: auditDetail = {} } = args;
   try {
     await withRetry(
       async () => {
-        const pdf = await renderHtmlToPdf(args.renderHtml());
+        const pdf = await renderHtmlToPdf(await args.buildHtml());
         await uploadPdfBuffer(GENERATED_DOCUMENTS_BUCKET, path, pdf);
       },
       { sleep: args.sleep, deadlineMs: GENERATION_DEADLINE_MS }
@@ -128,7 +139,7 @@ async function runGeneration(args: {
         detail: { ...auditDetail, message: error instanceof Error ? error.message : String(error) },
       })
     );
-    return { generatedDocumentId: documentId, status: DocumentStatus.FAILED };
+    return DocumentStatus.FAILED;
   }
 
   try {
@@ -144,7 +155,7 @@ async function runGeneration(args: {
       error,
     });
     await markFailed(documentId);
-    return { generatedDocumentId: documentId, status: DocumentStatus.FAILED };
+    return DocumentStatus.FAILED;
   }
   await bestEffort("audit", documentId, () =>
     logEvent({
@@ -155,7 +166,7 @@ async function runGeneration(args: {
       detail: auditDetail,
     })
   );
-  return { generatedDocumentId: documentId, status: DocumentStatus.GENERATED };
+  return DocumentStatus.GENERATED;
 }
 
 // Weekly rows are created here on first generation (the weekly report has no
@@ -200,14 +211,15 @@ export async function generateWeeklyReportPdf(
     documentId = created.id;
   }
 
-  return runGeneration({
+  const status = await renderAndStoreDocument({
     documentId,
     path: `weekly/${data.studentProfileId}/${weeklyReportId}.pdf`,
     actingUserId,
-    renderHtml: () => renderWeeklyReportHtml(data),
-    auditDetail: { weeklyReportId, referenceCode: data.referenceCode },
+    buildHtml: () => renderWeeklyReportHtml(data),
+    detail: { weeklyReportId, referenceCode: data.referenceCode },
     sleep: opts.sleep,
   });
+  return { generatedDocumentId: documentId, status };
 }
 
 // The week's document, or null when there is none for the submission the
@@ -270,12 +282,272 @@ export async function generateMonthlyReportPdf(
     data: { referenceCode, status: DocumentStatus.PENDING_DRAFT },
   });
 
-  return runGeneration({
+  const status = await renderAndStoreDocument({
     documentId: doc.id,
     path: `monthly/${doc.studentProfileId}/${doc.periodLabel}.pdf`,
     actingUserId,
-    renderHtml: () => renderMonthlyReportHtml(data),
-    auditDetail: { referenceCode },
+    buildHtml: () => renderMonthlyReportHtml(data),
+    detail: { referenceCode },
     sleep: opts.sleep,
+  });
+  return { generatedDocumentId: doc.id, status };
+}
+
+function referenceCode(prefix: "EL" | "FC", date: Date): string {
+  // Date part in Manila so a letter generated at 07:00 Manila isn't dated "yesterday".
+  const manila = new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const random = randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+  return `${prefix}-${manila.replace(/-/g, "")}-${random}`;
+}
+
+export function generateEndorsementReferenceCode(date: Date): string {
+  return referenceCode("EL", date);
+}
+
+// FR-DG-01 + FR-CK-04. One ENDORSEMENT_LETTER row per student — the row
+// workPlanService.reviewWorkPlan queued at approval (FR-WP-05) is reused;
+// created here only if a legacy student approved before that existed.
+export async function generateEndorsementLetterPdf(
+  studentProfileId: string,
+  actingUserId: string,
+  opts: { sleep?: Sleep } = {}
+): Promise<GenerationResult> {
+  if (!(await isEndorsementGateSatisfied(studentProfileId))) {
+    throw new ChecklistGateError(
+      "All 9 pre-deployment checklist items must be approved before the endorsement letter can be generated"
+    );
+  }
+
+  const now = new Date();
+  const existing = await prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.ENDORSEMENT_LETTER },
+    select: { id: true, referenceCode: true },
+  });
+  const code = existing?.referenceCode ?? generateEndorsementReferenceCode(now);
+  // Loaded (and FR-DG-01-validated) before the row is touched, so an
+  // incomplete profile is a 400 that leaves no half-updated row behind —
+  // and, being permanent, it's never retried.
+  const data = await loadEndorsementLetterData(studentProfileId, code, now);
+
+  let documentId: string;
+  if (existing) {
+    await prisma.generatedDocument.update({
+      where: { id: existing.id },
+      data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
+    });
+    documentId = existing.id;
+  } else {
+    const created = await prisma.generatedDocument.create({
+      data: {
+        studentProfileId,
+        documentType: DocumentType.ENDORSEMENT_LETTER,
+        referenceCode: code,
+        status: DocumentStatus.PENDING_DRAFT,
+      },
+    });
+    documentId = created.id;
+  }
+
+  const status = await renderAndStoreDocument({
+    documentId,
+    path: `endorsement/${studentProfileId}.pdf`,
+    buildHtml: () => renderEndorsementLetterHtml(data),
+    actingUserId,
+    detail: { studentProfileId, referenceCode: code },
+    sleep: opts.sleep,
+  });
+  return { generatedDocumentId: documentId, status };
+}
+
+export async function getEndorsementLetterDocument(
+  studentProfileId: string
+): Promise<GeneratedDocument | null> {
+  return prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.ENDORSEMENT_LETTER },
+  });
+}
+
+export interface BulkStudentEntry {
+  studentProfileId: string;
+  label: string; // "<student number> <full name>" — what the adviser recognises
+}
+
+export interface BulkEndorsementResult {
+  generated: BulkStudentEntry[];
+  alreadyGenerated: BulkStudentEntry[];
+  skipped: (BulkStudentEntry & { reason: string })[]; // expected: gate / incomplete profile
+  failed: (BulkStudentEntry & { reason: string })[]; // rendering or unexpected errors
+  notAttempted: BulkStudentEntry[]; // time budget spent — run again for these
+}
+
+// The bulk route allows 300s (maxDuration). Each student can take up to
+// ~105s worst case (60s retry deadline + one in-flight attempt), so no new
+// student starts after 180s — the run always returns with partial results
+// instead of being killed mid-render and leaving a row in PENDING_DRAFT.
+export const BULK_BUDGET_MS = 180_000;
+
+// FR-DG-02. `semesterIds` scopes a faculty adviser to the semesters they
+// advise this class group for (same rule as assertCanAccessStudent); staff
+// with access to every student pass undefined. Sequential on purpose: one
+// headless Chrome at a time keeps memory inside one instance's limits (R2).
+export async function generateBulkEndorsementLetters(
+  classGroupId: string,
+  actingUserId: string,
+  semesterIds?: string[],
+  opts: { budgetMs?: number; now?: () => number } = {}
+): Promise<BulkEndorsementResult> {
+  const { budgetMs = BULK_BUDGET_MS, now = Date.now } = opts;
+  const startedAt = now();
+  const students = await prisma.studentProfile.findMany({
+    where: {
+      classGroupId,
+      deletedAt: null,
+      ...(semesterIds ? { semesterId: { in: semesterIds } } : {}),
+    },
+    select: {
+      id: true,
+      studentNumber: true,
+      fullName: true,
+      generatedDocuments: {
+        where: { documentType: DocumentType.ENDORSEMENT_LETTER },
+        select: { status: true },
+      },
+    },
+    orderBy: { studentNumber: "asc" },
+  });
+
+  const result: BulkEndorsementResult = {
+    generated: [],
+    alreadyGenerated: [],
+    skipped: [],
+    failed: [],
+    notAttempted: [],
+  };
+  for (const s of students) {
+    const entry = {
+      studentProfileId: s.id,
+      label: [s.studentNumber, s.fullName?.trim()].filter(Boolean).join(" "),
+    };
+    // A good letter stays as it is: re-rendering risks downgrading it to
+    // FAILED on a transient Chrome error and spends the time budget.
+    if (s.generatedDocuments.some((d) => d.status === DocumentStatus.GENERATED)) {
+      result.alreadyGenerated.push(entry);
+      continue;
+    }
+    if (now() - startedAt >= budgetMs) {
+      result.notAttempted.push(entry);
+      continue;
+    }
+    try {
+      const { status } = await generateEndorsementLetterPdf(s.id, actingUserId);
+      if (status === DocumentStatus.GENERATED) result.generated.push(entry);
+      else result.failed.push({ ...entry, reason: "PDF generation failed — use Regenerate" });
+    } catch (error) {
+      if (error instanceof ChecklistGateError || error instanceof EndorsementDataIncompleteError) {
+        // Expected per-student outcomes; their messages are written for staff.
+        result.skipped.push({ ...entry, reason: error.message });
+      } else {
+        // Never show internal error text (Prisma paths, queries) to staff.
+        console.error("Bulk endorsement letter failed unexpectedly", {
+          classGroupId,
+          studentProfileId: s.id,
+          error,
+        });
+        result.failed.push({ ...entry, reason: "Unexpected error — try again later" });
+      }
+    }
+  }
+  return result;
+}
+
+export function generateFinalCoverReferenceCode(date: Date): string {
+  return referenceCode("FC", date);
+}
+
+// FR-DG-03 + FR-FT-01: the final report cover, unlocked once confirmed
+// (APPROVED/REGARDED) hours reach the program's threshold. One
+// FINAL_REPORT_COVER row per student; regenerating overwrites it.
+export async function generateFinalCoverPdf(
+  studentProfileId: string,
+  actingUserId: string,
+  opts: { sleep?: Sleep } = {}
+): Promise<GenerationResult> {
+  const profile = await prisma.studentProfile.findUniqueOrThrow({
+    where: { id: studentProfileId },
+    select: {
+      id: true,
+      program: true,
+      requiredHours: true,
+      fullName: true,
+      studentNumber: true,
+      company: { select: { name: true } },
+      semester: { select: { name: true, academicYear: true } },
+    },
+  });
+  const renderedHours = await calculateRenderedHours(studentProfileId);
+  const threshold = await getFinalReportThreshold(profile.program, profile.requiredHours);
+  if (renderedHours < threshold) {
+    const remaining = Math.round((threshold - renderedHours) * 100) / 100;
+    throw new FinalReportLockedError(
+      `The final report cover unlocks at ${threshold} confirmed hours — ${remaining} more hours to go`
+    );
+  }
+  const fullName = profile.fullName?.trim();
+  if (!fullName) {
+    throw new FinalReportLockedError("Set your full name on the Profile page first");
+  }
+
+  const now = new Date();
+  const existing = await prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.FINAL_REPORT_COVER },
+    select: { id: true, referenceCode: true },
+  });
+  const code = existing?.referenceCode ?? generateFinalCoverReferenceCode(now);
+
+  let documentId: string;
+  if (existing) {
+    await prisma.generatedDocument.update({
+      where: { id: existing.id },
+      data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
+    });
+    documentId = existing.id;
+  } else {
+    const created = await prisma.generatedDocument.create({
+      data: {
+        studentProfileId,
+        documentType: DocumentType.FINAL_REPORT_COVER,
+        referenceCode: code,
+        status: DocumentStatus.PENDING_DRAFT,
+      },
+    });
+    documentId = created.id;
+  }
+
+  const status = await renderAndStoreDocument({
+    documentId,
+    path: `final-cover/${studentProfileId}.pdf`,
+    buildHtml: () =>
+      renderFinalCoverHtml({
+        referenceCode: code,
+        generatedAt: now,
+        student: { fullName, studentNumber: profile.studentNumber, program: profile.program },
+        company: profile.company,
+        renderedHours,
+        requiredHours: profile.requiredHours,
+        academicYear: profile.semester.academicYear,
+        semesterName: profile.semester.name,
+      }),
+    actingUserId,
+    detail: { studentProfileId, referenceCode: code },
+    sleep: opts.sleep,
+  });
+  return { generatedDocumentId: documentId, status };
+}
+
+export async function getFinalCoverDocument(
+  studentProfileId: string
+): Promise<GeneratedDocument | null> {
+  return prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.FINAL_REPORT_COVER },
   });
 }

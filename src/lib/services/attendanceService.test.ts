@@ -28,6 +28,7 @@ import {
   validateDeviationReport,
   validateScheduleChangeFaculty,
   getHoursSummary,
+  getFinalReportThreshold,
 } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 
@@ -748,5 +749,26 @@ describe("getHoursSummary", () => {
     const summary = await getHoursSummary("profile-1");
     expect(summary.remainingHours).toBe(0);
     expect(summary.remainingIfPendingApproved).toBe(0);
+  });
+});
+describe("getFinalReportThreshold", () => {
+  it("defaults to 500 for BSIT and 5/6 of required hours otherwise", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    await expect(getFinalReportThreshold(Program.BSIT, 600)).resolves.toBe(500);
+    await expect(getFinalReportThreshold(Program.BSCS, 240)).resolves.toBe(200);
+  });
+
+  it("uses the configured value when set", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: 450 } as never);
+    await expect(getFinalReportThreshold(Program.BSIT, 600)).resolves.toBe(450);
+  });
+});
+
+describe("getFinalReportThreshold never exceeds the student's required hours", () => {
+  it("caps the BSIT default and a configured override at requiredHours", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    await expect(getFinalReportThreshold(Program.BSIT, 486)).resolves.toBe(486);
+    prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: 700 } as never);
+    await expect(getFinalReportThreshold(Program.BSIT, 600)).resolves.toBe(600);
   });
 });

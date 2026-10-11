@@ -15,7 +15,9 @@ import {
 } from "@/components/ui/table";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
+import { getEndorsementLetterDocument } from "@/lib/services/documentService";
 import { ChecklistItemRow } from "./checklist-item-row";
+import { EndorsementLetterActions } from "./endorsement-letter-actions";
 
 export default async function ChecklistPage({ params }: { params: { studentProfileId: string } }) {
   const user = await requireUserPage();
@@ -29,7 +31,10 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
     throw error;
   }
 
-  const progress = await getChecklistProgress(params.studentProfileId);
+  const [progress, letter] = await Promise.all([
+    getChecklistProgress(params.studentProfileId),
+    getEndorsementLetterDocument(params.studentProfileId),
+  ]);
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
 
@@ -63,6 +68,26 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
         <StatCard label="Pending" value={pendingCount} icon={Clock3} tone="amber" />
         <StatCard label="Returned" value={returnedCount} icon={RotateCcw} tone="red" />
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Endorsement letter</CardTitle>
+              <CardDescription>
+                {progress.gateSatisfied
+                  ? "Issued by the department once all requirements are approved (FR-DG-01)."
+                  : "Available once all 9 requirements are approved."}
+              </CardDescription>
+            </div>
+            <EndorsementLetterActions
+              studentProfileId={params.studentProfileId}
+              status={letter?.status ?? null}
+              canGenerate={canReview && progress.gateSatisfied}
+            />
+          </div>
+        </CardHeader>
+      </Card>
 
       <Card>
         <CardHeader className="gap-3">

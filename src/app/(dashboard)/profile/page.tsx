@@ -2,6 +2,7 @@ import Link from "next/link";
 import { KeyRound, Mail, ShieldCheck, IdCard, ArrowRight } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { getUserProfile } from "@/lib/services/userService";
+import { FullNameForm } from "./full-name-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,6 +24,20 @@ export default async function ProfilePage() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">Your account details and access level.</p>
       </div>
+
+      {user.role === "STUDENT_INTERN" && profile?.studentProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Legal name</CardTitle>
+            <CardDescription>
+              Printed on your endorsement letter (FR-DG-01). Use your full legal name.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FullNameForm initial={profile.studentProfile.fullName} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

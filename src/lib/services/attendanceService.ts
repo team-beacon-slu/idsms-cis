@@ -1060,3 +1060,26 @@ export async function getHoursSummary(studentProfileId: string): Promise<HoursSu
     ),
   };
 }
+
+const FINAL_REPORT_THRESHOLD_KEY = (program: Program) => `final_report_threshold:${program}`;
+
+// FR-FT-01: configurable unlock threshold for the final technical report
+// (PRD example: 500 of 600 for BSIT). Admin-overridable like required hours.
+export async function getFinalReportThreshold(
+  program: Program,
+  requiredHours: number
+): Promise<number> {
+  const config = await prisma.systemConfig.findUnique({
+    where: { configKey: FINAL_REPORT_THRESHOLD_KEY(program) },
+    select: { configValue: true },
+  });
+  const threshold =
+    config && typeof config.configValue === "number" && config.configValue > 0
+      ? config.configValue
+      : program === Program.BSIT
+        ? 500
+        : Math.ceil((requiredHours * 5) / 6);
+  // Never above the student's own requirement, or a student who completes
+  // every hour (e.g. required_hours set to 486) could never unlock the cover.
+  return Math.min(threshold, requiredHours);
+}
