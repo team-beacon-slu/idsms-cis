@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "./notification-bell";
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 // Coordinator/Admin already have the full roster via /users — this page's
@@ -108,6 +109,7 @@ export function DashboardNav({ role, userEmail }: { role: Role; userEmail?: stri
           <span className="text-lg font-semibold tracking-tight text-sidebar-foreground">
             IDSMS-CIS
           </span>
+          <NotificationBell className="ml-auto" />
         </div>
         <NavLinks items={items} pathname={pathname} />
         <div className="mt-auto border-t border-sidebar-border p-3">
@@ -129,6 +131,7 @@ export function DashboardNav({ role, userEmail }: { role: Role; userEmail?: stri
       {/* Mobile top bar + slide-over drawer */}
       <header className="flex h-14 items-center justify-between border-b bg-sidebar px-4 md:hidden">
         <span className="text-base font-semibold text-sidebar-foreground">IDSMS-CIS</span>
+        <NotificationBell className="ml-auto mr-1" />
         <button
           type="button"
           onClick={() => setMobileOpen(true)}

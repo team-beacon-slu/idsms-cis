@@ -34,6 +34,7 @@
     "@react-email/components": "^1.0.12",
     "@sparticuz/chromium": "^149.0.0",
     "@supabase/supabase-js": "^2.112.4",
+    "@vercel/functions": "^1.6.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

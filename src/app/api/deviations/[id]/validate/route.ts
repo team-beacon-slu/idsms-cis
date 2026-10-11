@@ -7,6 +7,7 @@ import {
 import { deviationValidateSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
+import { notifyDeviationValidated } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
@@ -24,6 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { action } = deviationValidateSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await validateDeviationReport(params.id, user.id, action, ipAddress);
+    await notifyDeviationValidated(studentProfileId, action); // FR-NT-01 #11
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);

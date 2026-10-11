@@ -1,6 +1,7 @@
 /** @jest-environment node */
 jest.mock("@/lib/auth/session", () => ({ requireUserApi: jest.fn(), requireRole: jest.fn() }));
 jest.mock("@/lib/services/userService", () => ({ verifyCredentials: jest.fn() }));
+jest.mock("@/lib/services/notificationEvents", () => ({ notifyEndorsementReady: jest.fn() }));
 jest.mock("@/lib/services/documentService", () => ({ generateBulkEndorsementLetters: jest.fn() }));
 jest.mock("@/lib/prisma", () => ({
   prisma: { facultyClassGroup: { findMany: jest.fn() }, studentProfile: { count: jest.fn() } },

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { requestPasswordResetSchema } from "@/lib/validators/auth";
 import { requestPasswordReset } from "@/lib/services/userService";
+import { notifyPasswordReset } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Public route — no auth required, and the response is identical whether or
@@ -12,11 +14,18 @@ export async function POST(req: NextRequest) {
 
     const result = await requestPasswordReset(body.email, ipAddress);
 
-    // TODO(Phase 4): send the magic link via notificationService/Resend once
-    // that integration lands. Until then, log it locally so the reset flow
-    // can be exercised in dev — this never runs in production and the raw
-    // token is otherwise unrecoverable (only its hash is ever persisted).
-    if (result && process.env.NODE_ENV !== "production") {
+    if (result) {
+      // FR-NT-01 #2 — email only; the token lives only in the email body.
+      // Sent after the response: awaiting it would make "account exists"
+      // measurably slower than "no account" (enumeration by timing).
+      // waitUntil keeps it alive on Vercel; on a long-lived server it just runs.
+      waitUntil(notifyPasswordReset(result.userId, result.token));
+    }
+    // Without Resend configured (decision D4) there is no email, so in dev
+    // log the link locally — never in production; the raw token is otherwise
+    // unrecoverable (only its hash is ever persisted).
+    const emailConfigured = !!process.env.RESEND_API_KEY && !!process.env.RESEND_FROM_EMAIL;
+    if (result && !emailConfigured && process.env.NODE_ENV !== "production") {
       console.log(
         `[dev] password reset link for ${body.email}: /auth/reset-password/${result.token}`
       );

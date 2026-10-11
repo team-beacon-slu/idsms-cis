@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { createUserSchema } from "@/lib/validators/user";
 import { createUser, listUsers } from "@/lib/services/userService";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
+import { notifyAccountCreated } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function GET(req: NextRequest) {
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
     const ipAddress = req.headers.get("x-forwarded-for");
 
     const result = await createUser(body.email, body.role, user.id, ipAddress);
+    await notifyAccountCreated(result.user.id); // FR-NT-01 #1 (no password in it)
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
