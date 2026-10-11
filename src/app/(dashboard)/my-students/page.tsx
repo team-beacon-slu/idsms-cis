@@ -6,6 +6,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/stat-card";
+import { BulkEndorsementButton } from "./bulk-endorsement-button";
 import {
   Table,
   TableBody,
@@ -35,8 +36,10 @@ export default async function MyStudentsPage() {
 
   const classGroups = await prisma.facultyClassGroup.findMany({
     where: { facultyId: user.id },
-    select: { classGroupId: true, semesterId: true },
+    select: { classGroupId: true, semesterId: true, classGroup: { select: { name: true } } },
   });
+  // One bulk button per class group, even if advised across several semesters.
+  const groupNames = new Map(classGroups.map((g) => [g.classGroupId, g.classGroup.name]));
 
   // An empty OR: [] is not safe to trust as "no filter" here — a Faculty
   // Adviser with zero assigned groups must see zero students, not everyone.
@@ -72,6 +75,26 @@ export default async function MyStudentsPage() {
         />
         <StatCard label="Students" value={students.length} icon={Users} tone="green" />
       </div>
+
+      {groupNames.size > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Endorsement letters</CardTitle>
+            <CardDescription>
+              Generate letters for a whole class group (FR-DG-02). Students without all 9
+              requirements approved are skipped.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {Array.from(groupNames).map(([id, name]) => (
+              <div key={id} className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{name}</span>
+                <BulkEndorsementButton classGroupId={id} classGroupName={name} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -361,6 +361,7 @@ import { loadEndorsementLetterData } from "@/lib/documents/endorsementLetterData
 import {
   generateEndorsementLetterPdf,
   generateEndorsementReferenceCode,
+  generateBulkEndorsementLetters,
 } from "@/lib/services/documentService";
 
 describe("generateEndorsementLetterPdf", () => {
@@ -435,5 +436,52 @@ describe("generateEndorsementReferenceCode", () => {
     expect(generateEndorsementReferenceCode(new Date("2026-10-11T03:00:00Z"))).toMatch(
       /^EL-20261011-[0-9A-F]{8}$/
     );
+  });
+});
+
+describe("generateBulkEndorsementLetters", () => {
+  it("classifies each student and honours the semester scope", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      { id: "p-ok" },
+      { id: "p-gate" },
+    ] as never);
+    (isEndorsementGateSatisfied as jest.Mock).mockImplementation(
+      async (id: string) => id === "p-ok"
+    );
+    (loadEndorsementLetterData as jest.Mock).mockResolvedValue({
+      studentProfileId: "p-ok",
+      referenceCode: "EL-1",
+      endorsementDate: new Date("2026-10-11T00:00:00Z"),
+      student: {
+        fullName: "A",
+        studentNumber: "1",
+        program: "BSIT",
+        positionTitle: null,
+        requiredHours: 600,
+      },
+      company: { name: "Acme", address: "Baguio", supervisorName: "M", supervisorPosition: null },
+    });
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({
+      id: "doc-ok",
+      referenceCode: "EL-1",
+    } as never);
+    render.mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("endorsement/p-ok.pdf");
+
+    const result = await generateBulkEndorsementLetters("cg-1", "fac-1", ["sem-1"]);
+
+    expect(prismaMock.studentProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { classGroupId: "cg-1", deletedAt: null, semesterId: { in: ["sem-1"] } },
+      })
+    );
+    expect(result.generated).toEqual(["p-ok"]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({
+        studentProfileId: "p-gate",
+        reason: expect.stringMatching(/checklist/i),
+      }),
+    ]);
+    expect(result.failed).toEqual([]);
   });
 });

@@ -361,3 +361,43 @@ export async function getEndorsementLetterDocument(
     where: { studentProfileId, documentType: DocumentType.ENDORSEMENT_LETTER },
   });
 }
+
+export interface BulkEndorsementResult {
+  generated: string[];
+  skipped: { studentProfileId: string; reason: string }[];
+  failed: string[];
+}
+
+// FR-DG-02. `semesterIds` scopes a faculty adviser to the semesters they
+// advise this class group for (same rule as assertCanAccessStudent); staff
+// with access to every student pass undefined. Sequential on purpose: one
+// headless Chrome at a time keeps memory inside one instance's limits (R2).
+export async function generateBulkEndorsementLetters(
+  classGroupId: string,
+  actingUserId: string,
+  semesterIds?: string[]
+): Promise<BulkEndorsementResult> {
+  const students = await prisma.studentProfile.findMany({
+    where: {
+      classGroupId,
+      deletedAt: null,
+      ...(semesterIds ? { semesterId: { in: semesterIds } } : {}),
+    },
+    select: { id: true },
+    orderBy: { studentNumber: "asc" },
+  });
+  const result: BulkEndorsementResult = { generated: [], skipped: [], failed: [] };
+  for (const { id } of students) {
+    try {
+      const { status } = await generateEndorsementLetterPdf(id, actingUserId);
+      (status === DocumentStatus.GENERATED ? result.generated : result.failed).push(id);
+    } catch (error) {
+      // Gate not met / profile incomplete are expected per-student outcomes.
+      result.skipped.push({
+        studentProfileId: id,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return result;
+}
