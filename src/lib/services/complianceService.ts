@@ -1,6 +1,7 @@
-import type { Prisma, Program, WeeklyReportStatus } from "@prisma/client";
+import { Role, type Prisma, type Program, type WeeklyReportStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { ForbiddenError } from "@/lib/services/userService";
 import { isAwaitingReview } from "@/lib/services/weeklyReportService";
 import { addDays, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";
 
@@ -198,4 +199,23 @@ export async function resolveDepartmentSemester(
   const select = { id: true, name: true, archivedAt: true } as const;
   if (semesterId) return prisma.semester.findUnique({ where: { id: semesterId }, select });
   return prisma.semester.findFirst({ where: { isActive: true }, select });
+}
+
+// Shared by every compliance screen/export. Students are refused; faculty are
+// pinned to their own class groups (semester/program params ignored);
+// coordinator and admin get the department scope, or null when there is no
+// such/active semester so the caller can show its empty state.
+export async function resolveComplianceScope(
+  user: { id: string; role: Role },
+  params: { semesterId?: string | null; program?: Program }
+): Promise<ComplianceScope | null> {
+  if (user.role === Role.STUDENT_INTERN) throw new ForbiddenError();
+  if (user.role === Role.FACULTY_ADVISER) return { kind: "faculty", facultyId: user.id };
+  const semester = await resolveDepartmentSemester(params.semesterId);
+  if (!semester) return null;
+  return {
+    kind: "department",
+    semesterId: semester.id,
+    ...(params.program ? { program: params.program } : {}),
+  };
 }

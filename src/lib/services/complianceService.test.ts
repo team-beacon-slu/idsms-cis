@@ -2,11 +2,14 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   getComplianceRows,
   reportState,
+  resolveComplianceScope,
   resolveDepartmentSemester,
   summarize,
   summarizeByProgram,
   type ComplianceRow,
 } from "@/lib/services/complianceService";
+
+import { ForbiddenError } from "@/lib/services/userService";
 
 beforeEach(() => {
   resetPrismaMock();
@@ -269,5 +272,58 @@ describe("resolveDepartmentSemester", () => {
   it("returns null for an unknown id", async () => {
     prismaMock.semester.findUnique.mockResolvedValue(null as never);
     expect(await resolveDepartmentSemester("nope")).toBeNull();
+  });
+});
+
+describe("resolveComplianceScope", () => {
+  it("refuses students", async () => {
+    await expect(resolveComplianceScope({ id: "u-1", role: "STUDENT_INTERN" }, {})).rejects.toThrow(
+      ForbiddenError
+    );
+  });
+
+  it("gives faculty their own scope and ignores semester and program params", async () => {
+    const scope = await resolveComplianceScope(
+      { id: "f-1", role: "FACULTY_ADVISER" },
+      { semesterId: "sem-x", program: "BSCS" }
+    );
+    expect(scope).toEqual({ kind: "faculty", facultyId: "f-1" });
+    expect(prismaMock.semester.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.semester.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("returns null for a coordinator when there is no active semester", async () => {
+    prismaMock.semester.findFirst.mockResolvedValue(null as never);
+    expect(
+      await resolveComplianceScope({ id: "c-1", role: "DEPARTMENT_COORDINATOR" }, {})
+    ).toBeNull();
+  });
+
+  it("gives a super admin department scope for the requested semester and passes program through", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({
+      id: "sem-old",
+      name: "AY25 T2",
+      archivedAt: new Date("2026-06-01"),
+    } as never);
+    expect(
+      await resolveComplianceScope(
+        { id: "a-1", role: "SUPER_ADMIN" },
+        { semesterId: "sem-old", program: "BSIT" }
+      )
+    ).toEqual({ kind: "department", semesterId: "sem-old", program: "BSIT" });
+  });
+
+  it("omits program from department scope when none is given", async () => {
+    prismaMock.semester.findFirst.mockResolvedValue({
+      id: "sem-1",
+      name: "T1",
+      archivedAt: null,
+    } as never);
+    expect(await resolveComplianceScope({ id: "c-1", role: "DEPARTMENT_COORDINATOR" }, {})).toEqual(
+      {
+        kind: "department",
+        semesterId: "sem-1",
+      }
+    );
   });
 });

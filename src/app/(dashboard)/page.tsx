@@ -32,6 +32,7 @@ import { getChecklistProgress } from "@/lib/services/checklistService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
+import { FacultyDashboard } from "./faculty-dashboard";
 
 const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -154,33 +155,7 @@ export default async function DashboardHomePage() {
       </div>
     );
   } else if (user.role === Role.FACULTY_ADVISER) {
-    const classGroups = await prisma.facultyClassGroup.findMany({
-      where: { facultyId: user.id },
-      select: { classGroupId: true, semesterId: true },
-    });
-    const studentCount =
-      classGroups.length === 0
-        ? 0
-        : await prisma.studentProfile.count({
-            where: {
-              OR: classGroups.map((g) => ({
-                classGroupId: g.classGroupId,
-                semesterId: g.semesterId,
-              })),
-            },
-          });
-
-    stats = (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatCard
-          label="Assigned class groups"
-          value={classGroups.length}
-          icon={ClipboardCheck}
-          tone="blue"
-        />
-        <StatCard label="My students" value={studentCount} icon={Users} tone="green" />
-      </div>
-    );
+    stats = <FacultyDashboard facultyId={user.id} />;
   } else if (user.role === Role.STUDENT_INTERN) {
     const profile = await getUserProfile(user.id);
     const studentProfile = profile?.studentProfile;
