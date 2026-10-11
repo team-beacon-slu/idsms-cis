@@ -5,7 +5,10 @@ import { DocumentStatus, DocumentType, type GeneratedDocument } from "@prisma/cl
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { getConfirmedSubmission } from "@/lib/services/weeklyReportService";
+import { ChecklistGateError, isEndorsementGateSatisfied } from "@/lib/services/checklistService";
 import { DocumentNotReadyError } from "@/lib/documents/errors";
+import { loadEndorsementLetterData } from "@/lib/documents/endorsementLetterData";
+import { renderEndorsementLetterHtml } from "@/lib/documents/endorsementLetterTemplate";
 import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
 import { renderMonthlyReportHtml } from "@/lib/documents/monthlyReportTemplate";
 import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
@@ -283,4 +286,78 @@ export async function generateMonthlyReportPdf(
     sleep: opts.sleep,
   });
   return { generatedDocumentId: doc.id, status };
+}
+
+function referenceCode(prefix: "EL" | "FC", date: Date): string {
+  // Date part in Manila so a letter generated at 07:00 Manila isn't dated "yesterday".
+  const manila = new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const random = randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+  return `${prefix}-${manila.replace(/-/g, "")}-${random}`;
+}
+
+export function generateEndorsementReferenceCode(date: Date): string {
+  return referenceCode("EL", date);
+}
+
+// FR-DG-01 + FR-CK-04. One ENDORSEMENT_LETTER row per student — the row
+// workPlanService.reviewWorkPlan queued at approval (FR-WP-05) is reused;
+// created here only if a legacy student approved before that existed.
+export async function generateEndorsementLetterPdf(
+  studentProfileId: string,
+  actingUserId: string,
+  opts: { sleep?: Sleep } = {}
+): Promise<GenerationResult> {
+  if (!(await isEndorsementGateSatisfied(studentProfileId))) {
+    throw new ChecklistGateError(
+      "All 9 pre-deployment checklist items must be approved before the endorsement letter can be generated"
+    );
+  }
+
+  const now = new Date();
+  const existing = await prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.ENDORSEMENT_LETTER },
+    select: { id: true, referenceCode: true },
+  });
+  const code = existing?.referenceCode ?? generateEndorsementReferenceCode(now);
+  // Loaded (and FR-DG-01-validated) before the row is touched, so an
+  // incomplete profile is a 400 that leaves no half-updated row behind —
+  // and, being permanent, it's never retried.
+  const data = await loadEndorsementLetterData(studentProfileId, code, now);
+
+  let documentId: string;
+  if (existing) {
+    await prisma.generatedDocument.update({
+      where: { id: existing.id },
+      data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
+    });
+    documentId = existing.id;
+  } else {
+    const created = await prisma.generatedDocument.create({
+      data: {
+        studentProfileId,
+        documentType: DocumentType.ENDORSEMENT_LETTER,
+        referenceCode: code,
+        status: DocumentStatus.PENDING_DRAFT,
+      },
+    });
+    documentId = created.id;
+  }
+
+  const status = await renderAndStoreDocument({
+    documentId,
+    path: `endorsement/${studentProfileId}.pdf`,
+    buildHtml: () => renderEndorsementLetterHtml(data),
+    actingUserId,
+    detail: { studentProfileId, referenceCode: code },
+    sleep: opts.sleep,
+  });
+  return { generatedDocumentId: documentId, status };
+}
+
+export async function getEndorsementLetterDocument(
+  studentProfileId: string
+): Promise<GeneratedDocument | null> {
+  return prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.ENDORSEMENT_LETTER },
+  });
 }

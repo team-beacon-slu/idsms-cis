@@ -6,6 +6,14 @@ jest.mock("@/lib/documents/monthlyReportData", () => ({
   loadMonthlyReportDocumentData: jest.fn(),
 }));
 jest.mock("@/lib/pdf/renderHtmlToPdf", () => ({ renderHtmlToPdf: jest.fn() }));
+jest.mock("@/lib/services/checklistService", () => {
+  class ChecklistGateError extends Error {}
+  return { ChecklistGateError, isEndorsementGateSatisfied: jest.fn() };
+});
+jest.mock("@/lib/documents/endorsementLetterData", () => ({
+  loadEndorsementLetterData: jest.fn(),
+  EndorsementDataIncompleteError: class extends Error {},
+}));
 jest.mock("@/lib/storage", () => {
   class PdfTooLargeError extends Error {}
   return {
@@ -346,5 +354,86 @@ describe("renderAndStoreDocument", () => {
         fileUrl: "endorsement/p-1.pdf",
       }),
     });
+  });
+});
+import { ChecklistGateError, isEndorsementGateSatisfied } from "@/lib/services/checklistService";
+import { loadEndorsementLetterData } from "@/lib/documents/endorsementLetterData";
+import {
+  generateEndorsementLetterPdf,
+  generateEndorsementReferenceCode,
+} from "@/lib/services/documentService";
+
+describe("generateEndorsementLetterPdf", () => {
+  const gate = isEndorsementGateSatisfied as jest.Mock;
+  const loadLetter = loadEndorsementLetterData as jest.Mock;
+
+  it("refuses when the checklist gate is not satisfied (FR-CK-04)", async () => {
+    gate.mockResolvedValue(false);
+    await expect(
+      generateEndorsementLetterPdf("p-1", "coord-1", { sleep: noSleep })
+    ).rejects.toThrow(ChecklistGateError);
+    expect(prismaMock.generatedDocument.create).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("validates FR-DG-01 data before touching the document row", async () => {
+    gate.mockResolvedValue(true);
+    loadLetter.mockRejectedValue(new Error("The student's full name is missing"));
+    await expect(
+      generateEndorsementLetterPdf("p-1", "coord-1", { sleep: noSleep })
+    ).rejects.toThrow(/full name/);
+    expect(prismaMock.generatedDocument.update).not.toHaveBeenCalled();
+  });
+
+  it("reuses the FR-WP-05 queued row, assigns a code once, and generates", async () => {
+    gate.mockResolvedValue(true);
+    // Complete letter data: the real template renders it inside the retry loop.
+    loadLetter.mockResolvedValue({
+      studentProfileId: "p-1",
+      referenceCode: "EL-20261011-ABCD1234",
+      endorsementDate: new Date("2026-10-11T00:00:00Z"),
+      student: {
+        fullName: "Juan Dela Cruz",
+        studentNumber: "1",
+        program: "BSIT",
+        positionTitle: null,
+        requiredHours: 600,
+      },
+      company: {
+        name: "Acme",
+        address: "Baguio",
+        supervisorName: "Maria",
+        supervisorPosition: null,
+      },
+    });
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({
+      id: "doc-el",
+      referenceCode: null,
+    } as never);
+    render.mockResolvedValue(Buffer.from("%PDF"));
+    upload.mockResolvedValue("endorsement/p-1.pdf");
+
+    const result = await generateEndorsementLetterPdf("p-1", "coord-1", { sleep: noSleep });
+
+    expect(result).toEqual({ generatedDocumentId: "doc-el", status: DocumentStatus.GENERATED });
+    expect(prismaMock.generatedDocument.update).toHaveBeenCalledWith({
+      where: { id: "doc-el" },
+      data: expect.objectContaining({
+        referenceCode: expect.stringMatching(/^EL-\d{8}-[0-9A-F]{8}$/),
+      }),
+    });
+    expect(upload).toHaveBeenCalledWith(
+      "generated-documents",
+      "endorsement/p-1.pdf",
+      expect.any(Buffer)
+    );
+  });
+});
+
+describe("generateEndorsementReferenceCode", () => {
+  it("is EL-<YYYYMMDD>-<8 hex>", () => {
+    expect(generateEndorsementReferenceCode(new Date("2026-10-11T03:00:00Z"))).toMatch(
+      /^EL-20261011-[0-9A-F]{8}$/
+    );
   });
 });
