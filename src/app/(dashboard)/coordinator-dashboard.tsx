@@ -23,6 +23,7 @@ import {
   summarizeByProgram,
   type ComplianceStatus,
 } from "@/lib/services/complianceService";
+import { listSemesters } from "@/lib/services/semesterService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
 import { ComplianceTable } from "@/components/compliance-table";
 import { EmptyState } from "@/components/empty-state";
@@ -68,18 +69,28 @@ export async function CoordinatorDashboard({
   const status = parseParam(searchParams, "status");
 
   // Independent fetches run together; only the rows depend on the semester.
-  const [semester, semesters, expiringMoas, totalUsers, totalCompanies, verifiedCompanies] =
-    await Promise.all([
-      resolveDepartmentSemester(semesterId),
-      prisma.semester.findMany({
-        orderBy: { startDate: "desc" },
-        select: { id: true, name: true, academicYear: true, isActive: true, archivedAt: true },
-      }),
-      getExpiringMoaRecords(30),
-      prisma.user.count({ where: { deletedAt: null } }),
-      prisma.company.count({ where: { deletedAt: null } }),
-      prisma.company.count({ where: { deletedAt: null, isVerified: true } }),
-    ]);
+  const [
+    requestedSemester,
+    semesters,
+    expiringMoas,
+    totalUsers,
+    totalCompanies,
+    verifiedCompanies,
+  ] = await Promise.all([
+    resolveDepartmentSemester(semesterId),
+    listSemesters(),
+    getExpiringMoaRecords(30),
+    prisma.user.count({ where: { deletedAt: null } }),
+    prisma.company.count({ where: { deletedAt: null } }),
+    prisma.company.count({ where: { deletedAt: null, isVerified: true } }),
+  ]);
+
+  // A well-formed but unknown semesterId (stale link) falls back to the active
+  // semester, with a notice so the change isn't silent.
+  const semesterNotFound = Boolean(semesterId) && !requestedSemester;
+  const semester = semesterNotFound
+    ? await resolveDepartmentSemester(undefined)
+    : requestedSemester;
 
   const allRows = semester
     ? await getComplianceRows({
@@ -92,7 +103,7 @@ export async function CoordinatorDashboard({
   const programs = summarizeByProgram(allRows).sort((a, b) => a.program.localeCompare(b.program));
 
   const exportParams = new URLSearchParams();
-  if (semesterId) exportParams.set("semesterId", semesterId);
+  if (semesterId && !semesterNotFound) exportParams.set("semesterId", semesterId);
   if (program) exportParams.set("program", program);
   if (status) exportParams.set("status", status);
   const exportQuery = exportParams.toString();
@@ -207,6 +218,16 @@ export async function CoordinatorDashboard({
             program={program}
             status={status}
           />
+          {semesterNotFound && (
+            <p
+              role="status"
+              className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
+            >
+              {semester
+                ? "That semester wasn't found — showing the active semester."
+                : "That semester wasn't found, and no semester is active."}
+            </p>
+          )}
           {semester?.archivedAt && (
             <p className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
               <Archive className="size-4 shrink-0" aria-hidden="true" />

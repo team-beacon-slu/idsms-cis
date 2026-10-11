@@ -10,6 +10,7 @@ import {
   Users,
   Building2,
   Calendar,
+  CalendarRange,
   ClipboardCheck,
   FileText,
   FileBarChart2,
@@ -38,6 +39,7 @@ function getNavItems(role: Role): NavItem[] {
 
   if (STAFF_ROLES.includes(role)) {
     items.push({ href: "/users", label: "Users", icon: Users });
+    items.push({ href: "/semesters", label: "Semesters", icon: CalendarRange });
   }
   items.push({ href: "/companies", label: "Companies", icon: Building2 });
   items.push({ href: "/calendar", label: "Calendar", icon: Calendar });

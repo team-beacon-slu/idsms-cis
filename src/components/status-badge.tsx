@@ -27,6 +27,7 @@ const DOT_CLASSES: Record<StatusTone, string> = {
 const STATUS_TONE: Record<string, StatusTone> = {
   APPROVED: "green",
   APPROVED_ACTIVE: "green",
+  ACTIVE: "green",
   VALIDATED: "green",
   GENERATED: "green",
   SENT: "green",

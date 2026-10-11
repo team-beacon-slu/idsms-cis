@@ -34,7 +34,12 @@ export function ComplianceFilters({
   status: ComplianceStatus | undefined;
 }) {
   return (
-    <form method="get" action="/" className="flex flex-wrap items-end gap-3">
+    <form
+      method="get"
+      action="/"
+      aria-label="Filter students"
+      className="flex flex-wrap items-end gap-3"
+    >
       <div className="flex flex-col gap-1">
         <label htmlFor="filter-semester" className="text-xs font-medium text-muted-foreground">
           Semester
