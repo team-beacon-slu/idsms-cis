@@ -17,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/stat-card";
 import { cn } from "@/lib/utils";
 import { UserRowActions } from "./user-row-actions";
+import { NotificationSettingsForm } from "./notification-settings-form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getNotificationSettings } from "@/lib/services/scheduledNotifications";
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 
@@ -56,9 +59,11 @@ export default async function UsersPage() {
     redirect("/");
   }
 
-  const [{ users, total }, { total: activeTotal }] = await Promise.all([
+  const isSuperAdmin = currentUser.role === Role.SUPER_ADMIN;
+  const [{ users, total }, { total: activeTotal }, notificationSettings] = await Promise.all([
     listUsers(),
     listUsers({ isActive: true }),
+    isSuperAdmin ? getNotificationSettings() : Promise.resolve(null),
   ]);
   const inactiveTotal = total - activeTotal;
 
@@ -89,6 +94,20 @@ export default async function UsersPage() {
           tone={inactiveTotal > 0 ? "red" : "slate"}
         />
       </div>
+
+      {notificationSettings && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notification settings</CardTitle>
+            <CardDescription>
+              Deadline reminders and MOA expiry warnings sent by the daily job (FR-NT-02).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NotificationSettingsForm initial={notificationSettings} />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-border">
         <Table>
