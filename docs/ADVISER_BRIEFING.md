@@ -2,7 +2,7 @@
 
 _SAMCIS Internship Document Submission and Monitoring System (IDSMS-CIS), Saint Louis University. Prepared by the project team. Last updated: 12 October 2026._
 
-This is a short summary. The full documentation is in [`docs/system/`](system/README.md). **The open questions are numbered 1–17 in section 5; please answer by number.**
+This is a short summary. The full documentation is in [`docs/system/`](system/README.md). **The open questions are numbered 1–20 in section 5; please answer by number.**
 
 ## 1. What IDSMS does
 
@@ -79,6 +79,9 @@ Please answer by number. Items marked **(default)** already have a working defau
 15. **Email notifications:** IDSMS can email students once the department provides a **sending email domain**. Can SLU provide one? Until then, notifications are in-app only.
 16. **AI advisory (optional):** the AI feature (vague or similar-report hints for faculty) needs (a) approval to send report text to Google's AI, with names removed, under RA 10173, and (b) about 30 sample report pairs labelled by a faculty member to test accuracy. Should we pursue it, or leave it out?
 17. **Hosting:** confirm the plan to run IDSMS on a **dedicated lab computer** in Phase 5, and who in the department or IT office will manage that machine.
+18. **CPO:** what does "CPO" stand for (the issuer of the Certificate of Attendance)?
+19. **Leave, OT and UT proof:** should absence/OT/UT proof stay as an upload in IDSMS, or move to Google Classroom with IDSMS tracking status only (consistent with D2/D7)?
+20. **Class group & staff management screens:** faculty or the Super Admin will be able to create class groups, assign faculty advisers to class groups, and create staff accounts from screens in IDSMS (planned). Should faculty advisers be allowed to do this, or only the coordinator / Super Admin? **(proposed: faculty and Super Admin, as decided by the PM)**
 
 ## 6. Where to read more
 

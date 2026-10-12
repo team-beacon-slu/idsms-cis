@@ -58,14 +58,15 @@ Coordinators receive MOA expiry warnings. Email copies arrive once SLU provides 
 
 ## 10. Coming later
 
-| Feature                                                                                                            | Status                                 |
-| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| SLU credited-hours rules, Leave & Time Requests, SLU weekly report layout                                          | **In progress** (L1)                   |
-| Choose required checklist items; new items; per-student endorsement override (adviser or coordinator, with reason) | **Planned** (Checklist & MOA settings) |
-| Conduct records and the SLU deduction matrix; "Excused" exceptions                                                 | **Planned** (L2)                       |
-| Final Technical Report review (approve or return), HTE evaluation, certificates                                    | **Planned** (H)                        |
-| Department events (orientation, medical exam, psych assessment) on students' calendars                             | Backlog                                |
-| Monitoring log of supervisor checks and OJT visitations                                                            | Backlog (Q13)                          |
+| Feature                                                                                                                           | Status                                 |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| SLU credited-hours rules, Leave & Time Requests, SLU weekly report layout                                                         | **In progress** (L1)                   |
+| Choose required checklist items; new items; per-student endorsement override (adviser or coordinator, with reason)                | **Planned** (Checklist & MOA settings) |
+| Class group & staff management screens (faculty or Super Admin can create class groups, assign faculty and create staff accounts) | **Planned** (after L1; Q20)            |
+| Conduct records and the SLU deduction matrix; "Excused" exceptions                                                                | **Planned** (L2)                       |
+| Final Technical Report review (approve or return), HTE evaluation, certificates                                                   | **Planned** (H)                        |
+| Department events (orientation, medical exam, psych assessment) on students' calendars                                            | Backlog                                |
+| Monitoring log of supervisor checks and OJT visitations                                                                           | Backlog (Q13)                          |
 
 ## 11. Tips
 

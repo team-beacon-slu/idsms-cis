@@ -248,30 +248,30 @@ erDiagram
 
 ### 6.2 All models (`prisma/schema.prisma`)
 
-| Model (table)                                                   | Purpose                                                                                                                         |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `Account` (`accounts`)                                          | NextAuth adapter table (unused by credentials sign-in, required by the adapter).                                                |
-| `Session` (`sessions`)                                          | Database sessions; deleting rows revokes access instantly (FR-UM-11).                                                           |
-| `User` (`users`)                                                | Login identity: email, password hash, role, active flag, forced reset, failed attempts, lock time; soft delete.                 |
-| `PasswordResetToken` (`password_reset_tokens`)                  | Hashed 1-hour reset tokens.                                                                                                     |
-| `StudentProfile` (`student_profiles`)                           | Student number, program, class group, semester, company, required and rendered hours, start date, position, legal name.         |
-| `ClassGroup` (`class_groups`)                                   | A class (program, type, dates).                                                                                                 |
-| `FacultyClassGroup` (`faculty_class_groups`)                    | Which faculty adviser handles which class group in which semester.                                                              |
-| `Semester` (`semesters`)                                        | Semester dates, academic year, active flag, archive time.                                                                       |
-| `Company` (`companies`)                                         | Host company (HTE), modality, supervisor, verified flag.                                                                        |
-| `MoaRecord` (`moa_records`)                                     | MOA status, validity, programs covered, Drive link or stored PDF path.                                                          |
-| `PreDeploymentChecklistItem` (`pre_deployment_checklist_items`) | One row per student per requirement: status, reviewer, date, comments (legacy `file_path` no longer written since D7).          |
-| `WorkPlan` (`work_plans`)                                       | Planned tasks, schedule config, schedule change history, approval metadata, coordinator.                                        |
-| `WeeklyReport` (`weekly_reports`)                               | Week dates, totals, status, faculty action, revision history (submissions, late reasons, reference codes); reserved AI columns. |
-| `DailyReportEntry` (`daily_report_entries`)                     | One day: attendance status, scheduled/actual hours, accomplishments, tools, time in/out.                                        |
-| `DeviationReport` (`deviation_reports`)                         | Absence/overtime/undertime with reason, optional proof path, validation status. Reworked into Leave & Time Requests in L1.      |
-| `GeneratedDocument` (`generated_documents`)                     | PDF metadata: type, storage path, reference code, period, status (pending draft, generated, failed).                            |
-| `Notification` (`notifications`)                                | In-app and email notification rows, payload, read time.                                                                         |
-| `AuditLog` (`audit_logs`)                                       | Append-only security and data event log.                                                                                        |
-| `DataRequest` (`data_requests`)                                 | DSAR tickets with due date and fulfilment.                                                                                      |
-| `RetentionFlag` (`retention_flags`)                             | Files flagged by the retention scan and their review outcome.                                                                   |
-| `HolidayCalendarEntry` (`holiday_calendar`)                     | PH national/regional holidays and per-student overrides.                                                                        |
-| `SystemConfig` (`system_config`)                                | Key/value settings: required hours, notification settings, final-report thresholds, retention scan time.                        |
+| Model (table)                                                   | Purpose                                                                                                                                                                      |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Account` (`accounts`)                                          | NextAuth adapter table (unused by credentials sign-in, required by the adapter).                                                                                             |
+| `Session` (`sessions`)                                          | Database sessions; deleting rows revokes access instantly (FR-UM-11).                                                                                                        |
+| `User` (`users`)                                                | Login identity: email, password hash, role, active flag, forced reset, failed attempts, lock time; soft delete.                                                              |
+| `PasswordResetToken` (`password_reset_tokens`)                  | Hashed 1-hour reset tokens.                                                                                                                                                  |
+| `StudentProfile` (`student_profiles`)                           | Student number, program, class group, semester, company, required and rendered hours, start date, position, legal name.                                                      |
+| `ClassGroup` (`class_groups`)                                   | A class (program, type, dates).                                                                                                                                              |
+| `FacultyClassGroup` (`faculty_class_groups`)                    | Which faculty adviser handles which class group in which semester.                                                                                                           |
+| `Semester` (`semesters`)                                        | Semester dates, academic year, active flag, archive time.                                                                                                                    |
+| `Company` (`companies`)                                         | Host company (HTE), modality, supervisor, verified flag.                                                                                                                     |
+| `MoaRecord` (`moa_records`)                                     | MOA status, validity, programs covered, Drive link or stored PDF path.                                                                                                       |
+| `PreDeploymentChecklistItem` (`pre_deployment_checklist_items`) | One row per student per requirement: status, reviewer, date, comments (legacy `file_path` no longer written since D7).                                                       |
+| `WorkPlan` (`work_plans`)                                       | Planned tasks, schedule config, schedule change history, approval metadata, coordinator.                                                                                     |
+| `WeeklyReport` (`weekly_reports`)                               | Week dates, totals, status, faculty action, revision history (submissions, late reasons, reference codes); reserved AI columns.                                              |
+| `DailyReportEntry` (`daily_report_entries`)                     | One day: attendance status, scheduled/actual hours, accomplishments, tools, time in/out.                                                                                     |
+| `DeviationReport` (`deviation_reports`)                         | Absence/overtime/undertime with reason, optional proof path, validation status. L1 proposes reworking it into status-only Leave & Time Requests (pending confirmation, Q19). |
+| `GeneratedDocument` (`generated_documents`)                     | PDF metadata: type, storage path, reference code, period, status (pending draft, generated, failed).                                                                         |
+| `Notification` (`notifications`)                                | In-app and email notification rows, payload, read time.                                                                                                                      |
+| `AuditLog` (`audit_logs`)                                       | Append-only security and data event log.                                                                                                                                     |
+| `DataRequest` (`data_requests`)                                 | DSAR tickets with due date and fulfilment.                                                                                                                                   |
+| `RetentionFlag` (`retention_flags`)                             | Files flagged by the retention scan and their review outcome.                                                                                                                |
+| `HolidayCalendarEntry` (`holiday_calendar`)                     | PH national/regional holidays and per-student overrides.                                                                                                                     |
+| `SystemConfig` (`system_config`)                                | Key/value settings: required hours, notification settings, final-report thresholds, retention scan time.                                                                     |
 
 **Planned schema changes:** migration 008 (L1) adds request columns to deviation reports, a second time range per day and a semester "Week 1 starts" date; L2 adds conduct records and deduction exceptions.
 

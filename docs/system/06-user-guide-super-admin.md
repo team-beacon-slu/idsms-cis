@@ -24,7 +24,7 @@ The department dashboard (see the coordinator guide): summary cards, program car
 - **Required internship hours** per program. Defaults: **BSIT 600, BMMA 500, BSCS 240** (BSCS is open question Q5). A change applies to students imported afterwards; it does not rewrite existing students' required hours.
 - **Notification settings:** reminder hours before the weekly report deadline (1 to 3 values, each 16 to 168 hours; default 48 and 24) and the MOA expiry warning window (1 to 180 days; default 30).
 
-Creating individual staff accounts is available through the API (`POST /api/users`, Super Admin only); there is no form for it on the Users page yet. Class groups and faculty-to-class-group assignments also have no screen yet (to confirm how they are maintained).
+Creating individual staff accounts is available today only through the API (`POST /api/users`, Super Admin only); there is no form for it on the Users page. Class groups and faculty-to-class-group assignments also have no screen; today they are set up directly in the database by the project team. **Planned:** class group & staff management screens, where a faculty member or the Super Admin can create class groups, assign faculty and create staff accounts (after L1; Q20).
 
 ## 3. Semesters (`/semesters`)
 
@@ -76,6 +76,7 @@ Companies, MOAs, checklist review, work plan approval, schedule-change final app
 | Feature                                                                                                                                                 | Status                                  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | Choose which checklist items are required (dashboards show "x/required")                                                                                | **Planned** (Checklist & MOA settings)  |
+| Class group & staff management screens (create class groups, assign faculty, create staff accounts)                                                     | **Planned** (after L1; Q20)             |
 | Edit the SLU deduction matrix (categories, tiers, ADVISER and WWR points, total-at-count or per-incident) and the default hours per demerit (default 0) | **Planned** (L2)                        |
 | "Week 1 starts" date per semester                                                                                                                       | **In progress** (L1); who sets it is Q8 |
 | AI similarity threshold (0.60 to 0.85) with golden-set evaluation shown before each change                                                              | **Planned** (D, optional)               |

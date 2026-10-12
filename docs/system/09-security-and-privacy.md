@@ -14,13 +14,13 @@ IDSMS processes students' personal data, so it must comply with the **Data Priva
 
 ## 2. No sensitive documents (D2 and D7)
 
-| What                                                                                               | Where it lives                                                                                                       |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Supervisor-signed weekly/monthly reports, signatures                                               | Google Classroom (D2, PR #80 removed the signed-copy upload)                                                         |
-| Medical certificates, psychological clearance, parent's consent and other pre-deployment documents | Google Classroom (D7, PR #85: the checklist records status only)                                                     |
-| Post-internship certificates (CPO attendance, HTE completion)                                      | Google Classroom; status tracking is **Planned** (H)                                                                 |
-| Proof for leave, overtime and undertime                                                            | Today: optional upload on deviation reports. With L1 (**In progress**): Google Classroom only; the upload is removed |
-| Wet-signed MOA                                                                                     | Today: an MOA can be a Drive link or a PDF. **Planned**: Drive link and status only, no upload                       |
+| What                                                                                               | Where it lives                                                                                                                         |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Supervisor-signed weekly/monthly reports, signatures                                               | Google Classroom (D2, PR #80 removed the signed-copy upload)                                                                           |
+| Medical certificates, psychological clearance, parent's consent and other pre-deployment documents | Google Classroom (D7, PR #85: the checklist records status only)                                                                       |
+| Post-internship certificates (CPO attendance, HTE completion)                                      | Google Classroom; status tracking is **Planned** (H)                                                                                   |
+| Proof for leave, overtime and undertime                                                            | Today: optional upload on deviation reports. L1 proposes Google Classroom only, with IDSMS tracking status; pending confirmation (Q19) |
+| Wet-signed MOA                                                                                     | Today: an MOA can be a Drive link or a PDF. **Planned**: Drive link and status only, no upload                                         |
 
 IDSMS keeps only the **status** (Pending, Approved, Returned), who reviewed it and when, and the reviewer's note.
 
@@ -35,7 +35,7 @@ IDSMS keeps only the **status** (Pending, Approved, Returned), who reviewed it a
 | Companies and supervisor contact                                   | Database                                   | Any signed-in user (company details are not sensitive)       |
 | MOA records                                                        | Database; optional PDF in a private bucket | Faculty, coordinator, Super Admin only (FR-MOA-07)           |
 | Generated PDFs                                                     | Private storage bucket                     | The student and authorised staff, via 5-minute signed links  |
-| Deviation proof files (legacy, until L1)                           | Private storage bucket                     | The student and authorised staff, via 5-minute signed links  |
+| Deviation proof files (still uploadable; see Q19)                  | Private storage bucket                     | The student and authorised staff, via 5-minute signed links  |
 | Notifications                                                      | Database                                   | The recipient                                                |
 | Audit log (actions, IP addresses)                                  | Database (`audit_logs`)                    | Super Admin                                                  |
 | Data requests                                                      | Database                                   | The requester (own status), Super Admin                      |
@@ -112,4 +112,5 @@ The audit log records sign-in attempts (successful, failed, locked, inactive), r
 - Q16: approval to send anonymised report text to Google's AI.
 - Q17: who manages the lab computer in Phase 5 (backups, updates, physical security).
 - Phase 5 hardening: secrets rotation before the pilot, re-verifying the audit-log triggers on the new database, nightly off-site backups with a tested restore, and cleaning test accounts from the shared development database.
-- FR-CK-05 / NFR-DP-03 (logging consent during orientation registration) is not built; to confirm whether it is still needed now that orientation records live in Google Classroom.
+- **Consent (FR-CK-05 / NFR-DP-03) is handled under D7:** consent forms such as the Parent's Consent and Undertaking and the Data Privacy orientation are submitted in Google Classroom, and IDSMS records only their status as checklist items. No separate consent capture is built.
+- Q19: whether leave, OT and UT proof stays as an upload or moves to Google Classroom.

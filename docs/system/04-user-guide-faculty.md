@@ -4,7 +4,7 @@ _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Pla
 
 A faculty adviser sees only the students in the class groups they are assigned to for a semester. The left menu shows: **Dashboard, Companies, Calendar, My Students, Profile**, plus the notification bell and **Sign out**. Student pages (checklist, work plan, attendance, weekly and monthly reports) open from the dashboard or **My Students**.
 
-Class group assignments (which adviser handles which class group in which semester) are set up by the project team or administrator; there is no screen for it yet (to confirm with the team who maintains them).
+Class groups and class group assignments (which adviser handles which class group in which semester) have no screen yet; today they are set up directly in the database by the project team. **Planned:** class group & staff management screens, where a faculty member or the Super Admin can create class groups, assign faculty and create staff accounts (after L1, alongside Checklist & MOA settings; whether faculty may do this is Q20).
 
 ## 1. Dashboard (`/`)
 
