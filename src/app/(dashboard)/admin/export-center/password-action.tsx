@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,16 @@ export function PasswordAction({
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  // Return focus to the trigger once the form closes (Cancel, Escape, success)
+  // so keyboard users do not fall back to <body> (WCAG 2.4.3).
+  useEffect(() => {
+    if (open) wasOpen.current = true;
+    else if (wasOpen.current) triggerRef.current?.focus();
+  }, [open]);
 
   function close() {
     setOpen(false);
@@ -43,6 +53,7 @@ export function PasswordAction({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong. Try again.");
       setPassword("");
+      inputRef.current?.focus();
     } finally {
       setPending(false);
     }
@@ -51,6 +62,7 @@ export function PasswordAction({
   if (!open) {
     return (
       <Button
+        ref={triggerRef}
         type="button"
         size="sm"
         variant={destructive ? "destructive" : "outline"}
@@ -79,13 +91,14 @@ export function PasswordAction({
       <div className="space-y-2">
         <Label htmlFor={fieldId}>Your password</Label>
         <Input
+          ref={inputRef}
           id={fieldId}
           type="password"
           autoComplete="current-password"
           autoFocus
           required
           value={password}
-          disabled={pending}
+          readOnly={pending}
           aria-describedby={description ? descId : undefined}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -138,6 +151,8 @@ export async function downloadFromResponse(res: Response): Promise<void> {
     a.click();
     a.remove();
   } finally {
-    URL.revokeObjectURL(url);
+    // Some browsers start the download asynchronously; revoking on the same
+    // tick can cancel or truncate it.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
