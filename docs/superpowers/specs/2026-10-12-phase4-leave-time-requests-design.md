@@ -181,6 +181,12 @@ SLU deducts **grade points** in two columns, **ADVISER** and **WWR** (Weekly Wor
   - per intern: each category's count and the resulting ADVISER and WWR point deductions;
   - shown on the intern's page (staff), on the faculty dashboard (per-student totals), and to the intern on their own attendance page.
   - IDSMS **does not compute the final grade**; it reports the deductions. A grading formula can be added later.
+- **Exceptions (SLU slide, shared 2026-10-12):** "Submitting a late or missing deliverable does not mean that the intern is absolved from receiving penalties or deductions in their evaluation. However, an exception is granted to those with formal written documentation attested by their respective HTE representatives, or under certain circumstances beyond the intern/student's control."
+  - Late submission still counts: submitting a missing or late report afterwards does **not** remove its deduction.
+  - Staff (the assigned adviser, or coordinator / Super Admin) can mark an individual automatic item as **Excused**. Automatic items are a late or missing weekly report or journal, or an unsupported UT/absence.
+  - Excusing requires a reason: `HTE_ATTESTED_DOCUMENTATION` or `BEYOND_INTERN_CONTROL`, plus a note of 10–500 characters. The documentation itself is in Google Classroom (D2/D7).
+  - Excused items are excluded from the tally and listed as "Excused" with the reason. An excuse can be withdrawn.
+  - Excusing and withdrawing are audited (`DEDUCTION_EXCUSED`, `DEDUCTION_EXCUSE_WITHDRAWN`) and stored in a small `deduction_exceptions` table keyed by item type and id. It is never deleted, only withdrawn.
 - **Hours:** a conduct record may also carry an optional `hoursDeducted` (default 0; the default is set by the Super Admin, overridable per case). Rendered hours subtract the active records' hours. This keeps Jay's earlier "a demerit reduces rendered hours" possible without forcing it.
 
 ## Out of scope
