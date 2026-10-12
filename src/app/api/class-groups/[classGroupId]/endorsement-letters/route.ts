@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { verifyCredentials } from "@/lib/services/userService";
+import { confirmPassword } from "@/lib/auth/confirmPassword";
 import { generateBulkEndorsementLetters } from "@/lib/services/documentService";
 import { notifyEndorsementReady } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
@@ -13,34 +12,16 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const MAX_BULK = 40;
-const schema = z.object({ password: z.string().min(1) });
 
 // FR-DG-02 bulk export; NFR-SEC-05 re-authentication via password re-entry.
-// verifyCredentials also counts failed attempts, so repeated wrong passwords
-// here can lock the account (FR-UM-10) — intended: it's the same credential.
 export async function POST(req: NextRequest, { params }: { params: { classGroupId: string } }) {
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);
 
-    const { password } = schema.parse(await req.json());
-    const auth = await verifyCredentials(user.email, password, req.headers.get("x-forwarded-for"));
-    if (!auth.ok) {
-      // The caller is already signed in, so naming the lock leaks nothing —
-      // and otherwise they'd keep retrying a correct password.
-      if (auth.reason === "ACCOUNT_LOCKED") {
-        const until = auth.lockedUntil.toLocaleTimeString("en-PH", {
-          hour: "numeric",
-          minute: "2-digit",
-          timeZone: "Asia/Manila",
-        });
-        return NextResponse.json(
-          { error: `Too many failed attempts — try again after ${until}` },
-          { status: 423 }
-        );
-      }
-      return NextResponse.json({ error: "Password confirmation failed" }, { status: 401 });
-    }
+    const body = await req.json();
+    const denied = await confirmPassword(user, body?.password, req.headers.get("x-forwarded-for"));
+    if (denied) return denied;
 
     // A faculty adviser only reaches the semesters they advise this group
     // for — the same (classGroup, semester) rule as assertCanAccessStudent.

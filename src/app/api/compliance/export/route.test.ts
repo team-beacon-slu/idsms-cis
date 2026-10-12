@@ -4,6 +4,7 @@ jest.mock("@/lib/auth/session", () => ({
   requireUserApi: jest.fn(),
 }));
 jest.mock("@/lib/services/complianceService", () => ({
+  ...jest.requireActual("@/lib/services/complianceService"),
   resolveComplianceScope: jest.fn(),
   getComplianceRows: jest.fn(),
 }));

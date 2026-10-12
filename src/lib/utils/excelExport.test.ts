@@ -1,6 +1,26 @@
 /** @jest-environment node */
 import * as XLSX from "xlsx";
-import { buildWorkbook, toSheetRows, xlsxResponse } from "@/lib/utils/excelExport";
+import {
+  buildWorkbook,
+  formatManilaDate,
+  manilaDayDiff,
+  toSheetRows,
+  xlsxResponse,
+} from "@/lib/utils/excelExport";
+
+describe("Manila calendar days", () => {
+  it("formats an instant as its Manila date", () => {
+    expect(formatManilaDate(new Date("2026-10-14T18:00:00Z"))).toBe("2026-10-15");
+    expect(formatManilaDate(new Date("2026-10-14T15:59:00Z"))).toBe("2026-10-14");
+  });
+
+  it("counts whole Manila calendar days from `from` to `to`", () => {
+    const now = new Date("2026-10-12T00:00:00Z"); // 08:00 Manila, Oct 12
+    expect(manilaDayDiff(new Date("2026-10-12T15:00:00Z"), now)).toBe(0); // 23:00 Manila same day
+    expect(manilaDayDiff(new Date("2026-10-12T16:00:00Z"), now)).toBe(1); // 00:00 Manila Oct 13
+    expect(manilaDayDiff(new Date("2026-10-07T00:00:00Z"), now)).toBe(-5);
+  });
+});
 
 describe("toSheetRows", () => {
   const columns = [

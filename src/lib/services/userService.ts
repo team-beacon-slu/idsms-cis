@@ -50,99 +50,195 @@ export type VerifyCredentialsResult =
 
 // FR-UM-07 (lockout after 5 failed attempts), FR-UM-08 (audit every attempt),
 // FR-UM-10 (15-minute lockout), FR-UM-11(a) (lock revokes active sessions).
-// Runs as one transaction so a burst of concurrent failed attempts can't race
-// past the threshold via a lost update.
+//
+// Shape: bcrypt is slow by design, so it runs OUTSIDE any transaction. An
+// interactive transaction that spans it can exceed Prisma's timeout on a slow
+// DB link ("Transaction already closed") and turn a plain wrong password into
+// a 500. Instead: (1) pre-read the user and handle the cheap rejections,
+// (2) verify the password with no transaction open, (3) open a SHORT
+// transaction that re-reads the user, re-checks state, and applies the outcome.
+// The failure counter uses an atomic increment and the lock decision uses the
+// value the database returns, so a burst of concurrent failed attempts can't
+// race past the threshold via a lost update.
 export async function verifyCredentials(
   email: string,
   password: string,
   ipAddress?: string | null
 ): Promise<VerifyCredentialsResult> {
-  return prisma.$transaction(async (tx) => {
-    const user = await tx.user.findUnique({ where: { email } });
+  const pre = await prisma.user.findUnique({ where: { email } });
 
-    if (!user || user.deletedAt) {
-      await logEvent(
-        { userId: null, action: "LOGIN_FAILED", entityType: "User", ipAddress, detail: { email } },
-        tx
-      );
-      return { ok: false, reason: "INVALID_CREDENTIALS" };
-    }
+  if (!pre || pre.deletedAt) {
+    await logEvent({
+      userId: null,
+      action: "LOGIN_FAILED",
+      entityType: "User",
+      ipAddress,
+      detail: { email },
+    });
+    return { ok: false, reason: "INVALID_CREDENTIALS" };
+  }
 
-    if (!user.isActive) {
+  if (!pre.isActive) {
+    await logInactiveAttempt(pre.id, ipAddress, prisma);
+    return { ok: false, reason: "ACCOUNT_INACTIVE" };
+  }
+
+  if (pre.lockedUntil && pre.lockedUntil > new Date()) {
+    await logLockedAttempt(pre.id, ipAddress, prisma);
+    return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: pre.lockedUntil };
+  }
+
+  // Slow part — deliberately outside the transaction.
+  const passwordMatches = await verifyPassword(password, pre.hashedPassword);
+
+  return prisma.$transaction(
+    async (tx): Promise<VerifyCredentialsResult> => {
+      const now = new Date();
+      const user = await tx.user.findUnique({ where: { id: pre.id } });
+      const blocked = await rejectBlockedState(user, pre.hashedPassword, email, ipAddress, now, tx);
+      if (blocked) return blocked;
+      // rejectBlockedState returned null, so user is present.
+      const fresh = user!;
+
+      if (passwordMatches) {
+        // Conditional write: a plain update(where: {id}) would re-check only the
+        // id after waiting on a concurrent writer's row lock, and could clear a
+        // lock (or accept a stale password) committed in the meantime. Under
+        // READ COMMITTED the WHERE below is re-evaluated after that wait.
+        const res = await tx.user.updateMany({
+          where: {
+            id: fresh.id,
+            hashedPassword: pre.hashedPassword,
+            OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+          },
+          data: { failedLoginAttempts: 0, lockedUntil: null },
+        });
+
+        if (res.count === 0) {
+          // Something changed under us; classify it. Never log LOGIN_SUCCESS here.
+          const again = await tx.user.findUnique({ where: { id: fresh.id } });
+          const rejected = await rejectBlockedState(
+            again,
+            pre.hashedPassword,
+            email,
+            ipAddress,
+            new Date(),
+            tx
+          );
+          if (rejected) return rejected;
+          await logEvent(
+            {
+              userId: fresh.id,
+              action: "LOGIN_FAILED",
+              entityType: "User",
+              entityId: fresh.id,
+              ipAddress,
+              detail: { reason: "concurrent_change" },
+            },
+            tx
+          );
+          return { ok: false, reason: "INVALID_CREDENTIALS" };
+        }
+
+        const updated = await tx.user.findUniqueOrThrow({ where: { id: fresh.id } });
+        await logEvent(
+          {
+            userId: fresh.id,
+            action: "LOGIN_SUCCESS",
+            entityType: "User",
+            entityId: fresh.id,
+            ipAddress,
+          },
+          tx
+        );
+        return { ok: true, user: toSafeUser(updated) };
+      }
+
+      // Atomic increment; the returned value (not our stale read) decides the lock.
+      const afterIncrement = await tx.user.update({
+        where: { id: fresh.id },
+        data: { failedLoginAttempts: { increment: 1 } },
+      });
+      const failedAttempts = afterIncrement.failedLoginAttempts;
+
+      // The counter only resets on a successful login, so after an expired
+      // lockout the next strike lands on 6, 7, ... and must lock again. Lock
+      // whenever the threshold is reached and the returned row is not
+      // currently locked. A returned row that IS currently locked means a
+      // concurrent attempt already locked it: don't re-lock, re-revoke or
+      // re-audit ACCOUNT_LOCKED.
+      const currentlyLocked =
+        afterIncrement.lockedUntil !== null && afterIncrement.lockedUntil > now;
+
+      if (failedAttempts >= MAX_FAILED_ATTEMPTS && !currentlyLocked) {
+        const lockedUntil = new Date(now.getTime() + LOCKOUT_DURATION_MS);
+        await tx.user.update({ where: { id: fresh.id }, data: { lockedUntil } });
+        await revokeSessionsForUser(fresh.id, tx);
+        await logEvent(
+          {
+            userId: fresh.id,
+            action: "ACCOUNT_LOCKED",
+            entityType: "User",
+            entityId: fresh.id,
+            ipAddress,
+            detail: { failedAttempts },
+          },
+          tx
+        );
+        return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil };
+      }
+
+      if (currentlyLocked) {
+        await logLockedAttempt(fresh.id, ipAddress, tx);
+        return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: afterIncrement.lockedUntil! };
+      }
+
       await logEvent(
         {
-          userId: user.id,
+          userId: fresh.id,
           action: "LOGIN_FAILED",
           entityType: "User",
-          entityId: user.id,
-          ipAddress,
-          detail: { reason: "inactive" },
-        },
-        tx
-      );
-      return { ok: false, reason: "ACCOUNT_INACTIVE" };
-    }
-
-    const now = new Date();
-    if (user.lockedUntil && user.lockedUntil > now) {
-      await logEvent(
-        {
-          userId: user.id,
-          action: "LOGIN_ATTEMPT_WHILE_LOCKED",
-          entityType: "User",
-          entityId: user.id,
-          ipAddress,
-        },
-        tx
-      );
-      return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: user.lockedUntil };
-    }
-
-    const passwordMatches = await verifyPassword(password, user.hashedPassword);
-
-    if (passwordMatches) {
-      const updated = await tx.user.update({
-        where: { id: user.id },
-        data: { failedLoginAttempts: 0, lockedUntil: null },
-      });
-      await logEvent(
-        {
-          userId: user.id,
-          action: "LOGIN_SUCCESS",
-          entityType: "User",
-          entityId: user.id,
-          ipAddress,
-        },
-        tx
-      );
-      return { ok: true, user: toSafeUser(updated) };
-    }
-
-    const failedAttempts = user.failedLoginAttempts + 1;
-    const shouldLock = failedAttempts >= MAX_FAILED_ATTEMPTS;
-    const lockedUntil = shouldLock ? new Date(now.getTime() + LOCKOUT_DURATION_MS) : null;
-
-    await tx.user.update({
-      where: { id: user.id },
-      data: { failedLoginAttempts: failedAttempts, lockedUntil },
-    });
-
-    if (shouldLock) {
-      await revokeSessionsForUser(user.id, tx);
-      await logEvent(
-        {
-          userId: user.id,
-          action: "ACCOUNT_LOCKED",
-          entityType: "User",
-          entityId: user.id,
+          entityId: fresh.id,
           ipAddress,
           detail: { failedAttempts },
         },
         tx
       );
-      return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: lockedUntil! };
-    }
+      return { ok: false, reason: "INVALID_CREDENTIALS" };
+    },
+    { timeout: 15000, maxWait: 10000 }
+  );
+}
 
+// Shared state gate for the fresh (in-transaction) row: deleted, inactive,
+// locked, or password changed since the pre-read. Writes the audit row and
+// returns the result to hand back, or null if the row is clear to proceed.
+async function rejectBlockedState(
+  user: User | null,
+  preHash: string,
+  email: string,
+  ipAddress: string | null | undefined,
+  now: Date,
+  tx: Prisma.TransactionClient
+): Promise<VerifyCredentialsResult | null> {
+  if (!user || user.deletedAt) {
+    await logEvent(
+      { userId: null, action: "LOGIN_FAILED", entityType: "User", ipAddress, detail: { email } },
+      tx
+    );
+    return { ok: false, reason: "INVALID_CREDENTIALS" };
+  }
+  if (!user.isActive) {
+    await logInactiveAttempt(user.id, ipAddress, tx);
+    return { ok: false, reason: "ACCOUNT_INACTIVE" };
+  }
+  if (user.lockedUntil && user.lockedUntil > now) {
+    await logLockedAttempt(user.id, ipAddress, tx);
+    return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: user.lockedUntil };
+  }
+  // The password was changed/reset while we were hashing: the comparison was
+  // against a stale hash, so don't trust it and don't count a failure.
+  if (user.hashedPassword !== preHash) {
     await logEvent(
       {
         userId: user.id,
@@ -150,12 +246,48 @@ export async function verifyCredentials(
         entityType: "User",
         entityId: user.id,
         ipAddress,
-        detail: { failedAttempts },
+        detail: { reason: "password_changed" },
       },
       tx
     );
     return { ok: false, reason: "INVALID_CREDENTIALS" };
-  });
+  }
+  return null;
+}
+
+function logInactiveAttempt(
+  userId: string,
+  ipAddress: string | null | undefined,
+  client: PrismaClient | Prisma.TransactionClient
+) {
+  return logEvent(
+    {
+      userId,
+      action: "LOGIN_FAILED",
+      entityType: "User",
+      entityId: userId,
+      ipAddress,
+      detail: { reason: "inactive" },
+    },
+    client
+  );
+}
+
+function logLockedAttempt(
+  userId: string,
+  ipAddress: string | null | undefined,
+  client: PrismaClient | Prisma.TransactionClient
+) {
+  return logEvent(
+    {
+      userId,
+      action: "LOGIN_ATTEMPT_WHILE_LOCKED",
+      entityType: "User",
+      entityId: userId,
+      ipAddress,
+    },
+    client
+  );
 }
 
 // FR-UM-11(b)

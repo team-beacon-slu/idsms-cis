@@ -33,3 +33,11 @@ export async function getDepartmentStaffIds(): Promise<string[]> {
   });
   return staff.map((s) => s.id);
 }
+
+export async function getSuperAdminIds(): Promise<string[]> {
+  const admins = await prisma.user.findMany({
+    where: { role: Role.SUPER_ADMIN, isActive: true, deletedAt: null },
+    select: { id: true },
+  });
+  return admins.map((a) => a.id);
+}

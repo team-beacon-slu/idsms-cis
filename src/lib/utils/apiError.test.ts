@@ -10,8 +10,33 @@ jest.mock("@supabase/supabase-js", () => ({ createClient: jest.fn(() => ({ stora
 
 import { handleApiError } from "@/lib/utils/apiError";
 import { DocumentNotReadyError } from "@/lib/documents/errors";
+import {
+  ComplianceNotFoundError,
+  DataRequestStateError,
+  RetentionStateError,
+} from "@/lib/errors/compliance";
 
 it("maps DocumentNotReadyError to 400 without loading the PDF renderer", async () => {
   const res = handleApiError(new DocumentNotReadyError());
   expect(res.status).toBe(400);
+});
+
+describe("compliance errors", () => {
+  it("maps DataRequestStateError to 409 with its message", async () => {
+    const res = handleApiError(new DataRequestStateError("x"));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "x" });
+  });
+
+  it("maps RetentionStateError to 409", async () => {
+    const res = handleApiError(new RetentionStateError("already reviewed"));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "already reviewed" });
+  });
+
+  it("maps ComplianceNotFoundError to 404", async () => {
+    const res = handleApiError(new ComplianceNotFoundError("Not found"));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Not found" });
+  });
 });

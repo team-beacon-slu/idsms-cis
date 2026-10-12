@@ -1,10 +1,12 @@
-import { Prisma, WeeklyReportStatus } from "@prisma/client";
+import { DataRequestStatus, Prisma, WeeklyReportStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { notify } from "@/lib/services/notify";
-import { getDepartmentStaffIds } from "@/lib/services/notificationRecipients";
+import { getDepartmentStaffIds, getSuperAdminIds } from "@/lib/services/notificationRecipients";
+import { runRetentionScan } from "@/lib/services/retentionService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
+import { formatManilaDate, manilaDayDiff } from "@/lib/utils/excelExport";
 import { isAwaitingReview } from "@/lib/services/weeklyReportService";
 import {
   addDays,
@@ -15,6 +17,8 @@ import {
 
 const HOURS_KEY = "notification:deadline_reminder_hours";
 const MOA_KEY = "notification:moa_warning_days";
+export const DSAR_REMINDER_DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULTS = { deadlineReminderHours: [48, 24], moaWarningDays: 30 };
 
 // The job runs once a day at 08:00 Manila and reports are due Tuesday 23:59
@@ -104,6 +108,40 @@ async function alreadySent(trigger: string, dedupeKey: string, userId?: string) 
 // can still be inside a reminder window.
 const SCAN_BACK_DAYS = 10;
 
+// NFR-DP-07: nudge Super Admins about open data requests due within
+// DSAR_REMINDER_DAYS (overdue included), once per request per day. Returns the
+// number of reminders delivered in-app.
+export async function remindDueDataRequests(now: Date): Promise<number> {
+  const due = await prisma.dataRequest.findMany({
+    where: {
+      status: DataRequestStatus.OPEN,
+      dueAt: { lte: new Date(now.getTime() + DSAR_REMINDER_DAYS * DAY_MS) },
+    },
+    orderBy: { dueAt: "asc" },
+    select: { id: true, dueAt: true, user: { select: { email: true } } },
+  });
+  if (due.length === 0) return 0;
+
+  const adminIds = await getSuperAdminIds();
+  let sent = 0;
+  for (const request of due) {
+    const dedupeKey = `dsar:${request.id}:${toDateKey(now)}`;
+    if (await alreadySent("DSAR_DUE", dedupeKey)) continue;
+    // Same Manila-calendar-day rule as the Export Center badge.
+    const overdue = manilaDayDiff(request.dueAt, now) < 0;
+    const result = await notify({
+      userIds: adminIds,
+      trigger: "DSAR_DUE",
+      title: overdue ? "Data request overdue" : "Data request due soon",
+      body: `${request.user.email}'s request ${overdue ? "was" : "is"} due ${formatManilaDate(request.dueAt)}.`,
+      link: "/admin/export-center#data-requests",
+      dedupeKey,
+    });
+    if (result.inApp > 0) sent += 1;
+  }
+  return sent;
+}
+
 interface ReminderTarget {
   profileId: string;
   userId: string;
@@ -120,7 +158,14 @@ export async function runDailyNotifications(now: Date) {
   // Ascending: the first window that still contains `hoursLeft` is the
   // tightest one (e.g. [24, 48]: due in 40h → 48, due in 20h → 24).
   const windows = [...settings.deadlineReminderHours].sort((a, b) => a - b);
-  const result = { deadlineReminders: 0, moaWarnings: 0, errors: [] as string[] };
+  const result = {
+    deadlineReminders: 0,
+    moaWarnings: 0,
+    dsarReminders: 0,
+    // null when the scan step threw.
+    retention: null as { ran: boolean; flagged: number } | null,
+    errors: [] as string[],
+  };
 
   const openReports = await prisma.weeklyReport.findMany({
     where: {
@@ -215,6 +260,21 @@ export async function runDailyNotifications(now: Date) {
   } catch (error) {
     console.error("MOA expiry warning failed", { error });
     result.errors.push("moa");
+  }
+
+  try {
+    result.dsarReminders = await remindDueDataRequests(now);
+  } catch (error) {
+    console.error("DSAR due reminder failed", { error });
+    result.errors.push("dsar");
+  }
+
+  // NFR-DP-08: quarterly (the scan gates itself); flags only, never deletes.
+  try {
+    result.retention = await runRetentionScan(now);
+  } catch (error) {
+    console.error("Retention scan failed", { error });
+    result.errors.push("retention");
   }
 
   return result;

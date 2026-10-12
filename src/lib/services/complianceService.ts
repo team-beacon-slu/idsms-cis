@@ -39,6 +39,29 @@ export interface ComplianceRow {
   status: ComplianceStatus;
 }
 
+// Spreadsheet shape shared by the F compliance export and the G admin
+// "students" export, so the column list lives in exactly one place.
+export const COMPLIANCE_COLUMNS: Array<{ key: string; header: string }> = [
+  { key: "studentNumber", header: "Student number" },
+  { key: "fullName", header: "Name" },
+  { key: "email", header: "Email" },
+  { key: "program", header: "Program" },
+  { key: "classGroup", header: "Class group" },
+  { key: "company", header: "Company" },
+  { key: "confirmedHours", header: "Confirmed hours" },
+  { key: "requiredHours", header: "Required hours" },
+  { key: "hoursPercent", header: "Hours %" },
+  { key: "checklistApproved", header: "Checklist approved" },
+  { key: "dueWeekState", header: "Due-week report" },
+  { key: "awaitingReview", header: "Awaiting review" },
+  { key: "status", header: "Status" },
+];
+
+// ComplianceRow -> record keyed by COMPLIANCE_COLUMNS ("approved/9" display).
+export function toComplianceSheetRow(r: ComplianceRow): Record<string, unknown> {
+  return { ...r, checklistApproved: `${r.checklistApproved}/${CHECKLIST_REQUIRED}` };
+}
+
 const CONFIRMING_STATUSES = new Set<WeeklyReportStatus>(["APPROVED", "REGARDED"]);
 const UNSUBMITTED_STATES = new Set<ReportState>(["NOT_STARTED", "DRAFT", "RETURNED"]);
 const SUBMITTED_STATES = new Set<ReportState>(["SUBMITTED", "APPROVED", "REGARDED", "DISREGARDED"]);
