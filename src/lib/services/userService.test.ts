@@ -305,6 +305,43 @@ describe("verifyCredentials", () => {
   });
 
   it.each([
+    ["an expired lockedUntil", new Date(Date.now() - 60_000)],
+    ["a null lockedUntil", null],
+  ])(
+    "re-locks when the increment returns 6 with %s (counter is only reset by a successful login)",
+    async (_n, lockedUntilAfter) => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ failedLoginAttempts: 5, lockedUntil: new Date(Date.now() - 60_000) }) as never
+      );
+      prismaMock.user.update.mockResolvedValue(
+        baseUser({ failedLoginAttempts: 6, lockedUntil: lockedUntilAfter }) as never
+      );
+      mockedVerifyPassword.mockResolvedValue(false);
+
+      const result = await verifyCredentials("student@example.com", "wrong-password");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok && result.reason === "ACCOUNT_LOCKED") {
+        expect(result.lockedUntil.getTime()).toBeGreaterThan(Date.now());
+      } else {
+        throw new Error("expected ACCOUNT_LOCKED");
+      }
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { lockedUntil: expect.any(Date) } })
+      );
+      expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "ACCOUNT_LOCKED",
+            detail: { failedAttempts: 6 },
+          }),
+        })
+      );
+    }
+  );
+
+  it.each([
     ["unknown email", null],
     ["inactive account", baseUser({ isActive: false })],
     ["locked account", baseUser({ lockedUntil: new Date(Date.now() + 60_000) })],

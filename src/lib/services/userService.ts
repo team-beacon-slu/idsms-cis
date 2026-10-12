@@ -161,10 +161,16 @@ export async function verifyCredentials(
       });
       const failedAttempts = afterIncrement.failedLoginAttempts;
 
-      // Lock exactly once: only the attempt whose increment lands ON the
-      // threshold locks. Concurrent attempts that land past it (6, 7, ...) find
-      // the account already locked and must not re-lock, re-revoke or re-audit.
-      if (failedAttempts === MAX_FAILED_ATTEMPTS) {
+      // The counter only resets on a successful login, so after an expired
+      // lockout the next strike lands on 6, 7, ... and must lock again. Lock
+      // whenever the threshold is reached and the returned row is not
+      // currently locked. A returned row that IS currently locked means a
+      // concurrent attempt already locked it: don't re-lock, re-revoke or
+      // re-audit ACCOUNT_LOCKED.
+      const currentlyLocked =
+        afterIncrement.lockedUntil !== null && afterIncrement.lockedUntil > now;
+
+      if (failedAttempts >= MAX_FAILED_ATTEMPTS && !currentlyLocked) {
         const lockedUntil = new Date(now.getTime() + LOCKOUT_DURATION_MS);
         await tx.user.update({ where: { id: fresh.id }, data: { lockedUntil } });
         await revokeSessionsForUser(fresh.id, tx);
@@ -182,13 +188,9 @@ export async function verifyCredentials(
         return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil };
       }
 
-      if (failedAttempts > MAX_FAILED_ATTEMPTS) {
+      if (currentlyLocked) {
         await logLockedAttempt(fresh.id, ipAddress, tx);
-        return {
-          ok: false,
-          reason: "ACCOUNT_LOCKED",
-          lockedUntil: afterIncrement.lockedUntil ?? new Date(now.getTime() + LOCKOUT_DURATION_MS),
-        };
+        return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: afterIncrement.lockedUntil! };
       }
 
       await logEvent(
