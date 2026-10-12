@@ -285,6 +285,68 @@ describe("buildPersonalDataWorkbook", () => {
     expect(attendance.rows[1]).toContain(`'=HYPERLINK("http://x","click")`);
   });
 
+  it("includes inferences and histories, keeping formula-like history text inert", async () => {
+    mockCommon();
+    prismaMock.user.findUnique.mockResolvedValue(studentUser as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      {
+        weekStart: new Date("2026-09-01T00:00:00Z"),
+        status: "SUBMITTED",
+        totalHours: 40,
+        facultyAction: null,
+        sentimentLabel: "POSITIVE",
+        sentimentConfidence: "0.912",
+        similarityFlag: true,
+        similarityScore: "0.850",
+        revisionHistory: [{ note: "=SUM(A1)" }],
+      },
+      {
+        weekStart: new Date("2026-09-08T00:00:00Z"),
+        status: "DRAFT",
+        totalHours: 0,
+        facultyAction: null,
+        sentimentLabel: null,
+        sentimentConfidence: null,
+        similarityFlag: false,
+        similarityScore: null,
+        revisionHistory: [],
+      },
+    ] as never);
+    prismaMock.workPlan.findMany.mockResolvedValue([
+      {
+        status: "APPROVED",
+        createdAt: created,
+        plannedTasks: [],
+        scheduleChangeHistory: [{ reason: "moved" }],
+      },
+    ] as never);
+
+    const wb = await buildPersonalDataWorkbook("u-1");
+
+    const weekly = wb.sheets.find((s) => s.name === "Weekly reports")!;
+    expect(weekly.rows[0].slice(4)).toEqual([
+      "Sentiment",
+      "Sentiment confidence",
+      "Similarity flagged",
+      "Similarity score",
+      "Submission history",
+    ]);
+    expect(weekly.rows[1].slice(4)).toEqual([
+      "POSITIVE",
+      0.912,
+      "Yes",
+      0.85,
+      '[{"note":"=SUM(A1)"}]', // JSON text starts with "[", so the formula never leads a cell
+    ]);
+    expect(weekly.rows[2].slice(4)).toEqual(["", "", "No", "", "[]"]);
+    const plan = wb.sheets.find((s) => s.name === "Work plan")!;
+    expect(plan.rows[0]).toContain("Schedule changes");
+    expect(plan.rows[1]).toContain('[{"reason":"moved"}]');
+    expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { studentProfileId: "p-1" } })
+    );
+  });
+
   it("gives a user without a student profile header-only student sheets", async () => {
     prismaMock.notification.findMany.mockResolvedValue([
       { sentAt: created, triggerType: "X", payload: { title: "Hello" }, readAt: null },

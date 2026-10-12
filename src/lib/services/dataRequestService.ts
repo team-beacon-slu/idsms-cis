@@ -232,7 +232,12 @@ export async function buildPersonalDataWorkbook(
         ? prisma.workPlan.findMany({
             where: { studentProfileId: pid },
             orderBy: { createdAt: "asc" },
-            select: { status: true, createdAt: true, plannedTasks: true },
+            select: {
+              status: true,
+              createdAt: true,
+              plannedTasks: true,
+              scheduleChangeHistory: true,
+            },
           })
         : [],
       pid
@@ -254,7 +259,17 @@ export async function buildPersonalDataWorkbook(
         ? prisma.weeklyReport.findMany({
             where: { studentProfileId: pid },
             orderBy: { weekStart: "asc" },
-            select: { weekStart: true, status: true, totalHours: true, facultyAction: true },
+            select: {
+              weekStart: true,
+              status: true,
+              totalHours: true,
+              facultyAction: true,
+              sentimentLabel: true,
+              sentimentConfidence: true,
+              similarityFlag: true,
+              similarityScore: true,
+              revisionHistory: true,
+            },
           })
         : [],
       pid
@@ -345,11 +360,12 @@ export async function buildPersonalDataWorkbook(
     ),
     sheet(
       "Work plan",
-      ["Status", "Created", "Planned tasks"],
+      ["Status", "Created", "Planned tasks", "Schedule changes"],
       workPlans.map((w) => ({
         Status: w.status,
         Created: manila(w.createdAt),
         "Planned tasks": JSON.stringify(w.plannedTasks),
+        "Schedule changes": JSON.stringify(w.scheduleChangeHistory),
       }))
     ),
     sheet(
@@ -367,12 +383,28 @@ export async function buildPersonalDataWorkbook(
     ),
     sheet(
       "Weekly reports",
-      ["Week", "Status", "Hours", "Faculty action"],
+      [
+        "Week",
+        "Status",
+        "Hours",
+        "Faculty action",
+        "Sentiment",
+        "Sentiment confidence",
+        "Similarity flagged",
+        "Similarity score",
+        "Submission history",
+      ],
       reports.map((r) => ({
         Week: manilaDate(r.weekStart),
         Status: r.status,
         Hours: Number(r.totalHours),
         "Faculty action": r.facultyAction,
+        // AI-derived inferences about the subject are personal data too (RA 10173 access right).
+        Sentiment: r.sentimentLabel ?? "",
+        "Sentiment confidence": r.sentimentConfidence === null ? "" : Number(r.sentimentConfidence),
+        "Similarity flagged": yesNo(r.similarityFlag),
+        "Similarity score": r.similarityScore === null ? "" : Number(r.similarityScore),
+        "Submission history": JSON.stringify(r.revisionHistory),
       }))
     ),
     sheet(

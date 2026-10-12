@@ -54,6 +54,7 @@ The app connects to Postgres as `postgres`. That role owns `audit_logs` and has 
 - Export Center queue: lists OPEN tickets (requester email, requested, due, days left; overdue shown in red with an "Overdue" label) and the last 10 FULFILLED tickets.
   - **Generate export:** `POST /api/admin/data-requests/[id]/export` with `{ password }`, re-auth as in item 2. It streams a multi-sheet workbook of the requester's personal data, one sheet per area. Every cell goes through `toSheetRows`. It writes `DSAR_EXPORTED`.
     - The sheets are Account, Student profile, Checklist, Work plan, Attendance, Weekly reports, Deviation reports, Generated documents (including monthly report PDFs), Notifications, and Activity (the user's own audit rows).
+    - AI-derived inferences (sentiment, similarity flag/score) and submission/schedule-change histories are included because the RA 10173 access right covers inferences, not only raw inputs.
     - Only the sheets that apply to the user's role are included, and an empty area gets a header-only sheet.
   - **Mark fulfilled:** `POST /api/admin/data-requests/[id]/fulfil`. It sets FULFILLED, `fulfilledAt` and `fulfilledBy`, writes `DSAR_FULFILLED`, and notifies the requester. Fulfilling a ticket that isn't OPEN returns 409.
   - Format decision: XLSX, not the PRD's "CSV/PDF". One person's data spans ten tables, and the formula-safe Excel path already exists.
