@@ -5,7 +5,7 @@ import { ForbiddenError } from "@/lib/services/userService";
 import { InvalidFileError } from "@/lib/storage";
 import { DocumentNotReadyError, FinalReportLockedError } from "@/lib/documents/errors";
 import { EndorsementDataIncompleteError } from "@/lib/documents/endorsementLetterData";
-import { ChecklistGateError, ChecklistLockedError } from "@/lib/services/checklistService";
+import { ChecklistGateError } from "@/lib/services/checklistService";
 import { InvalidMoaTransitionError } from "@/lib/services/companyService";
 import { WorkPlanPendingError } from "@/lib/services/workPlanService";
 import {
@@ -59,7 +59,7 @@ export function handleApiError(error: unknown): NextResponse {
   if (error instanceof InvalidFileError) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  if (error instanceof ChecklistGateError || error instanceof ChecklistLockedError) {
+  if (error instanceof ChecklistGateError) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
   if (error instanceof InvalidMoaTransitionError) {

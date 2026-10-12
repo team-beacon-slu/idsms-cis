@@ -13,7 +13,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { CHECKLIST_BUCKET, uploadFile } from "@/lib/storage";
 
 export class ChecklistGateError extends Error {
   constructor(message: string) {
@@ -21,19 +20,6 @@ export class ChecklistGateError extends Error {
     this.name = "ChecklistGateError";
   }
 }
-
-export class ChecklistLockedError extends Error {
-  constructor(message = "This checklist item is already approved and locked") {
-    super(message);
-    this.name = "ChecklistLockedError";
-  }
-}
-
-const EXTENSION_BY_MIME: Record<string, string> = {
-  "application/pdf": "pdf",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-};
 
 // FR-CK-04's gate, factored out as its own primitive so Phase 4's real
 // endorsement-letter generation can call this exact check rather than
@@ -73,50 +59,8 @@ export async function getChecklistProgress(studentProfileId: string): Promise<Ch
   };
 }
 
-// Student self-only (checked via assertCanAccessStudent's STUDENT_INTERN
-// branch). Blocks re-upload once the item is already APPROVED — an approved
-// document shouldn't be silently swappable without re-review, mirroring the
-// spirit of FR-WP-06's "approved = locked" even though the PRD doesn't say
-// this explicitly for checklist items.
-export async function uploadChecklistItemFile(
-  itemId: string,
-  file: File,
-  actingUser: { id: string; role: Role },
-  ipAddress?: string | null
-): Promise<PreDeploymentChecklistItem> {
-  const item = await prisma.preDeploymentChecklistItem.findUniqueOrThrow({ where: { id: itemId } });
-  await assertCanAccessStudent(actingUser, item.studentProfileId);
-
-  if (item.status === ChecklistStatus.APPROVED) {
-    throw new ChecklistLockedError();
-  }
-
-  const extension = EXTENSION_BY_MIME[file.type] ?? "bin";
-  const path = `${item.studentProfileId}/${item.requirementType}.${extension}`;
-  await uploadFile(CHECKLIST_BUCKET, path, file);
-
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.preDeploymentChecklistItem.update({
-      where: { id: itemId },
-      // Re-upload always resets to PENDING — a Return-then-reupload cycle
-      // should land back in the review queue, not stay RETURNED silently.
-      data: { filePath: path, status: ChecklistStatus.PENDING },
-    });
-    await logEvent(
-      {
-        userId: actingUser.id,
-        action: "CHECKLIST_ITEM_UPLOADED",
-        entityType: "PreDeploymentChecklistItem",
-        entityId: itemId,
-        ipAddress,
-        detail: { requirementType: item.requirementType },
-      },
-      tx
-    );
-    return updated;
-  });
-}
-
+// Status tracking only (D7): documents are submitted in Google Classroom, so
+// review never requires a stored file.
 // Staff-only (Faculty/Coordinator/Admin — enforced by the route's
 // requireRole; assertCanAccessStudent below is the record-ownership half).
 // APPROVE on items 8 (WORK_PLAN) / 9 (MOA) is gated on the underlying

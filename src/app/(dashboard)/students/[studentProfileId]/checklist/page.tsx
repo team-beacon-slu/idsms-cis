@@ -54,6 +54,11 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             All 9 requirements must be Approved before the endorsement letter can be released.
           </p>
+          {isOwner && (
+            <p className="mt-2 max-w-2xl text-sm text-foreground">
+              Submit this document in Google Classroom. Your adviser will update its status here.
+            </p>
+          )}
         </div>
       </div>
 
@@ -97,7 +102,7 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
               <CardDescription>
                 {progress.gateSatisfied
                   ? "All requirements approved — endorsement letter is unblocked."
-                  : "Upload the required document for each item, then wait for review."}
+                  : "Your adviser updates each item's status after checking your submission."}
               </CardDescription>
             </div>
             <StatusBadge status={progress.gateSatisfied ? "APPROVED" : "PENDING"} />
@@ -146,10 +151,7 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
                     <TableCell className="text-right">
                       <ChecklistItemRow
                         itemId={item.id}
-                        requirementType={item.requirementType}
                         status={item.status}
-                        hasFile={Boolean(item.filePath)}
-                        canUpload={isOwner}
                         canReview={canReview}
                       />
                     </TableCell>
