@@ -8,21 +8,11 @@ import {
 } from "@prisma/client";
 import {
   ChecklistGateError,
-  ChecklistLockedError,
   getChecklistProgress,
   isEndorsementGateSatisfied,
   reviewChecklistItem,
-  uploadChecklistItemFile,
 } from "@/lib/services/checklistService";
 import { ForbiddenError } from "@/lib/services/userService";
-import { CHECKLIST_BUCKET, uploadFile } from "@/lib/storage";
-
-jest.mock("@/lib/storage", () => ({
-  CHECKLIST_BUCKET: "checklist-documents",
-  uploadFile: jest.fn(),
-}));
-
-const mockedUploadFile = uploadFile as jest.MockedFunction<typeof uploadFile>;
 
 // DEPARTMENT_COORDINATOR/SUPER_ADMIN skip assertCanAccessStudent's profile
 // lookup entirely (see userService.test.ts), which keeps these tests focused
@@ -45,8 +35,6 @@ function baseItem(overrides: Partial<Record<string, unknown>> = {}) {
 
 beforeEach(() => {
   resetPrismaMock();
-  mockedUploadFile.mockReset();
-  mockedUploadFile.mockResolvedValue("profile-1/MEDICAL_CERTIFICATE.pdf");
 });
 
 describe("isEndorsementGateSatisfied", () => {
@@ -109,68 +97,6 @@ describe("getChecklistProgress", () => {
   });
 });
 
-describe("uploadChecklistItemFile", () => {
-  function makeFile(type: string, name = "file") {
-    return new File([new Uint8Array(10)], name, { type });
-  }
-
-  it("rejects re-upload once the item is already APPROVED, without touching storage", async () => {
-    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(
-      baseItem({ status: ChecklistStatus.APPROVED }) as never
-    );
-
-    await expect(
-      uploadChecklistItemFile("item-1", makeFile("application/pdf"), staffUser)
-    ).rejects.toThrow(ChecklistLockedError);
-    expect(mockedUploadFile).not.toHaveBeenCalled();
-  });
-
-  it("uploads to a path derived from studentProfileId/requirementType and the mapped extension", async () => {
-    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(baseItem() as never);
-    prismaMock.preDeploymentChecklistItem.update.mockResolvedValue(baseItem() as never);
-
-    await uploadChecklistItemFile("item-1", makeFile("application/pdf"), staffUser);
-
-    expect(mockedUploadFile).toHaveBeenCalledWith(
-      CHECKLIST_BUCKET,
-      "profile-1/MEDICAL_CERTIFICATE.pdf",
-      expect.anything()
-    );
-  });
-
-  it("falls back to a .bin extension for an unmapped mime type", async () => {
-    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(baseItem() as never);
-    prismaMock.preDeploymentChecklistItem.update.mockResolvedValue(baseItem() as never);
-
-    await uploadChecklistItemFile("item-1", makeFile("application/zip"), staffUser);
-
-    expect(mockedUploadFile).toHaveBeenCalledWith(
-      CHECKLIST_BUCKET,
-      "profile-1/MEDICAL_CERTIFICATE.bin",
-      expect.anything()
-    );
-  });
-
-  it("resets a RETURNED item back to PENDING on re-upload and logs the event", async () => {
-    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(
-      baseItem({ status: ChecklistStatus.RETURNED }) as never
-    );
-    prismaMock.preDeploymentChecklistItem.update.mockResolvedValue(baseItem() as never);
-
-    await uploadChecklistItemFile("item-1", makeFile("image/png"), staffUser);
-
-    expect(prismaMock.preDeploymentChecklistItem.update).toHaveBeenCalledWith({
-      where: { id: "item-1" },
-      data: { filePath: "profile-1/MEDICAL_CERTIFICATE.png", status: ChecklistStatus.PENDING },
-    });
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ action: "CHECKLIST_ITEM_UPLOADED" }),
-      })
-    );
-  });
-});
-
 describe("reviewChecklistItem", () => {
   it("blocks a student from reviewing at all, before any lookup", async () => {
     await expect(
@@ -217,6 +143,19 @@ describe("reviewChecklistItem", () => {
     expect(result.status).toBe(ChecklistStatus.APPROVED);
     expect(prismaMock.workPlan.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.studentProfile.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("approves an item that has no stored file (D7: documents live in Google Classroom)", async () => {
+    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(
+      baseItem({ filePath: null }) as never
+    );
+    prismaMock.preDeploymentChecklistItem.update.mockResolvedValue(
+      baseItem({ status: ChecklistStatus.APPROVED }) as never
+    );
+
+    await expect(
+      reviewChecklistItem("item-1", "APPROVE", undefined, staffUser)
+    ).resolves.toMatchObject({ status: ChecklistStatus.APPROVED });
   });
 
   describe("item 8 (WORK_PLAN) approve gate", () => {

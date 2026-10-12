@@ -86,7 +86,7 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
    #     provisions the checklist-documents and moa-documents Storage buckets
    ```
 
-   Also requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` as of Phase 2 (file uploads for MOA records and checklist items go through Supabase Storage) — see `.env.example`.
+   Also requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` as of Phase 2 (file uploads for MOA records and deviation proofs go through Supabase Storage) — see `.env.example`.
 
 5. **Run the development server**
    ```bash
