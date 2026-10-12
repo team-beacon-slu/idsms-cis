@@ -314,8 +314,10 @@ describe("remindDueDataRequests", () => {
   it("runDailyNotifications runs the retention scan with now", async () => {
     prismaMock.systemConfig.findUnique.mockResolvedValue(null);
     prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
-    await runDailyNotifications(NOW);
+    (runRetentionScan as jest.Mock).mockResolvedValueOnce({ ran: true, flagged: 4 });
+    const result = await runDailyNotifications(NOW);
     expect(runRetentionScan).toHaveBeenCalledWith(NOW);
+    expect(result.retention).toEqual({ ran: true, flagged: 4 });
   });
 
   it("runDailyNotifications isolates a retention scan failure", async () => {
@@ -325,6 +327,7 @@ describe("remindDueDataRequests", () => {
     const result = await runDailyNotifications(NOW);
     expect(result.errors).toContain("retention");
     expect(result.errors).not.toContain("dsar");
+    expect(result.retention).toBeNull();
   });
 
   it("runDailyNotifications reports the reminder count", async () => {

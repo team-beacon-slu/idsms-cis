@@ -200,10 +200,12 @@ async function getPendingFlag(id: string) {
 export async function keepRetentionFlag(id: string, actingUserId: string): Promise<void> {
   const flag = await getPendingFlag(id);
   await prisma.$transaction(async (tx) => {
-    await tx.retentionFlag.update({
-      where: { id },
+    // Guarded write: a concurrent review that won the race leaves count 0 and no audit row.
+    const { count } = await tx.retentionFlag.updateMany({
+      where: { id, status: RetentionStatus.PENDING },
       data: { status: RetentionStatus.KEPT, reviewedAt: new Date(), reviewedBy: actingUserId },
     });
+    if (count === 0) throw new RetentionStateError("This file was already reviewed");
     await logEvent(
       {
         userId: actingUserId,

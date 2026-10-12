@@ -158,7 +158,14 @@ export async function runDailyNotifications(now: Date) {
   // Ascending: the first window that still contains `hoursLeft` is the
   // tightest one (e.g. [24, 48]: due in 40h → 48, due in 20h → 24).
   const windows = [...settings.deadlineReminderHours].sort((a, b) => a - b);
-  const result = { deadlineReminders: 0, moaWarnings: 0, dsarReminders: 0, errors: [] as string[] };
+  const result = {
+    deadlineReminders: 0,
+    moaWarnings: 0,
+    dsarReminders: 0,
+    // null when the scan step threw.
+    retention: null as { ran: boolean; flagged: number } | null,
+    errors: [] as string[],
+  };
 
   const openReports = await prisma.weeklyReport.findMany({
     where: {
@@ -264,7 +271,7 @@ export async function runDailyNotifications(now: Date) {
 
   // NFR-DP-08: quarterly (the scan gates itself); flags only, never deletes.
   try {
-    await runRetentionScan(now);
+    result.retention = await runRetentionScan(now);
   } catch (error) {
     console.error("Retention scan failed", { error });
     result.errors.push("retention");

@@ -57,22 +57,26 @@ it("refuses a coordinator with 401 before anything else", async () => {
   expect(confirmPassword).not.toHaveBeenCalled();
 });
 
-it("returns 404 for an unknown request without asking for the password", async () => {
+it("returns 404 for an unknown request after the password check passes", async () => {
   (getDataRequestSubject as jest.Mock).mockRejectedValue(
     new ComplianceNotFoundError("Request not found")
   );
   const res = await call();
   expect(res.status).toBe(404);
-  expect(confirmPassword).not.toHaveBeenCalled();
+  expect(confirmPassword).toHaveBeenCalledWith(admin, "pw", "10.0.0.1");
   expect(buildPersonalDataWorkbook).not.toHaveBeenCalled();
 });
 
-it("returns 401 for a wrong password and builds and logs nothing", async () => {
+it("returns 401 for a wrong password, even for an unknown id, without a subject lookup", async () => {
   (confirmPassword as jest.Mock).mockResolvedValue(
     NextResponse.json({ error: "Password confirmation failed" }, { status: 401 })
   );
+  (getDataRequestSubject as jest.Mock).mockRejectedValue(
+    new ComplianceNotFoundError("Request not found")
+  );
   const res = await call();
   expect(res.status).toBe(401);
+  expect(getDataRequestSubject).not.toHaveBeenCalled();
   expect(buildPersonalDataWorkbook).not.toHaveBeenCalled();
   expect(logEvent).not.toHaveBeenCalled();
 });

@@ -121,6 +121,23 @@ it("returns the workbook and audits DATA_EXPORTED with the row count", async () 
   });
 });
 
+it("writes no audit row when the workbook cannot be built", async () => {
+  (buildAdminExport as jest.Mock).mockResolvedValue({
+    sheets: [
+      { name: "Dup", columns: ["A"], rows: [] },
+      { name: "Dup", columns: ["A"], rows: [] }, // xlsx rejects duplicate sheet names
+    ],
+    rowCount: 0,
+  });
+
+  const errSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+  const res = await call("users", { password: "pw" });
+  errSpy.mockRestore();
+
+  expect(res.status).toBe(500);
+  expect(logEvent).not.toHaveBeenCalled();
+});
+
 it("keeps formula-like student names inert in the students export", async () => {
   (buildAdminExport as jest.Mock).mockResolvedValue({
     sheets: [{ name: "Students", columns: ["Name"], rows: [{ Name: '=HYPERLINK("http://x")' }] }],

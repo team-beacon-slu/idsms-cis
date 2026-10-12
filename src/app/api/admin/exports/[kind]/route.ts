@@ -33,14 +33,6 @@ export async function POST(req: NextRequest, { params }: { params: { kind: strin
     if (denied) return denied;
 
     const { sheets, rowCount } = await buildAdminExport(kind, body.semesterId);
-    await logEvent({
-      userId: user.id,
-      action: "DATA_EXPORTED",
-      entityType: "Export",
-      ipAddress,
-      detail: { kind, semesterId: body.semesterId ?? null, rowCount },
-    });
-
     const workbook = buildWorkbook(
       sheets.map((s) => ({
         name: s.name,
@@ -50,6 +42,13 @@ export async function POST(req: NextRequest, { params }: { params: { kind: strin
         ),
       }))
     );
+    await logEvent({
+      userId: user.id,
+      action: "DATA_EXPORTED",
+      entityType: "Export",
+      ipAddress,
+      detail: { kind, semesterId: body.semesterId ?? null, rowCount },
+    });
     return xlsxResponse(workbook, `export-${kind}`);
   } catch (error) {
     return handleApiError(error);

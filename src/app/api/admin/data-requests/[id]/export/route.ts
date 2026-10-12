@@ -28,10 +28,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const body = bodySchema.parse(await req.json().catch(() => ({})));
     const ipAddress = req.headers.get("x-forwarded-for");
 
-    const { userId } = await getDataRequestSubject(id);
-
     const denied = await confirmPassword(user, body.password, ipAddress);
     if (denied) return denied;
+
+    const { userId } = await getDataRequestSubject(id);
 
     const { sheets } = await buildPersonalDataWorkbook(userId);
     const workbook = buildWorkbook(sheets);

@@ -202,10 +202,11 @@ describe("keepRetentionFlag", () => {
 
   it("marks KEPT and logs RETENTION_KEPT in the transaction", async () => {
     prismaMock.retentionFlag.findUnique.mockResolvedValue(flag() as never);
+    prismaMock.retentionFlag.updateMany.mockResolvedValue({ count: 1 } as never);
     await keepRetentionFlag("f-1", "a-1");
-    expect(prismaMock.retentionFlag.update).toHaveBeenCalledWith(
+    expect(prismaMock.retentionFlag.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "f-1" },
+        where: { id: "f-1", status: "PENDING" },
         data: expect.objectContaining({ status: "KEPT", reviewedBy: "a-1" }),
       })
     );
@@ -213,6 +214,13 @@ describe("keepRetentionFlag", () => {
       expect.objectContaining({ action: "RETENTION_KEPT", entityId: "f-1" }),
       prismaMock
     );
+  });
+
+  it("rejects without auditing when a concurrent review won the race (count 0)", async () => {
+    prismaMock.retentionFlag.findUnique.mockResolvedValue(flag() as never);
+    prismaMock.retentionFlag.updateMany.mockResolvedValue({ count: 0 } as never);
+    await expect(keepRetentionFlag("f-1", "a-1")).rejects.toThrow("This file was already reviewed");
+    expect(logEvent).not.toHaveBeenCalled();
   });
 });
 
