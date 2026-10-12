@@ -142,11 +142,12 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
                     <TableCell>
                       <StatusBadge status={item.status} />
                     </TableCell>
-                    <TableCell
-                      className="max-w-[16rem] truncate text-muted-foreground"
-                      title={item.comments ?? undefined}
-                    >
-                      {item.comments ?? "—"}
+                    <TableCell className="max-w-[16rem] break-words text-muted-foreground">
+                      {item.comments
+                        ? item.status === "RETURNED"
+                          ? `Adviser's note: ${item.comments}`
+                          : item.comments
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <ChecklistItemRow
