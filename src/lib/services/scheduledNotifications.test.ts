@@ -3,6 +3,9 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 jest.mock("@/lib/services/notify", () => ({
   notify: jest.fn().mockResolvedValue({ inApp: 1, emailed: 0, failed: 0 }),
 }));
+jest.mock("@/lib/services/retentionService", () => ({
+  runRetentionScan: jest.fn().mockResolvedValue({ ran: false, flagged: 0 }),
+}));
 jest.mock("@/lib/services/companyService", () => ({
   getExpiringMoaRecords: jest.fn().mockResolvedValue([]),
 }));
@@ -12,6 +15,7 @@ jest.mock("@/lib/services/notificationRecipients", () => ({
 }));
 
 import { notify } from "@/lib/services/notify";
+import { runRetentionScan } from "@/lib/services/retentionService";
 import {
   getNotificationSettings,
   notificationSettingsSchema,
@@ -305,6 +309,22 @@ describe("remindDueDataRequests", () => {
     const result = await runDailyNotifications(NOW);
     expect(result.errors).toContain("dsar");
     expect(result.dsarReminders).toBe(0);
+  });
+
+  it("runDailyNotifications runs the retention scan with now", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    await runDailyNotifications(NOW);
+    expect(runRetentionScan).toHaveBeenCalledWith(NOW);
+  });
+
+  it("runDailyNotifications isolates a retention scan failure", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    (runRetentionScan as jest.Mock).mockRejectedValueOnce(new Error("boom"));
+    const result = await runDailyNotifications(NOW);
+    expect(result.errors).toContain("retention");
+    expect(result.errors).not.toContain("dsar");
   });
 
   it("runDailyNotifications reports the reminder count", async () => {

@@ -16,7 +16,15 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { listDataRequests } from "@/lib/services/dataRequestService";
-import { manilaDayDiff } from "@/lib/utils/excelExport";
+import { formatManilaDate, manilaDayDiff } from "@/lib/utils/excelExport";
+import { listPendingRetentionFlags } from "@/lib/services/retentionService";
+import { RetentionActions } from "./retention-actions";
+
+const RETENTION_TYPE_LABELS = {
+  CHECKLIST: "Checklist document",
+  DEVIATION_PROOF: "Deviation proof",
+  GENERATED_DOCUMENT: "Generated PDF",
+} as const;
 import { DSAR_REMINDER_DAYS } from "@/lib/services/scheduledNotifications";
 import { DataRequestActions } from "./data-request-actions";
 import { ExportCard } from "./export-card";
@@ -63,10 +71,11 @@ export default async function ExportCenterPage() {
   if (user.role !== Role.SUPER_ADMIN) redirect("/");
 
   const now = new Date();
-  const [semesters, recent, dataRequests] = await Promise.all([
+  const [semesters, recent, dataRequests, retention] = await Promise.all([
     listSemesters(),
     queryAuditLogs({ action: "DATA_EXPORTED", page: 1 }, { pageSize: 20 }),
     listDataRequests(),
+    listPendingRetentionFlags(),
   ]);
   const semesterOptions = semesters.map((s) => ({
     id: s.id,
@@ -168,11 +177,53 @@ export default async function ExportCenterPage() {
         )}
       </section>
 
-      <section id="retention" aria-labelledby="retention-heading" className="space-y-2">
+      <section id="retention" aria-labelledby="retention-heading" className="space-y-3">
         <h2 id="retention-heading" className="text-lg font-semibold text-foreground">
-          File retention
+          Files due for review
         </h2>
-        <p className="text-sm text-muted-foreground">Nothing here yet.</p>
+        <p className="text-sm text-muted-foreground">
+          Files more than 3 years past their semester. Nothing is deleted until you choose to.
+        </p>
+        {retention.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No files are due for review.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <Table>
+              <caption className="sr-only">Files due for retention review</caption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student</TableHead>
+                  <TableHead>File type</TableHead>
+                  <TableHead>Semester ended</TableHead>
+                  <TableHead>Flagged</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {retention.map((f) => {
+                  const type = RETENTION_TYPE_LABELS[f.sourceType];
+                  return (
+                    <TableRow key={f.id}>
+                      <TableCell className="font-medium text-foreground">
+                        {f.studentNumber}
+                      </TableCell>
+                      <TableCell>{type}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatManilaDate(f.semesterEndDate)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatManilaDate(f.flaggedAt)}
+                      </TableCell>
+                      <TableCell>
+                        <RetentionActions id={f.id} label={`${type} for ${f.studentNumber}`} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="recent-exports-heading" className="space-y-3">

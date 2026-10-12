@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { notify } from "@/lib/services/notify";
 import { getDepartmentStaffIds, getSuperAdminIds } from "@/lib/services/notificationRecipients";
+import { runRetentionScan } from "@/lib/services/retentionService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
 import { formatManilaDate, manilaDayDiff } from "@/lib/utils/excelExport";
 import { isAwaitingReview } from "@/lib/services/weeklyReportService";
@@ -259,6 +260,14 @@ export async function runDailyNotifications(now: Date) {
   } catch (error) {
     console.error("DSAR due reminder failed", { error });
     result.errors.push("dsar");
+  }
+
+  // NFR-DP-08: quarterly (the scan gates itself); flags only, never deletes.
+  try {
+    await runRetentionScan(now);
+  } catch (error) {
+    console.error("Retention scan failed", { error });
+    result.errors.push("retention");
   }
 
   return result;
