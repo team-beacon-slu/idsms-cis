@@ -152,6 +152,37 @@ Design changes from this sample:
 - **Visibility:** the intern sees their demerits (date, category, reason, hours) on their attendance page. Staff see them on the student's page, and the faculty dashboard shows a count per student.
 - Migration 008 adds the table, with RLS on.
 
+### Deduction matrix: grade points (SLU "Deduction Matrix" slide; Jay 2026-10-12: "these are points", "they will update the matrix")
+
+SLU deducts **grade points** in two columns, **ADVISER** and **WWR** (Weekly Work Report), according to how many times something happened. The faculty will revise the matrix, so **IDSMS stores it as editable configuration, not code**.
+
+- **Matrix (SystemConfig `deduction_matrix`, JSON, edited by the Super Admin in settings):**
+  - a list of categories, each with a label;
+  - its count tiers `[{ count, adviser, wwr }]`;
+  - an optional `extraIfNoValidReason: { adviser, wwr }`;
+  - whether it is `automatic` or `manual`.
+  - Initial values come from the slide:
+    - **written warnings** 1 → −2/−2, 2 → −3/−3 (manual). Note: "First and Final/Last" or a "FINAL" warning without a "FIRST" counts as 2 warnings; the issuer picks a weight of 1 or 2.
+    - **demerits** 1 → −3/−3, 2 → −4/−4, 3 → −5/−5, 4 → −6/−7 (manual).
+    - **late WWR / monthly journals** 1 → −3/−5, 2 → −4/−6, 3 → −5/−7, 4 → −6/−8, plus 2 extra points for a missing one with no valid reason (automatic).
+    - **unsupported UT/absences** 1 → −2/−2, 2 → −3/−3, 3 → −4/−4, 4 → −5/−5, plus 2 extra for no valid reason (automatic).
+    - **major violations** 1 → −4/−5, 2 → −5/−6 (manual).
+    - **suspensions**: rows to be filled in by the faculty (manual).
+  - Admins can add categories.
+- **Tier semantics (assumption, adjustable):** a tier value is the **total** deduction at that count (e.g. 3 demerits = −5 in total, not −3−4−5). A count above the last tier uses the last tier.
+- **Manual entries:** stored in the `demerits` table, renamed `conduct_records`, with a `category` key, `weight` (1 or 2), date, reason, issuer, and revoke fields.
+  - Issued by the faculty adviser (own students) or coordinator / Super Admin.
+  - Never deleted, only revoked; audited and notified to the intern.
+- **Automatic counts:**
+  - late or missing weekly reports, from the existing late flag (FR-WR-05) and missing due weeks; monthly journals once that deliverable exists;
+  - UT/absences with no approved L request.
+  - "No valid reason" means the item was never justified (no approved request, or a missing report).
+- **Tally:**
+  - per intern: each category's count and the resulting ADVISER and WWR point deductions;
+  - shown on the intern's page (staff), on the faculty dashboard (per-student totals), and to the intern on their own attendance page.
+  - IDSMS **does not compute the final grade**; it reports the deductions. A grading formula can be added later.
+- **Hours:** a conduct record may also carry an optional `hoursDeducted` (default 0; the default is set by the Super Admin, overridable per case). Rendered hours subtract the active records' hours. This keeps Jay's earlier "a demerit reduces rendered hours" possible without forcing it.
+
 ## Out of scope
 
 - Uploads of any kind (D2/D7).
