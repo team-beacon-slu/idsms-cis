@@ -1,5 +1,7 @@
 # 12. Glossary
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026._
 
 | Term                                      | Meaning                                                                                                                                                                                                   |

@@ -1,5 +1,7 @@
 # 07. Business rules
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 Every rule IDSMS enforces, with its source. Sources are PRD requirement IDs (`PRD.md`), SLU internship guideline slides, or decisions recorded in [11. Decisions and open questions](11-decisions-and-open-questions.md). Rules are enforced on the server, so they hold even if someone bypasses the screens.

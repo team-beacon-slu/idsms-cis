@@ -1,5 +1,7 @@
 # 03. User guide: student intern
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 This guide describes every screen a student sees. The left menu (a slide-out menu on phones) shows, in order: **Dashboard, Companies, Calendar, Checklist, Work Plan, Attendance, Weekly Reports, Monthly Reports, Profile**, plus the notification bell and **Sign out**.

@@ -1,5 +1,7 @@
 # 04. User guide: faculty adviser
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 A faculty adviser sees only the students in the class groups they are assigned to for a semester. The left menu shows: **Dashboard, Companies, Calendar, My Students, Profile**, plus the notification bell and **Sign out**. Student pages (checklist, work plan, attendance, weekly and monthly reports) open from the dashboard or **My Students**.

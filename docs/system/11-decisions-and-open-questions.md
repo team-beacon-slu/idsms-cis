@@ -1,8 +1,12 @@
 # 11. Decisions and open questions
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026._
 
 This document records the decisions already made (mostly from SLU's internship orientation slides and the project team's discussions with faculty) and the questions that still need the adviser's answer. **Questions are numbered 1–20; please answer by number.** The same numbers are used in the [Adviser briefing](../ADVISER_BRIEFING.md) and throughout these documents (for example "Q5").
+
+**All decisions are provisional.** Every decision below, including those already built into the app (for example D7's status-only checklist, the 9/9 checklist gate before the endorsement letter, the required hours and the hours rules), reflects the project manager's interpretation of SLU's internship instructions. All of them are open to the adviser's revision; if the adviser decides differently, the app and these documents will be changed.
 
 ## 1. Decisions already made
 

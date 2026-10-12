@@ -1,6 +1,10 @@
 # 01. Product overview
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+
+See also: [13. App flow](13-app-flow.md) (screens and flows), [14. Data schema](14-data-schema.md) (stored data) and [15. Design brief](15-design-brief.md) (look and feel).
 
 ## 1. What IDSMS-CIS is
 

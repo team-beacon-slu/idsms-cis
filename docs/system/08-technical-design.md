@@ -1,5 +1,7 @@
 # 08. Technical design
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Audience: IT office, maintainers, developers. Status labels: **Built**, **In progress**, **Planned**._
 
 This is the technical design document (TDD) for IDSMS-CIS as built on `develop` (Phases 1–3, Phase 4 Workstreams A, B, E, C, F, G and the D7 status-only checklist, PR #85). File paths are relative to the repository root.
@@ -220,6 +222,8 @@ The checklist upload and file-download routes were removed by D7 (PR #85).
 | GET    | `/api/cron/daily`                      | Scheduler (`Authorization: Bearer CRON_SECRET`) | Daily job                                                                                                |
 
 ## 6. Data model
+
+Full detail (every column, enum, JSON field, storage path and planned change) is in [14. Data schema](14-data-schema.md). Request flows and state diagrams are in [13. App flow](13-app-flow.md); UI tokens and components in [15. Design brief](15-design-brief.md).
 
 ### 6.1 Main tables
 

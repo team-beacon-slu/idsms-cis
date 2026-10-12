@@ -1,5 +1,7 @@
 # 06. User guide: Super Admin
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 The Super Admin has every coordinator capability (see the [coordinator guide](05-user-guide-coordinator.md)) plus system settings and the privacy tools. The left menu shows: **Dashboard, Users, Semesters, Audit log, Export Center, Companies, Calendar, Profile**, plus the notification bell and **Sign out**.

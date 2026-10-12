@@ -1,6 +1,9 @@
 # IDSMS-CIS: executive summary for the adviser
 
-_SAMCIS Internship Document Submission and Monitoring System (IDSMS-CIS), Saint Louis University. Prepared by the project team. Last updated: 12 October 2026._
+_SAMCIS Internship Document Submission and Monitoring System (IDSMS-CIS), Saint Louis University. Prepared by the project team. Last updated: 13 October 2026._
+
+> **Status of this documentation: working draft for adviser review.**
+> The whole app flow is still in the development stage. Most flows and rules are the project manager's interpretation of SLU's internship instructions and still need the adviser's confirmation. Earlier parts of the build may also change on the adviser's instructions, even where they are marked "Done" below. All decisions are provisional.
 
 This is a short summary. The full documentation is in [`docs/system/`](system/README.md). **The open questions are numbered 1–20 in section 5; please answer by number.**
 
@@ -92,3 +95,4 @@ Please answer by number. Items marked **(default)** already have a working defau
 | See what faculty do on each screen     | [Faculty adviser guide](system/04-user-guide-faculty.md)  |
 | Check a specific rule and its source   | [Business rules](system/07-business-rules.md)             |
 | Look up a term (HTE, DTR, WWR, OT/UT…) | [Glossary](system/12-glossary.md)                         |
+| See screens, flows and what may change | [App flow](system/13-app-flow.md)                         |

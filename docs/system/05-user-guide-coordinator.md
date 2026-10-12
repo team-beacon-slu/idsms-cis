@@ -1,5 +1,7 @@
 # 05. User guide: department coordinator
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 The coordinator oversees the whole department. The left menu shows: **Dashboard, Users, Semesters, Companies, Calendar, Profile**, plus the notification bell and **Sign out**. The coordinator can open every student's pages (checklist, work plan, attendance, weekly and monthly reports) from the dashboard or the Users list.

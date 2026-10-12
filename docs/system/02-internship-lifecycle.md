@@ -1,5 +1,7 @@
 # 02. The internship lifecycle in IDSMS
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 This document follows one student from account creation to completion and shows who does what at each step. The rules behind each step are listed in [07. Business rules](07-business-rules.md).

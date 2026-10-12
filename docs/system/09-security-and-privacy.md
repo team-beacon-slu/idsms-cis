@@ -1,5 +1,7 @@
 # 09. Security and privacy
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 IDSMS processes students' personal data, so it must comply with the **Data Privacy Act of 2012 (RA 10173)**, its implementing rules and SLU's data privacy policy. This document lists the measures in place, in plain language. Technical details are in [08. Technical design](08-technical-design.md).

@@ -1,5 +1,7 @@
 # 10. Roadmap and status
 
+> Draft for adviser review — flows and rules may change; see [README](README.md).
+
 _Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 Detailed plans live in `docs/superpowers/plans/` (umbrella plan: `2026-10-11-phase4-roadmap.md`) and designs in `docs/superpowers/specs/`.
