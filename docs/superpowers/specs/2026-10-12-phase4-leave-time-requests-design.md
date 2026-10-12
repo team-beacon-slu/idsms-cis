@@ -189,6 +189,24 @@ SLU deducts **grade points** in two columns, **ADVISER** and **WWR** (Weekly Wor
   - Excusing and withdrawing are audited (`DEDUCTION_EXCUSED`, `DEDUCTION_EXCUSE_WITHDRAWN`) and stored in a small `deduction_exceptions` table keyed by item type and id. It is never deleted, only withdrawn.
 - **Hours:** a conduct record may also carry an optional `hoursDeducted` (default 0; the default is set by the Super Admin, overridable per case). Rendered hours subtract the active records' hours. This keeps Jay's earlier "a demerit reduces rendered hours" possible without forcing it.
 
+### Answers and defaults (2026-10-12)
+
+1. **Shift: per student (Jay).** The shift is set in each student's work-plan schedule (`startTime`, `endTime`, `breakMinutes`). New schedules are pre-filled with 08:00 / 17:00 / 60.
+
+Defaults used unless Jay answers otherwise:
+
+2. **Grace period:** none. Any time-in after `startTime` is late and creates draft UT.
+3. **OT timing:** OT may fall before or after the shift, or on a non-scheduled day, when approved and at least 30 minutes.
+4. **Half days:** filed as UT. Leave covers whole days.
+5. **Week number:** Week 1 is the week containing the deployment start date, or the first logged day if no start date is set.
+6. **Name:** printed as entered. The Profile hint asks for "Last, First M.".
+7. **Existing data:** totals recompute under the new rules, and the PR lists the dev DB students whose totals change.
+8. **Deduction tiers:** the value is the total at that count.
+9. **Count period:** counts run across the whole internship.
+10. **Suspension values:** left blank for the faculty to fill in.
+11. **Interns see their tally:** yes.
+12. **Hours per demerit:** default 0.
+
 ## Out of scope
 
 - Uploads of any kind (D2/D7).
