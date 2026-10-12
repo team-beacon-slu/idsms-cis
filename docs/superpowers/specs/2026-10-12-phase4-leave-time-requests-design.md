@@ -193,19 +193,27 @@ SLU deducts **grade points** in two columns, **ADVISER** and **WWR** (Weekly Wor
 
 1. **Shift: per student (Jay).** The shift is set in each student's work-plan schedule (`startTime`, `endTime`, `breakMinutes`). New schedules are pre-filled with 08:00 / 17:00 / 60.
 
-Defaults used unless Jay answers otherwise:
+Jay's answers (2026-10-12):
 
-2. **Grace period:** none. Any time-in after `startTime` is late and creates draft UT.
-3. **OT timing:** OT may fall before or after the shift, or on a non-scheduled day, when approved and at least 30 minutes.
-4. **Half days:** filed as UT. Leave covers whole days.
-5. **Week number:** Week 1 is the week containing the deployment start date, or the first logged day if no start date is set.
-6. **Name:** printed as entered. The Profile hint asks for "Last, First M.".
-7. **Existing data:** totals recompute under the new rules, and the PR lists the dev DB students whose totals change.
-8. **Deduction tiers:** the value is the total at that count.
+2. **Grace period: none (default confirmed).** Any time-in after `startTime` is late, and the day needs an undertime or leave request.
+3. **OT timing: either before or after the shift, at the faculty's discretion.** The adviser's approval of the request is that ruling. OT may also fall on a non-scheduled day. It must be approved and at least 30 minutes.
+4. **Half days: it depends; leave is anticipated.**
+   - A planned partial day is filed as **leave (ABSENCE) with a time range** (partial-day leave).
+   - An unplanned short day is **undertime**.
+   - The late/early-leave submit gate accepts either an UNDERTIME request or an ABSENCE request whose time range covers the gap.
+5. **Week number: Week 1 is defined by the faculty for the term**, e.g. Week 1 starts on the 11th, and a student who deploys later begins at Week 2 or 3.
+   - New nullable `Semester.weekOneStart` (date), set by the coordinator or Super Admin on the Semesters page.
+   - Week No. = `floor((weekStart − weekOneStart) / 7) + 1`.
+   - Fallback when it is not set: the week containing the student's first entry.
+6. **Name: from the school email, editable in the Profile.**
+   - When `StudentProfile.fullName` is empty, derive a display name from the school email's local part (e.g. `juan.delacruz` → "Delacruz, Juan"; split on `.`/`_`, title-case, last token as the surname).
+   - The student can correct it on the Profile page (the existing legal-name form), and the weekly report prints the Profile name.
+7. **Existing data:** default confirmed. Totals recompute, and the PR lists the changed students.
+8. **Deduction tiers: both, configurable.** Each matrix category has a mode, `TOTAL_AT_COUNT` (default) or `PER_INCIDENT` (cumulative sum of the tiers).
 9. **Count period:** counts run across the whole internship.
 10. **Suspension values:** left blank for the faculty to fill in.
-11. **Interns see their tally:** yes.
-12. **Hours per demerit:** default 0.
+11. **Interns see their tally:** yes (default).
+12. **Hours per demerit:** default 0 (confirmed).
 
 ## Out of scope
 

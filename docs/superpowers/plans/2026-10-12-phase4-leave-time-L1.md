@@ -164,6 +164,7 @@ The schedule schema gains `startTime?`, `endTime?` (both `timeOfDay`; end must b
   updatedAt DateTime? @db.Timestamptz(3)
   ```
 
+- `prisma/schema.prisma` Semester: `weekOneStart DateTime? @map("week_one_start")`. This is the faculty-defined Week 1 start for the term (Jay's answer 5).
 - `prisma/migrations_manual/008_leave_time.sql`: idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS`, plus `CREATE TYPE … IF NOT EXISTS` via DO blocks. Header: apply after Jay's OK, no data loss, all columns nullable.
 - `src/lib/validators/report.ts` (`dailyEntrySchema` gets `timeIn2`/`timeOut2`; hours-versus-window refine sums both ranges; ranges must not overlap; range 2 starts after range 1 ends).
 - `weeklyReportService.ts`:
@@ -262,7 +263,7 @@ export const timeRequestSchema: z.ZodType<{
   date: Date;
   endDate?: Date; // endDate only for ABSENCE; >= date; max 14 days
   startTime?: string;
-  endTime?: string; // required for OVERTIME/UNDERTIME; end > start
+  endTime?: string; // required for OVERTIME/UNDERTIME; OPTIONAL for ABSENCE = planned partial-day leave (Jay answer 4; then no endDate); end > start
   reason: string; // trimmed 10–500
   proofType?: "MEDICAL_CERTIFICATE" | "PROOF_OF_LEAVE" | "WRITTEN_NOTICE"; // required for ABSENCE
 }>; // requestedMinutes derived server-side from start/end
@@ -337,7 +338,7 @@ export function isFiledAfterTheFact(r: {
 
 - [ ] **Step 1: Failing tests:**
   - a week with a tardy day (time-in after `startTime`) or an early-leave day and no UNDERTIME request covering that date: submission throws `WeeklyReportIncompleteError` listing the dates ("File an undertime request for: Jun 16 (late arrival)");
-  - with a request of any status: submission passes;
+  - with an UNDERTIME request of any status, or an ABSENCE (partial-day leave) whose time range covers the late or early gap: submission passes (Jay answer 4);
   - schedules without `startTime` skip the check.
 - [ ] **Step 2:** Implement. The form flags tardy and early-leave rows ("Late arrival: file an undertime request") with a link to the requests tab, prefilled with the date and the gap times via query params.
 - [ ] **Step 3:** Gate green. Commit: "Require an undertime request for late arrival or early leave before submitting a week".
@@ -348,9 +349,9 @@ export function isFiledAfterTheFact(r: {
 
 **Loader additions:**
 
-- `fullName`;
+- the name: `fullName`, or, when empty, a display name derived from the school email's local part (`juan.delacruz` → "Delacruz, Juan"). Use a pure helper `displayNameFromEmail` (+tests) in `src/lib/utils/`. Jay's answer 6: the student can correct it in the Profile;
 - company name;
-- week number: weeks since the deployment start date (`internshipStartDate`, else the first entry date), with Week 1 = the week containing it;
+- week number: `floor((weekStart − semester.weekOneStart) / 7) + 1` using the student's semester `weekOneStart` (Jay's answer 5: Week 1 is faculty-defined, so a late starter's first report can be Week 2 or 3). Fallback when it is not set: the week containing the student's first entry is Week 1;
 - both time ranges;
 - per-entry `creditedHours` via `entryCreditedHours`;
 - holiday names for HOLIDAY rows (from `getHolidayCalendarForStudent`);
@@ -372,8 +373,10 @@ export function isFiledAfterTheFact(r: {
 
 Keep the reference code, the Manila timestamp, the preview watermark and `escapeHtml` on all user text.
 
+- Also modify `semesterService.ts` (create and update accept an optional `weekOneStart`, audited), its validator, and the `/semesters` page (a "Week 1 starts" date field, editable by coordinator and Super Admin).
+
 - [ ] **Step 1: Failing tests:**
-  - the loader computes the week number, beginning/ending and the OT/UT lists;
+  - the loader computes the week number (with `weekOneStart`, including a late starter at Week 3, and without it), beginning/ending, the name fallback from the email, and the OT/UT lists;
   - the template renders the SLU header strings, two ranges, "7 hrs 30 mins", the holiday label, both sections only when present, the TOTAL UT row, and escapes user text (`<script>` in the accomplishments);
   - Review Focus 5: beginning + total = ending.
 - [ ] **Step 2:** Implement, then PASS. The preview page and PDF generation use the same template unchanged.
