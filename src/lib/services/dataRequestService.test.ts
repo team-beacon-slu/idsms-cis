@@ -58,6 +58,39 @@ describe("createDataRequest", () => {
     );
     expect(prismaMock.dataRequest.create).not.toHaveBeenCalled();
   });
+
+  it("maps a unique-index violation (concurrent request) to the friendly 409 without logging", async () => {
+    prismaMock.dataRequest.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ dueAt: new Date("2026-10-27T00:00:00Z") } as never);
+    prismaMock.dataRequest.create.mockRejectedValue(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" })
+    );
+
+    await expect(createDataRequest("u-1", null)).rejects.toThrow(
+      new DataRequestStateError("You already have an open request (due 2026-10-27)")
+    );
+    expect(logEvent).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a generic message when the winner cannot be re-read", async () => {
+    prismaMock.dataRequest.findFirst
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("boom"));
+    prismaMock.dataRequest.create.mockRejectedValue(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" })
+    );
+    await expect(createDataRequest("u-1", null)).rejects.toThrow(
+      "You already have an open request"
+    );
+    expect(logEvent).not.toHaveBeenCalled();
+  });
+
+  it("rethrows other create errors untouched", async () => {
+    prismaMock.dataRequest.findFirst.mockResolvedValue(null);
+    prismaMock.dataRequest.create.mockRejectedValue(new Error("db down"));
+    await expect(createDataRequest("u-1", null)).rejects.toThrow("db down");
+  });
 });
 
 describe("getMyDataRequestSummary", () => {

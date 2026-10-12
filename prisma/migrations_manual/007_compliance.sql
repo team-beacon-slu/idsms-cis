@@ -27,6 +27,12 @@ CREATE TRIGGER audit_logs_no_truncate
 ALTER TABLE IF EXISTS data_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS retention_flags ENABLE ROW LEVEL SECURITY;
 
+-- One OPEN data request per user, enforced by the database. Prisma cannot express
+-- partial indexes, so (like the IN_APP notification dedupe index in 006) it lives
+-- only here. createDataRequest maps the resulting P2002 to a friendly 409.
+CREATE UNIQUE INDEX IF NOT EXISTS data_requests_one_open_per_user
+  ON data_requests (user_id) WHERE status = 'OPEN';
+
 -- 3. Verification (run manually, expect both statements to fail):
 -- BEGIN;
 --   UPDATE audit_logs SET action = action WHERE id = (SELECT id FROM audit_logs LIMIT 1);

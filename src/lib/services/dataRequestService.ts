@@ -33,10 +33,31 @@ export async function createDataRequest(
       );
     }
     const dueAt = new Date(now.getTime() + DSAR_SLA_DAYS * DAY_MS);
-    const created = await tx.dataRequest.create({
-      data: { userId, requestedAt: now, dueAt },
-      select: { id: true, dueAt: true },
-    });
+    let created: { id: string; dueAt: Date };
+    try {
+      created = await tx.dataRequest.create({
+        data: { userId, requestedAt: now, dueAt },
+        select: { id: true, dueAt: true },
+      });
+    } catch (error) {
+      // A concurrent request slipped past the check above; the partial unique
+      // index (migration 007) rejected it. Same friendly message, no audit row.
+      if ((error as { code?: string } | null)?.code === "P2002") {
+        // Re-read outside tx: Postgres aborts the transaction after a failed statement.
+        const winner = await prisma.dataRequest
+          .findFirst({
+            where: { userId, status: DataRequestStatus.OPEN },
+            select: { dueAt: true },
+          })
+          .catch(() => null);
+        throw new DataRequestStateError(
+          winner
+            ? `You already have an open request (due ${manilaDate(winner.dueAt)})`
+            : "You already have an open request"
+        );
+      }
+      throw error;
+    }
     await logEvent(
       {
         userId,

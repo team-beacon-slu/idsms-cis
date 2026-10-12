@@ -27,6 +27,8 @@ export function DataRequestCard({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(body.error ?? "Could not send your request");
+        // 409: the card is stale (a request is already open); show the real state.
+        if (res.status === 409) router.refresh();
         return;
       }
       toast.success(`Request sent — due ${manilaDate(body.dueAt)}`);
