@@ -59,7 +59,7 @@ export function DataRequestActions({ id, email }: { id: string; email: string })
         size="sm"
         disabled={pending}
         onClick={markFulfilled}
-        aria-label={`Mark request from ${email} fulfilled`}
+        aria-label={`Mark fulfilled for ${email}`}
       >
         {pending ? "Saving…" : "Mark fulfilled"}
       </Button>

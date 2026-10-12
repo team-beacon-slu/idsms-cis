@@ -37,6 +37,17 @@ export function formatManilaDateTime(date: Date): string {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 
+// "YYYY-MM-DD" of the instant's Manila calendar day.
+export function formatManilaDate(date: Date): string {
+  return formatManilaDateTime(date).slice(0, 10);
+}
+
+// Whole Manila calendar days from `from` to `to` (negative when `to` is earlier).
+export function manilaDayDiff(to: Date, from: Date): number {
+  const asUtcDay = (d: Date) => Date.parse(`${formatManilaDate(d)}T00:00:00Z`);
+  return Math.round((asUtcDay(to) - asUtcDay(from)) / (24 * 60 * 60 * 1000));
+}
+
 export function buildWorkbook(
   sheets: Array<{ name: string; rows: (string | number)[][] }>
 ): Buffer {

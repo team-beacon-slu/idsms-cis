@@ -16,24 +16,24 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { listDataRequests } from "@/lib/services/dataRequestService";
+import { manilaDayDiff } from "@/lib/utils/excelExport";
 import { DSAR_REMINDER_DAYS } from "@/lib/services/scheduledNotifications";
 import { DataRequestActions } from "./data-request-actions";
 import { ExportCard } from "./export-card";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 // Status is always spelled out in the badge text; colour only reinforces it.
 function dueStatus(dueAt: Date, now: Date): { label: string; className: string } {
-  const diff = dueAt.getTime() - now.getTime();
+  // Manila calendar days, so the badge agrees with the reminder wording.
+  const diff = manilaDayDiff(dueAt, now);
   if (diff < 0) {
-    const days = Math.max(1, Math.ceil(-diff / DAY_MS));
+    const days = -diff;
     return {
       label: `Overdue by ${days} ${days === 1 ? "day" : "days"}`,
       className:
         "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
     };
   }
-  const days = Math.ceil(diff / DAY_MS);
+  const days = diff;
   const label = days === 0 ? "Due today" : `${days} ${days === 1 ? "day" : "days"} left`;
   return {
     label,

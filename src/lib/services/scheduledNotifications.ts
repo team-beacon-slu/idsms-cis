@@ -5,6 +5,7 @@ import { logEvent } from "@/lib/services/auditService";
 import { notify } from "@/lib/services/notify";
 import { getDepartmentStaffIds, getSuperAdminIds } from "@/lib/services/notificationRecipients";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
+import { formatManilaDate, manilaDayDiff } from "@/lib/utils/excelExport";
 import { isAwaitingReview } from "@/lib/services/weeklyReportService";
 import {
   addDays,
@@ -125,12 +126,13 @@ export async function remindDueDataRequests(now: Date): Promise<number> {
   for (const request of due) {
     const dedupeKey = `dsar:${request.id}:${toDateKey(now)}`;
     if (await alreadySent("DSAR_DUE", dedupeKey)) continue;
-    const overdue = request.dueAt.getTime() < now.getTime();
+    // Same Manila-calendar-day rule as the Export Center badge.
+    const overdue = manilaDayDiff(request.dueAt, now) < 0;
     const result = await notify({
       userIds: adminIds,
       trigger: "DSAR_DUE",
       title: overdue ? "Data request overdue" : "Data request due soon",
-      body: `${request.user.email}'s request ${overdue ? "was" : "is"} due ${toDateKey(request.dueAt)}.`,
+      body: `${request.user.email}'s request ${overdue ? "was" : "is"} due ${formatManilaDate(request.dueAt)}.`,
       link: "/admin/export-center#data-requests",
       dedupeKey,
     });

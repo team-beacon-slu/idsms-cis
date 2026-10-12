@@ -279,6 +279,16 @@ describe("remindDueDataRequests", () => {
     );
   });
 
+  it("words the due date in Manila calendar days", async () => {
+    prismaMock.dataRequest.findMany.mockResolvedValue([
+      request("r5", new Date("2026-10-14T18:00:00Z")),
+    ] as never);
+    await remindDueDataRequests(NOW);
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({ body: "r5@x.edu's request is due 2026-10-15." })
+    );
+  });
+
   it("does not re-send when the day's reminder already exists", async () => {
     prismaMock.dataRequest.findMany.mockResolvedValue([
       request("r3", new Date(NOW.getTime() + DAY)),
