@@ -8,12 +8,14 @@ jest.mock("@/lib/services/companyService", () => ({
 }));
 jest.mock("@/lib/services/notificationRecipients", () => ({
   getDepartmentStaffIds: jest.fn().mockResolvedValue(["c-1"]),
+  getSuperAdminIds: jest.fn().mockResolvedValue(["sa-1"]),
 }));
 
 import { notify } from "@/lib/services/notify";
 import {
   getNotificationSettings,
   notificationSettingsSchema,
+  remindDueDataRequests,
   runDailyNotifications,
 } from "@/lib/services/scheduledNotifications";
 
@@ -26,6 +28,8 @@ beforeEach(() => {
     .mockClear();
   // Deployed students without a report row for the week: none unless a test says so.
   prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
+  // No open data requests unless a test says so.
+  prismaMock.dataRequest.findMany.mockResolvedValue([] as never);
 });
 
 const NOW = new Date("2026-10-12T00:00:00Z"); // Mon 08:00 Manila
@@ -228,4 +232,79 @@ it("warns department staff about expiring MOAs once per day", async () => {
       dedupeKey: "moa:2026-10-12",
     })
   );
+});
+
+describe("remindDueDataRequests", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const request = (id: string, dueAt: Date) => ({ id, dueAt, user: { email: `${id}@x.edu` } });
+
+  it("selects only OPEN requests due within 3 days (overdue included)", async () => {
+    prismaMock.dataRequest.findMany.mockResolvedValue([] as never);
+    await remindDueDataRequests(NOW);
+    expect(prismaMock.dataRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: "OPEN", dueAt: { lte: new Date(NOW.getTime() + 3 * DAY) } },
+      })
+    );
+  });
+
+  it("sends a 'due soon' notice to super admins for a request due in 2 days", async () => {
+    prismaMock.dataRequest.findMany.mockResolvedValue([
+      request("r1", new Date(NOW.getTime() + 2 * DAY)),
+    ] as never);
+    const count = await remindDueDataRequests(NOW);
+    expect(count).toBe(1);
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: ["sa-1"],
+        trigger: "DSAR_DUE",
+        title: "Data request due soon",
+        body: "r1@x.edu's request is due 2026-10-14.",
+        link: "/admin/export-center#data-requests",
+        dedupeKey: "dsar:r1:2026-10-12",
+      })
+    );
+  });
+
+  it("sends an 'overdue' notice for a request due 5 days ago", async () => {
+    prismaMock.dataRequest.findMany.mockResolvedValue([
+      request("r2", new Date(NOW.getTime() - 5 * DAY)),
+    ] as never);
+    await remindDueDataRequests(NOW);
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Data request overdue",
+        body: "r2@x.edu's request was due 2026-10-07.",
+      })
+    );
+  });
+
+  it("does not re-send when the day's reminder already exists", async () => {
+    prismaMock.dataRequest.findMany.mockResolvedValue([
+      request("r3", new Date(NOW.getTime() + DAY)),
+    ] as never);
+    prismaMock.notification.findFirst.mockResolvedValue({ id: "n" } as never);
+    expect(await remindDueDataRequests(NOW)).toBe(0);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("runDailyNotifications runs it and isolates a thrown error", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.dataRequest.findMany.mockRejectedValue(new Error("boom"));
+    const result = await runDailyNotifications(NOW);
+    expect(result.errors).toContain("dsar");
+    expect(result.dsarReminders).toBe(0);
+  });
+
+  it("runDailyNotifications reports the reminder count", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.dataRequest.findMany.mockResolvedValue([
+      request("r4", new Date(NOW.getTime() + DAY)),
+    ] as never);
+    const result = await runDailyNotifications(NOW);
+    expect(result.dsarReminders).toBe(1);
+    expect(result.errors).toEqual([]);
+  });
 });

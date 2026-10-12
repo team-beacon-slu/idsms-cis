@@ -14,7 +14,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { listDataRequests } from "@/lib/services/dataRequestService";
+import { DSAR_REMINDER_DAYS } from "@/lib/services/scheduledNotifications";
+import { DataRequestActions } from "./data-request-actions";
 import { ExportCard } from "./export-card";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Status is always spelled out in the badge text; colour only reinforces it.
+function dueStatus(dueAt: Date, now: Date): { label: string; className: string } {
+  const diff = dueAt.getTime() - now.getTime();
+  if (diff < 0) {
+    const days = Math.max(1, Math.ceil(-diff / DAY_MS));
+    return {
+      label: `Overdue by ${days} ${days === 1 ? "day" : "days"}`,
+      className:
+        "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
+    };
+  }
+  const days = Math.ceil(diff / DAY_MS);
+  const label = days === 0 ? "Due today" : `${days} ${days === 1 ? "day" : "days"} left`;
+  return {
+    label,
+    className:
+      days <= DSAR_REMINDER_DAYS
+        ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        : "text-foreground",
+  };
+}
 
 const SEMESTER_AWARE = new Set(["students", "attendance", "reports", "checklist"]);
 
@@ -34,9 +62,11 @@ export default async function ExportCenterPage() {
   const user = await requireUserPage();
   if (user.role !== Role.SUPER_ADMIN) redirect("/");
 
-  const [semesters, recent] = await Promise.all([
+  const now = new Date();
+  const [semesters, recent, dataRequests] = await Promise.all([
     listSemesters(),
     queryAuditLogs({ action: "DATA_EXPORTED", page: 1 }, { pageSize: 20 }),
+    listDataRequests(),
   ]);
   const semesterOptions = semesters.map((s) => ({
     id: s.id,
@@ -74,11 +104,68 @@ export default async function ExportCenterPage() {
         ))}
       </div>
 
-      <section id="data-requests" aria-labelledby="data-requests-heading" className="space-y-2">
+      <section id="data-requests" aria-labelledby="data-requests-heading" className="space-y-3">
         <h2 id="data-requests-heading" className="text-lg font-semibold text-foreground">
           Data requests
         </h2>
-        <p className="text-sm text-muted-foreground">Nothing here yet.</p>
+        {dataRequests.open.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No open data requests.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <Table>
+              <caption className="sr-only">Open data requests, soonest due first</caption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Requester</TableHead>
+                  <TableHead>Requested</TableHead>
+                  <TableHead>Due</TableHead>
+                  <TableHead>Days left</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dataRequests.open.map((r) => {
+                  const status = dueStatus(r.dueAt, now);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium text-foreground">{r.email}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {stampFmt.format(r.requestedAt)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {stampFmt.format(r.dueAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={status.className}>
+                          {status.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DataRequestActions id={r.id} email={r.email} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {dataRequests.recentFulfilled.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <h3 className="text-sm font-medium text-foreground">Recently fulfilled</h3>
+            <ul className="divide-y divide-border rounded-lg border border-border text-sm">
+              {dataRequests.recentFulfilled.map((r) => (
+                <li key={r.id} className="flex flex-wrap justify-between gap-2 px-3 py-2">
+                  <span className="text-foreground">{r.email}</span>
+                  <span className="text-muted-foreground">
+                    Fulfilled {stampFmt.format(r.fulfilledAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section id="retention" aria-labelledby="retention-heading" className="space-y-2">
