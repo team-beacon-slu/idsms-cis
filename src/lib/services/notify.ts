@@ -17,7 +17,11 @@ export type NotificationTrigger =
   | "MOA_EXPIRING"
   | "CHECKLIST_STATUS"
   | "WORK_PLAN_REVIEWED"
-  | "DEVIATION_VALIDATED";
+  | "DEVIATION_VALIDATED"
+  | "DSAR_REQUESTED"
+  | "DSAR_FULFILLED"
+  | "DSAR_DUE"
+  | "RETENTION_REVIEW";
 
 export interface NotifyInput {
   userIds: string[];

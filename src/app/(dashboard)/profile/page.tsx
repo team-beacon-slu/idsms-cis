@@ -2,7 +2,9 @@ import Link from "next/link";
 import { KeyRound, Mail, ShieldCheck, IdCard, ArrowRight } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { getUserProfile } from "@/lib/services/userService";
+import { getMyDataRequestSummary } from "@/lib/services/dataRequestService";
 import { FullNameForm } from "./full-name-form";
+import { DataRequestCard } from "./data-request-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -16,7 +18,10 @@ function humanizeRole(role: string) {
 
 export default async function ProfilePage() {
   const user = await requireUserPage();
-  const profile = await getUserProfile(user.id);
+  const [profile, dataRequests] = await Promise.all([
+    getUserProfile(user.id),
+    getMyDataRequestSummary(user.id),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -96,6 +101,11 @@ export default async function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <DataRequestCard
+        open={dataRequests.open ? { dueAt: dataRequests.open.dueAt.toISOString() } : null}
+        lastFulfilledAt={dataRequests.lastFulfilledAt?.toISOString() ?? null}
+      />
     </div>
   );
 }
