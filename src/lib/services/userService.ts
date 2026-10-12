@@ -93,61 +93,60 @@ export async function verifyCredentials(
 
   return prisma.$transaction(
     async (tx): Promise<VerifyCredentialsResult> => {
-      const user = await tx.user.findUnique({ where: { id: pre.id } });
-
-      if (!user || user.deletedAt) {
-        await logEvent(
-          {
-            userId: null,
-            action: "LOGIN_FAILED",
-            entityType: "User",
-            ipAddress,
-            detail: { email },
-          },
-          tx
-        );
-        return { ok: false, reason: "INVALID_CREDENTIALS" };
-      }
-
-      if (!user.isActive) {
-        await logInactiveAttempt(user.id, ipAddress, tx);
-        return { ok: false, reason: "ACCOUNT_INACTIVE" };
-      }
-
       const now = new Date();
-      if (user.lockedUntil && user.lockedUntil > now) {
-        await logLockedAttempt(user.id, ipAddress, tx);
-        return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: user.lockedUntil };
-      }
-
-      // The password was changed/reset while we were hashing: the comparison
-      // was against a stale hash, so don't trust it and don't count a failure.
-      if (user.hashedPassword !== pre.hashedPassword) {
-        await logEvent(
-          {
-            userId: user.id,
-            action: "LOGIN_FAILED",
-            entityType: "User",
-            entityId: user.id,
-            ipAddress,
-            detail: { reason: "password_changed" },
-          },
-          tx
-        );
-        return { ok: false, reason: "INVALID_CREDENTIALS" };
-      }
+      const user = await tx.user.findUnique({ where: { id: pre.id } });
+      const blocked = await rejectBlockedState(user, pre.hashedPassword, email, ipAddress, now, tx);
+      if (blocked) return blocked;
+      // rejectBlockedState returned null, so user is present.
+      const fresh = user!;
 
       if (passwordMatches) {
-        const updated = await tx.user.update({
-          where: { id: user.id },
+        // Conditional write: a plain update(where: {id}) would re-check only the
+        // id after waiting on a concurrent writer's row lock, and could clear a
+        // lock (or accept a stale password) committed in the meantime. Under
+        // READ COMMITTED the WHERE below is re-evaluated after that wait.
+        const res = await tx.user.updateMany({
+          where: {
+            id: fresh.id,
+            hashedPassword: pre.hashedPassword,
+            OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+          },
           data: { failedLoginAttempts: 0, lockedUntil: null },
         });
+
+        if (res.count === 0) {
+          // Something changed under us; classify it. Never log LOGIN_SUCCESS here.
+          const again = await tx.user.findUnique({ where: { id: fresh.id } });
+          const rejected = await rejectBlockedState(
+            again,
+            pre.hashedPassword,
+            email,
+            ipAddress,
+            new Date(),
+            tx
+          );
+          if (rejected) return rejected;
+          await logEvent(
+            {
+              userId: fresh.id,
+              action: "LOGIN_FAILED",
+              entityType: "User",
+              entityId: fresh.id,
+              ipAddress,
+              detail: { reason: "concurrent_change" },
+            },
+            tx
+          );
+          return { ok: false, reason: "INVALID_CREDENTIALS" };
+        }
+
+        const updated = await tx.user.findUniqueOrThrow({ where: { id: fresh.id } });
         await logEvent(
           {
-            userId: user.id,
+            userId: fresh.id,
             action: "LOGIN_SUCCESS",
             entityType: "User",
-            entityId: user.id,
+            entityId: fresh.id,
             ipAddress,
           },
           tx
@@ -156,21 +155,25 @@ export async function verifyCredentials(
       }
 
       // Atomic increment; the returned value (not our stale read) decides the lock.
-      const { failedLoginAttempts: failedAttempts } = await tx.user.update({
-        where: { id: user.id },
+      const afterIncrement = await tx.user.update({
+        where: { id: fresh.id },
         data: { failedLoginAttempts: { increment: 1 } },
       });
+      const failedAttempts = afterIncrement.failedLoginAttempts;
 
-      if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+      // Lock exactly once: only the attempt whose increment lands ON the
+      // threshold locks. Concurrent attempts that land past it (6, 7, ...) find
+      // the account already locked and must not re-lock, re-revoke or re-audit.
+      if (failedAttempts === MAX_FAILED_ATTEMPTS) {
         const lockedUntil = new Date(now.getTime() + LOCKOUT_DURATION_MS);
-        await tx.user.update({ where: { id: user.id }, data: { lockedUntil } });
-        await revokeSessionsForUser(user.id, tx);
+        await tx.user.update({ where: { id: fresh.id }, data: { lockedUntil } });
+        await revokeSessionsForUser(fresh.id, tx);
         await logEvent(
           {
-            userId: user.id,
+            userId: fresh.id,
             action: "ACCOUNT_LOCKED",
             entityType: "User",
-            entityId: user.id,
+            entityId: fresh.id,
             ipAddress,
             detail: { failedAttempts },
           },
@@ -179,12 +182,21 @@ export async function verifyCredentials(
         return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil };
       }
 
+      if (failedAttempts > MAX_FAILED_ATTEMPTS) {
+        await logLockedAttempt(fresh.id, ipAddress, tx);
+        return {
+          ok: false,
+          reason: "ACCOUNT_LOCKED",
+          lockedUntil: afterIncrement.lockedUntil ?? new Date(now.getTime() + LOCKOUT_DURATION_MS),
+        };
+      }
+
       await logEvent(
         {
-          userId: user.id,
+          userId: fresh.id,
           action: "LOGIN_FAILED",
           entityType: "User",
-          entityId: user.id,
+          entityId: fresh.id,
           ipAddress,
           detail: { failedAttempts },
         },
@@ -194,6 +206,51 @@ export async function verifyCredentials(
     },
     { timeout: 15000, maxWait: 10000 }
   );
+}
+
+// Shared state gate for the fresh (in-transaction) row: deleted, inactive,
+// locked, or password changed since the pre-read. Writes the audit row and
+// returns the result to hand back, or null if the row is clear to proceed.
+async function rejectBlockedState(
+  user: User | null,
+  preHash: string,
+  email: string,
+  ipAddress: string | null | undefined,
+  now: Date,
+  tx: Prisma.TransactionClient
+): Promise<VerifyCredentialsResult | null> {
+  if (!user || user.deletedAt) {
+    await logEvent(
+      { userId: null, action: "LOGIN_FAILED", entityType: "User", ipAddress, detail: { email } },
+      tx
+    );
+    return { ok: false, reason: "INVALID_CREDENTIALS" };
+  }
+  if (!user.isActive) {
+    await logInactiveAttempt(user.id, ipAddress, tx);
+    return { ok: false, reason: "ACCOUNT_INACTIVE" };
+  }
+  if (user.lockedUntil && user.lockedUntil > now) {
+    await logLockedAttempt(user.id, ipAddress, tx);
+    return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: user.lockedUntil };
+  }
+  // The password was changed/reset while we were hashing: the comparison was
+  // against a stale hash, so don't trust it and don't count a failure.
+  if (user.hashedPassword !== preHash) {
+    await logEvent(
+      {
+        userId: user.id,
+        action: "LOGIN_FAILED",
+        entityType: "User",
+        entityId: user.id,
+        ipAddress,
+        detail: { reason: "password_changed" },
+      },
+      tx
+    );
+    return { ok: false, reason: "INVALID_CREDENTIALS" };
+  }
+  return null;
 }
 
 function logInactiveAttempt(
