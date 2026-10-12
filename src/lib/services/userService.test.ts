@@ -104,21 +104,24 @@ describe("verifyCredentials", () => {
     );
   });
 
-  it("increments the failure counter on a wrong password without locking below the threshold", async () => {
+  it("increments the failure counter atomically on a wrong password without locking below the threshold", async () => {
     prismaMock.user.findUnique.mockResolvedValue(baseUser({ failedLoginAttempts: 2 }) as never);
+    prismaMock.user.update.mockResolvedValue(baseUser({ failedLoginAttempts: 3 }) as never);
     mockedVerifyPassword.mockResolvedValue(false);
 
     const result = await verifyCredentials("student@example.com", "wrong-password");
 
     expect(result).toEqual({ ok: false, reason: "INVALID_CREDENTIALS" });
+    expect(prismaMock.user.update).toHaveBeenCalledTimes(1);
     expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { failedLoginAttempts: 3, lockedUntil: null } })
+      expect.objectContaining({ data: { failedLoginAttempts: { increment: 1 } } })
     );
     expect(prismaMock.session.deleteMany).not.toHaveBeenCalled();
   });
 
   it("locks the account and revokes sessions on the 5th consecutive failure (FR-UM-07/FR-UM-11a)", async () => {
     prismaMock.user.findUnique.mockResolvedValue(baseUser({ failedLoginAttempts: 4 }) as never);
+    prismaMock.user.update.mockResolvedValue(baseUser({ failedLoginAttempts: 5 }) as never);
     mockedVerifyPassword.mockResolvedValue(false);
 
     const result = await verifyCredentials("student@example.com", "wrong-password");
@@ -128,13 +131,110 @@ describe("verifyCredentials", () => {
       expect(result.reason).toBe("ACCOUNT_LOCKED");
     }
     expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ failedLoginAttempts: 5 }),
-      })
+      expect.objectContaining({ data: { failedLoginAttempts: { increment: 1 } } })
+    );
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { lockedUntil: expect.any(Date) } })
     );
     expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: "ACCOUNT_LOCKED" }) })
+    );
+  });
+
+  it("decides the lock from the atomically returned count, not the stale pre-read (concurrent failures)", async () => {
+    // Pre-read saw 1 failure, but concurrent attempts pushed the DB counter so
+    // the increment returns 5: this attempt must lock.
+    prismaMock.user.findUnique.mockResolvedValue(baseUser({ failedLoginAttempts: 1 }) as never);
+    prismaMock.user.update.mockResolvedValue(baseUser({ failedLoginAttempts: 5 }) as never);
+    mockedVerifyPassword.mockResolvedValue(false);
+
+    const result = await verifyCredentials("student@example.com", "wrong-password");
+
+    expect(result).toMatchObject({ ok: false, reason: "ACCOUNT_LOCKED" });
+    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+  });
+
+  it("runs the transaction with a 15s timeout / 10s maxWait", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(baseUser() as never);
+    prismaMock.user.update.mockResolvedValue(baseUser() as never);
+    mockedVerifyPassword.mockResolvedValue(true);
+
+    await verifyCredentials("student@example.com", "correct-password");
+
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ timeout: 15000, maxWait: 10000 })
+    );
+  });
+
+  it("finishes bcrypt verification before opening the transaction", async () => {
+    const order: string[] = [];
+    prismaMock.user.findUnique.mockResolvedValue(baseUser() as never);
+    prismaMock.user.update.mockResolvedValue(baseUser() as never);
+    mockedVerifyPassword.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      order.push("verifyPassword:done");
+      return true;
+    });
+    const impl = prismaMock.$transaction.getMockImplementation()!;
+    prismaMock.$transaction.mockImplementation(((cb: unknown, opts: unknown) => {
+      order.push("transaction:start");
+      return (impl as (a: unknown, b: unknown) => unknown)(cb, opts);
+    }) as typeof prismaMock.$transaction);
+
+    await verifyCredentials("student@example.com", "correct-password");
+
+    expect(order).toEqual(["verifyPassword:done", "transaction:start"]);
+  });
+
+  it("returns ACCOUNT_LOCKED when the account got locked between the pre-read and the fresh read", async () => {
+    const lockedUntil = new Date(Date.now() + 5 * 60 * 1000);
+    prismaMock.user.findUnique
+      .mockResolvedValueOnce(baseUser() as never)
+      .mockResolvedValueOnce(baseUser({ lockedUntil }) as never);
+    mockedVerifyPassword.mockResolvedValue(true);
+
+    const result = await verifyCredentials("student@example.com", "correct-password");
+
+    expect(result).toEqual({ ok: false, reason: "ACCOUNT_LOCKED", lockedUntil });
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "LOGIN_ATTEMPT_WHILE_LOCKED" }),
+      })
+    );
+  });
+
+  it("returns ACCOUNT_INACTIVE when the account was deactivated between the pre-read and the fresh read", async () => {
+    prismaMock.user.findUnique
+      .mockResolvedValueOnce(baseUser() as never)
+      .mockResolvedValueOnce(baseUser({ isActive: false }) as never);
+    mockedVerifyPassword.mockResolvedValue(true);
+
+    const result = await verifyCredentials("student@example.com", "correct-password");
+
+    expect(result).toEqual({ ok: false, reason: "ACCOUNT_INACTIVE" });
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects without counting a failure when the password hash changed mid-flight", async () => {
+    prismaMock.user.findUnique
+      .mockResolvedValueOnce(baseUser() as never)
+      .mockResolvedValueOnce(baseUser({ hashedPassword: "rotated" }) as never);
+    mockedVerifyPassword.mockResolvedValue(true);
+
+    const result = await verifyCredentials("student@example.com", "old-password");
+
+    expect(result).toEqual({ ok: false, reason: "INVALID_CREDENTIALS" });
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "LOGIN_FAILED",
+          detail: { reason: "password_changed" },
+        }),
+      })
     );
   });
 
