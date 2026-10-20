@@ -18,6 +18,7 @@ export type NotificationTrigger =
   | "CHECKLIST_STATUS"
   | "WORK_PLAN_REVIEWED"
   | "DEVIATION_VALIDATED"
+  | "REQUEST_RETURNED"
   | "DSAR_REQUESTED"
   | "DSAR_FULFILLED"
   | "DSAR_DUE"

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
+import { TimeRequestStateError } from "@/lib/services/timeRequestService";
 import { UnauthorizedError } from "@/lib/auth/errors";
 import { ForbiddenError } from "@/lib/services/userService";
 import { InvalidFileError } from "@/lib/storage";
@@ -85,12 +87,17 @@ export function handleApiError(error: unknown): NextResponse {
   if (
     error instanceof SemesterStateError ||
     error instanceof DataRequestStateError ||
-    error instanceof RetentionStateError
+    error instanceof RetentionStateError ||
+    error instanceof TimeRequestStateError
   ) {
     return NextResponse.json({ error: error.message }, { status: 409 });
   }
   if (error instanceof HolidayNotFoundError || error instanceof ComplianceNotFoundError) {
     return NextResponse.json({ error: error.message }, { status: 404 });
+  }
+  // findUniqueOrThrow on an unknown id.
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   console.error(error);

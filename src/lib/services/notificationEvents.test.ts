@@ -16,8 +16,27 @@ import {
   notifyPasswordReset,
   notifyReportReturned,
   notifyReportSubmitted,
+  notifyTimeRequestReviewed,
   notifyWorkPlanReviewed,
 } from "@/lib/services/notificationEvents";
+
+it("tells the student a returned time request needs fixing, with the note", async () => {
+  await notifyTimeRequestReviewed(
+    "p-1",
+    "RETURN",
+    { deviationType: "OVERTIME", date: new Date("2026-10-10T00:00:00Z") },
+    "Get your supervisor's signature first."
+  );
+  expect(lastCall()).toEqual(
+    expect.objectContaining({
+      userIds: ["stu-1"],
+      trigger: "REQUEST_RETURNED",
+      title: "Your overtime request for 2026-10-10 was returned",
+      body: expect.stringContaining("Get your supervisor's signature first."),
+      link: "/students/p-1/leave-requests",
+    })
+  );
+});
 
 const notifyMock = notify as jest.Mock;
 const lastCall = () => notifyMock.mock.calls.at(-1)![0];
