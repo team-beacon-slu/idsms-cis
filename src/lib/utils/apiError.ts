@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { TimeRequestStateError } from "@/lib/services/timeRequestService";
+import { ConductStateError } from "@/lib/services/conductService";
 import { UnauthorizedError } from "@/lib/auth/errors";
 import { ForbiddenError } from "@/lib/services/userService";
 import { InvalidFileError } from "@/lib/storage";
@@ -90,6 +91,7 @@ export function handleApiError(error: unknown): NextResponse {
     error instanceof DataRequestStateError ||
     error instanceof RetentionStateError ||
     error instanceof TimeRequestStateError ||
+    error instanceof ConductStateError ||
     error instanceof WeeklyReportNotAwaitingReviewError
   ) {
     return NextResponse.json({ error: error.message }, { status: 409 });
