@@ -33,7 +33,8 @@ export function formatScheduleDays(daysOfWeek: number[]): string {
     .join(", ");
 }
 
-function clock(t: string): string {
+// "13:00" → "1:00 pm"
+export function clock(t: string): string {
   const [h, m] = t.split(":").map(Number);
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
 }

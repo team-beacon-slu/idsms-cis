@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/table";
 import { CreateSemesterForm } from "./create-semester-form";
 import { SemesterActions } from "./semester-actions";
+import { WeekOneField } from "./week-one-field";
+import { toDateKey } from "@/lib/utils/reportDeadline";
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 
@@ -76,6 +78,7 @@ export default async function SemestersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Academic year</TableHead>
                 <TableHead>Dates</TableHead>
+                <TableHead>Week 1 starts</TableHead>
                 <TableHead>Students</TableHead>
                 <TableHead>State</TableHead>
                 {canManage && <TableHead>Actions</TableHead>}
@@ -90,6 +93,21 @@ export default async function SemestersPage() {
                     <TableCell>{s.academicYear}</TableCell>
                     <TableCell>
                       {dateFmt.format(s.startDate)} – {dateFmt.format(s.endDate)}
+                    </TableCell>
+                    <TableCell>
+                      {archived ? (
+                        s.weekOneStart ? (
+                          toDateKey(s.weekOneStart)
+                        ) : (
+                          "—"
+                        )
+                      ) : (
+                        <WeekOneField
+                          semesterId={s.id}
+                          name={s.name}
+                          value={s.weekOneStart ? toDateKey(s.weekOneStart) : ""}
+                        />
+                      )}
                     </TableCell>
                     <TableCell>{s._count.students}</TableCell>
                     <TableCell>

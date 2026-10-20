@@ -5,6 +5,7 @@ import {
   archiveSemester,
   createSemester,
   listSemesters,
+  setSemesterWeekOne,
 } from "@/lib/services/semesterService";
 
 beforeEach(() => resetPrismaMock());
@@ -151,6 +152,59 @@ describe("createSemester", () => {
   it("rejects a malformed academic year", async () => {
     await expect(createSemester({ ...valid, academicYear: "2026/27" }, "a")).rejects.toThrow();
     expect(prismaMock.semester.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("setSemesterWeekOne", () => {
+  it("stores the faculty-defined Week 1 start and audits it", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({ id: "s1", archivedAt: null } as never);
+    await setSemesterWeekOne("s1", { weekOneStart: "2026-08-10" }, "coord-1");
+    expect(prismaMock.semester.update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { weekOneStart: new Date("2026-08-10T00:00:00Z") },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "SEMESTER_WEEK_ONE_SET", entityId: "s1" }),
+      })
+    );
+  });
+
+  it("clears it with null", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({ id: "s1", archivedAt: null } as never);
+    await setSemesterWeekOne("s1", { weekOneStart: null }, "coord-1");
+    expect(prismaMock.semester.update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { weekOneStart: null },
+    });
+  });
+
+  it("refuses an archived semester", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({ id: "s1", archivedAt: new Date() } as never);
+    await expect(setSemesterWeekOne("s1", { weekOneStart: "2026-08-10" }, "c")).rejects.toThrow(
+      SemesterStateError
+    );
+  });
+});
+
+describe("createSemester weekOneStart", () => {
+  it("accepts an optional Week 1 start", async () => {
+    prismaMock.semester.create.mockResolvedValue({ id: "s9" } as never);
+    await createSemester(
+      {
+        name: "1st Sem",
+        academicYear: "2026-2027",
+        startDate: "2026-08-03",
+        endDate: "2026-12-18",
+        weekOneStart: "2026-08-10",
+      },
+      "admin-1"
+    );
+    expect(prismaMock.semester.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ weekOneStart: new Date("2026-08-10T00:00:00Z") }),
+      })
+    );
   });
 });
 
