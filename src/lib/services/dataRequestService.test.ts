@@ -212,6 +212,7 @@ describe("buildPersonalDataWorkbook", () => {
     "Weekly reports",
     "Deviation reports",
     "Generated documents",
+    "Final report",
     "Notifications",
     "Activity",
   ];
@@ -347,8 +348,25 @@ describe("buildPersonalDataWorkbook", () => {
         scheduleChangeHistory: [{ reason: "moved" }],
       },
     ] as never);
+    prismaMock.finalTechnicalReport.findUnique.mockResolvedValue({
+      status: "RETURNED",
+      submittedAt: created,
+      sections: { learnings: "Mine" },
+      supervisorScore: 4.5,
+      supervisorScale: 5,
+      peerScore: null,
+      peerScale: null,
+      attachments: {},
+      reviewNote: "Expand",
+    } as never);
 
     const wb = await buildPersonalDataWorkbook("u-1");
+
+    // The intern's own report text and scores are personal data too.
+    const final = wb.sheets.find((s) => s.name === "Final report")!;
+    expect(final.rows[1]).toEqual(
+      expect.arrayContaining(["RETURNED", '{"learnings":"Mine"}', "4.5 / 5", "", "Expand"])
+    );
 
     const weekly = wb.sheets.find((s) => s.name === "Weekly reports")!;
     expect(weekly.rows[0].slice(4)).toEqual([
@@ -392,7 +410,7 @@ describe("buildPersonalDataWorkbook", () => {
     const wb = await buildPersonalDataWorkbook("u-2");
 
     expect(wb.sheets.map((s) => s.name)).toEqual(SHEETS);
-    for (const name of SHEETS.slice(1, 8)) {
+    for (const name of SHEETS.slice(1, 9)) {
       expect(wb.sheets.find((s) => s.name === name)!.rows).toHaveLength(1);
     }
     expect(wb.sheets[0].rows).toHaveLength(2);
