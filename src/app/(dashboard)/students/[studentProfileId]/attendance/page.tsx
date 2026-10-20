@@ -39,6 +39,10 @@ import {
 import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
 import { AttendanceExportButton } from "./export-button";
 import { HolidayList } from "./holiday-list";
+import { ConductCard, type ConductCardData } from "./conduct-card";
+import { listConductRecords } from "@/lib/services/conductService";
+import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/deductionService";
+import { tallyDeductions } from "@/lib/utils/deductionMatrix";
 
 const DEVIATION_TYPE_LABEL: Record<string, string> = {
   ABSENCE: "Absence",
@@ -70,6 +74,33 @@ export default async function AttendancePage({ params }: { params: { studentProf
     ]);
 
   const isOwner = user.role === "STUDENT_INTERN";
+  // Workstream L2: conduct records, automatic deduction items and the tally.
+  const [matrix, conductRecords, automaticItems] = await Promise.all([
+    getDeductionMatrix(),
+    listConductRecords(params.studentProfileId),
+    listAutomaticItems(params.studentProfileId),
+  ]);
+  const conduct: ConductCardData = {
+    tally: tallyDeductions(
+      matrix,
+      conductRecords.filter((r) => !r.revokedAt),
+      automaticItems.filter((i) => !i.excused)
+    ),
+    records: conductRecords.map((r) => ({
+      id: r.id,
+      categoryKey: r.categoryKey,
+      weight: r.weight,
+      date: r.date.toISOString(),
+      reason: r.reason,
+      hoursDeducted: Number(r.hoursDeducted),
+      revokedAt: r.revokedAt?.toISOString() ?? null,
+      revokeReason: r.revokeReason,
+    })),
+    items: automaticItems.map((i) => ({ ...i, date: i.date.toISOString() })),
+    categories: matrix
+      .filter((c) => c.source === "MANUAL")
+      .map(({ key, label }) => ({ key, label })),
+  };
   const renderedHours = summary.confirmedHours;
   const requiredHours = summary.requiredHours;
   const remainingHours = summary.remainingHours;
@@ -331,6 +362,22 @@ export default async function AttendancePage({ params }: { params: { studentProf
               </Table>
             </div>
           )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Conduct &amp; deductions</CardTitle>
+          <CardDescription>
+            Warnings, demerits and violations on record, items counted automatically, and the
+            resulting grade-point deductions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ConductCard
+            studentProfileId={params.studentProfileId}
+            isStaff={!isOwner}
+            data={conduct}
+          />
         </CardContent>
       </Card>
     </div>
