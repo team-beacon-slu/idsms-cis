@@ -215,94 +215,106 @@ export async function buildPersonalDataWorkbook(
   const profile = user.studentProfile;
   const pid = profile?.id;
 
-  const [checklist, workPlans, entries, reports, deviations, documents, notifications, audit] =
-    await Promise.all([
-      pid
-        ? prisma.preDeploymentChecklistItem.findMany({
-            where: { studentProfileId: pid },
-            orderBy: { createdAt: "asc" },
-            select: {
-              requirementType: true,
-              status: true,
-              reviewDate: true,
-              comments: true,
-            },
-          })
-        : [],
-      pid
-        ? prisma.workPlan.findMany({
-            where: { studentProfileId: pid },
-            orderBy: { createdAt: "asc" },
-            select: {
-              status: true,
-              createdAt: true,
-              plannedTasks: true,
-              scheduleChangeHistory: true,
-            },
-          })
-        : [],
-      pid
-        ? prisma.dailyReportEntry.findMany({
-            where: { weeklyReport: { studentProfileId: pid } },
-            orderBy: { reportDate: "asc" },
-            select: {
-              reportDate: true,
-              timeIn: true,
-              timeOut: true,
-              ...CREDITED_HOURS_SELECT,
-              accomplishments: true,
-              toolsUsed: true,
-            },
-          })
-        : [],
-      pid
-        ? prisma.weeklyReport.findMany({
-            where: { studentProfileId: pid },
-            orderBy: { weekStart: "asc" },
-            select: {
-              weekStart: true,
-              status: true,
-              totalHours: true,
-              facultyAction: true,
-              sentimentLabel: true,
-              sentimentConfidence: true,
-              similarityFlag: true,
-              similarityScore: true,
-              revisionHistory: true,
-            },
-          })
-        : [],
-      pid
-        ? prisma.deviationReport.findMany({
-            where: { studentProfileId: pid },
-            orderBy: { date: "asc" },
-            select: { date: true, deviationType: true, reason: true, validationStatus: true },
-          })
-        : [],
-      pid
-        ? prisma.generatedDocument.findMany({
-            where: { studentProfileId: pid },
-            select: {
-              documentType: true,
-              periodLabel: true,
-              status: true,
-              referenceCode: true,
-              generatedAt: true,
-            },
-          })
-        : [],
-      prisma.notification.findMany({
-        where: { userId },
-        orderBy: { sentAt: "asc" },
-        select: { sentAt: true, triggerType: true, payload: true, readAt: true },
-      }),
-      prisma.auditLog.findMany({
-        where: { userId },
-        orderBy: { timestamp: "asc" },
-        select: { timestamp: true, action: true, entityType: true, ipAddress: true },
-      }),
-    ]);
+  const [
+    checklist,
+    workPlans,
+    entries,
+    reports,
+    deviations,
+    documents,
+    finalReport,
+    notifications,
+    audit,
+  ] = await Promise.all([
+    pid
+      ? prisma.preDeploymentChecklistItem.findMany({
+          where: { studentProfileId: pid },
+          orderBy: { createdAt: "asc" },
+          select: {
+            requirementType: true,
+            status: true,
+            reviewDate: true,
+            comments: true,
+          },
+        })
+      : [],
+    pid
+      ? prisma.workPlan.findMany({
+          where: { studentProfileId: pid },
+          orderBy: { createdAt: "asc" },
+          select: {
+            status: true,
+            createdAt: true,
+            plannedTasks: true,
+            scheduleChangeHistory: true,
+          },
+        })
+      : [],
+    pid
+      ? prisma.dailyReportEntry.findMany({
+          where: { weeklyReport: { studentProfileId: pid } },
+          orderBy: { reportDate: "asc" },
+          select: {
+            reportDate: true,
+            timeIn: true,
+            timeOut: true,
+            ...CREDITED_HOURS_SELECT,
+            accomplishments: true,
+            toolsUsed: true,
+          },
+        })
+      : [],
+    pid
+      ? prisma.weeklyReport.findMany({
+          where: { studentProfileId: pid },
+          orderBy: { weekStart: "asc" },
+          select: {
+            weekStart: true,
+            status: true,
+            totalHours: true,
+            facultyAction: true,
+            sentimentLabel: true,
+            sentimentConfidence: true,
+            similarityFlag: true,
+            similarityScore: true,
+            revisionHistory: true,
+          },
+        })
+      : [],
+    pid
+      ? prisma.deviationReport.findMany({
+          where: { studentProfileId: pid },
+          orderBy: { date: "asc" },
+          select: { date: true, deviationType: true, reason: true, validationStatus: true },
+        })
+      : [],
+    pid
+      ? prisma.generatedDocument.findMany({
+          where: { studentProfileId: pid },
+          select: {
+            documentType: true,
+            periodLabel: true,
+            status: true,
+            referenceCode: true,
+            generatedAt: true,
+          },
+        })
+      : [],
+    pid ? prisma.finalTechnicalReport.findUnique({ where: { studentProfileId: pid } }) : null,
+    prisma.notification.findMany({
+      where: { userId },
+      orderBy: { sentAt: "asc" },
+      select: { sentAt: true, triggerType: true, payload: true, readAt: true },
+    }),
+    prisma.auditLog.findMany({
+      where: { userId },
+      orderBy: { timestamp: "asc" },
+      select: { timestamp: true, action: true, entityType: true, ipAddress: true },
+    }),
+  ]);
 
+  const scoreOf = (score: unknown, scale: number | null) =>
+    score == null || scale == null ? "" : `${Number(score)} / ${scale}`;
   const titleOf = (payload: unknown) =>
     payload && typeof payload === "object" && "title" in payload
       ? String((payload as { title: unknown }).title ?? "")
@@ -437,6 +449,31 @@ export async function buildPersonalDataWorkbook(
         "Reference code": d.referenceCode,
         "Generated at": manila(d.generatedAt),
       }))
+    ),
+    sheet(
+      "Final report",
+      [
+        "Status",
+        "Submitted",
+        "Sections",
+        "Supervisor score",
+        "Peer score",
+        "Attachments",
+        "Review note",
+      ],
+      finalReport
+        ? [
+            {
+              Status: finalReport.status,
+              Submitted: manila(finalReport.submittedAt),
+              Sections: JSON.stringify(finalReport.sections),
+              "Supervisor score": scoreOf(finalReport.supervisorScore, finalReport.supervisorScale),
+              "Peer score": scoreOf(finalReport.peerScore, finalReport.peerScale),
+              Attachments: JSON.stringify(finalReport.attachments),
+              "Review note": finalReport.reviewNote ?? "",
+            },
+          ]
+        : []
     ),
     sheet(
       "Notifications",

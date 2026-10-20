@@ -30,6 +30,7 @@ import { renderHtmlToPdf } from "@/lib/pdf/renderHtmlToPdf";
 import { PdfTooLargeError, uploadPdfBuffer } from "@/lib/storage";
 import {
   DocumentNotReadyError,
+  generateFinalTechnicalReportPdf,
   generateMonthlyReportPdf,
   generateMonthlyReportReferenceCode,
   generateWeeklyReportPdf,
@@ -565,5 +566,53 @@ describe("generateFinalCoverPdf", () => {
     await expect(generateFinalCoverPdf("p-1", "student-1", { sleep: noSleep })).rejects.toThrow(
       /380 more hours/
     );
+  });
+});
+
+describe("generateFinalTechnicalReportPdf (WS-H)", () => {
+  const profile = {
+    id: "p-1",
+    program: "BSIT",
+    requiredHours: 600,
+    fullName: "Juan",
+    studentNumber: "1",
+    company: null,
+    semester: { name: "1st Semester", academicYear: "2026-2027" },
+  };
+
+  it("refuses a report that isn't approved", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue(profile as never);
+    prismaMock.finalTechnicalReport.findUnique.mockResolvedValue({ status: "SUBMITTED" } as never);
+    await expect(
+      generateFinalTechnicalReportPdf("p-1", "student-1", { sleep: noSleep })
+    ).rejects.toThrow(DocumentNotReadyError);
+  });
+
+  it("renders and stores an approved report under its own document type", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue(profile as never);
+    prismaMock.finalTechnicalReport.findUnique.mockResolvedValue({
+      status: "APPROVED",
+      sections: { introduction: "Hi" },
+      supervisorScore: 4.5,
+      supervisorScale: 5,
+      peerScore: 90,
+      peerScale: 100,
+      attachments: { attendanceProof: { attached: true, confirmed: true } },
+    } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.generatedDocument.findFirst.mockResolvedValue(null);
+    prismaMock.generatedDocument.create.mockResolvedValue({ id: "doc-1" } as never);
+    render.mockResolvedValue(Buffer.from("pdf"));
+    upload.mockResolvedValue(undefined);
+
+    await generateFinalTechnicalReportPdf("p-1", "student-1", { sleep: noSleep });
+
+    expect(prismaMock.generatedDocument.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        documentType: DocumentType.FINAL_TECHNICAL_REPORT,
+        referenceCode: expect.stringMatching(/^FTR-/),
+      }),
+    });
+    expect(render.mock.calls[0][0]).toContain("Evaluation Scores");
   });
 });

@@ -21,6 +21,8 @@ import { NotificationSettingsForm } from "./notification-settings-form";
 import { RequiredHoursForm } from "./required-hours-form";
 import { AiSettingsForm } from "./ai-settings-form";
 import { getAiSettings } from "@/lib/ai/settings";
+import { DeductionSettingsForm } from "./deduction-settings-form";
+import { getDeductionMatrix, getDefaultConductHours } from "@/lib/services/deductionService";
 import { getRequiredHoursConfig } from "@/lib/services/attendanceService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getNotificationSettings } from "@/lib/services/scheduledNotifications";
@@ -80,6 +82,9 @@ export default async function UsersPage() {
     ]);
   const inactiveTotal = total - activeTotal;
   const aiSettings = isSuperAdmin ? await getAiSettings() : null;
+  const deductionSettings = isSuperAdmin
+    ? { matrix: await getDeductionMatrix(), defaultHours: await getDefaultConductHours() }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -149,6 +154,21 @@ export default async function UsersPage() {
           </CardHeader>
           <CardContent>
             <RequiredHoursForm initial={requiredHours} />
+          </CardContent>
+        </Card>
+      )}
+
+      {deductionSettings && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Deductions</CardTitle>
+            <CardDescription>
+              SLU&apos;s deduction matrix and the hours a conduct record deducts. The faculty revise
+              the matrix; changes apply to every intern&apos;s tally right away.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeductionSettingsForm {...deductionSettings} />
           </CardContent>
         </Card>
       )}

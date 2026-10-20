@@ -3,10 +3,15 @@ import { AiConfigError } from "@/lib/ai/admin";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { TimeRequestStateError } from "@/lib/services/timeRequestService";
+import { ConductStateError } from "@/lib/services/conductService";
 import { UnauthorizedError } from "@/lib/auth/errors";
 import { ForbiddenError } from "@/lib/services/userService";
 import { InvalidFileError } from "@/lib/storage";
-import { DocumentNotReadyError, FinalReportLockedError } from "@/lib/documents/errors";
+import {
+  DocumentNotReadyError,
+  FinalReportLockedError,
+  FinalReportStateError,
+} from "@/lib/documents/errors";
 import { EndorsementDataIncompleteError } from "@/lib/documents/endorsementLetterData";
 import { ChecklistGateError } from "@/lib/services/checklistService";
 import { InvalidMoaTransitionError } from "@/lib/services/companyService";
@@ -89,9 +94,11 @@ export function handleApiError(error: unknown): NextResponse {
   }
   if (
     error instanceof SemesterStateError ||
+    error instanceof FinalReportStateError ||
     error instanceof DataRequestStateError ||
     error instanceof RetentionStateError ||
     error instanceof TimeRequestStateError ||
+    error instanceof ConductStateError ||
     error instanceof WeeklyReportNotAwaitingReviewError
   ) {
     return NextResponse.json({ error: error.message }, { status: 409 });

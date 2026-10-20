@@ -528,6 +528,22 @@ describe("computeTotalHoursRendered", () => {
     await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(15.5);
   });
 
+  it("subtracts active conduct-record hours, never below 0", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 8, scheduledHours: 8, creditedHours: 8 }] },
+    ] as never);
+    prismaMock.conductRecord.aggregate.mockResolvedValue({ _sum: { hoursDeducted: 3 } } as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(5);
+    expect(prismaMock.conductRecord.aggregate).toHaveBeenCalledWith({
+      where: { studentProfileId: "profile-1", revokedAt: null },
+      _sum: { hoursDeducted: true },
+    });
+
+    prismaMock.conductRecord.aggregate.mockResolvedValue({ _sum: { hoursDeducted: 20 } } as never);
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(0);
+  });
+
   it("treats a null actualHours (unrecorded day) as 0", async () => {
     prismaMock.weeklyReport.findMany.mockResolvedValue([
       { dailyEntries: [{ actualHours: null }, { actualHours: 3 }] },

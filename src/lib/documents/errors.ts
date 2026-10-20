@@ -11,6 +11,14 @@ export class FinalReportLockedError extends Error {
   }
 }
 
+// Workstream H: the final report is no longer in the state the action needs (409).
+export class FinalReportStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FinalReportStateError";
+  }
+}
+
 export class DocumentNotReadyError extends Error {
   constructor(message = "Submit the report before generating its PDF") {
     super(message);

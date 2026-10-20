@@ -5,7 +5,11 @@
 import { NotificationEmail } from "@/components/emails/notification-email";
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/services/notify";
-import { getAssignedFacultyIds, getStudentUserId } from "@/lib/services/notificationRecipients";
+import {
+  getAssignedFacultyIds,
+  getDepartmentStaffIds,
+  getStudentUserId,
+} from "@/lib/services/notificationRecipients";
 
 const weeklyReportsLink = (studentProfileId: string) =>
   `/students/${studentProfileId}/weekly-reports`;
@@ -162,7 +166,56 @@ const REQUEST_LABEL: Record<string, string> = {
   UNDERTIME: "undertime",
 };
 
+// Workstream H: a final technical report awaits the coordinator's review.
+export async function notifyFinalReportSubmitted(studentProfileId: string) {
+  try {
+    const userIds = await getDepartmentStaffIds();
+    if (userIds.length > 0) {
+      await notify({
+        userIds,
+        trigger: "REPORT_SUBMITTED",
+        title: "Final technical report submitted",
+        body: "An intern submitted their final technical report for review.",
+        link: `/students/${studentProfileId}/final-report`,
+      });
+    }
+  } catch (error) {
+    console.error("Notification recipient lookup failed", { trigger: "REPORT_SUBMITTED", error });
+  }
+}
+
+// Workstream H: the coordinator approved or returned the final report.
+export async function notifyFinalReportReviewed(
+  studentProfileId: string,
+  action: "APPROVE" | "RETURN",
+  note?: string
+) {
+  await toStudent(studentProfileId, {
+    trigger: action === "APPROVE" ? "REPORT_APPROVED" : "REPORT_RETURNED",
+    title: `Your final technical report was ${action === "APPROVE" ? "approved" : "returned"}`,
+    body:
+      action === "APPROVE"
+        ? "Your final technical report was approved. Download the PDF and submit it in Google Classroom."
+        : `The coordinator returned your final technical report: ${note ?? ""}`,
+    link: `/students/${studentProfileId}/final-report`,
+  });
+}
+
 // 11 (Workstream L1): leave / OT / UT request approved or returned.
+// Workstream L2: a warning, demerit, violation or suspension was recorded.
+export async function notifyConductRecordIssued(
+  studentProfileId: string,
+  categoryLabel: string,
+  reason: string
+) {
+  await toStudent(studentProfileId, {
+    trigger: "CONDUCT_RECORD_ISSUED",
+    title: `New conduct record: ${categoryLabel}`,
+    body: `Your adviser recorded: ${reason}`,
+    link: `/students/${studentProfileId}/attendance`,
+  });
+}
+
 export async function notifyTimeRequestReviewed(
   studentProfileId: string,
   action: "APPROVE" | "RETURN",
