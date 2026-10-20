@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AiConfigError } from "@/lib/ai/admin";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { TimeRequestStateError } from "@/lib/services/timeRequestService";
@@ -54,6 +55,7 @@ const BAD_REQUEST_ERRORS = [
   DocumentNotReadyError,
   EndorsementDataIncompleteError,
   FinalReportLockedError,
+  AiConfigError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {

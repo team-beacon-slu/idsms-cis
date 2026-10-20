@@ -890,6 +890,35 @@ describe("recordWeeklyReportSubmission", () => {
     });
   });
 
+  it("clears the cached AI advisory so the resubmitted text is analysed again", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.RETURNED,
+      weekEnd: new Date("2026-10-11T00:00:00Z"),
+      revisionHistory: [
+        { type: "SUBMITTED", timestamp: "t0" },
+        { type: "RETURNED", timestamp: "t1" },
+      ],
+      dailyEntries: filledEntries,
+    } as never);
+    await recordWeeklyReportSubmission(
+      "wr-1",
+      { referenceCode: "WR-2", timestamp: new Date("2026-10-12T02:00:00Z") },
+      actingUser
+    );
+    expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          aiProcessedAt: null,
+          similarityScore: null,
+          similarityFlag: false,
+          sentimentLabel: null,
+          sentimentConfidence: null,
+          sentimentReasoning: null,
+        }),
+      })
+    );
+  });
+
   it("still rejects an unfilled SCHEDULED day", async () => {
     prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
       status: WeeklyReportStatus.PENDING,
@@ -929,7 +958,10 @@ describe("recordWeeklyReportSubmission", () => {
     );
     expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
       where: { id: "wr-1" },
-      data: { status: WeeklyReportStatus.PENDING, revisionHistory: [entry] },
+      data: expect.objectContaining({
+        status: WeeklyReportStatus.PENDING,
+        revisionHistory: [entry],
+      }),
     });
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({

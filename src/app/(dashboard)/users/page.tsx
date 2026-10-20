@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { UserRowActions } from "./user-row-actions";
 import { NotificationSettingsForm } from "./notification-settings-form";
 import { RequiredHoursForm } from "./required-hours-form";
+import { AiSettingsForm } from "./ai-settings-form";
+import { getAiSettings } from "@/lib/ai/settings";
 import { DeductionSettingsForm } from "./deduction-settings-form";
 import { getDeductionMatrix, getDefaultConductHours } from "@/lib/services/deductionService";
 import { getRequiredHoursConfig } from "@/lib/services/attendanceService";
@@ -79,6 +81,7 @@ export default async function UsersPage() {
         : Promise.resolve(null),
     ]);
   const inactiveTotal = total - activeTotal;
+  const aiSettings = isSuperAdmin ? await getAiSettings() : null;
   const deductionSettings = isSuperAdmin
     ? { matrix: await getDeductionMatrix(), defaultHours: await getDefaultConductHours() }
     : null;
@@ -121,6 +124,21 @@ export default async function UsersPage() {
           </CardHeader>
           <CardContent>
             <NotificationSettingsForm initial={notificationSettings} />
+          </CardContent>
+        </Card>
+      )}
+
+      {aiSettings && (
+        <Card>
+          <CardHeader>
+            <CardTitle>AI advisories</CardTitle>
+            <CardDescription>
+              Advisory-only similarity and sentiment signals on weekly reports (PRD Module 9). Off
+              until the adviser approves the privacy basis and the golden-set evaluation passes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AiSettingsForm settings={aiSettings} />
           </CardContent>
         </Card>
       )}
