@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ComplianceNotFoundError, DataRequestStateError } from "@/lib/errors/compliance";
 import { logEvent } from "@/lib/services/auditService";
 import { formatManilaDateTime, toSheetRows } from "@/lib/utils/excelExport";
+import { CREDITED_HOURS_SELECT, entryCreditedHours } from "@/lib/utils/creditedHours";
 
 // NFR-DP-07 data subject access requests: a ticket with a 15-day SLA, and the
 // workbook the Super Admin hands back. The workbook holds only what the
@@ -246,10 +247,9 @@ export async function buildPersonalDataWorkbook(
             orderBy: { reportDate: "asc" },
             select: {
               reportDate: true,
-              attendanceStatus: true,
               timeIn: true,
               timeOut: true,
-              actualHours: true,
+              ...CREDITED_HOURS_SELECT,
               accomplishments: true,
               toolsUsed: true,
             },
@@ -370,13 +370,23 @@ export async function buildPersonalDataWorkbook(
     ),
     sheet(
       "Attendance",
-      ["Date", "Status", "Time in", "Time out", "Hours", "Accomplishments", "Tools"],
+      [
+        "Date",
+        "Status",
+        "Time in",
+        "Time out",
+        "Hours",
+        "Credited hours",
+        "Accomplishments",
+        "Tools",
+      ],
       entries.map((e) => ({
         Date: manilaDate(e.reportDate),
         Status: e.attendanceStatus,
         "Time in": e.timeIn,
         "Time out": e.timeOut,
         Hours: e.actualHours === null ? null : Number(e.actualHours),
+        "Credited hours": e.actualHours === null ? null : entryCreditedHours(e),
         Accomplishments: e.accomplishments,
         Tools: e.toolsUsed,
       }))

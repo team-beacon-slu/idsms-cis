@@ -283,6 +283,33 @@ describe("buildPersonalDataWorkbook", () => {
     );
     const attendance = wb.sheets.find((s) => s.name === "Attendance")!;
     expect(attendance.rows[1]).toContain(`'=HYPERLINK("http://x","click")`);
+    expect(attendance.rows[0]).toContain("Credited hours");
+  });
+
+  it("reports credited hours next to raw hours", async () => {
+    mockCommon();
+    prismaMock.user.findUnique.mockResolvedValue(studentUser as never);
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      {
+        reportDate: new Date("2026-09-01T00:00:00Z"),
+        attendanceStatus: "PRESENT",
+        timeIn: "07:00",
+        timeOut: "17:00",
+        scheduledHours: 8,
+        actualHours: 9,
+        creditedHours: null,
+        accomplishments: "x",
+        toolsUsed: null,
+      },
+    ] as never);
+
+    const wb = await buildPersonalDataWorkbook("u-1");
+
+    const attendance = wb.sheets.find((s) => s.name === "Attendance")!;
+    const header = attendance.rows[0] as unknown[];
+    const row = attendance.rows[1] as unknown[];
+    expect(row[header.indexOf("Hours")]).toBe(9);
+    expect(row[header.indexOf("Credited hours")]).toBe(8);
   });
 
   it("includes inferences and histories, keeping formula-like history text inert", async () => {

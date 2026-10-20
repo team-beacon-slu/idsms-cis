@@ -392,11 +392,27 @@ describe("exportAttendanceLogCsv", () => {
     const csv = await exportAttendanceLogCsv("profile-1");
 
     expect(csv.split("\n")).toEqual([
-      "date,scheduledHours,actualHours,status",
-      "2026-10-05,8,7.5,PRESENT",
-      "2026-10-06,8,,'=HYPERLINK(1)",
+      "date,scheduledHours,actualHours,creditedHours,status",
+      "2026-10-05,8,7.5,7.5,PRESENT",
+      "2026-10-06,8,,,'=HYPERLINK(1)",
       "",
     ]);
+  });
+
+  it("adds a credited-hours column capped by SLU rules", async () => {
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      {
+        reportDate: new Date("2026-10-05T00:00:00Z"),
+        scheduledHours: 8,
+        actualHours: 9,
+        creditedHours: null,
+        attendanceStatus: "PRESENT",
+      },
+    ] as never);
+
+    const csv = await exportAttendanceLogCsv("profile-1");
+
+    expect(csv.split("\n")[1]).toBe("2026-10-05,8,9,8,PRESENT");
   });
 });
 
@@ -583,6 +599,20 @@ describe("computeTotalHoursRendered", () => {
     // logEvent" and the function runs on every GET read, so it must not
     // write to auditLog (see the comment above computeTotalHoursRendered).
     expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("sums credited hours: stored values, and legacy rows capped at scheduled", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      {
+        dailyEntries: [
+          { actualHours: 9, scheduledHours: 8, creditedHours: null, attendanceStatus: "PRESENT" },
+          { actualHours: 9.5, scheduledHours: 8, creditedHours: 7.5, attendanceStatus: "PRESENT" },
+        ],
+      },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(15.5);
   });
 
   it("treats a null actualHours (unrecorded day) as 0", async () => {
@@ -803,6 +833,21 @@ describe("getHoursSummary", () => {
       remainingIfPendingApproved: 544,
     });
     expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("pending hours use credited hours too", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValueOnce([] as never).mockResolvedValueOnce([
+      {
+        status: "PENDING",
+        revisionHistory: [{ type: "SUBMITTED", timestamp: "t" }],
+        dailyEntries: [{ actualHours: 10, scheduledHours: 8, creditedHours: null }],
+      },
+    ] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+
+    await expect(getHoursSummary("profile-1")).resolves.toEqual(
+      expect.objectContaining({ pendingHours: 8 })
+    );
   });
 
   it("never reports negative remaining hours", async () => {

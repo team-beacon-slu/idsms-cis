@@ -16,6 +16,11 @@ import { logEvent } from "@/lib/services/auditService";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
+import {
+  CREDITED_HOURS_SELECT,
+  entryCreditedHours,
+  sumCreditedHours,
+} from "@/lib/utils/creditedHours";
 
 export interface ConfigureWorkScheduleInput {
   daysOfWeek: number[]; // 0=Sunday..6=Saturday
@@ -424,7 +429,9 @@ export async function validateDeviationReport(
 // Requirement: automatically compute total hours rendered, based only on
 // validated attendance data. This is the system's central value metric —
 // every other module's "hours" display reads from this.
-// Connects to: reads `DailyReportEntry.actualHours` (via `WeeklyReport`,
+// Workstream L1: sums SLU-credited hours (`entryCreditedHours`), not raw
+// `actualHours`; the "SCHEMA GAP" note below predates the OT request minutes.
+// Connects to: reads `DailyReportEntry` hours (via `WeeklyReport`,
 // only rows with `WeeklyReportStatus` APPROVED or REGARDED — see
 // `weeklyReportService.ts`'s review actions, Task 4) plus `DeviationReport`
 // rows with `validationStatus === VALIDATED` (`deviationType` OVERTIME
@@ -460,18 +467,11 @@ export async function calculateRenderedHours(
       studentProfileId,
       status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
     },
-    select: { dailyEntries: { select: { actualHours: true } } },
+    select: { dailyEntries: { select: CREDITED_HOURS_SELECT } },
   });
 
-  const totalHours = approvedWeeklyReports.reduce((sum, report) => {
-    const dayHours = report.dailyEntries.reduce(
-      (daySum, entry) => daySum + Number(entry.actualHours ?? 0),
-      0
-    );
-    return sum + dayHours;
-  }, 0);
-
-  return Math.round(totalHours * 100) / 100;
+  // Workstream L1: credited hours (SLU rules), not raw time worked.
+  return sumCreditedHours(approvedWeeklyReports.flatMap((report) => report.dailyEntries));
 }
 
 // No `logEvent` call here on purpose: this contract (unlike the file's other
@@ -645,7 +645,7 @@ export async function exportAttendanceLogCsv(studentProfileId: string): Promise<
   const entries = await prisma.dailyReportEntry.findMany({
     where: { weeklyReport: { studentProfileId } },
     orderBy: { reportDate: "asc" },
-    select: { reportDate: true, scheduledHours: true, actualHours: true, attendanceStatus: true },
+    select: { reportDate: true, ...CREDITED_HOURS_SELECT },
   });
 
   const rows = entries.map((entry) =>
@@ -653,13 +653,14 @@ export async function exportAttendanceLogCsv(studentProfileId: string): Promise<
       entry.reportDate.toISOString().slice(0, 10),
       Number(entry.scheduledHours).toString(),
       entry.actualHours == null ? "" : Number(entry.actualHours).toString(),
+      entry.actualHours == null ? "" : entryCreditedHours(entry).toString(),
       entry.attendanceStatus,
     ]
       .map(escapeCsvField)
       .join(",")
   );
 
-  return ["date,scheduledHours,actualHours,status", ...rows].join("\n") + "\n";
+  return ["date,scheduledHours,actualHours,creditedHours,status", ...rows].join("\n") + "\n";
 }
 
 // RFC 4180 quoting, plus a leading-apostrophe guard so a value opening with
@@ -1035,7 +1036,7 @@ export async function getHoursSummary(studentProfileId: string): Promise<HoursSu
       select: {
         status: true,
         revisionHistory: true,
-        dailyEntries: { select: { actualHours: true } },
+        dailyEntries: { select: CREDITED_HOURS_SELECT },
       },
     }),
     prisma.studentProfile.findUniqueOrThrow({
@@ -1051,10 +1052,7 @@ export async function getHoursSummary(studentProfileId: string): Promise<HoursSu
           (r) =>
             r.status === WeeklyReportStatus.PENDING && isSubmittedAwaitingReview(r.revisionHistory)
         )
-        .reduce(
-          (sum, r) => sum + r.dailyEntries.reduce((s, e) => s + Number(e.actualHours ?? 0), 0),
-          0
-        ) * 100
+        .reduce((sum, r) => sum + sumCreditedHours(r.dailyEntries), 0) * 100
     ) / 100;
 
   const required = profile.requiredHours;

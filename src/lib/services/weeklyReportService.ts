@@ -16,6 +16,8 @@ import {
 } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 import type { AttendanceStatus } from "@/lib/validators/report";
+import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
+import { creditForEntry, loadCreditContext } from "@/lib/services/creditedHours";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import {
   addDays,
@@ -223,17 +225,15 @@ export async function generateWeeklyReportForm(
 // Requirement: total hours for the week must be auto-calculated.
 // Connects to: called by PATCH /api/weekly-reports/[id] (Task 12 route)
 // after every `saveDailyAccomplishment` call below, so the client form can
-// show a live total. Sums `DailyReportEntry.actualHours` for this report,
+// show a live total. Sums credited hours (`entryCreditedHours`) for this report,
 // writes `WeeklyReport.totalHours` (Decimal).
 // Edge cases: null `actualHours` (not yet filled in) should count as 0, not throw.
 export async function calculateWeeklyTotalHours(weeklyReportId: string): Promise<number> {
   const entries = await prisma.dailyReportEntry.findMany({
     where: { weeklyReportId },
-    select: { actualHours: true },
+    select: CREDITED_HOURS_SELECT,
   });
-  const totalHours = roundHours(
-    entries.reduce((sum, entry) => sum + Number(entry.actualHours ?? 0), 0)
-  );
+  const totalHours = sumCreditedHours(entries);
 
   await prisma.weeklyReport.update({ where: { id: weeklyReportId }, data: { totalHours } });
   return totalHours;
@@ -259,7 +259,7 @@ export async function calculateRunningTotalAndRemaining(
   const [report, studentProfile] = await Promise.all([
     prisma.weeklyReport.findUniqueOrThrow({
       where: { id: weeklyReportId },
-      select: { weekStart: true, dailyEntries: { select: { actualHours: true } } },
+      select: { weekStart: true, dailyEntries: { select: CREDITED_HOURS_SELECT } },
     }),
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: studentProfileId },
@@ -274,16 +274,13 @@ export async function calculateRunningTotalAndRemaining(
       weekStart: { lt: report.weekStart },
       status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
     },
-    select: { dailyEntries: { select: { actualHours: true } } },
+    select: { dailyEntries: { select: CREDITED_HOURS_SELECT } },
   });
 
-  const sumEntries = (entries: { actualHours: Prisma.Decimal | null }[]) =>
-    entries.reduce((sum, entry) => sum + Number(entry.actualHours ?? 0), 0);
-
-  const runningTotal = roundHours(
-    priorReports.reduce((sum, prior) => sum + sumEntries(prior.dailyEntries), 0) +
-      sumEntries(report.dailyEntries)
-  );
+  const runningTotal = sumCreditedHours([
+    ...priorReports.flatMap((prior) => prior.dailyEntries),
+    ...report.dailyEntries,
+  ]);
   const remainingHours = roundHours(Math.max(0, studentProfile.requiredHours - runningTotal));
 
   await prisma.weeklyReport.update({
@@ -328,10 +325,17 @@ export async function saveDailyAccomplishment(
     const entry = await tx.dailyReportEntry.findUniqueOrThrow({
       where: { id: dailyReportEntryId },
       select: {
+        reportDate: true,
+        scheduledHours: true,
+        timeIn: true,
+        timeOut: true,
+        timeIn2: true,
+        timeOut2: true,
         weeklyReport: {
           select: {
             status: true,
             revisionHistory: true,
+            studentProfileId: true,
             studentProfile: { select: { userId: true } },
           },
         },
@@ -345,10 +349,30 @@ export async function saveDailyAccomplishment(
       throw new WeeklyReportLockedError();
     }
 
+    // Workstream L1: store the SLU-credited hours with the row (undefined
+    // details keep the stored times, matching the update below).
+    const pick = <T>(next: T | undefined, stored: T) => (next !== undefined ? next : stored);
+    const creditedHours = isPresent
+      ? creditForEntry(
+          {
+            reportDate: entry.reportDate,
+            scheduledHours: entry.scheduledHours,
+            actualHours: hours,
+            attendanceStatus: status,
+            timeIn: pick(details.timeIn, entry.timeIn),
+            timeOut: pick(details.timeOut, entry.timeOut),
+            timeIn2: pick(details.timeIn2, entry.timeIn2),
+            timeOut2: pick(details.timeOut2, entry.timeOut2),
+          },
+          await loadCreditContext(entry.weeklyReport.studentProfileId, tx)
+        )
+      : 0;
+
     const updated = await tx.dailyReportEntry.update({
       where: { id: dailyReportEntryId },
       data: {
         attendanceStatus: status,
+        creditedHours,
         ...(isPresent
           ? {
               actualHours: hours,
@@ -380,6 +404,64 @@ export async function saveDailyAccomplishment(
       accomplishments: updated.accomplishments ?? "",
     };
   });
+}
+
+// Workstream L1: re-credit a student's entries (all, or those on `dates`)
+// after an OT request is approved or returned, then refresh the affected
+// week and every later one (their running totals build on it) and the
+// student's rendered hours. Call after the review transaction commits.
+export async function recomputeCreditedHours(
+  studentProfileId: string,
+  opts: { dates?: Date[] } = {}
+): Promise<void> {
+  const ctx = await loadCreditContext(studentProfileId);
+  const entries = await prisma.dailyReportEntry.findMany({
+    where: {
+      weeklyReport: { studentProfileId },
+      ...(opts.dates ? { reportDate: { in: opts.dates } } : {}),
+    },
+    select: {
+      id: true,
+      weeklyReportId: true,
+      reportDate: true,
+      scheduledHours: true,
+      actualHours: true,
+      creditedHours: true,
+      attendanceStatus: true,
+      timeIn: true,
+      timeOut: true,
+      timeIn2: true,
+      timeOut2: true,
+      weeklyReport: { select: { weekStart: true } },
+    },
+  });
+  if (entries.length === 0) return;
+
+  for (const e of entries) {
+    const credited = creditForEntry(e, ctx);
+    const stored = e.creditedHours == null ? null : Number(e.creditedHours);
+    if (credited !== stored) {
+      await prisma.dailyReportEntry.update({
+        where: { id: e.id },
+        data: { creditedHours: credited },
+      });
+    }
+  }
+
+  const earliest = entries.reduce(
+    (min, e) => (e.weeklyReport.weekStart < min ? e.weeklyReport.weekStart : min),
+    entries[0].weeklyReport.weekStart
+  );
+  const weeks = await prisma.weeklyReport.findMany({
+    where: { studentProfileId, weekStart: { gte: earliest } },
+    orderBy: { weekStart: "asc" },
+    select: { id: true },
+  });
+  for (const week of weeks) {
+    await calculateWeeklyTotalHours(week.id);
+    await calculateRunningTotalAndRemaining(studentProfileId, week.id);
+  }
+  await computeTotalHoursRendered(studentProfileId);
 }
 
 // Workstream L1: a row for a non-scheduled date in the week (e.g. a Saturday
