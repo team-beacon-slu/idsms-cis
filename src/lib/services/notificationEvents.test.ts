@@ -11,7 +11,6 @@ import {
   notifyAccountCreated,
   notifyAccountsCreatedByEmail,
   notifyChecklistReviewed,
-  notifyDeviationValidated,
   notifyEndorsementReady,
   notifyPasswordReset,
   notifyReportReturned,
@@ -133,17 +132,6 @@ it("work plan reviewed → the student, by email too", async () => {
   await notifyWorkPlanReviewed("p-1", "APPROVE");
   expect(lastCall()).toEqual(
     expect.objectContaining({ userIds: ["stu-1"], trigger: "WORK_PLAN_REVIEWED", email: true })
-  );
-});
-
-it("deviation validated → the student", async () => {
-  await notifyDeviationValidated("p-1", "REJECT");
-  expect(lastCall()).toEqual(
-    expect.objectContaining({
-      userIds: ["stu-1"],
-      trigger: "DEVIATION_VALIDATED",
-      title: expect.stringMatching(/rejected/i),
-    })
   );
 });
 

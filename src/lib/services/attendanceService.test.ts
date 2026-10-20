@@ -1,4 +1,4 @@
-import { DeviationType, Program, Role, ValidationStatus, WeeklyReportStatus } from "@prisma/client";
+import { Program, Role, WeeklyReportStatus } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   applyScheduleChangeProspectively,
@@ -7,7 +7,6 @@ import {
   computeTotalHoursRendered,
   configureWorkSchedule,
   exportAttendanceLogCsv,
-  getDeviationReportStudentProfileId,
   getHolidayCalendarForStudent,
   getRequiredHoursConfig,
   getWorkPlanStudentProfileId,
@@ -24,8 +23,6 @@ import {
   MissingScheduleChangeRequestError,
   requestScheduleChange,
   setRequiredHoursConfig,
-  submitDeviationReport,
-  validateDeviationReport,
   validateScheduleChangeFaculty,
   getHoursSummary,
   getFinalReportThreshold,
@@ -51,16 +48,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     await listDeviationReportsForStudent("profile-1");
     expect(prismaMock.deviationReport.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { studentProfileId: "profile-1" } })
-    );
-  });
-
-  it("getDeviationReportStudentProfileId calls prisma with the right id", async () => {
-    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
-      studentProfileId: "profile-1",
-    } as never);
-    await expect(getDeviationReportStudentProfileId("dev-1")).resolves.toBe("profile-1");
-    expect(prismaMock.deviationReport.findUniqueOrThrow).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "dev-1" } })
     );
   });
 
@@ -121,51 +108,6 @@ describe("setRequiredHoursConfig", () => {
       "Write failed"
     );
     expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
-  });
-});
-
-describe("validateDeviationReport", () => {
-  it.each([
-    ["VALIDATE", ValidationStatus.VALIDATED],
-    ["REJECT", ValidationStatus.REJECTED],
-  ] as const)("persists %s with the reviewer and an atomic audit event", async (action, status) => {
-    const saved = { id: "dev-1", validationStatus: status };
-    prismaMock.deviationReport.update.mockResolvedValue(saved as never);
-    await expect(
-      validateDeviationReport("dev-1", "faculty-1", action, "127.0.0.1")
-    ).resolves.toEqual(saved);
-    expect(prismaMock.deviationReport.update).toHaveBeenCalledWith({
-      where: { id: "dev-1" },
-      data: { validationStatus: status, facultyId: "faculty-1" },
-      select: { id: true, validationStatus: true },
-    });
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          userId: "faculty-1",
-          entityId: "dev-1",
-          ipAddress: "127.0.0.1",
-        }),
-      })
-    );
-    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
-    expect(prismaMock.dailyReportEntry.aggregate).not.toHaveBeenCalled();
-  });
-
-  it("propagates missing report errors without logging or changing hours", async () => {
-    prismaMock.deviationReport.update.mockRejectedValue(new Error("Not found"));
-    await expect(validateDeviationReport("missing", "faculty-1", "REJECT")).rejects.toThrow(
-      "Not found"
-    );
-    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
-    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
-  });
-
-  it("rejects unsupported review actions before writing", async () => {
-    await expect(
-      validateDeviationReport("dev-1", "faculty-1", "APPROVE" as "VALIDATE")
-    ).rejects.toThrow("Invalid deviation review action");
-    expect(prismaMock.deviationReport.update).not.toHaveBeenCalled();
   });
 });
 
@@ -339,35 +281,6 @@ describe("holiday calendar (FR-AT-02)", () => {
     prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
     await expect(markHolidayApplicable("profile-1", "h-x", false, studentUser)).rejects.toThrow(
       HolidayNotFoundError
-    );
-  });
-});
-
-describe("submitDeviationReport", () => {
-  it("creates a PENDING deviation report and audit-logs it", async () => {
-    prismaMock.deviationReport.create.mockResolvedValue({
-      id: "dev-1",
-      validationStatus: ValidationStatus.PENDING,
-    } as never);
-    const date = new Date("2026-10-05T00:00:00Z");
-
-    const result = await submitDeviationReport(
-      "profile-1",
-      { date, deviationType: DeviationType.ABSENCE, reason: "Sick", proofUrl: "deviations/x.pdf" },
-      studentUser
-    );
-
-    expect(result).toEqual({ id: "dev-1", validationStatus: ValidationStatus.PENDING });
-    expect(prismaMock.deviationReport.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        studentProfileId: "profile-1",
-        deviationType: DeviationType.ABSENCE,
-        proofUrl: "deviations/x.pdf",
-        validationStatus: ValidationStatus.PENDING,
-      }),
-    });
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: "DEVIATION_SUBMITTED" }) })
     );
   });
 });

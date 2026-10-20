@@ -1,12 +1,10 @@
 // Attendance & schedule configuration, deviation reports, hour computation,
 // mid-internship schedule changes. See PRD Module 5 (FR-AT-*).
 import {
-  DeviationType,
   Prisma,
   PrismaClient,
   Program,
   Role,
-  ValidationStatus,
   WeeklyReportStatus,
   WorkPlanStatus,
 } from "@prisma/client";
@@ -278,61 +276,6 @@ export async function markHolidayApplicable(
     return { holidayEntryId, applicable };
   });
 }
-
-export interface SubmitDeviationReportInput {
-  date: Date;
-  deviationType: DeviationType;
-  reason: string;
-  proofUrl?: string;
-}
-
-// FR-AT-03 — Owner: KennethRusselAvaricio
-// Requirement: absences/undertime/overtime submitted via a structured
-// deviation report form with date, reason category, and optional proof upload.
-// Connects to: called by POST /api/students/[studentProfileId]/deviations
-// (Task 10 route, which also handles the file upload via
-// `src/lib/storage.ts`'s `uploadFile`, Phase 2 pattern, before calling this).
-// Creates a `DeviationReport` row (`deviation_reports` table) — fields
-// `date`, `deviationType` (`DeviationType` enum: ABSENCE/OVERTIME/UNDERTIME),
-// `reason`, `proofUrl`, `validationStatus` (start `PENDING`). Log via
-// `logEvent({ action: "DEVIATION_SUBMITTED", entityType: "DeviationReport" })`.
-// Edge cases: none beyond the standard $transaction + logEvent pattern.
-export async function submitDeviationReport(
-  studentProfileId: string,
-  input: SubmitDeviationReportInput,
-  actingUser: { id: string; role: Role },
-  ipAddress?: string | null
-): Promise<{ id: string; validationStatus: ValidationStatus }> {
-  await assertCanAccessStudent(actingUser, studentProfileId);
-
-  return prisma.$transaction(async (tx) => {
-    const deviationReport = await tx.deviationReport.create({
-      data: {
-        studentProfileId,
-        date: input.date,
-        deviationType: input.deviationType,
-        reason: input.reason,
-        proofUrl: input.proofUrl ?? null,
-        validationStatus: ValidationStatus.PENDING,
-      },
-    });
-
-    await logEvent(
-      {
-        userId: actingUser.id,
-        action: "DEVIATION_SUBMITTED",
-        entityType: "DeviationReport",
-        entityId: deviationReport.id,
-        ipAddress,
-        detail: { deviationType: input.deviationType, date: input.date.toISOString() },
-      },
-      tx
-    );
-
-    return { id: deviationReport.id, validationStatus: deviationReport.validationStatus };
-  });
-}
-
 // Storage object paths for student-uploaded attendance documents. No
 // dedicated bucket was provisioned for Phase 3 (see
 // prisma/migrations_manual/003_storage_buckets.sql), so these live in the
@@ -363,65 +306,6 @@ export async function listDeviationReportsForStudent(studentProfileId: string) {
   return prisma.deviationReport.findMany({
     where: { studentProfileId },
     orderBy: { date: "desc" },
-  });
-}
-
-// Trivial read — not a stub. Resolves the owning student for a
-// DeviationReport id, same reason and same pattern as
-// `getWorkPlanStudentProfileId` below: a `deviationReportId` alone carries
-// no ownership information, so PATCH /api/deviations/[id]/validate
-// (Task 10) must call this before `assertCanAccessStudent`.
-export async function getDeviationReportStudentProfileId(
-  deviationReportId: string
-): Promise<string> {
-  const deviationReport = await prisma.deviationReport.findUniqueOrThrow({
-    where: { id: deviationReportId },
-    select: { studentProfileId: true },
-  });
-  return deviationReport.studentProfileId;
-}
-
-// FR-AT-04 — Owner: KennethRusselAvaricio
-// Requirement: all deviation reports must be validated by the faculty
-// adviser before affecting hour computation.
-// Connects to: called by PATCH /api/deviations/[id]/validate (Task 10
-// route, Faculty/Coordinator/Admin-gated). Sets
-// `DeviationReport.validationStatus` (`ValidationStatus` enum:
-// PENDING/VALIDATED/REJECTED — note it is VALIDATED, not APPROVED) and
-// `DeviationReport.facultyId`. Downstream: `computeTotalHoursRendered`
-// below must filter on `validationStatus === VALIDATED` only.
-// Edge cases: a REJECTED row must never be readable by
-// `computeTotalHoursRendered` — this is the whole point of the gate.
-export async function validateDeviationReport(
-  deviationReportId: string,
-  facultyId: string,
-  action: "VALIDATE" | "REJECT",
-  ipAddress?: string | null
-): Promise<{ id: string; validationStatus: ValidationStatus }> {
-  if (action !== "VALIDATE" && action !== "REJECT") {
-    throw new Error("Invalid deviation review action");
-  }
-  const validationStatus =
-    action === "VALIDATE" ? ValidationStatus.VALIDATED : ValidationStatus.REJECTED;
-
-  return prisma.$transaction(async (tx) => {
-    const result = await tx.deviationReport.update({
-      where: { id: deviationReportId },
-      data: { validationStatus, facultyId },
-      select: { id: true, validationStatus: true },
-    });
-    await logEvent(
-      {
-        userId: facultyId,
-        action: `DEVIATION_REPORT_${validationStatus}`,
-        entityType: "DeviationReport",
-        entityId: deviationReportId,
-        ipAddress,
-        detail: { validationStatus },
-      },
-      tx
-    );
-    return result;
   });
 }
 

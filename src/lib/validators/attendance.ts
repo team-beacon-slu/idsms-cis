@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DeviationType, Program } from "@prisma/client";
+import { Program } from "@prisma/client";
 import { parseHHMM, timeOfDay } from "@/lib/utils/timeMath";
 
 export const scheduleConfigSchema = z
@@ -43,17 +43,6 @@ export const scheduleChangeRequestSchema = z.object({
 
 export const scheduleChangeReviewSchema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
-});
-
-export const deviationReportSchema = z.object({
-  date: z.coerce.date(),
-  deviationType: z.enum(DeviationType),
-  reason: z.string().min(1, "A reason is required"),
-  proofUrl: z.string().min(1).optional(),
-});
-
-export const deviationValidateSchema = z.object({
-  action: z.enum(["VALIDATE", "REJECT"]),
 });
 
 export const holidayApplicableSchema = z.object({

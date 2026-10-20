@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
@@ -36,7 +37,6 @@ import {
   Timer,
 } from "lucide-react";
 import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
-import { DeviationReportForm } from "./deviation-form";
 import { AttendanceExportButton } from "./export-button";
 import { HolidayList } from "./holiday-list";
 
@@ -245,29 +245,29 @@ export default async function AttendancePage({ params }: { params: { studentProf
         </CardContent>
       </Card>
 
-      {isOwner && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Report a Deviation</CardTitle>
-            <CardDescription>
-              Log an absence, overtime, or undertime for faculty validation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DeviationReportForm studentProfileId={params.studentProfileId} />
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Deviation History
-            <Badge variant="secondary" className="font-normal">
-              {deviationReports.length}
-            </Badge>
-          </CardTitle>
-          <CardDescription>All absence, overtime, and undertime reports on file.</CardDescription>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                Leave &amp; Time Requests
+                <Badge variant="secondary" className="font-normal">
+                  {deviationReports.length}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Leave, overtime and undertime on file. File and review them in the Leave &amp; Time
+                Requests tab.
+              </CardDescription>
+            </div>
+            <Link
+              href={`/students/${params.studentProfileId}/leave-requests`}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-primary transition-colors duration-200 hover:bg-accent"
+            >
+              <CalendarClock className="size-3.5" aria-hidden="true" />
+              Open Leave &amp; Time Requests
+            </Link>
+          </div>
         </CardHeader>
         <CardContent>
           {deviationReports.length === 0 ? (

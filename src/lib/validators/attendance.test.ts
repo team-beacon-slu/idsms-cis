@@ -1,7 +1,4 @@
-import { DeviationType } from "@prisma/client";
 import {
-  deviationReportSchema,
-  deviationValidateSchema,
   requiredHoursConfigSchema,
   scheduleChangeRequestSchema,
   scheduleChangeReviewSchema,
@@ -119,33 +116,6 @@ describe("scheduleChangeReviewSchema", () => {
 
   it("rejects an unknown action", () => {
     expect(() => scheduleChangeReviewSchema.parse({ action: "MAYBE" })).toThrow();
-  });
-});
-
-describe("deviationReportSchema", () => {
-  it("accepts a valid deviation", () => {
-    const result = deviationReportSchema.parse({
-      date: "2026-08-20",
-      deviationType: DeviationType.ABSENCE,
-      reason: "Sick",
-    });
-    expect(result.deviationType).toBe(DeviationType.ABSENCE);
-  });
-
-  it("rejects an empty reason", () => {
-    expect(() =>
-      deviationReportSchema.parse({
-        date: "2026-08-20",
-        deviationType: DeviationType.ABSENCE,
-        reason: "",
-      })
-    ).toThrow();
-  });
-});
-
-describe("deviationValidateSchema", () => {
-  it("accepts VALIDATE and REJECT", () => {
-    expect(deviationValidateSchema.parse({ action: "VALIDATE" }).action).toBe("VALIDATE");
   });
 });
 

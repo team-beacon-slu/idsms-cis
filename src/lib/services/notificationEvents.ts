@@ -181,19 +181,3 @@ export async function notifyTimeRequestReviewed(
     link: `/students/${studentProfileId}/leave-requests`,
   });
 }
-
-// 11
-export async function notifyDeviationValidated(
-  studentProfileId: string,
-  action: "VALIDATE" | "REJECT"
-) {
-  await toStudent(studentProfileId, {
-    trigger: "DEVIATION_VALIDATED",
-    title: `Deviation report ${action === "VALIDATE" ? "validated" : "rejected"}`,
-    body:
-      action === "VALIDATE"
-        ? "Your deviation report was validated."
-        : "Your deviation report was rejected — contact your faculty adviser if needed.",
-    link: `/students/${studentProfileId}/attendance`,
-  });
-}
