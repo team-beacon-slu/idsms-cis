@@ -247,6 +247,8 @@ model StudentProfile {
   checklistItems       PreDeploymentChecklistItem[]
   workPlans            WorkPlan[]
   deviationReports     DeviationReport[]
+  conductRecords       ConductRecord[]
+  deductionExceptions  DeductionException[]
   finalTechnicalReport FinalTechnicalReport?
   weeklyReports        WeeklyReport[]
   generatedDocuments   GeneratedDocument[]
@@ -493,6 +495,48 @@ model FinalTechnicalReport {
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
 
   @@map("final_technical_reports")
+}
+
+// Workstream L2: a warning, demerit, violation or suspension issued by staff.
+// Never deleted, only revoked with a reason.
+model ConductRecord {
+  id               String    @id @default(uuid()) @db.Uuid
+  studentProfileId String    @map("student_profile_id") @db.Uuid
+  categoryKey      String    @map("category_key")
+  weight           Int       @default(1) // a "First and Final" warning counts 2
+  date             DateTime
+  reason           String
+  hoursDeducted    Decimal   @default(0) @map("hours_deducted") @db.Decimal(4, 2)
+  issuedById       String    @map("issued_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedById      String?   @map("revoked_by_id") @db.Uuid
+  revokeReason     String?   @map("revoke_reason")
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@index([studentProfileId])
+  @@map("conduct_records")
+}
+
+// Workstream L2: staff excuse an automatic deduction item (late/missing WWR,
+// unsupported UT/absence). Never deleted, only withdrawn.
+model DeductionException {
+  id               String    @id @default(uuid()) @db.Uuid
+  studentProfileId String    @map("student_profile_id") @db.Uuid
+  itemType         String    @map("item_type") // LATE_WWR | MISSING_WWR | UNSUPPORTED_UT
+  itemKey          String    @map("item_key") // weeklyReportId, week start or YYYY-MM-DD
+  reasonCode       String    @map("reason_code") // HTE_ATTESTED_DOCUMENTATION | BEYOND_INTERN_CONTROL
+  note             String
+  createdById      String    @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  withdrawnAt      DateTime? @map("withdrawn_at") @db.Timestamptz(3)
+  withdrawnById    String?   @map("withdrawn_by_id") @db.Uuid
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@index([studentProfileId])
+  @@map("deduction_exceptions")
 }
 
 model GeneratedDocument {

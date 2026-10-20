@@ -167,6 +167,26 @@ describe("getComplianceRows", () => {
     expect(row.status).not.toBe("COMPLETED");
   });
 
+  it("subtracts active conduct-record hours, like rendered hours", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      profile({
+        requiredHours: 10,
+        weeklyReports: [
+          {
+            weekStart: new Date("2026-09-28T00:00:00Z"),
+            status: "APPROVED",
+            revisionHistory: [],
+            dailyEntries: entries(10),
+          },
+        ],
+        conductRecords: [{ hoursDeducted: 2 }],
+      }),
+    ] as never);
+    const [row] = await getComplianceRows({ kind: "department", semesterId: "sem-1" }, NOW);
+    expect(row.confirmedHours).toBe(8);
+    expect(row.status).not.toBe("COMPLETED");
+  });
+
   it("confirms credited hours, not raw hours", async () => {
     prismaMock.studentProfile.findMany.mockResolvedValue([
       profile({

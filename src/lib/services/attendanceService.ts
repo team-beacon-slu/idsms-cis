@@ -346,16 +346,25 @@ export async function calculateRenderedHours(
   studentProfileId: string,
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<number> {
-  const approvedWeeklyReports = await client.weeklyReport.findMany({
-    where: {
-      studentProfileId,
-      status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
-    },
-    select: { dailyEntries: { select: CREDITED_HOURS_SELECT } },
-  });
+  const [approvedWeeklyReports, conduct] = await Promise.all([
+    client.weeklyReport.findMany({
+      where: {
+        studentProfileId,
+        status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+      },
+      select: { dailyEntries: { select: CREDITED_HOURS_SELECT } },
+    }),
+    // Workstream L2: active conduct records may deduct hours.
+    client.conductRecord.aggregate({
+      where: { studentProfileId, revokedAt: null },
+      _sum: { hoursDeducted: true },
+    }),
+  ]);
 
   // Workstream L1: credited hours (SLU rules), not raw time worked.
-  return sumCreditedHours(approvedWeeklyReports.flatMap((report) => report.dailyEntries));
+  const credited = sumCreditedHours(approvedWeeklyReports.flatMap((report) => report.dailyEntries));
+  const deducted = Number(conduct?._sum?.hoursDeducted ?? 0);
+  return Math.max(0, Math.round((credited - deducted) * 100) / 100);
 }
 
 // No `logEvent` call here on purpose: this contract (unlike the file's other
