@@ -422,6 +422,9 @@ export function WeeklyReportForm({
     void generatePdfInBackground(`/api/weekly-reports/${weeklyReportId}/pdf`, () =>
       router.refresh()
     );
+    // Workstream D: advisory AI in the background (no-op while AI is disabled;
+    // the daily cron retries anything this misses).
+    void fetch(`/api/weekly-reports/${weeklyReportId}/ai`, { method: "POST" }).catch(() => {});
   }
 
   if (entries.length === 0) {

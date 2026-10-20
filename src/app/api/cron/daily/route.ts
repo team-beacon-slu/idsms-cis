@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runDailyNotifications } from "@/lib/services/scheduledNotifications";
+import { processPendingAiReports } from "@/lib/ai/batch";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -22,7 +23,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const result = await runDailyNotifications(new Date());
+  // Workstream D: catch up AI advisories (no-op while AI is disabled).
+  const ai = await processPendingAiReports();
   // Partial failure still delivered what it could; 500 makes the scheduler
   // (Vercel Cron logs / host cron exit code) surface it instead of a green run.
-  return NextResponse.json(result, { status: result.errors.length > 0 ? 500 : 200 });
+  return NextResponse.json({ ...result, ai }, { status: result.errors.length > 0 ? 500 : 200 });
 }

@@ -1,4 +1,7 @@
 /** @jest-environment node */
+jest.mock("@/lib/ai/batch", () => ({
+  processPendingAiReports: jest.fn().mockResolvedValue({ processed: 0, failed: 0, skipped: true }),
+}));
 jest.mock("@/lib/services/scheduledNotifications", () => ({
   runDailyNotifications: jest
     .fn()
