@@ -58,6 +58,45 @@ export const DEFAULT_MATRIX: MatrixCategory[] = [
   { key: "SUSPENSION", label: "Suspensions", mode: "TOTAL_AT_COUNT", source: "MANUAL", tiers: [] },
 ];
 
+// Automatic item types → the matrix category they count toward.
+const AUTOMATIC_CATEGORY: Record<string, string> = {
+  LATE_WWR: "LATE_WWR",
+  MISSING_WWR: "LATE_WWR", // "late or missing" share one row
+  UNSUPPORTED_UT: "UNSUPPORTED_UT",
+};
+
+export interface TallyRow extends Points {
+  key: string;
+  label: string;
+  count: number;
+}
+
+// Per-category counts and points for one intern: active manual records (by
+// weight) plus non-excused automatic items. IDSMS reports these; it does not
+// compute a grade.
+export function tallyDeductions(
+  matrix: MatrixCategory[],
+  manual: Array<{ categoryKey: string; weight: number }>,
+  automatic: Array<{ itemType: string; unjustified: boolean }>
+): { rows: TallyRow[]; totals: Points } {
+  const rows = matrix.map((cat) => {
+    const auto = automatic.filter((a) => AUTOMATIC_CATEGORY[a.itemType] === cat.key);
+    const count =
+      cat.source === "MANUAL"
+        ? manual.filter((m) => m.categoryKey === cat.key).reduce((s, m) => s + m.weight, 0)
+        : auto.length;
+    const unjustified = cat.source === "AUTOMATIC" ? auto.filter((a) => a.unjustified).length : 0;
+    return { key: cat.key, label: cat.label, count, ...categoryDeduction(cat, count, unjustified) };
+  });
+  return {
+    rows,
+    totals: rows.reduce((t, r) => ({ adviser: t.adviser + r.adviser, wwr: t.wwr + r.wwr }), {
+      adviser: 0,
+      wwr: 0,
+    }),
+  };
+}
+
 // Points for `count` occurrences, plus the extra for unjustified ones.
 // A count above the last tier uses the last tier.
 export function categoryDeduction(

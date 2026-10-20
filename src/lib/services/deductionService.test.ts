@@ -6,6 +6,7 @@ import { ForbiddenError } from "@/lib/services/userService";
 import {
   ConductStateError,
   excuseItem,
+  getDeductionTally,
   listAutomaticItems,
   withdrawExcuse,
   getDefaultConductHours,
@@ -143,6 +144,30 @@ describe("automatic items and excuses", () => {
     });
     prismaMock.deductionException.updateMany.mockResolvedValue({ count: 0 } as never);
     await expect(withdrawExcuse("ex-1", faculty)).rejects.toThrow(ConductStateError);
+  });
+
+  it("tallies active records and non-excused items", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.conductRecord.findMany.mockResolvedValue([
+      { categoryKey: "DEMERIT", weight: 1 },
+    ] as never);
+    const tally = await getDeductionTally("profile-1", now);
+    expect(prismaMock.conductRecord.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { studentProfileId: "profile-1", revokedAt: null } })
+    );
+    // demerit 3/3 + one missing (unjustified) WWR 3/5 + 2/2
+    expect(tally.totals).toEqual({ adviser: 8, wwr: 10 });
+
+    prismaMock.deductionException.findMany.mockResolvedValue([
+      {
+        id: "ex-1",
+        itemType: "MISSING_WWR",
+        itemKey: "2026-10-05",
+        reasonCode: "BEYOND_INTERN_CONTROL",
+        note: "x",
+      },
+    ] as never);
+    expect((await getDeductionTally("profile-1", now)).totals).toEqual({ adviser: 3, wwr: 3 });
   });
 
   it("refuses students", async () => {

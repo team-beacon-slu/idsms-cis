@@ -1,4 +1,9 @@
-import { categoryDeduction, DEFAULT_MATRIX, type MatrixCategory } from "./deductionMatrix";
+import {
+  categoryDeduction,
+  DEFAULT_MATRIX,
+  tallyDeductions,
+  type MatrixCategory,
+} from "./deductionMatrix";
 import { deductionMatrixSchema } from "@/lib/validators/deductionMatrix";
 
 const cat = (key: string) => DEFAULT_MATRIX.find((c) => c.key === key)!;
@@ -29,6 +34,38 @@ describe("categoryDeduction (SLU deduction matrix slide)", () => {
 
   it("is 0 for a category without tiers yet (suspensions)", () => {
     expect(categoryDeduction(cat("SUSPENSION"), 2, 0)).toEqual({ adviser: 0, wwr: 0 });
+  });
+});
+
+describe("tallyDeductions", () => {
+  it("combines manual weights and non-excused automatic items per category", () => {
+    const tally = tallyDeductions(
+      DEFAULT_MATRIX,
+      [
+        { categoryKey: "WRITTEN_WARNING", weight: 2 }, // a "First and Final" warning
+        { categoryKey: "DEMERIT", weight: 1 },
+      ],
+      [
+        { itemType: "LATE_WWR", unjustified: false },
+        { itemType: "MISSING_WWR", unjustified: true },
+        { itemType: "UNSUPPORTED_UT", unjustified: true },
+      ]
+    );
+    const row = (key: string) => tally.rows.find((r) => r.key === key)!;
+    expect(row("WRITTEN_WARNING")).toEqual(
+      expect.objectContaining({ count: 2, adviser: 3, wwr: 3 })
+    );
+    expect(row("DEMERIT")).toEqual(expect.objectContaining({ count: 1, adviser: 3, wwr: 3 }));
+    // late + missing share the WWR row: count 2 → 4/6, plus 2/2 for the missing one
+    expect(row("LATE_WWR")).toEqual(expect.objectContaining({ count: 2, adviser: 6, wwr: 8 }));
+    expect(row("UNSUPPORTED_UT")).toEqual(
+      expect.objectContaining({ count: 1, adviser: 4, wwr: 4 })
+    );
+    expect(tally.totals).toEqual({ adviser: 16, wwr: 18 });
+  });
+
+  it("is all zeros with nothing on record", () => {
+    expect(tallyDeductions(DEFAULT_MATRIX, [], []).totals).toEqual({ adviser: 0, wwr: 0 });
   });
 });
 

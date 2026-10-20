@@ -7,7 +7,7 @@ import { logEvent } from "@/lib/services/auditService";
 import { loadShift } from "@/lib/services/creditedHours";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { findAutomaticItems, type AutomaticItem } from "@/lib/utils/automaticDeductions";
-import { DEFAULT_MATRIX, type MatrixCategory } from "@/lib/utils/deductionMatrix";
+import { DEFAULT_MATRIX, tallyDeductions, type MatrixCategory } from "@/lib/utils/deductionMatrix";
 import { deductionMatrixSchema } from "@/lib/validators/deductionMatrix";
 
 type ActingUser = { id: string; role: Role };
@@ -141,6 +141,23 @@ export async function listAutomaticItems(
       excused: ex ? { id: ex.id, reasonCode: ex.reasonCode, note: ex.note } : null,
     };
   });
+}
+
+// The intern's deduction tally (ADVISER / WWR points per category).
+export async function getDeductionTally(studentProfileId: string, now: Date = new Date()) {
+  const [matrix, records, items] = await Promise.all([
+    getDeductionMatrix(),
+    prisma.conductRecord.findMany({
+      where: { studentProfileId, revokedAt: null },
+      select: { categoryKey: true, weight: true },
+    }),
+    listAutomaticItems(studentProfileId, now),
+  ]);
+  return tallyDeductions(
+    matrix,
+    records,
+    items.filter((i) => !i.excused)
+  );
 }
 
 const excuseSchema = z.object({
