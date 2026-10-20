@@ -4,6 +4,8 @@ import { ScheduleNotConfiguredError } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 import {
   addDailyEntry,
+  DailyEntryDateError,
+  removeDailyEntry,
   isAwaitingReview,
   recomputeCreditedHours,
   isWeeklyReportEditable,
@@ -644,6 +646,43 @@ describe("recomputeCreditedHours", () => {
 
     expect(prismaMock.dailyReportEntry.update).not.toHaveBeenCalled();
     expect(prismaMock.weeklyReport.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("removeDailyEntry", () => {
+  function mockAdded(over: Record<string, unknown> = {}, report: Record<string, unknown> = {}) {
+    prismaMock.dailyReportEntry.findUniqueOrThrow.mockResolvedValue({
+      scheduledHours: 0,
+      weeklyReport: {
+        status: WeeklyReportStatus.PENDING,
+        revisionHistory: [],
+        studentProfile: { userId: "student-1" },
+        ...report,
+      },
+      ...over,
+    } as never);
+  }
+
+  it("removes a day the student added", async () => {
+    mockAdded();
+    await removeDailyEntry("entry-sat", "student-1");
+    expect(prismaMock.dailyReportEntry.delete).toHaveBeenCalledWith({ where: { id: "entry-sat" } });
+  });
+
+  it("refuses a scheduled day", async () => {
+    mockAdded({ scheduledHours: 8 });
+    await expect(removeDailyEntry("entry-mon", "student-1")).rejects.toThrow(DailyEntryDateError);
+    expect(prismaMock.dailyReportEntry.delete).not.toHaveBeenCalled();
+  });
+
+  it("refuses another student and a locked report", async () => {
+    mockAdded({}, { studentProfile: { userId: "student-2" } });
+    await expect(removeDailyEntry("entry-sat", "student-1")).rejects.toThrow(ForbiddenError);
+    mockAdded({}, { status: WeeklyReportStatus.APPROVED });
+    await expect(removeDailyEntry("entry-sat", "student-1")).rejects.toThrow(
+      WeeklyReportLockedError
+    );
+    expect(prismaMock.dailyReportEntry.delete).not.toHaveBeenCalled();
   });
 });
 

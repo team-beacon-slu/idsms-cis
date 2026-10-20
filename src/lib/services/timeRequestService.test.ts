@@ -31,6 +31,59 @@ beforeEach(() => {
   resetPrismaMock();
   jest.mocked(notifyTimeRequestReviewed).mockReset();
   jest.mocked(recomputeCreditedHours).mockReset();
+  prismaMock.deviationReport.updateMany.mockResolvedValue({ count: 1 } as never);
+});
+
+describe("races and post-commit failures", () => {
+  it("an edit that loses a race with an approval is refused, not overwritten", async () => {
+    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
+      id: "tr-1",
+      validationStatus: ValidationStatus.PENDING,
+      studentProfile: { userId: "student-1" },
+    } as never);
+    prismaMock.deviationReport.updateMany.mockResolvedValue({ count: 0 } as never);
+    await expect(updateTimeRequest("tr-1", otInput, student)).rejects.toThrow(
+      TimeRequestStateError
+    );
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("a review that loses a race is refused", async () => {
+    ownProfile("student-1");
+    prismaMock.facultyClassGroup.findFirst.mockResolvedValue({ id: "fcg-1" } as never);
+    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
+      id: "tr-1",
+      studentProfileId: "profile-1",
+      deviationType: DeviationType.OVERTIME,
+      date: new Date("2026-10-10T00:00:00Z"),
+      endDate: null,
+      validationStatus: ValidationStatus.PENDING,
+    } as never);
+    prismaMock.deviationReport.updateMany.mockResolvedValue({ count: 0 } as never);
+    await expect(reviewTimeRequest("tr-1", "APPROVE", undefined, faculty)).rejects.toThrow(
+      TimeRequestStateError
+    );
+    expect(recomputeCreditedHours).not.toHaveBeenCalled();
+  });
+
+  it("a recompute failure after commit still reports the saved review and notifies", async () => {
+    ownProfile("student-1");
+    prismaMock.facultyClassGroup.findFirst.mockResolvedValue({ id: "fcg-1" } as never);
+    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
+      id: "tr-1",
+      studentProfileId: "profile-1",
+      deviationType: DeviationType.OVERTIME,
+      date: new Date("2026-10-10T00:00:00Z"),
+      endDate: null,
+      validationStatus: ValidationStatus.PENDING,
+    } as never);
+    jest.mocked(recomputeCreditedHours).mockRejectedValue(new Error("db blip"));
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    await expect(reviewTimeRequest("tr-1", "APPROVE", undefined, faculty)).resolves.toEqual(
+      expect.objectContaining({ status: ValidationStatus.VALIDATED })
+    );
+    expect(notifyTimeRequestReviewed).toHaveBeenCalled();
+  });
 });
 
 function ownProfile(userId = "student-1") {
@@ -96,8 +149,8 @@ describe("updateTimeRequest", () => {
   it("resubmits a returned request as pending and clears the note", async () => {
     existing(ValidationStatus.REJECTED);
     await updateTimeRequest("tr-1", otInput, student);
-    expect(prismaMock.deviationReport.update).toHaveBeenCalledWith({
-      where: { id: "tr-1" },
+    expect(prismaMock.deviationReport.updateMany).toHaveBeenCalledWith({
+      where: { id: "tr-1", validationStatus: { not: ValidationStatus.VALIDATED } },
       data: expect.objectContaining({
         validationStatus: ValidationStatus.PENDING,
         reviewNote: null,
@@ -150,8 +203,8 @@ describe("reviewTimeRequest", () => {
       status: ValidationStatus.VALIDATED,
     });
 
-    expect(prismaMock.deviationReport.update).toHaveBeenCalledWith({
-      where: { id: "tr-1" },
+    expect(prismaMock.deviationReport.updateMany).toHaveBeenCalledWith({
+      where: { id: "tr-1", validationStatus: { in: [ValidationStatus.PENDING] } },
       data: {
         validationStatus: ValidationStatus.VALIDATED,
         facultyId: "faculty-1",
@@ -181,8 +234,11 @@ describe("reviewTimeRequest", () => {
 
     await reviewTimeRequest("tr-1", "RETURN", "Ask your supervisor to sign first", faculty);
 
-    expect(prismaMock.deviationReport.update).toHaveBeenCalledWith({
-      where: { id: "tr-1" },
+    expect(prismaMock.deviationReport.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "tr-1",
+        validationStatus: { in: [ValidationStatus.PENDING, ValidationStatus.VALIDATED] },
+      },
       data: {
         validationStatus: ValidationStatus.REJECTED,
         facultyId: "faculty-1",
@@ -194,7 +250,7 @@ describe("reviewTimeRequest", () => {
 
   it("requires a note to return", async () => {
     await expect(reviewTimeRequest("tr-1", "RETURN", "  ", faculty)).rejects.toThrow(ZodError);
-    expect(prismaMock.deviationReport.update).not.toHaveBeenCalled();
+    expect(prismaMock.deviationReport.updateMany).not.toHaveBeenCalled();
   });
 
   it("does not recompute for a non-overtime request", async () => {
@@ -217,7 +273,7 @@ describe("reviewTimeRequest", () => {
     await expect(reviewTimeRequest("tr-1", "APPROVE", undefined, student)).rejects.toThrow(
       ForbiddenError
     );
-    expect(prismaMock.deviationReport.update).not.toHaveBeenCalled();
+    expect(prismaMock.deviationReport.updateMany).not.toHaveBeenCalled();
   });
 
   it("refuses to approve twice", async () => {

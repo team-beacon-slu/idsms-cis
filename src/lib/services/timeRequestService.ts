@@ -95,8 +95,9 @@ export async function updateTimeRequest(
   const data = requestFields(timeRequestSchema.parse(input));
 
   await prisma.$transaction(async (tx) => {
-    await tx.deviationReport.update({
-      where: { id },
+    // The status guard makes a concurrent approval win instead of being overwritten.
+    const { count } = await tx.deviationReport.updateMany({
+      where: { id, validationStatus: { not: ValidationStatus.VALIDATED } },
       data: {
         ...data,
         validationStatus: ValidationStatus.PENDING,
@@ -105,6 +106,7 @@ export async function updateTimeRequest(
         updatedAt: new Date(),
       },
     });
+    if (count === 0) throw new TimeRequestStateError("Approved requests can't be edited");
     await logEvent(
       {
         userId: actingUser.id,
@@ -146,26 +148,27 @@ export async function reviewTimeRequest(
   });
   await assertCanAccessStudent(actingUser, request.studentProfileId);
 
-  const allowed =
+  const from: ValidationStatus[] =
     review.action === "APPROVE"
-      ? request.validationStatus === ValidationStatus.PENDING
-      : request.validationStatus !== ValidationStatus.REJECTED;
-  if (!allowed) {
-    throw new TimeRequestStateError(
-      review.action === "APPROVE"
-        ? "Only a pending request can be approved"
-        : "This request was already returned"
-    );
-  }
+      ? [ValidationStatus.PENDING]
+      : [ValidationStatus.PENDING, ValidationStatus.VALIDATED];
+  const stateError = new TimeRequestStateError(
+    review.action === "APPROVE"
+      ? "Only a pending request can be approved"
+      : "This request was already returned"
+  );
+  if (!from.includes(request.validationStatus)) throw stateError;
 
   const status =
     review.action === "APPROVE" ? ValidationStatus.VALIDATED : ValidationStatus.REJECTED;
   const reviewNote = review.action === "RETURN" ? (review.note ?? null) : null;
   await prisma.$transaction(async (tx) => {
-    await tx.deviationReport.update({
-      where: { id },
+    // Status-guarded write: a concurrent edit or review can't be silently overwritten.
+    const { count } = await tx.deviationReport.updateMany({
+      where: { id, validationStatus: { in: from } },
       data: { validationStatus: status, facultyId: actingUser.id, reviewNote },
     });
+    if (count === 0) throw stateError;
     await logEvent(
       {
         userId: actingUser.id,
@@ -183,8 +186,14 @@ export async function reviewTimeRequest(
   });
 
   // After commit: only approved overtime changes credited hours.
+  // The review is already saved, so a recompute failure is logged, not
+  // returned as an error; the next save of that day re-credits it.
   if (request.deviationType === DeviationType.OVERTIME) {
-    await recomputeCreditedHours(request.studentProfileId, { dates: [request.date] });
+    try {
+      await recomputeCreditedHours(request.studentProfileId, { dates: [request.date] });
+    } catch (error) {
+      console.error("Credited-hours recompute failed after a time-request review", { id, error });
+    }
   }
   await notifyTimeRequestReviewed(
     request.studentProfileId,

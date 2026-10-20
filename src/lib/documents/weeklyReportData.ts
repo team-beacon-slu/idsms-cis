@@ -75,8 +75,11 @@ export async function loadWeeklyReportDocumentData(
       })
     )?.weekStart ??
     report.weekStart;
-  const weekNumber =
-    Math.floor((report.weekStart.getTime() - getWeekStartMonday(weekOne).getTime()) / WEEK_MS) + 1;
+  // A week before the faculty's Week 1 (early starter) still prints as Week 1.
+  const weekNumber = Math.max(
+    1,
+    Math.floor((report.weekStart.getTime() - getWeekStartMonday(weekOne).getTime()) / WEEK_MS) + 1
+  );
 
   const [requests, holidays] = await Promise.all([
     prisma.deviationReport.findMany({
@@ -94,6 +97,7 @@ export async function loadWeeklyReportDocumentData(
         endTime: true,
         requestedMinutes: true,
         reason: true,
+        validationStatus: true,
       },
     }),
     report.dailyEntries.some((e) => e.attendanceStatus === "HOLIDAY")
@@ -107,6 +111,7 @@ export async function loadWeeklyReportDocumentData(
     endTime: r.endTime,
     minutes: r.requestedMinutes ?? 0,
     reason: r.reason,
+    pending: r.validationStatus === ValidationStatus.PENDING,
   });
 
   const totalHours = Number(report.totalHours);

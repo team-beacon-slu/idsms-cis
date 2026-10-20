@@ -64,6 +64,34 @@ describe("SLU Weekly Work Report fields", () => {
     expect(data!.weekNumber).toBe(3);
   });
 
+  it("never prints Week 0 or below for a report before the faculty Week 1", async () => {
+    prismaMock.weeklyReport.findUnique.mockResolvedValue({
+      ...row,
+      studentProfile: {
+        ...row.studentProfile,
+        semester: { weekOneStart: new Date("2026-10-19T00:00:00Z") },
+      },
+    } as never);
+    expect((await loadWeeklyReportDocumentData("wr-1"))!.weekNumber).toBe(1);
+  });
+
+  it("marks requests the adviser hasn't approved yet", async () => {
+    prismaMock.weeklyReport.findUnique.mockResolvedValue(row as never);
+    prismaMock.deviationReport.findMany.mockResolvedValue([
+      {
+        deviationType: "OVERTIME",
+        date: new Date("2026-10-10T00:00:00Z"),
+        startTime: "08:00",
+        endTime: "12:00",
+        requestedMinutes: 240,
+        reason: "Release",
+        validationStatus: "PENDING",
+      },
+    ] as never);
+    const data = (await loadWeeklyReportDocumentData("wr-1"))!;
+    expect(data.overtime[0].pending).toBe(true);
+  });
+
   it("falls back to the student's first report week as Week 1", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue(row as never);
     const data = await loadWeeklyReportDocumentData("wr-1");

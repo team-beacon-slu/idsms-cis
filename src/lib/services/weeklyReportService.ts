@@ -411,6 +411,8 @@ export async function saveDailyAccomplishment(
 // after an OT request is approved or returned, then refresh the affected
 // week and every later one (their running totals build on it) and the
 // student's rendered hours. Call after the review transaction commits.
+// shortcut: refreshes each later week with its own queries (O(weeks²) reads,
+// ~20 weeks per term); switch to one pass carrying the running total if it gets slow.
 export async function recomputeCreditedHours(
   studentProfileId: string,
   opts: { dates?: Date[] } = {}
@@ -498,6 +500,35 @@ export async function addDailyEntry(
     data: { weeklyReportId, reportDate, attendanceStatus: "SCHEDULED", scheduledHours: 0 },
     select: { id: true },
   });
+}
+
+// Undoes addDailyEntry: only an added (0 scheduled hours) day on an
+// editable week, by its owner. Scheduled days are marked Absent instead.
+export async function removeDailyEntry(
+  dailyReportEntryId: string,
+  studentUserId: string
+): Promise<void> {
+  const entry = await prisma.dailyReportEntry.findUniqueOrThrow({
+    where: { id: dailyReportEntryId },
+    select: {
+      scheduledHours: true,
+      weeklyReport: {
+        select: {
+          status: true,
+          revisionHistory: true,
+          studentProfile: { select: { userId: true } },
+        },
+      },
+    },
+  });
+  if (entry.weeklyReport.studentProfile.userId !== studentUserId) {
+    throw new ForbiddenError("Only the student who owns this report can edit it");
+  }
+  if (!isWeeklyReportEditable(entry.weeklyReport)) throw new WeeklyReportLockedError();
+  if (Number(entry.scheduledHours) > 0) {
+    throw new DailyEntryDateError("Scheduled days can't be removed; mark them Absent instead");
+  }
+  await prisma.dailyReportEntry.delete({ where: { id: dailyReportEntryId } });
 }
 
 // FR-WR-05 — Owner: Shantea23

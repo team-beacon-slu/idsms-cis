@@ -166,6 +166,24 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(html).toContain("Extending the hours to compensate for tardiness is impermissible.");
   });
 
+  it("labels an OT request still awaiting the adviser", () => {
+    const html = renderWeeklyReportHtml(
+      sample({
+        overtime: [
+          {
+            date: new Date("2026-10-10T00:00:00Z"),
+            startTime: "08:00",
+            endTime: "12:00",
+            minutes: 240,
+            reason: "Release",
+            pending: true,
+          },
+        ],
+      })
+    );
+    expect(html).toContain("Release (pending adviser approval)");
+  });
+
   it("keeps the reference code, Manila timestamp and supervisor signature line", () => {
     const html = renderWeeklyReportHtml(sample());
     expect(html).toContain("WR-20261005-ABCD1234");

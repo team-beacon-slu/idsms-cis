@@ -28,6 +28,9 @@ export interface CreditInputEntry {
 
 // The student's shift from their latest approved schedule; null when it has
 // no start/end times (legacy schedule) or there is no schedule.
+// shortcut: uses the latest shift for every date, so re-crediting or
+// re-submitting a week from before a schedule change uses the new shift;
+// upgrade to a dated shift history if mid-term schedule changes become common.
 export async function loadShift(studentProfileId: string): Promise<Shift | null> {
   const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
   const schedule = parseScheduleConfig(workPlan?.scheduleConfig);

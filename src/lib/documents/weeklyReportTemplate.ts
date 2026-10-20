@@ -9,6 +9,7 @@ export interface TimeRow {
   endTime: string | null;
   minutes: number;
   reason: string;
+  pending?: boolean; // filed but not yet approved by the adviser
 }
 
 export interface WeeklyReportDocumentData {
@@ -113,7 +114,7 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
         <td>${escapeHtml(dayLabel(r.date))}</td>
         <td>${range(r.startTime, r.endTime)}</td>
         <td>${escapeHtml(formatHrsMins(r.minutes / 60))}</td>
-        <td class="text">${escapeHtml(r.reason)}</td>
+        <td class="text">${escapeHtml(r.pending ? `${r.reason} (pending adviser approval)` : r.reason)}</td>
       </tr>`
       )
       .join("");

@@ -347,6 +347,21 @@ export function WeeklyReportForm({
     return true;
   }
 
+  async function removeAddedDay(entry: DailyEntryRow) {
+    setIsPending(true);
+    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/entries?entryId=${entry.id}`, {
+      method: "DELETE",
+    });
+    setIsPending(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error ?? "Couldn't remove that day");
+      return;
+    }
+    toast.success(`${formatDay(entry.reportDate)} removed`);
+    router.refresh();
+  }
+
   async function onSaveDraft() {
     setIsPending(true);
     const ok = await saveDirtyRows();
@@ -511,6 +526,19 @@ export function WeeklyReportForm({
                     </p>
                   )}
                 {row.dirty && <p className="mt-1 text-xs text-amber-600">Unsaved</p>}
+                {entry.scheduledHours === 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={isPending || hasDirty}
+                    onClick={() => removeAddedDay(entry)}
+                    aria-label={`Remove ${formatDay(entry.reportDate)} from this report`}
+                    className="mt-1 h-7 cursor-pointer px-2 text-xs text-red-700 dark:text-red-400"
+                  >
+                    Remove day
+                  </Button>
+                )}
               </div>
               <div className="space-y-2">
                 <div className="space-y-1">
