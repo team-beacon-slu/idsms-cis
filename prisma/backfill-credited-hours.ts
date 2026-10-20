@@ -4,8 +4,8 @@
 // drops overtime approved under the old deviation flow (legacy validated OT
 // has no minutes, so it is credited uncapped here).
 //
-//   npx ts-node -r tsconfig-paths/register --compiler-options '{"module":"commonjs"}' prisma/backfill-credited-hours.ts           # dry run
-//   npx ts-node -r tsconfig-paths/register --compiler-options '{"module":"commonjs"}' prisma/backfill-credited-hours.ts --apply   # write
+//   TS_NODE_BASEURL=. npx ts-node -r tsconfig-paths/register --compiler-options '{"module":"commonjs"}' prisma/backfill-credited-hours.ts           # dry run
+//   TS_NODE_BASEURL=. npx ts-node -r tsconfig-paths/register --compiler-options '{"module":"commonjs"}' prisma/backfill-credited-hours.ts --apply   # write
 //
 // Prints each student whose rendered hours change (for the PR / adviser).
 import { prisma } from "@/lib/prisma";
