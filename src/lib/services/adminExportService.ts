@@ -10,6 +10,7 @@ import { listSemesters } from "@/lib/services/semesterService";
 import { getLatestSubmission } from "@/lib/services/weeklyReportService";
 import { formatManilaDateTime } from "@/lib/utils/excelExport";
 import { toDateKey } from "@/lib/utils/reportDeadline";
+import { CREDITED_HOURS_SELECT, entryCreditedHours } from "@/lib/utils/creditedHours";
 
 // FR-DB bulk exports (Workstream G). Each builder is one bounded findMany with
 // an explicit select (no N+1) and never selects credentials, tokens or storage
@@ -136,11 +137,9 @@ async function attendanceSheet(semesterId?: string): Promise<ExportSheet[]> {
     where: semesterId ? { weeklyReport: { studentProfile: { semesterId } } } : {},
     select: {
       reportDate: true,
-      attendanceStatus: true,
       timeIn: true,
       timeOut: true,
-      scheduledHours: true,
-      actualHours: true,
+      ...CREDITED_HOURS_SELECT,
       weeklyReport: { select: { studentProfile: { select: { studentNumber: true } } } },
     },
     orderBy: [
@@ -156,6 +155,7 @@ async function attendanceSheet(semesterId?: string): Promise<ExportSheet[]> {
     "Time out",
     "Scheduled hours",
     "Actual hours",
+    "Credited hours",
   ];
   return [
     sheet(
@@ -169,6 +169,7 @@ async function attendanceSheet(semesterId?: string): Promise<ExportSheet[]> {
         "Time out": e.timeOut,
         "Scheduled hours": num(e.scheduledHours),
         "Actual hours": num(e.actualHours),
+        "Credited hours": e.actualHours == null ? null : entryCreditedHours(e),
       }))
     ),
   ];

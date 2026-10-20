@@ -186,8 +186,8 @@ export default async function DashboardHomePage({
           },
           {
             count: attention.pendingDeviations,
-            label: "Deviation reports awaiting validation",
-            href: "/attendance",
+            label: "Leave & time requests awaiting review",
+            href: "/leave-requests",
           },
           {
             count: attention.incompleteChecklistItems,

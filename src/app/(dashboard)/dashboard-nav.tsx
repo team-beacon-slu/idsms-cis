@@ -15,6 +15,7 @@ import {
   FileText,
   FileBarChart2,
   Clock,
+  CalendarOff,
   NotebookText,
   ScrollText,
   Download,
@@ -56,6 +57,7 @@ function getNavItems(role: Role): NavItem[] {
     items.push({ href: "/checklist", label: "Checklist", icon: ClipboardCheck });
     items.push({ href: "/work-plan", label: "Work Plan", icon: NotebookText });
     items.push({ href: "/attendance", label: "Attendance", icon: Clock });
+    items.push({ href: "/leave-requests", label: "Leave & Time Requests", icon: CalendarOff });
     items.push({ href: "/weekly-reports", label: "Weekly Reports", icon: FileText });
     items.push({ href: "/monthly-reports", label: "Monthly Reports", icon: FileBarChart2 });
   }

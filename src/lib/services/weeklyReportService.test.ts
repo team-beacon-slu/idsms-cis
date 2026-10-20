@@ -3,7 +3,11 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { ScheduleNotConfiguredError } from "@/lib/services/attendanceService";
 import { ForbiddenError } from "@/lib/services/userService";
 import {
+  addDailyEntry,
+  DailyEntryDateError,
+  removeDailyEntry,
   isAwaitingReview,
+  recomputeCreditedHours,
   isWeeklyReportEditable,
   LateSubmissionReasonRequiredError,
   recordWeeklyReportSubmission,
@@ -24,13 +28,31 @@ import {
   validateLateSubmissionReason,
 } from "@/lib/services/weeklyReportService";
 
-beforeEach(() => resetPrismaMock());
+beforeEach(() => {
+  resetPrismaMock();
+  // Review actions require a submitted report awaiting review; tests that
+  // need another state set their own.
+  prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+    status: WeeklyReportStatus.PENDING,
+    revisionHistory: [{ type: "SUBMITTED", timestamp: "t0" }],
+  } as never);
+});
 
 describe("reviewWeeklyReport_Return", () => {
-  it.each([[], [{ type: "SUBMITTED", timestamp: "2026-10-10", referenceCode: "WR-1" }], null])(
+  it.each([
+    [[{ type: "SUBMITTED", timestamp: "2026-10-10", referenceCode: "WR-1" }]],
+    [
+      [
+        { type: "SUBMITTED", timestamp: "2026-10-03", referenceCode: "WR-0" },
+        { type: "RETURNED", timestamp: "2026-10-04", notes: "Fix" },
+        { type: "SUBMITTED", timestamp: "2026-10-10", referenceCode: "WR-1" },
+      ],
+    ],
+  ])(
     "preserves history %p and appends revision notes without recalculating hours",
     async (history) => {
       prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+        status: WeeklyReportStatus.PENDING,
         revisionHistory: history,
       } as never);
       prismaMock.weeklyReport.update.mockResolvedValue({
@@ -161,7 +183,60 @@ describe("generateWeeklyReportForm", () => {
     expect(prismaMock.weeklyReport.create).not.toHaveBeenCalled();
   });
 
-  it("creates one entry per scheduled weekday, skipping applicable holidays", async () => {
+  it("creates a 0-hour HOLIDAY row for an applicable holiday on a scheduled day", async () => {
+    prismaMock.weeklyReport.findUnique.mockResolvedValue(null);
+    prismaMock.workPlan.findFirst.mockResolvedValue(approvedPlan as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({ semesterId: "sem-1" } as never);
+    prismaMock.holidayCalendarEntry.findMany
+      .mockResolvedValueOnce([
+        { id: "h-1", date: new Date("2026-10-07T00:00:00Z"), name: "Holiday" },
+        // Saturday is not a scheduled day: no row.
+        { id: "h-2", date: new Date("2026-10-10T00:00:00Z"), name: "Weekend holiday" },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+    prismaMock.weeklyReport.create.mockResolvedValue({ id: "wr-new" } as never);
+
+    await generateWeeklyReportForm("profile-1", new Date("2026-10-09T00:00:00Z"));
+
+    const createArgs = prismaMock.weeklyReport.create.mock.calls[0][0] as {
+      data: { dailyEntries: { create: Record<string, unknown>[] } };
+    };
+    expect(createArgs.data.dailyEntries.create).toHaveLength(5);
+    expect(createArgs.data.dailyEntries.create[2]).toEqual({
+      reportDate: new Date("2026-10-07T00:00:00Z"),
+      attendanceStatus: "HOLIDAY",
+      scheduledHours: 8,
+      actualHours: 0,
+    });
+  });
+
+  it("creates no row for a non-applicable holiday beyond the normal day", async () => {
+    prismaMock.weeklyReport.findUnique.mockResolvedValue(null);
+    prismaMock.workPlan.findFirst.mockResolvedValue(approvedPlan as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({ semesterId: "sem-1" } as never);
+    prismaMock.holidayCalendarEntry.findMany
+      .mockResolvedValueOnce([
+        { id: "h-1", date: new Date("2026-10-07T00:00:00Z"), name: "Holiday" },
+      ] as never)
+      // the student marked it not applicable
+      .mockResolvedValueOnce([{ date: new Date("2026-10-07T00:00:00Z") }] as never);
+    prismaMock.weeklyReport.create.mockResolvedValue({ id: "wr-new" } as never);
+
+    await generateWeeklyReportForm("profile-1", new Date("2026-10-09T00:00:00Z"));
+
+    const createArgs = prismaMock.weeklyReport.create.mock.calls[0][0] as {
+      data: { dailyEntries: { create: Record<string, unknown>[] } };
+    };
+    expect(createArgs.data.dailyEntries.create.map((e) => e.attendanceStatus)).toEqual([
+      "SCHEDULED",
+      "SCHEDULED",
+      "SCHEDULED",
+      "SCHEDULED",
+      "SCHEDULED",
+    ]);
+  });
+
+  it("creates one entry per scheduled weekday, marking applicable holidays", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue(null);
     prismaMock.workPlan.findFirst.mockResolvedValue(approvedPlan as never);
     // getHolidayCalendarForStudent: Wed is a holiday that applies.
@@ -183,6 +258,7 @@ describe("generateWeeklyReportForm", () => {
     expect(createArgs.data.dailyEntries.create.map((e) => e.reportDate.toISOString())).toEqual([
       "2026-10-05T00:00:00.000Z",
       "2026-10-06T00:00:00.000Z",
+      "2026-10-07T00:00:00.000Z",
       "2026-10-08T00:00:00.000Z",
       "2026-10-09T00:00:00.000Z",
     ]);
@@ -209,6 +285,27 @@ describe("weekly hour totals (FR-WR-02)", () => {
     expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
       where: { id: "wr-1" },
       data: { totalHours: 15.5 },
+    });
+  });
+
+  it("totals use credited hours (legacy rows capped at scheduled)", async () => {
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      { actualHours: 9, scheduledHours: 8, creditedHours: null, attendanceStatus: "PRESENT" },
+      { actualHours: 9, scheduledHours: 0, creditedHours: 4, attendanceStatus: "PRESENT" },
+    ] as never);
+    await expect(calculateWeeklyTotalHours("wr-1")).resolves.toBe(12);
+
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      weekStart: new Date("2026-10-12T00:00:00Z"),
+      dailyEntries: [{ actualHours: 10, scheduledHours: 8, creditedHours: null }],
+    } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 100 } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 9, scheduledHours: 8, creditedHours: null }] },
+    ] as never);
+    await expect(calculateRunningTotalAndRemaining("profile-1", "wr-1")).resolves.toEqual({
+      runningTotal: 16,
+      remainingHours: 84,
     });
   });
 
@@ -242,8 +339,16 @@ describe("saveDailyAccomplishment", () => {
     userId = "student-1"
   ) {
     prismaMock.dailyReportEntry.findUniqueOrThrow.mockResolvedValue({
-      weeklyReport: { status, revisionHistory, studentProfile: { userId } },
+      reportDate: new Date("2026-10-05T00:00:00Z"),
+      scheduledHours: 8,
+      weeklyReport: {
+        status,
+        revisionHistory,
+        studentProfileId: "profile-1",
+        studentProfile: { userId },
+      },
     } as never);
+    prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
   }
 
   it("saves hours, accomplishments, and tools for the owning student", async () => {
@@ -390,6 +495,256 @@ describe("saveDailyAccomplishment", () => {
     expect(legacy.data).not.toHaveProperty("timeIn");
     expect(legacy.data).not.toHaveProperty("timeOut");
   });
+
+  it("stores the second range and nulls it on non-PRESENT days", async () => {
+    mockEntry(WeeklyReportStatus.PENDING);
+    prismaMock.dailyReportEntry.update.mockResolvedValue({
+      id: "entry-1",
+      actualHours: 8,
+      accomplishments: "x",
+    } as never);
+
+    await saveDailyAccomplishment("entry-1", 8, "x", "student-1", undefined, {
+      attendanceStatus: "PRESENT",
+      timeIn: "08:00",
+      timeOut: "12:00",
+      timeIn2: "13:00",
+      timeOut2: "17:00",
+    });
+    expect(prismaMock.dailyReportEntry.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ timeIn2: "13:00", timeOut2: "17:00" }),
+      })
+    );
+
+    await saveDailyAccomplishment("entry-1", 0, "", "student-1", undefined, {
+      attendanceStatus: "ABSENT",
+    });
+    expect(prismaMock.dailyReportEntry.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ timeIn2: null, timeOut2: null }),
+      })
+    );
+  });
+});
+
+describe("saveDailyAccomplishment credited hours", () => {
+  it("stores the SLU-credited hours computed at save time", async () => {
+    prismaMock.dailyReportEntry.findUniqueOrThrow.mockResolvedValue({
+      reportDate: new Date("2026-10-05T00:00:00Z"),
+      scheduledHours: 8,
+      weeklyReport: {
+        status: WeeklyReportStatus.PENDING,
+        revisionHistory: [],
+        studentProfileId: "profile-1",
+        studentProfile: { userId: "student-1" },
+      },
+    } as never);
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: {
+        daysOfWeek: [1],
+        hoursPerDay: 8,
+        startTime: "08:00",
+        endTime: "17:00",
+        breakMinutes: 60,
+      },
+    } as never);
+    prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+    prismaMock.dailyReportEntry.update.mockResolvedValue({
+      id: "entry-1",
+      actualHours: 7.5,
+      accomplishments: "x",
+    } as never);
+
+    await saveDailyAccomplishment("entry-1", 7.5, "x", "student-1", undefined, {
+      attendanceStatus: "PRESENT",
+      timeIn: "08:30",
+      timeOut: "12:00",
+      timeIn2: "13:00",
+      timeOut2: "17:00",
+    });
+
+    expect(prismaMock.dailyReportEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ creditedHours: 7.5 }) })
+    );
+  });
+});
+
+describe("recomputeCreditedHours", () => {
+  it("rewrites credited hours for the given dates and refreshes this and later weeks", async () => {
+    const sat = new Date("2026-10-10T00:00:00Z");
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: {
+        daysOfWeek: [1, 2, 3, 4, 5],
+        hoursPerDay: 8,
+        startTime: "08:00",
+        endTime: "17:00",
+        breakMinutes: 60,
+      },
+    } as never);
+    prismaMock.deviationReport.findMany.mockResolvedValue([
+      { date: sat, requestedMinutes: 240 },
+    ] as never);
+    prismaMock.dailyReportEntry.findMany
+      // entries on the requested dates
+      .mockResolvedValueOnce([
+        {
+          id: "entry-sat",
+          weeklyReportId: "wr-1",
+          reportDate: sat,
+          scheduledHours: 0,
+          actualHours: 4,
+          creditedHours: 0,
+          attendanceStatus: "PRESENT",
+          timeIn: "08:00",
+          timeOut: "12:00",
+          timeIn2: null,
+          timeOut2: null,
+          weeklyReport: { weekStart: new Date("2026-10-05T00:00:00Z") },
+        },
+      ] as never)
+      // calculateWeeklyTotalHours reads, one per refreshed week
+      .mockResolvedValue([] as never);
+    prismaMock.weeklyReport.findMany
+      // weeks to refresh (this and later)
+      .mockResolvedValueOnce([{ id: "wr-1" }, { id: "wr-2" }] as never)
+      // prior weeks for each running total, then calculateRenderedHours
+      .mockResolvedValue([] as never);
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      weekStart: new Date("2026-10-05T00:00:00Z"),
+      dailyEntries: [],
+    } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 100 } as never);
+
+    await recomputeCreditedHours("profile-1", { dates: [sat] });
+
+    expect(prismaMock.dailyReportEntry.update).toHaveBeenCalledWith({
+      where: { id: "entry-sat" },
+      data: { creditedHours: 4 },
+    });
+    const weekArgs = prismaMock.weeklyReport.findMany.mock.calls[0][0] as { where: unknown };
+    expect(weekArgs.where).toEqual({
+      studentProfileId: "profile-1",
+      weekStart: { gte: new Date("2026-10-05T00:00:00Z") },
+    });
+    // totals refreshed for both weeks
+    expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "wr-2" } })
+    );
+    // rendered hours refreshed
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "profile-1" } })
+    );
+  });
+
+  it("does nothing when no entry falls on the dates", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+    prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([] as never);
+
+    await recomputeCreditedHours("profile-1", { dates: [new Date("2026-10-10T00:00:00Z")] });
+
+    expect(prismaMock.dailyReportEntry.update).not.toHaveBeenCalled();
+    expect(prismaMock.weeklyReport.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("removeDailyEntry", () => {
+  function mockAdded(over: Record<string, unknown> = {}, report: Record<string, unknown> = {}) {
+    prismaMock.dailyReportEntry.findUniqueOrThrow.mockResolvedValue({
+      scheduledHours: 0,
+      weeklyReport: {
+        status: WeeklyReportStatus.PENDING,
+        revisionHistory: [],
+        studentProfile: { userId: "student-1" },
+        ...report,
+      },
+      ...over,
+    } as never);
+  }
+
+  it("removes a day the student added", async () => {
+    mockAdded();
+    await removeDailyEntry("entry-sat", "student-1");
+    expect(prismaMock.dailyReportEntry.delete).toHaveBeenCalledWith({ where: { id: "entry-sat" } });
+  });
+
+  it("refuses a scheduled day", async () => {
+    mockAdded({ scheduledHours: 8 });
+    await expect(removeDailyEntry("entry-mon", "student-1")).rejects.toThrow(DailyEntryDateError);
+    expect(prismaMock.dailyReportEntry.delete).not.toHaveBeenCalled();
+  });
+
+  it("refuses another student and a locked report", async () => {
+    mockAdded({}, { studentProfile: { userId: "student-2" } });
+    await expect(removeDailyEntry("entry-sat", "student-1")).rejects.toThrow(ForbiddenError);
+    mockAdded({}, { status: WeeklyReportStatus.APPROVED });
+    await expect(removeDailyEntry("entry-sat", "student-1")).rejects.toThrow(
+      WeeklyReportLockedError
+    );
+    expect(prismaMock.dailyReportEntry.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe("addDailyEntry", () => {
+  const report = {
+    id: "wr-1",
+    weekStart: new Date("2026-10-05T00:00:00Z"),
+    weekEnd: new Date("2026-10-11T00:00:00Z"),
+    status: WeeklyReportStatus.PENDING,
+    revisionHistory: [],
+    studentProfile: { userId: "student-1" },
+    dailyEntries: [{ reportDate: new Date("2026-10-05T00:00:00Z") }],
+  };
+
+  it("adds a non-scheduled day with 0 scheduled hours", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue(report as never);
+    prismaMock.dailyReportEntry.create.mockResolvedValue({ id: "entry-sat" } as never);
+
+    await expect(
+      addDailyEntry("wr-1", new Date("2026-10-10T00:00:00Z"), "student-1")
+    ).resolves.toEqual({ id: "entry-sat" });
+    expect(prismaMock.dailyReportEntry.create).toHaveBeenCalledWith({
+      data: {
+        weeklyReportId: "wr-1",
+        reportDate: new Date("2026-10-10T00:00:00Z"),
+        attendanceStatus: "SCHEDULED",
+        scheduledHours: 0,
+      },
+      select: { id: true },
+    });
+  });
+
+  it("refuses a student who doesn't own the report", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue(report as never);
+    await expect(
+      addDailyEntry("wr-1", new Date("2026-10-10T00:00:00Z"), "student-2")
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("rejects a date outside the week", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue(report as never);
+    await expect(
+      addDailyEntry("wr-1", new Date("2026-10-12T00:00:00Z"), "student-1")
+    ).rejects.toThrow("within this report's week");
+  });
+
+  it("rejects a date that already has a row", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue(report as never);
+    await expect(
+      addDailyEntry("wr-1", new Date("2026-10-05T00:00:00Z"), "student-1")
+    ).rejects.toThrow("already");
+  });
+
+  it("rejects a locked report", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      ...report,
+      status: WeeklyReportStatus.APPROVED,
+    } as never);
+    await expect(
+      addDailyEntry("wr-1", new Date("2026-10-10T00:00:00Z"), "student-1")
+    ).rejects.toThrow(WeeklyReportLockedError);
+  });
 });
 
 describe("validateLateSubmissionReason (FR-WR-05)", () => {
@@ -438,6 +793,101 @@ describe("recordWeeklyReportSubmission", () => {
         actingUser
       )
     ).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+  });
+
+  describe("late arrival / early leave gate", () => {
+    const tardyDay = {
+      reportDate: new Date("2026-10-06T00:00:00Z"),
+      scheduledHours: 8,
+      actualHours: 7.5,
+      accomplishments: "Worked",
+      attendanceStatus: "PRESENT",
+      timeIn: "08:30",
+      timeOut: "12:00",
+      timeIn2: "13:00",
+      timeOut2: "17:00",
+    };
+    function mockReport(dailyEntries: unknown[]) {
+      prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+        status: WeeklyReportStatus.PENDING,
+        weekEnd: new Date("2026-10-11T00:00:00Z"),
+        revisionHistory: [],
+        studentProfileId: "profile-1",
+        dailyEntries,
+      } as never);
+    }
+    const shiftPlan = {
+      scheduleConfig: {
+        daysOfWeek: [1, 2, 3, 4, 5],
+        hoursPerDay: 8,
+        startTime: "08:00",
+        endTime: "17:00",
+        breakMinutes: 60,
+      },
+    };
+    const submit = () =>
+      recordWeeklyReportSubmission(
+        "wr-1",
+        { referenceCode: "WR-1", timestamp: new Date("2026-10-12T02:00:00Z") },
+        actingUser
+      );
+
+    it("blocks a tardy day with no undertime request, listing the date", async () => {
+      mockReport([tardyDay]);
+      prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
+      prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+      await expect(submit()).rejects.toThrow("File an undertime request for: Oct 6 (late arrival)");
+    });
+
+    it("passes with an undertime request of any status on that date", async () => {
+      mockReport([tardyDay]);
+      prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
+      prismaMock.deviationReport.findMany.mockResolvedValue([
+        {
+          date: tardyDay.reportDate,
+          deviationType: "UNDERTIME",
+          startTime: "08:00",
+          endTime: "08:30",
+          validationStatus: "REJECTED",
+        },
+      ] as never);
+      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+    });
+
+    it("passes with a partial-day leave covering the gap, but not one that misses it", async () => {
+      mockReport([
+        { ...tardyDay, timeIn: "08:00", timeOut: "12:00", timeIn2: "13:00", timeOut2: "15:00" },
+      ]);
+      prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
+      prismaMock.deviationReport.findMany.mockResolvedValueOnce([
+        {
+          date: tardyDay.reportDate,
+          deviationType: "ABSENCE",
+          startTime: "15:00",
+          endTime: "17:00",
+        },
+      ] as never);
+      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+
+      prismaMock.deviationReport.findMany.mockResolvedValueOnce([
+        {
+          date: tardyDay.reportDate,
+          deviationType: "ABSENCE",
+          startTime: "16:00",
+          endTime: "17:00",
+        },
+      ] as never);
+      await expect(submit()).rejects.toThrow("Oct 6 (early leave)");
+    });
+
+    it("skips the check for a schedule without shift times", async () => {
+      mockReport([tardyDay]);
+      prismaMock.workPlan.findFirst.mockResolvedValue({
+        scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },
+      } as never);
+      prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+    });
   });
 
   it("still rejects an unfilled SCHEDULED day", async () => {

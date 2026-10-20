@@ -1,17 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertTriangle, Eye, Save, Send } from "lucide-react";
+import { AlertTriangle, CalendarPlus, Eye, Save, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, isWeeklyReportLate } from "@/lib/utils/reportDeadline";
-import { isAttendanceStatus, minutesBetween, type AttendanceStatus } from "@/lib/validators/report";
-import { autoHoursFromTimes } from "./auto-hours";
+import {
+  dailyEntrySchema,
+  isAttendanceStatus,
+  rangeMinutes,
+  type AttendanceStatus,
+} from "@/lib/validators/report";
+import { addDays, toDateKey } from "@/lib/utils/reportDeadline";
+import { dayGaps, formatHrsMins, timeOfDay, type Shift } from "@/lib/utils/timeMath";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
 
@@ -43,6 +50,8 @@ export interface DailyEntryRow {
   attendanceStatus: string; // PRESENT | ABSENT | HOLIDAY | SCHEDULED (unfilled)
   timeIn: string | null; // "HH:MM"
   timeOut: string | null;
+  timeIn2: string | null; // optional afternoon range
+  timeOut2: string | null;
 }
 
 export interface WeeklyTotals {
@@ -56,6 +65,8 @@ interface RowState {
   hours: string;
   timeIn: string;
   timeOut: string;
+  timeIn2: string;
+  timeOut2: string;
   accomplishments: string;
   toolsUsed: string;
   dirty: boolean;
@@ -68,14 +79,37 @@ const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "Not filled",
 };
 
-// Pre-fills hours from the time pair (see auto-hours.ts); the student can
-// still edit hours down.
+// Pre-fills hours with the time worked across both ranges (the shared
+// rangeMinutes the validator uses); the student can still edit hours down.
+// Credited hours under SLU's rules are computed server-side.
 function withAutoHours(row: RowState): Partial<RowState> {
-  const hours = autoHoursFromTimes(row.timeIn, row.timeOut);
-  return hours === null
-    ? { timeIn: row.timeIn, timeOut: row.timeOut }
-    : { timeIn: row.timeIn, timeOut: row.timeOut, hours: String(hours) };
+  const times = {
+    timeIn: row.timeIn,
+    timeOut: row.timeOut,
+    timeIn2: row.timeIn2,
+    timeOut2: row.timeOut2,
+  };
+  const minutes = row.timeIn && row.timeOut ? rangeMinutes(times) : 0;
+  return minutes > 0 ? { ...times, hours: String(Math.round((minutes / 60) * 100) / 100) } : times;
 }
+
+// The PATCH body for one row; also what rowProblem validates.
+function rowPayload(entryId: string, row: RowState) {
+  const present = row.status === "PRESENT";
+  return {
+    dailyReportEntryId: entryId,
+    hours: present ? Number(row.hours) : 0,
+    accomplishments: present ? row.accomplishments.trim() : "",
+    toolsUsed: (present && row.toolsUsed.trim()) || undefined,
+    attendanceStatus: row.status,
+    timeIn: (present && row.timeIn) || undefined,
+    timeOut: (present && row.timeOut) || undefined,
+    timeIn2: (present && row.timeIn2) || undefined,
+    timeOut2: (present && row.timeOut2) || undefined,
+  };
+}
+
+const HOLIDAY_LABEL = "Holiday (PH Calendar)";
 
 function formatDay(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -91,16 +125,98 @@ function TotalsBar({ totals }: { totals: WeeklyTotals }) {
     <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-3 text-center">
       <div>
         <p className="text-xs text-muted-foreground">This week</p>
-        <p className="text-lg font-semibold text-foreground">{totals.totalHours} hrs</p>
+        <p className="text-lg font-semibold text-foreground">{formatHrsMins(totals.totalHours)}</p>
       </div>
       <div>
         <p className="text-xs text-muted-foreground">Running total</p>
-        <p className="text-lg font-semibold text-foreground">{totals.runningTotal} hrs</p>
+        <p className="text-lg font-semibold text-foreground">
+          {formatHrsMins(totals.runningTotal)}
+        </p>
       </div>
       <div>
         <p className="text-xs text-muted-foreground">Remaining</p>
-        <p className="text-lg font-semibold text-foreground">{totals.remainingHours} hrs</p>
+        <p className="text-lg font-semibold text-foreground">
+          {formatHrsMins(totals.remainingHours)}
+        </p>
       </div>
+    </div>
+  );
+}
+
+// Adds a non-scheduled day (e.g. a Saturday worked under an approved OT
+// request). Disabled while there are unsaved edits, since adding refreshes.
+function AddDayControl({
+  weeklyReportId,
+  weekEnd,
+  takenDates,
+  disabled,
+  onAdded,
+}: {
+  weeklyReportId: string;
+  weekEnd: Date;
+  takenDates: string[];
+  disabled: boolean;
+  onAdded: () => void;
+}) {
+  const [date, setDate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const min = toDateKey(addDays(weekEnd, -6));
+  const max = toDateKey(weekEnd);
+
+  async function add() {
+    if (!date) return;
+    if (takenDates.includes(date)) {
+      toast.error("That day is already in this report");
+      return;
+    }
+    setBusy(true);
+    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/entries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reportDate: date }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error ?? "Couldn't add that day");
+      return;
+    }
+    setDate("");
+    toast.success("Day added — fill in its times and accomplishments");
+    onAdded();
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed p-3">
+      <div className="space-y-1">
+        <Label htmlFor={`add-day-${weeklyReportId}`} className="text-xs">
+          Add a day you worked outside your schedule
+        </Label>
+        <Input
+          id={`add-day-${weeklyReportId}`}
+          type="date"
+          min={min}
+          max={max}
+          value={date}
+          disabled={disabled || busy}
+          onChange={(e) => setDate(e.target.value)}
+          className="w-44"
+        />
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={add}
+        disabled={disabled || busy || !date}
+        className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
+      >
+        <CalendarPlus className="size-3.5" aria-hidden="true" />
+        {busy ? "Adding..." : "Add a day"}
+      </Button>
+      <p className="w-full text-xs text-muted-foreground">
+        Only credited with an approved overtime request.
+      </p>
     </div>
   );
 }
@@ -112,6 +228,7 @@ export function WeeklyReportForm({
   editable,
   weekEnd,
   priorAccomplishments,
+  shift = null,
 }: {
   weeklyReportId: string;
   entries: DailyEntryRow[];
@@ -119,6 +236,7 @@ export function WeeklyReportForm({
   editable: boolean;
   weekEnd: string;
   priorAccomplishments: string[];
+  shift?: Shift | null;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
@@ -131,6 +249,8 @@ export function WeeklyReportForm({
           hours: e.actualHours == null ? "" : String(e.actualHours),
           timeIn: e.timeIn ?? "",
           timeOut: e.timeOut ?? "",
+          timeIn2: e.timeIn2 ?? "",
+          timeOut2: e.timeOut2 ?? "",
           accomplishments: e.accomplishments ?? "",
           toolsUsed: e.toolsUsed ?? "",
           dirty: false,
@@ -171,6 +291,16 @@ export function WeeklyReportForm({
   const hasCopyPaste = Object.keys(copyPasteFlags).length > 0;
   const hasDirty = Object.values(rows).some((r) => r.dirty);
 
+  // Same check the server's submit gate runs (dayGaps), for scheduled PRESENT days.
+  function rowGaps(entry: DailyEntryRow, row: RowState) {
+    if (row.status !== "PRESENT" || entry.scheduledHours <= 0) return [];
+    const valid = (t: string) => timeOfDay.safeParse(t).success;
+    if (!valid(row.timeIn) || !valid(row.timeOut)) return [];
+    const ranges: Array<[string, string]> = [[row.timeIn, row.timeOut]];
+    if (valid(row.timeIn2) && valid(row.timeOut2)) ranges.push([row.timeIn2, row.timeOut2]);
+    return dayGaps(ranges, shift);
+  }
+
   function updateRow(id: string, patch: Partial<RowState>) {
     setRows((prev) => ({ ...prev, [id]: { ...prev[id], ...patch, dirty: true } }));
   }
@@ -179,16 +309,11 @@ export function WeeklyReportForm({
     const row = rows[entry.id];
     // Absent and holiday days count 0 hours and need no description.
     if (row.status !== "PRESENT") return null;
-    const hours = Number(row.hours);
-    if (row.hours === "" || Number.isNaN(hours)) return "Enter hours worked";
-    if (hours < 0 || hours > 24) return "Hours must be between 0 and 24";
-    if (row.timeIn && row.timeOut) {
-      const window = minutesBetween(row.timeIn, row.timeOut);
-      if (window <= 0) return "Time out must be after time in";
-      if (hours * 60 > window + 0.5) return "Hours can't exceed the time between time in and out";
-    }
+    if (row.hours === "" || Number.isNaN(Number(row.hours))) return "Enter hours worked";
     if (!row.accomplishments.trim()) return "Describe what you accomplished";
-    return null;
+    // Same rules the server enforces.
+    const parsed = dailyEntrySchema.safeParse(rowPayload(entry.id, row));
+    return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Check this day's entry");
   }
 
   // Saves every changed day. Returns false (after a toast) if any failed.
@@ -204,15 +329,7 @@ export function WeeklyReportForm({
       const res = await fetch(`/api/weekly-reports/${weeklyReportId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dailyReportEntryId: entry.id,
-          hours: row.status === "PRESENT" ? Number(row.hours) : 0,
-          accomplishments: row.status === "PRESENT" ? row.accomplishments.trim() : "",
-          toolsUsed: (row.status === "PRESENT" && row.toolsUsed.trim()) || undefined,
-          attendanceStatus: row.status,
-          timeIn: (row.status === "PRESENT" && row.timeIn) || undefined,
-          timeOut: (row.status === "PRESENT" && row.timeOut) || undefined,
-        }),
+        body: JSON.stringify(rowPayload(entry.id, row)),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -228,6 +345,21 @@ export function WeeklyReportForm({
       setRows((prev) => ({ ...prev, [entry.id]: { ...prev[entry.id], dirty: false } }));
     }
     return true;
+  }
+
+  async function removeAddedDay(entry: DailyEntryRow) {
+    setIsPending(true);
+    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/entries?entryId=${entry.id}`, {
+      method: "DELETE",
+    });
+    setIsPending(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error ?? "Couldn't remove that day");
+      return;
+    }
+    toast.success(`${formatDay(entry.reportDate)} removed`);
+    router.refresh();
   }
 
   async function onSaveDraft() {
@@ -323,14 +455,33 @@ export function WeeklyReportForm({
                     {formatDay(entry.reportDate)}
                   </td>
                   <td className="py-2 pr-3">
-                    {STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus}
+                    {entry.attendanceStatus === "HOLIDAY"
+                      ? HOLIDAY_LABEL
+                      : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
                   </td>
                   <td className="whitespace-nowrap py-2 pr-3 text-muted-foreground">
-                    {entry.timeIn && entry.timeOut ? `${entry.timeIn}–${entry.timeOut}` : "—"}
+                    {entry.timeIn && entry.timeOut ? (
+                      <>
+                        {entry.timeIn}–{entry.timeOut}
+                        {entry.timeIn2 && entry.timeOut2 && (
+                          <>
+                            <br />
+                            {entry.timeIn2}–{entry.timeOut2}
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
-                  <td className="py-2 pr-3">
-                    {entry.actualHours ?? "—"}
-                    <span className="text-xs text-muted-foreground"> / {entry.scheduledHours}</span>
+                  <td className="whitespace-nowrap py-2 pr-3">
+                    {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
+                    {entry.scheduledHours > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {" "}
+                        / {formatHrsMins(entry.scheduledHours)}
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-pre-wrap py-2 pr-3">{entry.accomplishments ?? "—"}</td>
                   <td className="py-2 text-muted-foreground">{entry.toolsUsed ?? "—"}</td>
@@ -363,9 +514,31 @@ export function WeeklyReportForm({
               <div>
                 <p className="text-sm font-medium text-foreground">{formatDay(entry.reportDate)}</p>
                 <p className="text-xs text-muted-foreground">
-                  {entry.scheduledHours} hrs scheduled
+                  {entry.scheduledHours > 0
+                    ? `${formatHrsMins(entry.scheduledHours)} scheduled`
+                    : "Not a scheduled day"}
                 </p>
+                {row.status === "PRESENT" &&
+                  row.hours !== "" &&
+                  !Number.isNaN(Number(row.hours)) && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatHrsMins(Number(row.hours))} worked
+                    </p>
+                  )}
                 {row.dirty && <p className="mt-1 text-xs text-amber-600">Unsaved</p>}
+                {entry.scheduledHours === 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={isPending || hasDirty}
+                    onClick={() => removeAddedDay(entry)}
+                    aria-label={`Remove ${formatDay(entry.reportDate)} from this report`}
+                    className="mt-1 h-7 cursor-pointer px-2 text-xs text-red-700 dark:text-red-400"
+                  >
+                    Remove day
+                  </Button>
+                )}
               </div>
               <div className="space-y-2">
                 <div className="space-y-1">
@@ -383,7 +556,15 @@ export function WeeklyReportForm({
                         entry.id,
                         status === "PRESENT"
                           ? { status }
-                          : { status, hours: "0", timeIn: "", timeOut: "", toolsUsed: "" }
+                          : {
+                              status,
+                              hours: "0",
+                              timeIn: "",
+                              timeOut: "",
+                              timeIn2: "",
+                              timeOut2: "",
+                              toolsUsed: "",
+                            }
                       );
                     }}
                     className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-2 text-sm disabled:cursor-not-allowed"
@@ -421,6 +602,36 @@ export function WeeklyReportForm({
                           disabled={isPending}
                           onChange={(e) =>
                             updateRow(entry.id, withAutoHours({ ...row, timeOut: e.target.value }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label htmlFor={`in2-${entry.id}`} className="text-xs">
+                          Afternoon in
+                        </Label>
+                        <Input
+                          id={`in2-${entry.id}`}
+                          type="time"
+                          value={row.timeIn2}
+                          disabled={isPending}
+                          onChange={(e) =>
+                            updateRow(entry.id, withAutoHours({ ...row, timeIn2: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`out2-${entry.id}`} className="text-xs">
+                          Afternoon out
+                        </Label>
+                        <Input
+                          id={`out2-${entry.id}`}
+                          type="time"
+                          value={row.timeOut2}
+                          disabled={isPending}
+                          onChange={(e) =>
+                            updateRow(entry.id, withAutoHours({ ...row, timeOut2: e.target.value }))
                           }
                         />
                       </div>
@@ -469,7 +680,7 @@ export function WeeklyReportForm({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {row.status === "HOLIDAY" ? "Holiday" : "Absent"} — counts 0 hours; no
+                    {row.status === "HOLIDAY" ? HOLIDAY_LABEL : "Absent"} — counts 0 hours; no
                     accomplishments needed.
                   </p>
                 )}
@@ -479,11 +690,40 @@ export function WeeklyReportForm({
                     {flag} — please describe this day&apos;s work in your own words.
                   </p>
                 )}
+                {rowGaps(entry, row).map((gap) => (
+                  <p
+                    key={gap.kind}
+                    className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400"
+                  >
+                    <AlertTriangle className="size-3.5" aria-hidden="true" />
+                    {gap.kind === "late" ? "Late arrival" : "Early leave"}: file an undertime
+                    request —{" "}
+                    <Link
+                      href={`/leave-requests?${new URLSearchParams({
+                        deviationType: "UNDERTIME",
+                        date: entry.reportDate.slice(0, 10),
+                        startTime: gap.start,
+                        endTime: gap.end,
+                      })}`}
+                      className="underline"
+                    >
+                      open the request form
+                    </Link>
+                  </p>
+                ))}
               </div>
             </div>
           );
         })}
       </div>
+
+      <AddDayControl
+        weeklyReportId={weeklyReportId}
+        weekEnd={weekEndDate}
+        takenDates={entries.map((e) => e.reportDate.slice(0, 10))}
+        disabled={isPending || hasDirty}
+        onAdded={() => router.refresh()}
+      />
 
       {late && (
         <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-500/20 dark:bg-red-500/10">

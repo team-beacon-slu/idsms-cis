@@ -1,4 +1,4 @@
-import { DeviationType, Program, Role, ValidationStatus, WeeklyReportStatus } from "@prisma/client";
+import { Program, Role, WeeklyReportStatus } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   applyScheduleChangeProspectively,
@@ -7,7 +7,6 @@ import {
   computeTotalHoursRendered,
   configureWorkSchedule,
   exportAttendanceLogCsv,
-  getDeviationReportStudentProfileId,
   getHolidayCalendarForStudent,
   getRequiredHoursConfig,
   getWorkPlanStudentProfileId,
@@ -24,8 +23,6 @@ import {
   MissingScheduleChangeRequestError,
   requestScheduleChange,
   setRequiredHoursConfig,
-  submitDeviationReport,
-  validateDeviationReport,
   validateScheduleChangeFaculty,
   getHoursSummary,
   getFinalReportThreshold,
@@ -51,16 +48,6 @@ describe("attendanceService stubs — reachable and wired correctly", () => {
     await listDeviationReportsForStudent("profile-1");
     expect(prismaMock.deviationReport.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { studentProfileId: "profile-1" } })
-    );
-  });
-
-  it("getDeviationReportStudentProfileId calls prisma with the right id", async () => {
-    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
-      studentProfileId: "profile-1",
-    } as never);
-    await expect(getDeviationReportStudentProfileId("dev-1")).resolves.toBe("profile-1");
-    expect(prismaMock.deviationReport.findUniqueOrThrow).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "dev-1" } })
     );
   });
 
@@ -121,51 +108,6 @@ describe("setRequiredHoursConfig", () => {
       "Write failed"
     );
     expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
-  });
-});
-
-describe("validateDeviationReport", () => {
-  it.each([
-    ["VALIDATE", ValidationStatus.VALIDATED],
-    ["REJECT", ValidationStatus.REJECTED],
-  ] as const)("persists %s with the reviewer and an atomic audit event", async (action, status) => {
-    const saved = { id: "dev-1", validationStatus: status };
-    prismaMock.deviationReport.update.mockResolvedValue(saved as never);
-    await expect(
-      validateDeviationReport("dev-1", "faculty-1", action, "127.0.0.1")
-    ).resolves.toEqual(saved);
-    expect(prismaMock.deviationReport.update).toHaveBeenCalledWith({
-      where: { id: "dev-1" },
-      data: { validationStatus: status, facultyId: "faculty-1" },
-      select: { id: true, validationStatus: true },
-    });
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          userId: "faculty-1",
-          entityId: "dev-1",
-          ipAddress: "127.0.0.1",
-        }),
-      })
-    );
-    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
-    expect(prismaMock.dailyReportEntry.aggregate).not.toHaveBeenCalled();
-  });
-
-  it("propagates missing report errors without logging or changing hours", async () => {
-    prismaMock.deviationReport.update.mockRejectedValue(new Error("Not found"));
-    await expect(validateDeviationReport("missing", "faculty-1", "REJECT")).rejects.toThrow(
-      "Not found"
-    );
-    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
-    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
-  });
-
-  it("rejects unsupported review actions before writing", async () => {
-    await expect(
-      validateDeviationReport("dev-1", "faculty-1", "APPROVE" as "VALIDATE")
-    ).rejects.toThrow("Invalid deviation review action");
-    expect(prismaMock.deviationReport.update).not.toHaveBeenCalled();
   });
 });
 
@@ -234,6 +176,30 @@ describe("configureWorkSchedule", () => {
     expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
       where: { id: "wp-1" },
       data: { scheduleConfig: { daysOfWeek: [1, 2, 3], hoursPerDay: 8 } },
+    });
+    expect(Object.keys(result.scheduleConfig)).toEqual(["daysOfWeek", "hoursPerDay"]);
+  });
+
+  it("persists the shift times when given", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({ id: "wp-1", scheduleConfig: null } as never);
+
+    await configureWorkSchedule(
+      "profile-1",
+      { daysOfWeek: [1], hoursPerDay: 8, startTime: "08:00", endTime: "17:00", breakMinutes: 60 },
+      studentUser
+    );
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: {
+        scheduleConfig: {
+          daysOfWeek: [1],
+          hoursPerDay: 8,
+          startTime: "08:00",
+          endTime: "17:00",
+          breakMinutes: 60,
+        },
+      },
     });
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -319,35 +285,6 @@ describe("holiday calendar (FR-AT-02)", () => {
   });
 });
 
-describe("submitDeviationReport", () => {
-  it("creates a PENDING deviation report and audit-logs it", async () => {
-    prismaMock.deviationReport.create.mockResolvedValue({
-      id: "dev-1",
-      validationStatus: ValidationStatus.PENDING,
-    } as never);
-    const date = new Date("2026-10-05T00:00:00Z");
-
-    const result = await submitDeviationReport(
-      "profile-1",
-      { date, deviationType: DeviationType.ABSENCE, reason: "Sick", proofUrl: "deviations/x.pdf" },
-      studentUser
-    );
-
-    expect(result).toEqual({ id: "dev-1", validationStatus: ValidationStatus.PENDING });
-    expect(prismaMock.deviationReport.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        studentProfileId: "profile-1",
-        deviationType: DeviationType.ABSENCE,
-        proofUrl: "deviations/x.pdf",
-        validationStatus: ValidationStatus.PENDING,
-      }),
-    });
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: "DEVIATION_SUBMITTED" }) })
-    );
-  });
-});
-
 describe("exportAttendanceLogCsv", () => {
   it("emits one row per daily entry and escapes risky values", async () => {
     prismaMock.dailyReportEntry.findMany.mockResolvedValue([
@@ -368,11 +305,27 @@ describe("exportAttendanceLogCsv", () => {
     const csv = await exportAttendanceLogCsv("profile-1");
 
     expect(csv.split("\n")).toEqual([
-      "date,scheduledHours,actualHours,status",
-      "2026-10-05,8,7.5,PRESENT",
-      "2026-10-06,8,,'=HYPERLINK(1)",
+      "date,scheduledHours,actualHours,creditedHours,status",
+      "2026-10-05,8,7.5,7.5,PRESENT",
+      "2026-10-06,8,,,'=HYPERLINK(1)",
       "",
     ]);
+  });
+
+  it("adds a credited-hours column capped by SLU rules", async () => {
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      {
+        reportDate: new Date("2026-10-05T00:00:00Z"),
+        scheduledHours: 8,
+        actualHours: 9,
+        creditedHours: null,
+        attendanceStatus: "PRESENT",
+      },
+    ] as never);
+
+    const csv = await exportAttendanceLogCsv("profile-1");
+
+    expect(csv.split("\n")[1]).toBe("2026-10-05,8,9,8,PRESENT");
   });
 });
 
@@ -399,6 +352,47 @@ describe("requestScheduleChange", () => {
             status: "PENDING_FACULTY",
             reason: "New shift",
             newScheduleConfig: { daysOfWeek: [1, 2], hoursPerDay: 6 },
+          }),
+        ],
+      },
+    });
+  });
+
+  it("keeps the shift times on the requested schedule", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },
+      scheduleChangeHistory: [],
+    } as never);
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({ scheduleChangeHistory: [] } as never);
+
+    await requestScheduleChange(
+      "profile-1",
+      {
+        reason: "New shift",
+        newScheduleConfig: {
+          daysOfWeek: [1],
+          hoursPerDay: 8,
+          startTime: "09:00",
+          endTime: "18:00",
+          breakMinutes: 60,
+        },
+      },
+      studentUser
+    );
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: {
+        scheduleChangeHistory: [
+          expect.objectContaining({
+            newScheduleConfig: {
+              daysOfWeek: [1],
+              hoursPerDay: 8,
+              startTime: "09:00",
+              endTime: "18:00",
+              breakMinutes: 60,
+            },
           }),
         ],
       },
@@ -518,6 +512,20 @@ describe("computeTotalHoursRendered", () => {
     // logEvent" and the function runs on every GET read, so it must not
     // write to auditLog (see the comment above computeTotalHoursRendered).
     expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("sums credited hours: stored values, and legacy rows capped at scheduled", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      {
+        dailyEntries: [
+          { actualHours: 9, scheduledHours: 8, creditedHours: null, attendanceStatus: "PRESENT" },
+          { actualHours: 9.5, scheduledHours: 8, creditedHours: 7.5, attendanceStatus: "PRESENT" },
+        ],
+      },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(15.5);
   });
 
   it("treats a null actualHours (unrecorded day) as 0", async () => {
@@ -738,6 +746,21 @@ describe("getHoursSummary", () => {
       remainingIfPendingApproved: 544,
     });
     expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("pending hours use credited hours too", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValueOnce([] as never).mockResolvedValueOnce([
+      {
+        status: "PENDING",
+        revisionHistory: [{ type: "SUBMITTED", timestamp: "t" }],
+        dailyEntries: [{ actualHours: 10, scheduledHours: 8, creditedHours: null }],
+      },
+    ] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+
+    await expect(getHoursSummary("profile-1")).resolves.toEqual(
+      expect.objectContaining({ pendingHours: 8 })
+    );
   });
 
   it("never reports negative remaining hours", async () => {

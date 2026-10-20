@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
-import { createSemesterSchema } from "@/lib/validators/semester";
+import { createSemesterSchema, semesterWeekOneSchema } from "@/lib/validators/semester";
 
 // Raised when a semester can't make the requested state change; carries a
 // message written for the admin so the UI can show it verbatim.
@@ -23,6 +23,7 @@ export async function listSemesters() {
       endDate: true,
       isActive: true,
       archivedAt: true,
+      weekOneStart: true,
       _count: { select: { students: true } },
     },
   });
@@ -46,6 +47,30 @@ export async function createSemester(
       tx
     );
     return created;
+  });
+}
+
+// Coordinator or Super Admin sets (or clears) the term's Week 1 start.
+export async function setSemesterWeekOne(
+  id: string,
+  input: unknown,
+  actingUserId: string
+): Promise<void> {
+  const { weekOneStart } = semesterWeekOneSchema.parse(input);
+  await prisma.$transaction(async (tx) => {
+    const semester = await getSemesterOrThrow(tx, id);
+    if (semester.archivedAt) throw new SemesterStateError("Archived semesters can't be changed");
+    await tx.semester.update({ where: { id }, data: { weekOneStart } });
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "SEMESTER_WEEK_ONE_SET",
+        entityType: "Semester",
+        entityId: id,
+        detail: { weekOneStart: weekOneStart?.toISOString().slice(0, 10) ?? null },
+      },
+      tx
+    );
   });
 }
 

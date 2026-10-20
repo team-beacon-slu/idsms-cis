@@ -1,12 +1,78 @@
-import { DeviationType } from "@prisma/client";
 import {
-  deviationReportSchema,
-  deviationValidateSchema,
   requiredHoursConfigSchema,
   scheduleChangeRequestSchema,
   scheduleChangeReviewSchema,
+  scheduleConfigFromFormData,
   scheduleConfigSchema,
 } from "@/lib/validators/attendance";
+
+describe("scheduleConfigSchema shift times", () => {
+  const base = { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 };
+
+  it("accepts start, end and break", () => {
+    const r = scheduleConfigSchema.parse({
+      ...base,
+      startTime: "08:00",
+      endTime: "17:00",
+      breakMinutes: 60,
+    });
+    expect(r).toMatchObject({ startTime: "08:00", endTime: "17:00", breakMinutes: 60 });
+  });
+
+  it("rejects an end time that is not after the start time", () => {
+    expect(() =>
+      scheduleConfigSchema.parse({ ...base, startTime: "17:00", endTime: "08:00" })
+    ).toThrow();
+  });
+
+  it("rejects only one of start and end", () => {
+    expect(() => scheduleConfigSchema.parse({ ...base, startTime: "08:00" })).toThrow();
+  });
+
+  it("rejects a break outside 0–240 minutes", () => {
+    expect(() =>
+      scheduleConfigSchema.parse({
+        ...base,
+        startTime: "08:00",
+        endTime: "17:00",
+        breakMinutes: 241,
+      })
+    ).toThrow();
+  });
+
+  it("carries the shift fields through a change request", () => {
+    const r = scheduleChangeRequestSchema.parse({
+      reason: "New shift",
+      newScheduleConfig: { ...base, startTime: "09:00", endTime: "18:00", breakMinutes: 60 },
+    });
+    expect(r.newScheduleConfig.startTime).toBe("09:00");
+  });
+});
+
+describe("scheduleConfigFromFormData", () => {
+  it("passes the shift keys through", () => {
+    const fd = new FormData();
+    fd.set("daysOfWeek", "1,2");
+    fd.set("hoursPerDay", "8");
+    fd.set("startTime", "08:00");
+    fd.set("endTime", "17:00");
+    fd.set("breakMinutes", "60");
+    expect(scheduleConfigFromFormData(fd)).toEqual({
+      daysOfWeek: [1, 2],
+      hoursPerDay: 8,
+      startTime: "08:00",
+      endTime: "17:00",
+      breakMinutes: 60,
+    });
+  });
+
+  it("omits shift keys that were not sent", () => {
+    const fd = new FormData();
+    fd.set("daysOfWeek", "1");
+    fd.set("hoursPerDay", "4");
+    expect(scheduleConfigFromFormData(fd)).toEqual({ daysOfWeek: [1], hoursPerDay: 4 });
+  });
+});
 
 describe("scheduleConfigSchema", () => {
   it("accepts a valid schedule", () => {
@@ -50,33 +116,6 @@ describe("scheduleChangeReviewSchema", () => {
 
   it("rejects an unknown action", () => {
     expect(() => scheduleChangeReviewSchema.parse({ action: "MAYBE" })).toThrow();
-  });
-});
-
-describe("deviationReportSchema", () => {
-  it("accepts a valid deviation", () => {
-    const result = deviationReportSchema.parse({
-      date: "2026-08-20",
-      deviationType: DeviationType.ABSENCE,
-      reason: "Sick",
-    });
-    expect(result.deviationType).toBe(DeviationType.ABSENCE);
-  });
-
-  it("rejects an empty reason", () => {
-    expect(() =>
-      deviationReportSchema.parse({
-        date: "2026-08-20",
-        deviationType: DeviationType.ABSENCE,
-        reason: "",
-      })
-    ).toThrow();
-  });
-});
-
-describe("deviationValidateSchema", () => {
-  it("accepts VALIDATE and REJECT", () => {
-    expect(deviationValidateSchema.parse({ action: "VALIDATE" }).action).toBe("VALIDATE");
   });
 });
 

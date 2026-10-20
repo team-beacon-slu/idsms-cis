@@ -167,6 +167,37 @@ describe("getComplianceRows", () => {
     expect(row.status).not.toBe("COMPLETED");
   });
 
+  it("confirms credited hours, not raw hours", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      profile({
+        requiredHours: 100,
+        weeklyReports: [
+          {
+            weekStart: new Date("2026-09-28T00:00:00Z"),
+            status: "APPROVED",
+            revisionHistory: [],
+            dailyEntries: [
+              {
+                actualHours: 9,
+                scheduledHours: 8,
+                creditedHours: null,
+                attendanceStatus: "PRESENT",
+              },
+              {
+                actualHours: 9,
+                scheduledHours: 8,
+                creditedHours: 8.5,
+                attendanceStatus: "PRESENT",
+              },
+            ],
+          },
+        ],
+      }),
+    ] as never);
+    const [row] = await getComplianceRows({ kind: "department", semesterId: "sem-1" }, NOW);
+    expect(row.confirmedHours).toBe(16.5);
+  });
+
   it("marks COMPLETED once confirmed hours reach the requirement and caps percent at 100", async () => {
     prismaMock.studentProfile.findMany.mockResolvedValue([
       profile({

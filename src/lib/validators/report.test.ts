@@ -169,6 +169,56 @@ describe("dailyEntrySchema attendance status and times", () => {
   });
 });
 
+describe("dailyEntrySchema second time range", () => {
+  const present = { ...base, accomplishments: "x" };
+
+  it("accepts a morning and an afternoon range", () => {
+    const r = dailyEntrySchema.safeParse({
+      ...present,
+      hours: 8,
+      timeIn: "08:00",
+      timeOut: "12:00",
+      timeIn2: "13:00",
+      timeOut2: "17:00",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects overlapping ranges", () => {
+    const r = dailyEntrySchema.safeParse({
+      ...present,
+      hours: 6,
+      timeIn: "08:00",
+      timeOut: "12:30",
+      timeIn2: "12:00",
+      timeOut2: "17:00",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects hours above the summed windows", () => {
+    const r = dailyEntrySchema.safeParse({
+      ...present,
+      hours: 8.5,
+      timeIn: "08:00",
+      timeOut: "12:00",
+      timeIn2: "13:00",
+      timeOut2: "17:00",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a second range without the first", () => {
+    const r = dailyEntrySchema.safeParse({
+      ...present,
+      hours: 4,
+      timeIn2: "13:00",
+      timeOut2: "17:00",
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
 describe("minutesBetween", () => {
   it("counts minutes between HH:MM times", () => {
     expect(minutesBetween("08:00", "17:30")).toBe(570);

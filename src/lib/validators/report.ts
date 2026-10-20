@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { timeOfDay } from "@/lib/utils/timeMath";
 
 export const weeklyReportGenerateSchema = z.object({
   weekStart: z.coerce.date(),
@@ -13,7 +14,7 @@ export function isAttendanceStatus(value: string): value is AttendanceStatus {
   return (ATTENDANCE_STATUSES as readonly string[]).includes(value);
 }
 
-const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24-hour)");
+export { timeOfDay };
 
 export function minutesBetween(timeIn: string, timeOut: string): number {
   const [inH, inM] = timeIn.split(":").map(Number);
@@ -30,6 +31,8 @@ export const dailyEntrySchema = z
     attendanceStatus: z.enum(ATTENDANCE_STATUSES).default("PRESENT"),
     timeIn: timeOfDay.optional(),
     timeOut: timeOfDay.optional(),
+    timeIn2: timeOfDay.optional(),
+    timeOut2: timeOfDay.optional(),
   })
   .refine((d) => d.attendanceStatus !== "PRESENT" || d.accomplishments.length > 0, {
     message: "Accomplishments are required",
@@ -44,9 +47,36 @@ export const dailyEntrySchema = z
     path: ["timeOut"],
   })
   .refine(
-    (d) => !d.timeIn || !d.timeOut || d.hours * 60 <= minutesBetween(d.timeIn, d.timeOut) + 0.5,
-    { message: "Hours can't exceed the time between time in and time out", path: ["hours"] }
-  );
+    (d) => (!d.timeIn2 && !d.timeOut2) || (d.timeIn && d.timeOut && d.timeIn2 && d.timeOut2),
+    {
+      message: "Fill in the first time range before adding a second",
+      path: ["timeIn2"],
+    }
+  )
+  .refine((d) => !d.timeIn2 || !d.timeOut2 || minutesBetween(d.timeIn2, d.timeOut2) > 0, {
+    message: "Time out must be after time in",
+    path: ["timeOut2"],
+  })
+  .refine((d) => !d.timeOut || !d.timeIn2 || minutesBetween(d.timeOut, d.timeIn2) >= 0, {
+    message: "The second time range must start after the first one ends",
+    path: ["timeIn2"],
+  })
+  .refine((d) => !d.timeIn || !d.timeOut || d.hours * 60 <= rangeMinutes(d) + 0.5, {
+    message: "Hours can't exceed the time between time in and time out",
+    path: ["hours"],
+  });
+
+// Total minutes across the day's one or two time ranges.
+export function rangeMinutes(d: {
+  timeIn?: string | null;
+  timeOut?: string | null;
+  timeIn2?: string | null;
+  timeOut2?: string | null;
+}): number {
+  const first = d.timeIn && d.timeOut ? minutesBetween(d.timeIn, d.timeOut) : 0;
+  const second = d.timeIn2 && d.timeOut2 ? minutesBetween(d.timeIn2, d.timeOut2) : 0;
+  return first + second;
+}
 
 export const weeklyReportSubmitSchema = z.object({
   reasonForDelay: z.string().min(1).optional(),

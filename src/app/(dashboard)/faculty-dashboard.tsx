@@ -1,5 +1,7 @@
-import { ClipboardCheck, Download, Send, Users, UserX } from "lucide-react";
+import Link from "next/link";
+import { CalendarOff, ClipboardCheck, Download, Send, Users, UserX } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { countRequestsAwaitingReview } from "@/lib/services/attentionService";
 import { getComplianceRows, summarize } from "@/lib/services/complianceService";
 import { ComplianceTable } from "@/components/compliance-table";
 import { StatCard } from "@/components/stat-card";
@@ -16,10 +18,11 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
     prisma.facultyClassGroup.findMany({
       // Same scope as the KPIs: archived semesters are last term's cohort.
       where: { facultyId, semester: { archivedAt: null } },
-      select: { classGroupId: true, classGroup: { select: { name: true } } },
+      select: { classGroupId: true, semesterId: true, classGroup: { select: { name: true } } },
     }),
   ]);
   const summary = summarize(rows);
+  const requestsAwaiting = await countRequestsAwaitingReview(assigned);
   // One bulk button per class group, even if advised across several semesters.
   const groupNames = new Map(assigned.map((g) => [g.classGroupId, g.classGroup.name]));
 
@@ -46,6 +49,17 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
           tone={summary.notYetSubmitted > 0 ? "red" : "slate"}
         />
       </div>
+
+      {requestsAwaiting > 0 && (
+        <Link
+          href="/my-students"
+          className="flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 transition-colors duration-200 hover:bg-amber-100 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+        >
+          <CalendarOff className="size-4" aria-hidden="true" />
+          {requestsAwaiting} leave / time {requestsAwaiting === 1 ? "request" : "requests"} awaiting
+          your review — open a student&apos;s Leave &amp; Time Requests tab
+        </Link>
+      )}
 
       <Card>
         <CardHeader>

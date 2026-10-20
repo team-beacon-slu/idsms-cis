@@ -6,7 +6,11 @@ import {
   requestScheduleChange,
 } from "@/lib/services/attendanceService";
 import { CHECKLIST_BUCKET, uploadFile, validateUpload } from "@/lib/storage";
-import { scheduleChangeRequestSchema, scheduleConfigSchema } from "@/lib/validators/attendance";
+import {
+  scheduleChangeRequestSchema,
+  scheduleConfigFromFormData,
+  scheduleConfigSchema,
+} from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
@@ -42,13 +46,9 @@ export async function PATCH(
     let supportingFile: File | null = null;
     if (req.headers.get("content-type")?.includes("multipart/form-data")) {
       const formData = await req.formData();
-      const days = String(formData.get("daysOfWeek") ?? "");
       raw = {
         reason: formData.get("reason"),
-        newScheduleConfig: {
-          daysOfWeek: days ? days.split(",").map(Number) : [],
-          hoursPerDay: Number(formData.get("hoursPerDay")),
-        },
+        newScheduleConfig: scheduleConfigFromFormData(formData),
       };
       const file = formData.get("file");
       if (file instanceof File && file.size > 0) {

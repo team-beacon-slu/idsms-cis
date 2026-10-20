@@ -156,18 +156,28 @@ export async function notifyWorkPlanReviewed(
   });
 }
 
-// 11
-export async function notifyDeviationValidated(
+const REQUEST_LABEL: Record<string, string> = {
+  ABSENCE: "leave",
+  OVERTIME: "overtime",
+  UNDERTIME: "undertime",
+};
+
+// 11 (Workstream L1): leave / OT / UT request approved or returned.
+export async function notifyTimeRequestReviewed(
   studentProfileId: string,
-  action: "VALIDATE" | "REJECT"
+  action: "APPROVE" | "RETURN",
+  request: { deviationType: string; date: Date },
+  note?: string
 ) {
+  const kind = REQUEST_LABEL[request.deviationType] ?? "time";
+  const day = request.date.toISOString().slice(0, 10);
   await toStudent(studentProfileId, {
-    trigger: "DEVIATION_VALIDATED",
-    title: `Deviation report ${action === "VALIDATE" ? "validated" : "rejected"}`,
+    trigger: action === "APPROVE" ? "DEVIATION_VALIDATED" : "REQUEST_RETURNED",
+    title: `Your ${kind} request for ${day} was ${action === "APPROVE" ? "approved" : "returned"}`,
     body:
-      action === "VALIDATE"
-        ? "Your deviation report was validated."
-        : "Your deviation report was rejected — contact your faculty adviser if needed.",
-    link: `/students/${studentProfileId}/attendance`,
+      action === "APPROVE"
+        ? `Your ${kind} request for ${day} was approved.`
+        : `Your adviser returned your ${kind} request for ${day}: ${note ?? ""} Edit it and resubmit.`,
+    link: `/students/${studentProfileId}/leave-requests`,
   });
 }

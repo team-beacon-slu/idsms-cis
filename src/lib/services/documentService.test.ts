@@ -52,8 +52,10 @@ const submitted = {
   reasonForDelay: null,
   weekStart: new Date("2026-10-05T00:00:00Z"),
   weekEnd: new Date("2026-10-11T00:00:00Z"),
+  weekNumber: 1,
   dueDate: new Date("2026-10-13T00:00:00Z"),
   student: {
+    name: "Student, Test",
     email: "s@x",
     studentNumber: "1",
     program: "BSIT",
@@ -62,7 +64,9 @@ const submitted = {
   },
   company: null,
   entries: [],
-  totals: { totalHours: 0, runningTotal: 0, remainingHours: 600 },
+  overtime: [],
+  undertime: [],
+  totals: { totalHours: 0, runningTotal: 0, remainingHours: 600, beginning: 0, ending: 0 },
 };
 
 beforeEach(() => {

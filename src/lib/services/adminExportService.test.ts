@@ -122,7 +122,8 @@ describe("attendance", () => {
         timeIn: "08:00",
         timeOut: "17:00",
         scheduledHours: 8,
-        actualHours: 8,
+        actualHours: 9,
+        creditedHours: null,
         weeklyReport: { studentProfile: { studentNumber: "2021-0001" } },
       },
     ] as never);
@@ -146,7 +147,9 @@ describe("attendance", () => {
       "Time in": "08:00",
       "Time out": "17:00",
       "Scheduled hours": 8,
-      "Actual hours": 8,
+      "Actual hours": 9,
+      // legacy row: no excess without an approved OT
+      "Credited hours": 8,
     });
   });
 

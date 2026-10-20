@@ -1,5 +1,25 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
-import { getAttentionItems } from "@/lib/services/attentionService";
+import { countRequestsAwaitingReview, getAttentionItems } from "@/lib/services/attentionService";
+
+describe("countRequestsAwaitingReview", () => {
+  it("counts pending requests across the adviser's groups", async () => {
+    prismaMock.deviationReport.count.mockResolvedValue(3);
+    await expect(
+      countRequestsAwaitingReview([{ classGroupId: "cg-1", semesterId: "s-1" }])
+    ).resolves.toBe(3);
+    expect(prismaMock.deviationReport.count).toHaveBeenCalledWith({
+      where: {
+        validationStatus: "PENDING",
+        studentProfile: { OR: [{ classGroupId: "cg-1", semesterId: "s-1" }] },
+      },
+    });
+  });
+
+  it("is 0 without any assigned group", async () => {
+    await expect(countRequestsAwaitingReview([])).resolves.toBe(0);
+    expect(prismaMock.deviationReport.count).not.toHaveBeenCalled();
+  });
+});
 
 beforeEach(() => resetPrismaMock());
 

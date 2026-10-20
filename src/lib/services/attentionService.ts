@@ -51,3 +51,19 @@ export async function getAttentionItems(
     incompleteChecklistItems: Math.max(0, CHECKLIST_ITEM_COUNT - approvedChecklist),
   };
 }
+
+// Workstream L1: leave / OT / UT requests awaiting a faculty adviser's review,
+// across the (class group, semester) pairs they advise.
+export async function countRequestsAwaitingReview(
+  assigned: { classGroupId: string; semesterId: string }[]
+): Promise<number> {
+  if (assigned.length === 0) return 0;
+  return prisma.deviationReport.count({
+    where: {
+      validationStatus: ValidationStatus.PENDING,
+      studentProfile: {
+        OR: assigned.map(({ classGroupId, semesterId }) => ({ classGroupId, semesterId })),
+      },
+    },
+  });
+}

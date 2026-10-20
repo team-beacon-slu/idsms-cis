@@ -7,7 +7,7 @@ export interface MonthlyReportDocumentData {
   calendarMonth: string; // "YYYY-MM"
   referenceCode: string;
   generatedAt: Date;
-  student: WeeklyReportDocumentData["student"];
+  student: Omit<WeeklyReportDocumentData["student"], "name">;
   company: WeeklyReportDocumentData["company"];
   weeks: { weekStart: Date; weekEnd: Date; status: string; totalHours: number }[];
   approvedHours: number;

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/services/userService";
 import { getLatestSubmission, isAwaitingReview } from "@/lib/services/weeklyReportService";
 import { CHECKLIST_REQUIRED } from "@/lib/utils/checklist";
+import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
 import { formatManilaDateTime } from "@/lib/utils/excelExport";
 import {
   addDays,
@@ -171,7 +172,7 @@ export async function getComplianceRows(
           weekStart: true,
           status: true,
           revisionHistory: true,
-          dailyEntries: { select: { actualHours: true } },
+          dailyEntries: { select: CREDITED_HOURS_SELECT },
         },
       },
     },
@@ -180,12 +181,11 @@ export async function getComplianceRows(
 
   return students.map((s) => {
     // Same rule as calculateRenderedHours: only APPROVED + REGARDED reports count.
-    let hours = 0;
-    for (const report of s.weeklyReports) {
-      if (!CONFIRMING_STATUSES.has(report.status)) continue;
-      for (const entry of report.dailyEntries) hours += Number(entry.actualHours ?? 0);
-    }
-    const confirmedHours = Math.round(hours * 100) / 100;
+    const confirmedHours = sumCreditedHours(
+      s.weeklyReports
+        .filter((report) => CONFIRMING_STATUSES.has(report.status))
+        .flatMap((report) => report.dailyEntries)
+    );
     const hoursPercent =
       s.requiredHours > 0 ? Math.min(100, Math.round((confirmedHours / s.requiredHours) * 100)) : 0;
 
@@ -260,7 +260,7 @@ export async function getWeeklySummaryRows(
         select: {
           status: true,
           revisionHistory: true,
-          dailyEntries: { select: { actualHours: true } },
+          dailyEntries: { select: CREDITED_HOURS_SELECT },
         },
       },
     },
@@ -269,8 +269,7 @@ export async function getWeeklySummaryRows(
 
   return students.map((s) => {
     const report = s.weeklyReports[0];
-    let hours = 0;
-    for (const entry of report?.dailyEntries ?? []) hours += Number(entry.actualHours ?? 0);
+    const hours = sumCreditedHours(report?.dailyEntries ?? []);
 
     const submission = report ? getLatestSubmission(report.revisionHistory) : null;
     const submittedInstant = submission ? new Date(submission.timestamp) : null;

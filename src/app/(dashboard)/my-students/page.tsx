@@ -1,7 +1,15 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Role } from "@prisma/client";
-import { Users, ClipboardCheck, NotebookText, Clock, FileText, FileBarChart } from "lucide-react";
+import {
+  Users,
+  ClipboardCheck,
+  NotebookText,
+  Clock,
+  CalendarOff,
+  FileText,
+  FileBarChart,
+} from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +29,7 @@ const ACTION_LINKS = [
   { suffix: "checklist", label: "Checklist", icon: ClipboardCheck },
   { suffix: "work-plan", label: "Work Plan", icon: NotebookText },
   { suffix: "attendance", label: "Attendance", icon: Clock },
+  { suffix: "leave-requests", label: "Leave & Time Requests", icon: CalendarOff },
   { suffix: "weekly-reports", label: "Weekly Reports", icon: FileText },
   { suffix: "monthly-reports", label: "Monthly Reports", icon: FileBarChart },
 ] as const;

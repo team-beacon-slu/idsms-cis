@@ -1,12 +1,10 @@
 // Attendance & schedule configuration, deviation reports, hour computation,
 // mid-internship schedule changes. See PRD Module 5 (FR-AT-*).
 import {
-  DeviationType,
   Prisma,
   PrismaClient,
   Program,
   Role,
-  ValidationStatus,
   WeeklyReportStatus,
   WorkPlanStatus,
 } from "@prisma/client";
@@ -16,10 +14,30 @@ import { logEvent } from "@/lib/services/auditService";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
+import {
+  CREDITED_HOURS_SELECT,
+  entryCreditedHours,
+  sumCreditedHours,
+} from "@/lib/utils/creditedHours";
 
 export interface ConfigureWorkScheduleInput {
   daysOfWeek: number[]; // 0=Sunday..6=Saturday
   hoursPerDay: number;
+  startTime?: string; // "HH:MM" Manila, shift start
+  endTime?: string;
+  breakMinutes?: number;
+}
+
+// De-duplicates and sorts the days; shift keys are kept only when set so
+// legacy schedules keep their two-key shape.
+function normalizeSchedule(input: ConfigureWorkScheduleInput): ConfigureWorkScheduleInput {
+  return {
+    daysOfWeek: Array.from(new Set(input.daysOfWeek)).sort((a, b) => a - b),
+    hoursPerDay: input.hoursPerDay,
+    ...(input.startTime ? { startTime: input.startTime } : {}),
+    ...(input.endTime ? { endTime: input.endTime } : {}),
+    ...(input.breakMinutes != null ? { breakMinutes: input.breakMinutes } : {}),
+  };
 }
 
 // Thrown by the schedule functions below when the student has no APPROVED
@@ -91,10 +109,7 @@ export async function configureWorkSchedule(
 ): Promise<{ studentProfileId: string; scheduleConfig: ConfigureWorkScheduleInput }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
 
-  const scheduleConfig: ConfigureWorkScheduleInput = {
-    daysOfWeek: Array.from(new Set(input.daysOfWeek)).sort((a, b) => a - b),
-    hoursPerDay: input.hoursPerDay,
-  };
+  const scheduleConfig = normalizeSchedule(input);
 
   return prisma.$transaction(async (tx) => {
     const workPlan = await tx.workPlan.findFirst({
@@ -261,61 +276,6 @@ export async function markHolidayApplicable(
     return { holidayEntryId, applicable };
   });
 }
-
-export interface SubmitDeviationReportInput {
-  date: Date;
-  deviationType: DeviationType;
-  reason: string;
-  proofUrl?: string;
-}
-
-// FR-AT-03 — Owner: KennethRusselAvaricio
-// Requirement: absences/undertime/overtime submitted via a structured
-// deviation report form with date, reason category, and optional proof upload.
-// Connects to: called by POST /api/students/[studentProfileId]/deviations
-// (Task 10 route, which also handles the file upload via
-// `src/lib/storage.ts`'s `uploadFile`, Phase 2 pattern, before calling this).
-// Creates a `DeviationReport` row (`deviation_reports` table) — fields
-// `date`, `deviationType` (`DeviationType` enum: ABSENCE/OVERTIME/UNDERTIME),
-// `reason`, `proofUrl`, `validationStatus` (start `PENDING`). Log via
-// `logEvent({ action: "DEVIATION_SUBMITTED", entityType: "DeviationReport" })`.
-// Edge cases: none beyond the standard $transaction + logEvent pattern.
-export async function submitDeviationReport(
-  studentProfileId: string,
-  input: SubmitDeviationReportInput,
-  actingUser: { id: string; role: Role },
-  ipAddress?: string | null
-): Promise<{ id: string; validationStatus: ValidationStatus }> {
-  await assertCanAccessStudent(actingUser, studentProfileId);
-
-  return prisma.$transaction(async (tx) => {
-    const deviationReport = await tx.deviationReport.create({
-      data: {
-        studentProfileId,
-        date: input.date,
-        deviationType: input.deviationType,
-        reason: input.reason,
-        proofUrl: input.proofUrl ?? null,
-        validationStatus: ValidationStatus.PENDING,
-      },
-    });
-
-    await logEvent(
-      {
-        userId: actingUser.id,
-        action: "DEVIATION_SUBMITTED",
-        entityType: "DeviationReport",
-        entityId: deviationReport.id,
-        ipAddress,
-        detail: { deviationType: input.deviationType, date: input.date.toISOString() },
-      },
-      tx
-    );
-
-    return { id: deviationReport.id, validationStatus: deviationReport.validationStatus };
-  });
-}
-
 // Storage object paths for student-uploaded attendance documents. No
 // dedicated bucket was provisioned for Phase 3 (see
 // prisma/migrations_manual/003_storage_buckets.sql), so these live in the
@@ -349,70 +309,13 @@ export async function listDeviationReportsForStudent(studentProfileId: string) {
   });
 }
 
-// Trivial read — not a stub. Resolves the owning student for a
-// DeviationReport id, same reason and same pattern as
-// `getWorkPlanStudentProfileId` below: a `deviationReportId` alone carries
-// no ownership information, so PATCH /api/deviations/[id]/validate
-// (Task 10) must call this before `assertCanAccessStudent`.
-export async function getDeviationReportStudentProfileId(
-  deviationReportId: string
-): Promise<string> {
-  const deviationReport = await prisma.deviationReport.findUniqueOrThrow({
-    where: { id: deviationReportId },
-    select: { studentProfileId: true },
-  });
-  return deviationReport.studentProfileId;
-}
-
-// FR-AT-04 — Owner: KennethRusselAvaricio
-// Requirement: all deviation reports must be validated by the faculty
-// adviser before affecting hour computation.
-// Connects to: called by PATCH /api/deviations/[id]/validate (Task 10
-// route, Faculty/Coordinator/Admin-gated). Sets
-// `DeviationReport.validationStatus` (`ValidationStatus` enum:
-// PENDING/VALIDATED/REJECTED — note it is VALIDATED, not APPROVED) and
-// `DeviationReport.facultyId`. Downstream: `computeTotalHoursRendered`
-// below must filter on `validationStatus === VALIDATED` only.
-// Edge cases: a REJECTED row must never be readable by
-// `computeTotalHoursRendered` — this is the whole point of the gate.
-export async function validateDeviationReport(
-  deviationReportId: string,
-  facultyId: string,
-  action: "VALIDATE" | "REJECT",
-  ipAddress?: string | null
-): Promise<{ id: string; validationStatus: ValidationStatus }> {
-  if (action !== "VALIDATE" && action !== "REJECT") {
-    throw new Error("Invalid deviation review action");
-  }
-  const validationStatus =
-    action === "VALIDATE" ? ValidationStatus.VALIDATED : ValidationStatus.REJECTED;
-
-  return prisma.$transaction(async (tx) => {
-    const result = await tx.deviationReport.update({
-      where: { id: deviationReportId },
-      data: { validationStatus, facultyId },
-      select: { id: true, validationStatus: true },
-    });
-    await logEvent(
-      {
-        userId: facultyId,
-        action: `DEVIATION_REPORT_${validationStatus}`,
-        entityType: "DeviationReport",
-        entityId: deviationReportId,
-        ipAddress,
-        detail: { validationStatus },
-      },
-      tx
-    );
-    return result;
-  });
-}
-
 // FR-AT-05 — Owner: JayPing23 (Danielle)
 // Requirement: automatically compute total hours rendered, based only on
 // validated attendance data. This is the system's central value metric —
 // every other module's "hours" display reads from this.
-// Connects to: reads `DailyReportEntry.actualHours` (via `WeeklyReport`,
+// Workstream L1: sums SLU-credited hours (`entryCreditedHours`), not raw
+// `actualHours`; the "SCHEMA GAP" note below predates the OT request minutes.
+// Connects to: reads `DailyReportEntry` hours (via `WeeklyReport`,
 // only rows with `WeeklyReportStatus` APPROVED or REGARDED — see
 // `weeklyReportService.ts`'s review actions, Task 4) plus `DeviationReport`
 // rows with `validationStatus === VALIDATED` (`deviationType` OVERTIME
@@ -448,18 +351,11 @@ export async function calculateRenderedHours(
       studentProfileId,
       status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
     },
-    select: { dailyEntries: { select: { actualHours: true } } },
+    select: { dailyEntries: { select: CREDITED_HOURS_SELECT } },
   });
 
-  const totalHours = approvedWeeklyReports.reduce((sum, report) => {
-    const dayHours = report.dailyEntries.reduce(
-      (daySum, entry) => daySum + Number(entry.actualHours ?? 0),
-      0
-    );
-    return sum + dayHours;
-  }, 0);
-
-  return Math.round(totalHours * 100) / 100;
+  // Workstream L1: credited hours (SLU rules), not raw time worked.
+  return sumCreditedHours(approvedWeeklyReports.flatMap((report) => report.dailyEntries));
 }
 
 // No `logEvent` call here on purpose: this contract (unlike the file's other
@@ -633,7 +529,7 @@ export async function exportAttendanceLogCsv(studentProfileId: string): Promise<
   const entries = await prisma.dailyReportEntry.findMany({
     where: { weeklyReport: { studentProfileId } },
     orderBy: { reportDate: "asc" },
-    select: { reportDate: true, scheduledHours: true, actualHours: true, attendanceStatus: true },
+    select: { reportDate: true, ...CREDITED_HOURS_SELECT },
   });
 
   const rows = entries.map((entry) =>
@@ -641,13 +537,14 @@ export async function exportAttendanceLogCsv(studentProfileId: string): Promise<
       entry.reportDate.toISOString().slice(0, 10),
       Number(entry.scheduledHours).toString(),
       entry.actualHours == null ? "" : Number(entry.actualHours).toString(),
+      entry.actualHours == null ? "" : entryCreditedHours(entry).toString(),
       entry.attendanceStatus,
     ]
       .map(escapeCsvField)
       .join(",")
   );
 
-  return ["date,scheduledHours,actualHours,status", ...rows].join("\n") + "\n";
+  return ["date,scheduledHours,actualHours,creditedHours,status", ...rows].join("\n") + "\n";
 }
 
 // RFC 4180 quoting, plus a leading-apostrophe guard so a value opening with
@@ -699,10 +596,7 @@ export async function requestScheduleChange(
 ): Promise<{ workPlanId: string; status: "PENDING_FACULTY" }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
 
-  const newScheduleConfig: ConfigureWorkScheduleInput = {
-    daysOfWeek: Array.from(new Set(input.newScheduleConfig.daysOfWeek)).sort((a, b) => a - b),
-    hoursPerDay: input.newScheduleConfig.hoursPerDay,
-  };
+  const newScheduleConfig = normalizeSchedule(input.newScheduleConfig);
 
   return prisma.$transaction(async (tx) => {
     const workPlan = await tx.workPlan.findFirst({
@@ -1026,7 +920,7 @@ export async function getHoursSummary(studentProfileId: string): Promise<HoursSu
       select: {
         status: true,
         revisionHistory: true,
-        dailyEntries: { select: { actualHours: true } },
+        dailyEntries: { select: CREDITED_HOURS_SELECT },
       },
     }),
     prisma.studentProfile.findUniqueOrThrow({
@@ -1042,10 +936,7 @@ export async function getHoursSummary(studentProfileId: string): Promise<HoursSu
           (r) =>
             r.status === WeeklyReportStatus.PENDING && isSubmittedAwaitingReview(r.revisionHistory)
         )
-        .reduce(
-          (sum, r) => sum + r.dailyEntries.reduce((s, e) => s + Number(e.actualHours ?? 0), 0),
-          0
-        ) * 100
+        .reduce((sum, r) => sum + sumCreditedHours(r.dailyEntries), 0) * 100
     ) / 100;
 
   const required = profile.requiredHours;

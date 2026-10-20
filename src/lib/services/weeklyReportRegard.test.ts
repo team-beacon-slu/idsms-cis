@@ -12,6 +12,11 @@ const projection = jest.mocked(computeProjectedCompletionDate);
 beforeEach(() => {
   resetPrismaMock();
   jest.clearAllMocks();
+  // Regard needs a submitted report awaiting review.
+  prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+    status: WeeklyReportStatus.PENDING,
+    revisionHistory: [{ type: "SUBMITTED", timestamp: "t0" }],
+  } as never);
 });
 
 it("records REGARDED and refreshes hours and completion for the report's owner", async () => {
