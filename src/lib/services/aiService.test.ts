@@ -1,4 +1,9 @@
-import { AiProviderError, classifySentiment, embedText } from "@/lib/services/aiService";
+import {
+  AiProviderError,
+  classifySentiment,
+  embedText,
+  embedTexts,
+} from "@/lib/services/aiService";
 
 const fetchMock = jest.fn();
 const ENV = { ...process.env };
@@ -30,6 +35,23 @@ it("scrubs PII before sending", async () => {
   fetchMock.mockResolvedValue(ok({ embedding: { values: Array(768).fill(0) } }));
   await embedText("Email me at juan@slu.edu.ph");
   expect(fetchMock.mock.calls[0][1].body).not.toContain("juan@slu.edu.ph");
+});
+
+it("embeds many texts in one batch call, scrubbed, in order", async () => {
+  fetchMock.mockResolvedValue(
+    ok({ embeddings: [{ values: Array(768).fill(1) }, { values: Array(768).fill(2) }] })
+  );
+  const vs = await embedTexts(["Day one", "Mail juan@slu.edu.ph"]);
+  expect(vs.map((v) => v[0])).toEqual([1, 2]);
+  const [url, init] = fetchMock.mock.calls[0];
+  expect(url).toContain("gemini-embedding-001:batchEmbedContents");
+  expect(init.body).not.toContain("juan@slu.edu.ph");
+  expect(JSON.parse(init.body).requests).toHaveLength(2);
+});
+
+it("rejects a batch with the wrong number of embeddings", async () => {
+  fetchMock.mockResolvedValue(ok({ embeddings: [{ values: Array(768).fill(1) }] }));
+  await expect(embedTexts(["a", "b"])).rejects.toThrow(AiProviderError);
 });
 
 it("rejects a wrong-dimension embedding", async () => {

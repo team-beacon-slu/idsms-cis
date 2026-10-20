@@ -53,6 +53,12 @@ export async function previewThreshold(threshold: number): Promise<EvalResult> {
 // NFR-AI-03 step 2: confirm — stores threshold + its eval, audit-logged.
 export async function setThreshold(threshold: number, actingUserId: string): Promise<EvalResult> {
   const result = await previewThreshold(threshold);
+  // NFR-AI-02 holds while AI runs: no switching to a failing threshold.
+  if ((await getAiSettings()).enabled && !result.passes) {
+    throw new AiConfigError(
+      "This threshold fails the precision/recall targets (NFR-AI-02). Disable AI first, or pick a passing value"
+    );
+  }
   await upsertConfig(AI_KEYS.threshold, threshold, actingUserId);
   await upsertConfig(AI_KEYS.lastEval, result, actingUserId);
   await logEvent({
@@ -80,11 +86,7 @@ export async function setAiEnabled(
       throw new AiConfigError("Record who approved the data-privacy basis (D5) before enabling AI");
     }
     const settings = await getAiSettings();
-    const evalRow = await prisma.systemConfig.findUnique({
-      where: { configKey: AI_KEYS.lastEval },
-      select: { configValue: true },
-    });
-    const lastEval = evalRow?.configValue as unknown as EvalResult | undefined;
+    const lastEval = settings.lastEval;
     if (!lastEval?.passes || lastEval.threshold !== settings.similarityThreshold) {
       throw new AiConfigError(
         "A passing golden-set evaluation (≥80% precision, ≥70% recall, ≥30 pairs) at the current threshold is required (NFR-AI-02)"

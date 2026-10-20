@@ -13,12 +13,13 @@ export function getAdvisoryView(
   },
   settings: AiSettings
 ) {
+  // Turning AI off (e.g. privacy approval withdrawn) hides cached advisories too.
+  if (!settings.enabled) return { similarity: null, sentiment: null, pending: false };
   const confidence = report.sentimentConfidence == null ? null : Number(report.sentimentConfidence);
+  const score = report.similarityScore == null ? null : Number(report.similarityScore);
   return {
-    similarity:
-      report.similarityFlag && report.similarityScore != null
-        ? { score: Number(report.similarityScore) }
-        : null,
+    // Compared with the current threshold, so recalibrating applies to old reports too.
+    similarity: score !== null && score > settings.similarityThreshold ? { score } : null,
     sentiment:
       report.sentimentLabel && confidence !== null && confidence >= settings.minSentimentConfidence
         ? { label: report.sentimentLabel, confidence, reasoning: report.sentimentReasoning }

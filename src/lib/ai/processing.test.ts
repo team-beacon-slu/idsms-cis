@@ -1,12 +1,12 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 
 jest.mock("@/lib/services/aiService", () => ({
-  embedText: jest.fn(),
+  embedTexts: jest.fn(),
   classifySentiment: jest.fn(),
 }));
 jest.mock("@/lib/ai/settings", () => ({ getAiSettings: jest.fn() }));
 
-import { classifySentiment, embedText } from "@/lib/services/aiService";
+import { classifySentiment, embedTexts } from "@/lib/services/aiService";
 import { getAiSettings } from "@/lib/ai/settings";
 import { processWeeklyReportAi } from "@/lib/ai/processing";
 
@@ -33,7 +33,8 @@ beforeEach(() => {
   resetPrismaMock();
   jest.clearAllMocks();
   (getAiSettings as jest.Mock).mockResolvedValue(settings);
-  (embedText as jest.Mock).mockResolvedValue(Array(768).fill(0.1));
+  (embedTexts as jest.Mock).mockResolvedValue([Array(768).fill(0.1)]);
+  prismaMock.weeklyReport.count.mockResolvedValue(0);
   (classifySentiment as jest.Mock).mockResolvedValue({
     label: "POSITIVE",
     confidence: 0.8,
@@ -49,7 +50,7 @@ it("does nothing while ai:enabled is false", async () => {
     processed: false,
     reason: "AI is disabled",
   });
-  expect(embedText).not.toHaveBeenCalled();
+  expect(embedTexts).not.toHaveBeenCalled();
   expect(classifySentiment).not.toHaveBeenCalled();
 });
 
@@ -58,7 +59,7 @@ it("skips reports that were never submitted (drafts)", async () => {
   await expect(processWeeklyReportAi("wr-2")).resolves.toEqual(
     expect.objectContaining({ processed: false })
   );
-  expect(embedText).not.toHaveBeenCalled();
+  expect(embedTexts).not.toHaveBeenCalled();
 });
 
 it("embeds only non-empty entries, scores similarity, classifies, and caches — never touching status", async () => {
@@ -66,8 +67,8 @@ it("embeds only non-empty entries, scores similarity, classifies, and caches —
 
   const result = await processWeeklyReportAi("wr-2");
 
-  expect(embedText).toHaveBeenCalledTimes(1);
-  expect(embedText).toHaveBeenCalledWith("Built the login page", { names: ["Juan Dela Cruz"] });
+  expect(embedTexts).toHaveBeenCalledTimes(1);
+  expect(embedTexts).toHaveBeenCalledWith(["Built the login page"], { names: ["Juan Dela Cruz"] });
   expect(result).toEqual({ processed: true, similarityScore: 0.83, sentimentLabel: "POSITIVE" });
   const update = prismaMock.weeklyReport.update.mock.calls[0][0] as {
     data: Record<string, unknown>;
@@ -84,6 +85,32 @@ it("embeds only non-empty entries, scores similarity, classifies, and caches —
   );
   expect(update.data).not.toHaveProperty("status");
   expect(update.data).not.toHaveProperty("facultyAction");
+});
+
+it("processes a submission once (re-posting can't burn quota)", async () => {
+  prismaMock.weeklyReport.findUnique.mockResolvedValue({
+    ...report,
+    aiProcessedAt: new Date("2026-10-20T00:00:00Z"),
+  } as never);
+  await expect(processWeeklyReportAi("wr-2")).resolves.toEqual(
+    expect.objectContaining({ processed: false, reason: "Already processed" })
+  );
+  expect(embedTexts).not.toHaveBeenCalled();
+});
+
+it("waits until the student's earlier submitted weeks are processed", async () => {
+  prismaMock.weeklyReport.count.mockResolvedValue(2);
+  await expect(processWeeklyReportAi("wr-2")).resolves.toEqual(
+    expect.objectContaining({ processed: false, reason: "Earlier weeks not processed yet" })
+  );
+  expect(prismaMock.weeklyReport.count).toHaveBeenCalledWith({
+    where: expect.objectContaining({
+      studentProfileId: "p-1",
+      weekStart: { lt: report.weekStart },
+      aiProcessedAt: null,
+    }),
+  });
+  expect(embedTexts).not.toHaveBeenCalled();
 });
 
 it("first report has no similarity score", async () => {

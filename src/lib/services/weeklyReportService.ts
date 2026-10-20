@@ -696,6 +696,13 @@ export async function recordWeeklyReportSubmission(
           ...getWeeklyReportHistory(report.revisionHistory),
           entry,
         ] as unknown as Prisma.InputJsonValue,
+        // Workstream D: the (re)submitted text gets a fresh AI advisory.
+        aiProcessedAt: null,
+        similarityScore: null,
+        similarityFlag: false,
+        sentimentLabel: null,
+        sentimentConfidence: null,
+        sentimentReasoning: null,
       },
     });
 

@@ -54,6 +54,32 @@ export async function embedText(text: string, opts: { names?: string[] } = {}): 
   return values;
 }
 
+// One batchEmbedContents call per report (not one call per day), so a week
+// fits comfortably inside the route and cron time limits.
+export async function embedTexts(
+  texts: string[],
+  opts: { names?: string[] } = {}
+): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
+  const json = (await callGemini(model, "batchEmbedContents", {
+    requests: texts.map((text) => ({
+      model: `models/${model}`,
+      content: { parts: [{ text: scrubPii(text, opts) }] },
+      outputDimensionality: EMBEDDING_DIM,
+    })),
+  })) as { embeddings?: { values?: number[] }[] };
+  const vectors = json.embeddings?.map((e) => e.values);
+  if (
+    !vectors ||
+    vectors.length !== texts.length ||
+    vectors.some((v) => !Array.isArray(v) || v.length !== EMBEDDING_DIM)
+  ) {
+    throw new AiProviderError(`Expected ${texts.length} ${EMBEDDING_DIM}-dim embeddings`);
+  }
+  return vectors as number[][];
+}
+
 const sentimentSchema = z.object({
   label: z.enum(["POSITIVE", "NEUTRAL", "NEGATIVE"]),
   confidence: z.number().min(0).max(1),

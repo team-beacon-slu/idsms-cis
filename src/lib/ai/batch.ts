@@ -12,6 +12,8 @@ export async function processPendingAiReports(limit = 20) {
   const candidates = await prisma.weeklyReport.findMany({
     where: {
       aiProcessedAt: null,
+      // Submitted weeks only: drafts are also PENDING and would crowd out real work.
+      revisionHistory: { array_contains: [{ type: "SUBMITTED" }] },
       status: {
         in: [
           WeeklyReportStatus.PENDING,

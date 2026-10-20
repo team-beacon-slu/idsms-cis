@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { classifySentiment, embedText } from "@/lib/services/aiService";
+import { classifySentiment, embedTexts } from "@/lib/services/aiService";
 import { getAiSettings } from "@/lib/ai/settings";
 import { getLatestSubmission } from "@/lib/services/weeklyReportService";
 
@@ -23,6 +23,7 @@ export async function processWeeklyReportAi(weeklyReportId: string): Promise<{
       studentProfileId: true,
       weekStart: true,
       revisionHistory: true,
+      aiProcessedAt: true,
       studentProfile: { select: { fullName: true } },
       dailyEntries: { select: { id: true, accomplishments: true } },
     },
@@ -31,18 +32,35 @@ export async function processWeeklyReportAi(weeklyReportId: string): Promise<{
   if (!getLatestSubmission(report.revisionHistory)) {
     return { processed: false, reason: "Report not submitted" };
   }
+  // Once per submission (resubmitting clears aiProcessedAt), so re-posting
+  // the route can't burn the Gemini quota or rewrite a reviewed advisory.
+  if (report.aiProcessedAt) return { processed: false, reason: "Already processed" };
+  // Similarity compares against earlier weeks' embeddings, so those go first
+  // (the cron runs oldest first); otherwise this week would never be compared.
+  const earlierPending = await prisma.weeklyReport.count({
+    where: {
+      studentProfileId: report.studentProfileId,
+      weekStart: { lt: report.weekStart },
+      aiProcessedAt: null,
+      revisionHistory: { array_contains: [{ type: "SUBMITTED" }] },
+    },
+  });
+  if (earlierPending > 0) return { processed: false, reason: "Earlier weeks not processed yet" };
 
   const names = report.studentProfile.fullName ? [report.studentProfile.fullName] : [];
   const texts = report.dailyEntries.filter((e) => e.accomplishments?.trim());
 
-  // 1. Embed each day's text into the pgvector column (raw SQL — Prisma has
-  //    no vector type; see migrations_manual/001).
-  for (const entry of texts) {
-    const vector = await embedText(entry.accomplishments!, { names });
+  // 1. Embed the week's days in one call and store them in the pgvector
+  //    column (raw SQL — Prisma has no vector type; see migrations_manual/001).
+  const vectors = await embedTexts(
+    texts.map((e) => e.accomplishments!),
+    { names }
+  );
+  for (let i = 0; i < texts.length; i += 1) {
     await prisma.$executeRaw`
       UPDATE daily_report_entries
-      SET embedding_vector = ${`[${vector.join(",")}]`}::vector
-      WHERE id = ${entry.id}::uuid`;
+      SET embedding_vector = ${`[${vectors[i].join(",")}]`}::vector
+      WHERE id = ${texts[i].id}::uuid`;
   }
 
   // 2. Highest cosine similarity between this report's days and any day from

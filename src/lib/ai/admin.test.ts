@@ -49,6 +49,15 @@ it("records the threshold change with its precision/recall in the audit log (NFR
   );
 });
 
+it("refuses a threshold that fails the evaluation while AI is enabled", async () => {
+  const weak = [...Array(15)]
+    .map(() => ({ score: 0.9, label: "DUPLICATE" }))
+    .concat([...Array(15)].map(() => ({ score: 0.62, label: "BOILERPLATE" })));
+  mockConfig({ "ai:golden_scores": weak, "ai:enabled": true });
+  await expect(setThreshold(0.6, "admin-1")).rejects.toThrow(AiConfigError);
+  expect(prismaMock.systemConfig.upsert).not.toHaveBeenCalled();
+});
+
 it("refuses to enable AI without a privacy approval", async () => {
   mockConfig({ "ai:last_eval": { threshold: 0.7, passes: true } });
   await expect(setAiEnabled(true, null, "admin-1")).rejects.toThrow(/privacy/i);

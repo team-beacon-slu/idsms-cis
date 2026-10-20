@@ -41,6 +41,13 @@ it("processes unprocessed reports one at a time, capped, continuing past failure
     skipped: false,
   });
   expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
-    expect.objectContaining({ where: expect.objectContaining({ aiProcessedAt: null }), take: 20 })
+    expect.objectContaining({
+      // only submitted weeks, so drafts can't crowd out real work
+      where: expect.objectContaining({
+        aiProcessedAt: null,
+        revisionHistory: { array_contains: [{ type: "SUBMITTED" }] },
+      }),
+      take: 20,
+    })
   );
 });

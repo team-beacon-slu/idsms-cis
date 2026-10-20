@@ -50,6 +50,28 @@ it("only shows similarity when flagged", () => {
   });
 });
 
+it("hides every advisory once AI is disabled", () => {
+  const view = getAdvisoryView(
+    {
+      ...base,
+      similarityFlag: true,
+      similarityScore: 0.9,
+      sentimentLabel: "NEGATIVE",
+      sentimentConfidence: 0.9,
+    },
+    { ...settings, enabled: false }
+  );
+  expect(view).toEqual({ similarity: null, sentiment: null, pending: false });
+});
+
+it("flags against the current threshold, not the one stored at processing time", () => {
+  const stored = { ...base, similarityFlag: true, similarityScore: 0.75 };
+  expect(getAdvisoryView(stored, { ...settings, similarityThreshold: 0.8 }).similarity).toBeNull();
+  expect(
+    getAdvisoryView({ ...base, similarityFlag: false, similarityScore: 0.75 }, settings).similarity
+  ).toEqual({ score: 0.75 });
+});
+
 it("marks unprocessed reports as pending only while AI is enabled", () => {
   expect(getAdvisoryView({ ...base, aiProcessedAt: null }, settings).pending).toBe(true);
   expect(
