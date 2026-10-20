@@ -113,6 +113,7 @@ enum DocumentType {
   WEEKLY_REPORT
   MONTHLY_REPORT
   FINAL_REPORT_COVER
+  FINAL_TECHNICAL_REPORT
 }
 
 enum DocumentStatus {
@@ -243,12 +244,13 @@ model StudentProfile {
   semester   Semester   @relation(fields: [semesterId], references: [id])
   company    Company?   @relation(fields: [companyId], references: [id])
 
-  checklistItems     PreDeploymentChecklistItem[]
-  workPlans          WorkPlan[]
-  deviationReports   DeviationReport[]
-  weeklyReports      WeeklyReport[]
-  generatedDocuments GeneratedDocument[]
-  holidayOverrides   HolidayCalendarEntry[]
+  checklistItems       PreDeploymentChecklistItem[]
+  workPlans            WorkPlan[]
+  deviationReports     DeviationReport[]
+  finalTechnicalReport FinalTechnicalReport?
+  weeklyReports        WeeklyReport[]
+  generatedDocuments   GeneratedDocument[]
+  holidayOverrides     HolidayCalendarEntry[]
 
   // classGroupId/semesterId are pre-existing Phase 0 gaps (Postgres never
   // auto-indexes FK columns) left alone here; companyId and classGroupId are
@@ -460,6 +462,37 @@ model DeviationReport {
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
 
   @@map("deviation_reports")
+}
+
+enum FinalReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RETURNED
+}
+
+// Workstream H (PRD Module 7): one Final Technical Report per intern.
+// sections / attachments are JSON so SLU's outline can change without a migration.
+model FinalTechnicalReport {
+  id               String            @id @default(uuid()) @db.Uuid
+  studentProfileId String            @unique @map("student_profile_id") @db.Uuid
+  status           FinalReportStatus @default(DRAFT)
+  sections         Json              @default("{}")
+  supervisorScore  Decimal?          @map("supervisor_score") @db.Decimal(5, 2)
+  supervisorScale  Int?              @map("supervisor_scale")
+  peerScore        Decimal?          @map("peer_score") @db.Decimal(5, 2)
+  peerScale        Int?              @map("peer_scale")
+  attachments      Json              @default("{}") // { key: { attached, confirmed } }
+  reviewNote       String?           @map("review_note")
+  submittedAt      DateTime?         @map("submitted_at") @db.Timestamptz(3)
+  reviewedAt       DateTime?         @map("reviewed_at") @db.Timestamptz(3)
+  reviewedById     String?           @map("reviewed_by_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@map("final_technical_reports")
 }
 
 model GeneratedDocument {
