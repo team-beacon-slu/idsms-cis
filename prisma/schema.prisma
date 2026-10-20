@@ -402,6 +402,7 @@ model WeeklyReport {
   similarityFlag      Boolean            @default(false) @map("similarity_flag")
   sentimentLabel      SentimentLabel?    @map("sentiment_label")
   sentimentConfidence Decimal?           @map("sentiment_confidence") @db.Decimal(4, 3)
+  sentimentReasoning  String?            @map("sentiment_reasoning") @db.Text // FR-AI-03 brief reasoning
   aiProcessedAt       DateTime?          @map("ai_processed_at")
 
   studentProfile StudentProfile     @relation(fields: [studentProfileId], references: [id])
