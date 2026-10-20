@@ -23,7 +23,7 @@ A student who has rendered enough confirmed hours writes their Final Technical R
 - **Evaluation scores are entered, not computed.** SLU's supervisor and peer evaluation forms are paper / Google Forms today. The student (or coordinator) records the supervisor's overall score and the peer evaluation average as numbers with their scale (e.g. 4.5 / 5). The forms themselves go to Google Classroom.
 - **One report per student.** It is editable while Draft or Returned, locked while Submitted or Approved.
 
-## Data (migration 009, additive)
+## Data (migration 010, additive; L2 uses 009)
 
 `FinalTechnicalReport` (one per `studentProfileId`, unique):
 
