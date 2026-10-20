@@ -74,6 +74,18 @@ export function dayGaps(ranges: Array<[string, string]>, shift: Shift | null): D
   return gaps;
 }
 
+// A request covers a gap only when its time range spans the whole gap. Shared
+// by the weekly submit gate and the automatic deduction count.
+export function isGapCovered(
+  gap: DayGap,
+  requests: Array<{ startTime: string | null; endTime: string | null }>
+): boolean {
+  return requests.some(
+    (r) =>
+      r.startTime != null && r.endTime != null && r.startTime <= gap.start && r.endTime >= gap.end
+  );
+}
+
 export interface DayCreditInput {
   ranges: Array<[string, string]>;
   shift: Shift | null;

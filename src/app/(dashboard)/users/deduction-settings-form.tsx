@@ -38,7 +38,11 @@ export function DeductionSettingsForm({
     const res = await fetch("/api/config/deductions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matrix: parsed, defaultHours: Number(hours) }),
+      body: JSON.stringify({
+        matrix: parsed,
+        // An empty box leaves the default unchanged rather than resetting it to 0.
+        ...(hours.trim() !== "" ? { defaultHours: Number(hours) } : {}),
+      }),
     });
     setPending(false);
     if (!res.ok) {

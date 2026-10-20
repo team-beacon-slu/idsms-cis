@@ -26,7 +26,9 @@ describe("deduction matrix config", () => {
   });
 
   it("returns the stored matrix", async () => {
-    const edited = [{ ...DEFAULT_MATRIX[1], tiers: [{ count: 1, adviser: 1, wwr: 1 }] }];
+    const edited = DEFAULT_MATRIX.map((c) =>
+      c.key === "DEMERIT" ? { ...c, tiers: [{ count: 1, adviser: 1, wwr: 1 }] } : c
+    );
     prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: edited } as never);
     await expect(getDeductionMatrix()).resolves.toEqual(edited);
   });

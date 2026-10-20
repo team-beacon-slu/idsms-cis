@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const AUTOMATIC_KEYS = ["LATE_WWR", "UNSUPPORTED_UT"];
+
 const points = { adviser: z.number().min(0).max(100), wwr: z.number().min(0).max(100) };
 
 const categorySchema = z.object({
@@ -21,4 +23,15 @@ export const deductionMatrixSchema = z
   .min(1)
   .refine((m) => new Set(m.map((c) => c.key)).size === m.length, {
     message: "Each category needs its own key",
-  });
+  })
+  // IDSMS counts exactly these automatically (see automaticDeductions.ts).
+  .refine(
+    (m) => {
+      const auto = m
+        .filter((c) => c.source === "AUTOMATIC")
+        .map((c) => c.key)
+        .sort();
+      return auto.join() === [...AUTOMATIC_KEYS].sort().join();
+    },
+    { message: `Keep ${AUTOMATIC_KEYS.join(" and ")} as the only AUTOMATIC categories` }
+  );

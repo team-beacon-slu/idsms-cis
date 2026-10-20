@@ -60,7 +60,7 @@ describe("findAutomaticItems", () => {
       })
     );
     expect(items).toEqual([
-      expect.objectContaining({ itemType: "LATE_WWR", itemKey: "wr-1", unjustified: false }),
+      expect.objectContaining({ itemType: "LATE_WWR", itemKey: "2026-10-05", unjustified: false }),
     ]);
   });
 
@@ -167,6 +167,82 @@ describe("findAutomaticItems", () => {
       ],
     };
     expect(findAutomaticItems(leave)).toEqual([]);
+  });
+
+  it("counts trailing past-due weeks after the last report, up to the semester end", () => {
+    const items = findAutomaticItems(input({ now: d("2026-11-04"), semesterEnd: d("2026-10-21") }));
+    // weeks of Oct 12 and Oct 19 are past due; Oct 26 is after the semester end
+    expect(items.map((i) => i.itemKey)).toEqual(["2026-10-12", "2026-10-19"]);
+  });
+
+  it("keys late and missing items by week so an excuse survives a late submission", () => {
+    const late = findAutomaticItems(
+      input({ reports: [{ ...input().reports[0], revisionHistory: [submitted(true, null)] }] })
+    );
+    expect(late[0]).toEqual(
+      expect.objectContaining({ itemType: "LATE_WWR", itemKey: "2026-10-05" })
+    );
+  });
+
+  it("ignores days in a week that hasn't been submitted yet", () => {
+    const draft = input({
+      reports: [
+        {
+          ...input().reports[0],
+          revisionHistory: [],
+          dailyEntries: [day("2026-10-06", { timeIn: "08:30" })],
+        },
+      ],
+      now: d("2026-10-07"),
+    });
+    expect(findAutomaticItems(draft)).toEqual([]);
+  });
+
+  it("a rejected request is not a valid reason", () => {
+    const items = findAutomaticItems(
+      input({
+        reports: [
+          { ...input().reports[0], dailyEntries: [day("2026-10-06", { timeIn: "08:30" })] },
+        ],
+        requests: [
+          {
+            deviationType: "UNDERTIME",
+            validationStatus: "REJECTED",
+            date: d("2026-10-06"),
+            endDate: null,
+            startTime: "08:00",
+            endTime: "08:30",
+          },
+        ],
+      })
+    );
+    expect(items[0]).toEqual(expect.objectContaining({ unjustified: true }));
+  });
+
+  it("an approved early-leave request doesn't cover a separate late arrival", () => {
+    const items = findAutomaticItems(
+      input({
+        reports: [
+          {
+            ...input().reports[0],
+            dailyEntries: [day("2026-10-06", { timeIn: "10:00", timeOut2: "16:00" })],
+          },
+        ],
+        requests: [
+          {
+            deviationType: "UNDERTIME",
+            validationStatus: "VALIDATED",
+            date: d("2026-10-06"),
+            endDate: null,
+            startTime: "16:00",
+            endTime: "17:00",
+          },
+        ],
+      })
+    );
+    expect(items).toEqual([
+      expect.objectContaining({ itemType: "UNSUPPORTED_UT", detail: "Late 08:00–10:00" }),
+    ]);
   });
 
   it("ignores holidays and non-scheduled days, and schedules without shift times skip tardiness", () => {

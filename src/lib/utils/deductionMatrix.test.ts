@@ -81,4 +81,17 @@ describe("deductionMatrixSchema", () => {
     expect(bad([{ ...demerit, tiers: [{ count: 1, adviser: -1, wwr: 0 }] }])).toBe(false);
     expect(bad([demerit, demerit])).toBe(false);
   });
+
+  it("keeps the two automatic categories IDSMS counts, and allows no other automatic one", () => {
+    const ok = (m: unknown) => deductionMatrixSchema.safeParse(m).success;
+    const without = (key: string) => DEFAULT_MATRIX.filter((c) => c.key !== key);
+    expect(ok(without("LATE_WWR"))).toBe(false);
+    expect(ok(without("UNSUPPORTED_UT"))).toBe(false);
+    expect(
+      ok(DEFAULT_MATRIX.map((c) => (c.key === "LATE_WWR" ? { ...c, source: "MANUAL" } : c)))
+    ).toBe(false);
+    expect(
+      ok([...DEFAULT_MATRIX, { ...cat("DEMERIT"), key: "OTHER_AUTO", source: "AUTOMATIC" }])
+    ).toBe(false);
+  });
 });

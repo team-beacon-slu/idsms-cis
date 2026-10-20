@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import { loadShift } from "@/lib/services/creditedHours";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { findAutomaticItems, type AutomaticItem } from "@/lib/utils/automaticDeductions";
+import {
+  findAutomaticItems,
+  sameItemFamily,
+  type AutomaticItem,
+} from "@/lib/utils/automaticDeductions";
 import { DEFAULT_MATRIX, tallyDeductions, type MatrixCategory } from "@/lib/utils/deductionMatrix";
 import { deductionMatrixSchema } from "@/lib/validators/deductionMatrix";
 
@@ -93,8 +97,12 @@ export async function listAutomaticItems(
   studentProfileId: string,
   now: Date = new Date()
 ): Promise<AutomaticItemView[]> {
-  const [shift, reports, requests, exceptions] = await Promise.all([
+  const [shift, profile, reports, requests, exceptions] = await Promise.all([
     loadShift(studentProfileId),
+    prisma.studentProfile.findUnique({
+      where: { id: studentProfileId },
+      select: { semester: { select: { endDate: true } } },
+    }),
     prisma.weeklyReport.findMany({
       where: { studentProfileId },
       select: {
@@ -134,8 +142,11 @@ export async function listAutomaticItems(
       select: { id: true, itemType: true, itemKey: true, reasonCode: true, note: true },
     }),
   ]);
-  return findAutomaticItems({ now, shift, reports, requests }).map((item) => {
-    const ex = exceptions.find((e) => e.itemType === item.itemType && e.itemKey === item.itemKey);
+  const semesterEnd = profile?.semester?.endDate ?? null;
+  return findAutomaticItems({ now, shift, semesterEnd, reports, requests }).map((item) => {
+    const ex = exceptions.find(
+      (e) => sameItemFamily(e.itemType, item.itemType) && e.itemKey === item.itemKey
+    );
     return {
       ...item,
       excused: ex ? { id: ex.id, reasonCode: ex.reasonCode, note: ex.note } : null,
@@ -180,7 +191,7 @@ export async function excuseItem(
   const data = excuseSchema.parse(input);
   const items = await listAutomaticItems(studentProfileId, now);
   z.literal(true, { message: "That item isn't on this intern's record" }).parse(
-    items.some((i) => i.itemType === data.itemType && i.itemKey === data.itemKey)
+    items.some((i) => sameItemFamily(i.itemType, data.itemType) && i.itemKey === data.itemKey)
   );
   try {
     return await prisma.$transaction(async (tx) => {
