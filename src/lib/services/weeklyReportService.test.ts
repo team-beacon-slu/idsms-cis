@@ -738,6 +738,101 @@ describe("recordWeeklyReportSubmission", () => {
     ).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
   });
 
+  describe("late arrival / early leave gate", () => {
+    const tardyDay = {
+      reportDate: new Date("2026-10-06T00:00:00Z"),
+      scheduledHours: 8,
+      actualHours: 7.5,
+      accomplishments: "Worked",
+      attendanceStatus: "PRESENT",
+      timeIn: "08:30",
+      timeOut: "12:00",
+      timeIn2: "13:00",
+      timeOut2: "17:00",
+    };
+    function mockReport(dailyEntries: unknown[]) {
+      prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+        status: WeeklyReportStatus.PENDING,
+        weekEnd: new Date("2026-10-11T00:00:00Z"),
+        revisionHistory: [],
+        studentProfileId: "profile-1",
+        dailyEntries,
+      } as never);
+    }
+    const shiftPlan = {
+      scheduleConfig: {
+        daysOfWeek: [1, 2, 3, 4, 5],
+        hoursPerDay: 8,
+        startTime: "08:00",
+        endTime: "17:00",
+        breakMinutes: 60,
+      },
+    };
+    const submit = () =>
+      recordWeeklyReportSubmission(
+        "wr-1",
+        { referenceCode: "WR-1", timestamp: new Date("2026-10-12T02:00:00Z") },
+        actingUser
+      );
+
+    it("blocks a tardy day with no undertime request, listing the date", async () => {
+      mockReport([tardyDay]);
+      prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
+      prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+      await expect(submit()).rejects.toThrow("File an undertime request for: Oct 6 (late arrival)");
+    });
+
+    it("passes with an undertime request of any status on that date", async () => {
+      mockReport([tardyDay]);
+      prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
+      prismaMock.deviationReport.findMany.mockResolvedValue([
+        {
+          date: tardyDay.reportDate,
+          deviationType: "UNDERTIME",
+          startTime: "08:00",
+          endTime: "08:30",
+          validationStatus: "REJECTED",
+        },
+      ] as never);
+      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+    });
+
+    it("passes with a partial-day leave covering the gap, but not one that misses it", async () => {
+      mockReport([
+        { ...tardyDay, timeIn: "08:00", timeOut: "12:00", timeIn2: "13:00", timeOut2: "15:00" },
+      ]);
+      prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
+      prismaMock.deviationReport.findMany.mockResolvedValueOnce([
+        {
+          date: tardyDay.reportDate,
+          deviationType: "ABSENCE",
+          startTime: "15:00",
+          endTime: "17:00",
+        },
+      ] as never);
+      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+
+      prismaMock.deviationReport.findMany.mockResolvedValueOnce([
+        {
+          date: tardyDay.reportDate,
+          deviationType: "ABSENCE",
+          startTime: "16:00",
+          endTime: "17:00",
+        },
+      ] as never);
+      await expect(submit()).rejects.toThrow("Oct 6 (early leave)");
+    });
+
+    it("skips the check for a schedule without shift times", async () => {
+      mockReport([tardyDay]);
+      prismaMock.workPlan.findFirst.mockResolvedValue({
+        scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },
+      } as never);
+      prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+    });
+  });
+
   it("still rejects an unfilled SCHEDULED day", async () => {
     prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
       status: WeeklyReportStatus.PENDING,

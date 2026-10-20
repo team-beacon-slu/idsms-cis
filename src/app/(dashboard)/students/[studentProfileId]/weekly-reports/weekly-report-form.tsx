@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarPlus, Eye, Save, Send } from "lucide-react";
@@ -17,7 +18,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/validators/report";
 import { addDays, toDateKey } from "@/lib/utils/reportDeadline";
-import { formatHrsMins } from "@/lib/utils/timeMath";
+import { dayGaps, formatHrsMins, timeOfDay, type Shift } from "@/lib/utils/timeMath";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
 
@@ -227,6 +228,7 @@ export function WeeklyReportForm({
   editable,
   weekEnd,
   priorAccomplishments,
+  shift = null,
 }: {
   weeklyReportId: string;
   entries: DailyEntryRow[];
@@ -234,6 +236,7 @@ export function WeeklyReportForm({
   editable: boolean;
   weekEnd: string;
   priorAccomplishments: string[];
+  shift?: Shift | null;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
@@ -287,6 +290,16 @@ export function WeeklyReportForm({
 
   const hasCopyPaste = Object.keys(copyPasteFlags).length > 0;
   const hasDirty = Object.values(rows).some((r) => r.dirty);
+
+  // Same check the server's submit gate runs (dayGaps), for scheduled PRESENT days.
+  function rowGaps(entry: DailyEntryRow, row: RowState) {
+    if (row.status !== "PRESENT" || entry.scheduledHours <= 0) return [];
+    const valid = (t: string) => timeOfDay.safeParse(t).success;
+    if (!valid(row.timeIn) || !valid(row.timeOut)) return [];
+    const ranges: Array<[string, string]> = [[row.timeIn, row.timeOut]];
+    if (valid(row.timeIn2) && valid(row.timeOut2)) ranges.push([row.timeIn2, row.timeOut2]);
+    return dayGaps(ranges, shift);
+  }
 
   function updateRow(id: string, patch: Partial<RowState>) {
     setRows((prev) => ({ ...prev, [id]: { ...prev[id], ...patch, dirty: true } }));
@@ -649,6 +662,27 @@ export function WeeklyReportForm({
                     {flag} — please describe this day&apos;s work in your own words.
                   </p>
                 )}
+                {rowGaps(entry, row).map((gap) => (
+                  <p
+                    key={gap.kind}
+                    className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400"
+                  >
+                    <AlertTriangle className="size-3.5" aria-hidden="true" />
+                    {gap.kind === "late" ? "Late arrival" : "Early leave"}: file an undertime
+                    request —{" "}
+                    <Link
+                      href={`/leave-requests?${new URLSearchParams({
+                        deviationType: "UNDERTIME",
+                        date: entry.reportDate.slice(0, 10),
+                        startTime: gap.start,
+                        endTime: gap.end,
+                      })}`}
+                      className="underline"
+                    >
+                      open the request form
+                    </Link>
+                  </p>
+                ))}
               </div>
             </div>
           );

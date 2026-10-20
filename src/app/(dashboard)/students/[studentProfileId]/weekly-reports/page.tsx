@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { loadShift } from "@/lib/services/creditedHours";
 import {
   getConfirmedSubmission,
   getLatestSubmission,
@@ -57,6 +58,7 @@ export default async function WeeklyReportsPage({
     select: { periodLabel: true, status: true, referenceCode: true },
   });
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
+  const shift = await loadShift(params.studentProfileId);
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
 
@@ -218,6 +220,7 @@ export default async function WeeklyReportsPage({
                     <WeeklyReportForm
                       weeklyReportId={report.id}
                       editable={editable}
+                      shift={shift}
                       weekEnd={report.weekEnd.toISOString()}
                       priorAccomplishments={priorAccomplishments}
                       totals={{

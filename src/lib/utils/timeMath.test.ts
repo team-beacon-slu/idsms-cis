@@ -1,5 +1,6 @@
 import {
   computeDayCredit,
+  dayGaps,
   formatHrsMins,
   overlapMinutes,
   parseHHMM,
@@ -160,6 +161,32 @@ describe("computeDayCredit — SLU worked examples", () => {
     const c = computeDayCredit(day({ ranges: [["13:00", "17:00"]] }));
     expect(c.creditedHours).toBe(4);
     expect(c.tardy).toBe(true);
+  });
+});
+
+describe("dayGaps", () => {
+  it("reports late arrival and early leave against the shift", () => {
+    expect(
+      dayGaps(
+        [
+          ["08:30", "12:00"],
+          ["13:00", "16:00"],
+        ],
+        shift
+      )
+    ).toEqual([
+      { kind: "late", start: "08:00", end: "08:30" },
+      { kind: "early", start: "16:00", end: "17:00" },
+    ]);
+  });
+
+  it("is empty for an on-time day, no ranges, or no shift (no grace period otherwise)", () => {
+    expect(dayGaps([["08:00", "17:00"]], shift)).toEqual([]);
+    expect(dayGaps([], shift)).toEqual([]);
+    expect(dayGaps([["09:00", "17:00"]], null)).toEqual([]);
+    expect(dayGaps([["08:01", "17:00"]], shift)).toEqual([
+      { kind: "late", start: "08:00", end: "08:01" },
+    ]);
   });
 });
 

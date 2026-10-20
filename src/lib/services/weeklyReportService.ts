@@ -3,7 +3,8 @@
 // monthlyReportService.ts (FR-WR-08).
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { Prisma, Role, WeeklyReportStatus } from "@prisma/client";
+import { DeviationType, Prisma, Role, WeeklyReportStatus } from "@prisma/client";
+import { dayGaps } from "@/lib/utils/timeMath";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import {
@@ -17,7 +18,7 @@ import {
 import { ForbiddenError } from "@/lib/services/userService";
 import type { AttendanceStatus } from "@/lib/validators/report";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
-import { creditForEntry, loadCreditContext } from "@/lib/services/creditedHours";
+import { creditForEntry, loadCreditContext, loadShift } from "@/lib/services/creditedHours";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import {
   addDays,
@@ -540,6 +541,67 @@ export async function validateLateSubmissionReason(
 // `validateLateSubmissionReason` and `generateReportReferenceCode`. Rejects a
 // report that is already awaiting review or finalized, or that still has
 // unfilled days; a RETURNED report goes back to PENDING on resubmission.
+// Workstream L1: every late arrival or early leave on a scheduled PRESENT day
+// needs an UNDERTIME request (any status) on that date, or a partial-day leave
+// whose time range covers the gap. Schedules without shift times skip this.
+const shortDate = (d: Date) =>
+  d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+async function assertUndertimeFiled(
+  studentProfileId: string,
+  entries: {
+    reportDate: Date;
+    scheduledHours: Prisma.Decimal | number;
+    attendanceStatus: string;
+    timeIn: string | null;
+    timeOut: string | null;
+    timeIn2: string | null;
+    timeOut2: string | null;
+  }[],
+  tx: Prisma.TransactionClient
+): Promise<void> {
+  const worked = entries.filter(
+    (e) => e.attendanceStatus === "PRESENT" && Number(e.scheduledHours) > 0 && e.timeIn && e.timeOut
+  );
+  if (worked.length === 0) return;
+  const shift = await loadShift(studentProfileId);
+  if (!shift) return;
+
+  const requests = await tx.deviationReport.findMany({
+    where: {
+      studentProfileId,
+      date: { in: worked.map((e) => e.reportDate) },
+      deviationType: { in: [DeviationType.UNDERTIME, DeviationType.ABSENCE] },
+    },
+    select: { date: true, deviationType: true, startTime: true, endTime: true },
+  });
+
+  const missing: string[] = [];
+  for (const e of worked) {
+    const ranges: Array<[string, string]> = [[e.timeIn!, e.timeOut!]];
+    if (e.timeIn2 && e.timeOut2) ranges.push([e.timeIn2, e.timeOut2]);
+    const sameDay = requests.filter((r) => toDateKey(r.date) === toDateKey(e.reportDate));
+    for (const gap of dayGaps(ranges, shift)) {
+      const covered = sameDay.some(
+        (r) =>
+          r.deviationType === DeviationType.UNDERTIME ||
+          (r.startTime != null &&
+            r.endTime != null &&
+            r.startTime <= gap.start &&
+            r.endTime >= gap.end)
+      );
+      if (!covered) {
+        missing.push(
+          `${shortDate(e.reportDate)} (${gap.kind === "late" ? "late arrival" : "early leave"})`
+        );
+      }
+    }
+  }
+  if (missing.length > 0) {
+    throw new WeeklyReportIncompleteError(`File an undertime request for: ${missing.join(", ")}`);
+  }
+}
+
 export async function recordWeeklyReportSubmission(
   weeklyReportId: string,
   submission: { referenceCode: string; timestamp: Date; reasonForDelay?: string | null },
@@ -553,8 +615,19 @@ export async function recordWeeklyReportSubmission(
         status: true,
         weekEnd: true,
         revisionHistory: true,
+        studentProfileId: true,
         dailyEntries: {
-          select: { actualHours: true, accomplishments: true, attendanceStatus: true },
+          select: {
+            reportDate: true,
+            scheduledHours: true,
+            actualHours: true,
+            accomplishments: true,
+            attendanceStatus: true,
+            timeIn: true,
+            timeOut: true,
+            timeIn2: true,
+            timeOut2: true,
+          },
         },
       },
     });
@@ -572,6 +645,7 @@ export async function recordWeeklyReportSubmission(
     if (incomplete) {
       throw new WeeklyReportIncompleteError();
     }
+    await assertUndertimeFiled(report.studentProfileId, report.dailyEntries, tx);
 
     const late = isWeeklyReportLate(report.weekEnd, submission.timestamp);
     const entry: WeeklyReportSubmissionEntry = {

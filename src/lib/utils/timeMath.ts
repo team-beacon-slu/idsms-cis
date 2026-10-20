@@ -48,6 +48,32 @@ export function scheduleShift(schedule: {
   };
 }
 
+export function toHHMM(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+export interface DayGap {
+  kind: "late" | "early";
+  start: string; // "HH:MM"
+  end: string;
+}
+
+// Late arrival and early leave against the shift (no grace period). These
+// need an undertime request before the week can be submitted.
+export function dayGaps(ranges: Array<[string, string]>, shift: Shift | null): DayGap[] {
+  if (!shift || ranges.length === 0) return [];
+  const firstIn = parseHHMM(ranges[0][0]);
+  const lastOut = parseHHMM(ranges[ranges.length - 1][1]);
+  const gaps: DayGap[] = [];
+  if (firstIn > shift.startMin) {
+    gaps.push({ kind: "late", start: toHHMM(shift.startMin), end: toHHMM(firstIn) });
+  }
+  if (lastOut < shift.endMin) {
+    gaps.push({ kind: "early", start: toHHMM(lastOut), end: toHHMM(shift.endMin) });
+  }
+  return gaps;
+}
+
 export interface DayCreditInput {
   ranges: Array<[string, string]>;
   shift: Shift | null;

@@ -26,12 +26,20 @@ export interface CreditInputEntry {
   timeOut2: string | null;
 }
 
+// The student's shift from their latest approved schedule; null when it has
+// no start/end times (legacy schedule) or there is no schedule.
+export async function loadShift(studentProfileId: string): Promise<Shift | null> {
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  const schedule = parseScheduleConfig(workPlan?.scheduleConfig);
+  return schedule ? scheduleShift(schedule) : null;
+}
+
 export async function loadCreditContext(
   studentProfileId: string,
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<CreditContext> {
-  const [workPlan, overtime] = await Promise.all([
-    getLatestApprovedWorkPlanForStudent(studentProfileId),
+  const [shift, overtime] = await Promise.all([
+    loadShift(studentProfileId),
     client.deviationReport.findMany({
       where: {
         studentProfileId,
@@ -41,14 +49,13 @@ export async function loadCreditContext(
       select: { date: true, requestedMinutes: true },
     }),
   ]);
-  const schedule = parseScheduleConfig(workPlan?.scheduleConfig);
   const otMinutesByDate = new Map<string, number>();
   for (const r of overtime) {
     const key = toDateKey(r.date);
     // Legacy approved OT has no minutes: don't cap it.
     otMinutesByDate.set(key, (otMinutesByDate.get(key) ?? 0) + (r.requestedMinutes ?? Infinity));
   }
-  return { shift: schedule ? scheduleShift(schedule) : null, otMinutesByDate };
+  return { shift, otMinutesByDate };
 }
 
 // Null for an unfilled day (no hours entered yet).
