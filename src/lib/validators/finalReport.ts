@@ -18,6 +18,9 @@ export const SECTION_LABELS: Record<(typeof SECTION_KEYS)[number], string> = {
   recommendations: "recommendations",
 };
 
+// Labels are lower-case for mid-sentence use; sentence() capitalises one.
+export const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 // D2/D7: proof stays in Google Classroom; IDSMS records that it is attached.
 export const ATTACHMENT_KEYS = [
   "attendanceProof",

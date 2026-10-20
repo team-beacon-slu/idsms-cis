@@ -6,11 +6,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ATTACHMENT_KEYS, ATTACHMENT_LABELS } from "@/lib/validators/finalReport";
+import { ATTACHMENT_KEYS, ATTACHMENT_LABELS, sentence } from "@/lib/validators/finalReport";
 
 // Workstream H (FR-FT-03) — the coordinator confirms each attachment in
 // Google Classroom, then approves, or returns with a note.
-const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function FinalReportReview({
   reportId,

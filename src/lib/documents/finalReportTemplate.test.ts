@@ -29,7 +29,6 @@ function sample(over: Partial<FinalReportDocumentData> = {}): FinalReportDocumen
       certificateOfAttendance: true,
       certificatesOfParticipation: true,
     },
-    preview: false,
     ...over,
   };
 }
@@ -59,12 +58,11 @@ describe("renderFinalReportHtml", () => {
     expect(html).toContain("Google Classroom");
   });
 
-  it("escapes user text and watermarks a preview", () => {
+  it("escapes user text", () => {
     const html = renderFinalReportHtml(
-      sample({ sections: { ...sample().sections, learnings: "<script>x</script>" }, preview: true })
+      sample({ sections: { ...sample().sections, learnings: "<script>x</script>" } })
     );
     expect(html).not.toContain("<script>x");
     expect(html).toContain("&lt;script&gt;x&lt;/script&gt;");
-    expect(html).toContain("PREVIEW");
   });
 });

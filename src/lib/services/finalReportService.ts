@@ -21,8 +21,6 @@ import {
   type Attachments,
 } from "@/lib/validators/finalReport";
 
-export { toContent };
-
 type ActingUser = { id: string; role: Role };
 
 export const FINAL_REPORT_REVIEWERS: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
@@ -47,7 +45,8 @@ async function assertOwnerUnlocked(studentProfileId: string, actingUser: ActingU
   }
   await assertCanAccessStudent(actingUser, studentProfileId);
   const state = await getFinalReportState(studentProfileId);
-  if (!state.unlocked) {
+  // The gate opens the report once; a later hour reversal mustn't strand a returned one.
+  if (!state.unlocked && !state.report) {
     const remaining = Math.round((state.threshold - state.renderedHours) * 100) / 100;
     throw new FinalReportLockedError(
       `The final report unlocks at ${state.threshold} confirmed hours — ${remaining} more hours to go`
@@ -76,19 +75,30 @@ export async function saveFinalReportDraft(
     ...(draft.peerScore !== undefined ? { peerScore: draft.peerScore } : {}),
     ...(draft.peerScale !== undefined ? { peerScale: draft.peerScale } : {}),
   };
+  // A partial save must still fit the stored scale.
+  const stored = existing ? toContent(existing) : null;
+  finalReportDraftSchema.parse({
+    supervisorScore: stored?.supervisorScore,
+    supervisorScale: stored?.supervisorScale,
+    peerScore: stored?.peerScore,
+    peerScale: stored?.peerScale,
+    ...scores,
+  });
 
   await prisma.$transaction(async (tx) => {
     let reportId: string;
     if (!existing) {
-      const created = await tx.finalTechnicalReport.create({
-        data: {
-          studentProfileId,
-          sections,
-          attachments: attachments as Prisma.InputJsonValue,
-          ...scores,
-        },
-        select: { id: true },
-      });
+      const created = await tx.finalTechnicalReport
+        .create({
+          data: {
+            studentProfileId,
+            sections,
+            attachments: attachments as Prisma.InputJsonValue,
+            ...scores,
+          },
+          select: { id: true },
+        })
+        .catch(duplicateFirstSave);
       reportId = created.id;
     } else {
       const { count } = await tx.finalTechnicalReport.updateMany({
@@ -113,6 +123,14 @@ export async function saveFinalReportDraft(
   });
 }
 
+// Two first saves racing on the unique student_profile_id → 409, not 500.
+function duplicateFirstSave(error: unknown): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    throw new FinalReportStateError("Your report was just saved elsewhere — reload and try again");
+  }
+  throw error;
+}
+
 export async function submitFinalReport(
   studentProfileId: string,
   actingUser: ActingUser,
@@ -122,11 +140,23 @@ export async function submitFinalReport(
   if (!report) throw new FinalReportLockedError("Write and save the report first");
   const problems = submitProblems(toContent(report));
   if (problems.length > 0) throw new FinalReportLockedError(problems.join(". "));
+  // FR-FT-03: each review round confirms afresh.
+  const unconfirmed = Object.fromEntries(
+    Object.entries(asAttachments(report.attachments)).map(([k, v]) => [
+      k,
+      { attached: Boolean(v?.attached), confirmed: false },
+    ])
+  );
 
   await prisma.$transaction(async (tx) => {
     const { count } = await tx.finalTechnicalReport.updateMany({
       where: { id: report.id, status: { in: EDITABLE } },
-      data: { status: FinalReportStatus.SUBMITTED, submittedAt: new Date(), reviewNote: null },
+      data: {
+        status: FinalReportStatus.SUBMITTED,
+        submittedAt: new Date(),
+        reviewNote: null,
+        attachments: unconfirmed as Prisma.InputJsonValue,
+      },
     });
     if (count === 0) throw new FinalReportStateError("This report was already submitted");
     await logEvent(
@@ -210,7 +240,7 @@ export async function reviewFinalReport(
 
 export async function listFinalReportsAwaitingReview() {
   return prisma.finalTechnicalReport.findMany({
-    where: { status: FinalReportStatus.SUBMITTED },
+    where: { status: FinalReportStatus.SUBMITTED, studentProfile: { deletedAt: null } },
     orderBy: { submittedAt: "asc" },
     select: {
       id: true,

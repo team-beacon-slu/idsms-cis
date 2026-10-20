@@ -620,7 +620,6 @@ export async function generateFinalTechnicalReportPdf(
           semesterName: profile.semester.name,
         },
         ...content,
-        preview: false,
       }),
     actingUserId,
     detail: { studentProfileId, referenceCode: code },

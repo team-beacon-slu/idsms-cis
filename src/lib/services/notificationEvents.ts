@@ -166,7 +166,6 @@ const REQUEST_LABEL: Record<string, string> = {
   UNDERTIME: "undertime",
 };
 
-// 11 (Workstream L1): leave / OT / UT request approved or returned.
 // Workstream H: a final technical report awaits the coordinator's review.
 export async function notifyFinalReportSubmitted(studentProfileId: string) {
   try {
@@ -192,7 +191,7 @@ export async function notifyFinalReportReviewed(
   note?: string
 ) {
   await toStudent(studentProfileId, {
-    trigger: action === "APPROVE" ? "REPORT_SUBMITTED" : "REPORT_RETURNED",
+    trigger: action === "APPROVE" ? "REPORT_APPROVED" : "REPORT_RETURNED",
     title: `Your final technical report was ${action === "APPROVE" ? "approved" : "returned"}`,
     body:
       action === "APPROVE"
@@ -202,6 +201,7 @@ export async function notifyFinalReportReviewed(
   });
 }
 
+// 11 (Workstream L1): leave / OT / UT request approved or returned.
 export async function notifyTimeRequestReviewed(
   studentProfileId: string,
   action: "APPROVE" | "RETURN",

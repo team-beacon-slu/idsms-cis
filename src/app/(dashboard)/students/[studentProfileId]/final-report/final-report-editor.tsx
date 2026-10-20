@@ -13,13 +13,13 @@ import {
   ATTACHMENT_LABELS,
   SECTION_KEYS,
   SECTION_LABELS,
+  sentence,
   type FinalReportContent,
 } from "@/lib/validators/finalReport";
 
 // Workstream H — the intern writes the Final Technical Report. Editable while
 // Draft or Returned; proof is attached in Google Classroom, not here (D2/D7).
 
-const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const numOrNull = (s: string) => (s.trim() === "" ? null : Number(s));
 
 export function FinalReportEditor({

@@ -7,7 +7,7 @@ jest.mock("@/lib/services/attendanceService", () => ({
   getFinalReportThreshold: jest.fn(),
 }));
 
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { ZodError } from "zod";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { FinalReportLockedError, FinalReportStateError } from "@/lib/documents/errors";
@@ -127,13 +127,56 @@ describe("saveFinalReportDraft", () => {
   });
 });
 
-describe("submitFinalReport", () => {
-  it("submits a complete report and notifies coordinators after commit", async () => {
+describe("review-fix rules", () => {
+  it("keeps editing a returned report even if hours dropped below the threshold", async () => {
+    jest.mocked(calculateRenderedHours).mockResolvedValue(480);
+    prismaMock.finalTechnicalReport.findUnique.mockResolvedValue({
+      ...complete,
+      status: "RETURNED",
+    } as never);
+    await expect(
+      saveFinalReportDraft("profile-1", { sections: { learnings: "Fixed" } }, student)
+    ).resolves.toBeUndefined();
+  });
+
+  it("checks the score against the stored scale on a partial save", async () => {
     prismaMock.finalTechnicalReport.findUnique.mockResolvedValue(complete as never);
+    await expect(
+      saveFinalReportDraft("profile-1", { supervisorScore: 90 }, student)
+    ).rejects.toThrow(/can't be above/);
+  });
+
+  it("maps two first saves racing to a 409, not a 500", async () => {
+    prismaMock.finalTechnicalReport.findUnique.mockResolvedValue(null);
+    prismaMock.finalTechnicalReport.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "6" })
+    );
+    await expect(
+      saveFinalReportDraft("profile-1", { sections: { introduction: "Hi" } }, student)
+    ).rejects.toThrow(FinalReportStateError);
+  });
+});
+
+describe("submitFinalReport", () => {
+  it("submits a complete report, resets attachment confirmations, and notifies coordinators", async () => {
+    prismaMock.finalTechnicalReport.findUnique.mockResolvedValue({
+      ...complete,
+      attachments: Object.fromEntries(
+        ATTACHMENT_KEYS.map((k) => [k, { attached: true, confirmed: true }])
+      ),
+    } as never);
     await submitFinalReport("profile-1", student);
     expect(prismaMock.finalTechnicalReport.updateMany).toHaveBeenCalledWith({
       where: { id: "fr-1", status: { in: ["DRAFT", "RETURNED"] } },
-      data: { status: "SUBMITTED", submittedAt: expect.any(Date), reviewNote: null },
+      data: {
+        status: "SUBMITTED",
+        submittedAt: expect.any(Date),
+        reviewNote: null,
+        // each review round confirms afresh
+        attachments: Object.fromEntries(
+          ATTACHMENT_KEYS.map((k) => [k, { attached: true, confirmed: false }])
+        ),
+      },
     });
     expect(notifyFinalReportSubmitted).toHaveBeenCalledWith("profile-1");
   });

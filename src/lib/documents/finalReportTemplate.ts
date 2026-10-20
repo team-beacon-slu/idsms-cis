@@ -12,6 +12,7 @@ import {
   ATTACHMENT_LABELS,
   SECTION_KEYS,
   SECTION_LABELS,
+  sentence,
 } from "@/lib/validators/finalReport";
 
 export interface FinalReportDocumentData {
@@ -22,11 +23,9 @@ export interface FinalReportDocumentData {
   peerScore: number | null;
   peerScale: number | null;
   attachments: Partial<Record<string, boolean>>;
-  preview: boolean;
 }
 
 const title = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
-const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const score = (v: number | null, scale: number | null) =>
   v == null || scale == null ? "—" : `${escapeHtml(v)} / ${escapeHtml(scale)}`;
 
@@ -55,7 +54,6 @@ export function renderFinalReportHtml(data: FinalReportDocumentData): string {
 </style>
 </head>
 <body>
-  ${data.preview ? '<p class="watermark">PREVIEW — NOT YET APPROVED</p>' : ""}
   ${renderFinalCoverSection(data.cover)}
   <div class="report">
     ${sections}
