@@ -12,20 +12,30 @@ export interface FinalCoverData {
   semesterName: string;
 }
 
+export const COVER_CSS = `${PRINT_CSS}${LETTER_CSS}
+  .cover { text-align: center; margin-top: 120px; }
+  .cover h1 { font-size: 24pt; margin-bottom: 8px; }
+  .cover .meta { margin-top: 80px; line-height: 1.8; }
+`;
+
 export function renderFinalCoverHtml(data: FinalCoverData): string {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <title>Final Internship Report Cover ${escapeHtml(data.referenceCode)}</title>
-<style>${PRINT_CSS}${LETTER_CSS}
-  .cover { text-align: center; margin-top: 120px; }
-  .cover h1 { font-size: 24pt; margin-bottom: 8px; }
-  .cover .meta { margin-top: 80px; line-height: 1.8; }
-</style>
+<style>${COVER_CSS}</style>
 </head>
 <body>
-  ${renderLetterhead()}
+  ${renderFinalCoverSection(data)}
+  <footer>${escapeHtml(data.referenceCode)} · generated ${escapeHtml(formatInstant(data.generatedAt))} · IDSMS-CIS</footer>
+</body>
+</html>`;
+}
+
+// The cover page body, shared with the Final Technical Report (WS-H).
+export function renderFinalCoverSection(data: FinalCoverData): string {
+  return `${renderLetterhead()}
   <section class="cover">
     <h1>Final Internship Report</h1>
     <p>${escapeHtml(data.semesterName)}, A.Y. ${escapeHtml(data.academicYear)}</p>
@@ -35,8 +45,5 @@ export function renderFinalCoverHtml(data: FinalCoverData): string {
       <p>Host company: ${escapeHtml(data.company?.name)}</p>
       <p>Hours rendered: ${escapeHtml(data.renderedHours)} / ${escapeHtml(data.requiredHours)} hours</p>
     </div>
-  </section>
-  <footer>${escapeHtml(data.referenceCode)} · generated ${escapeHtml(formatInstant(data.generatedAt))} · IDSMS-CIS</footer>
-</body>
-</html>`;
+  </section>`;
 }

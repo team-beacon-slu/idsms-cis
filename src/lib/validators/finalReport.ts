@@ -95,3 +95,30 @@ export function submitProblems(r: FinalReportContent): string[] {
   }
   return problems;
 }
+
+// Stored report (JSON columns, Decimal scores) → plain content.
+export type Attachments = Partial<Record<string, { attached: boolean; confirmed: boolean }>>;
+export const asSections = (v: unknown) =>
+  v && typeof v === "object" ? (v as Record<string, string>) : {};
+export const asAttachments = (v: unknown) => (v && typeof v === "object" ? (v as Attachments) : {});
+const num = (v: unknown) => (v == null ? null : Number(v));
+
+export function toContent(report: {
+  sections: unknown;
+  supervisorScore: unknown;
+  supervisorScale: number | null;
+  peerScore: unknown;
+  peerScale: number | null;
+  attachments: unknown;
+}): FinalReportContent {
+  return {
+    sections: asSections(report.sections),
+    supervisorScore: num(report.supervisorScore),
+    supervisorScale: report.supervisorScale,
+    peerScore: num(report.peerScore),
+    peerScale: report.peerScale,
+    attachments: Object.fromEntries(
+      Object.entries(asAttachments(report.attachments)).map(([k, v]) => [k, Boolean(v?.attached)])
+    ),
+  };
+}

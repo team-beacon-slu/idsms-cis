@@ -9,6 +9,8 @@ import { ChecklistGateError, isEndorsementGateSatisfied } from "@/lib/services/c
 import { calculateRenderedHours, getFinalReportThreshold } from "@/lib/services/attendanceService";
 import { DocumentNotReadyError, FinalReportLockedError } from "@/lib/documents/errors";
 import { renderFinalCoverHtml } from "@/lib/documents/finalCoverTemplate";
+import { renderFinalReportHtml } from "@/lib/documents/finalReportTemplate";
+import { toContent } from "@/lib/validators/finalReport";
 import {
   EndorsementDataIncompleteError,
   loadEndorsementLetterData,
@@ -293,7 +295,7 @@ export async function generateMonthlyReportPdf(
   return { generatedDocumentId: doc.id, status };
 }
 
-function referenceCode(prefix: "EL" | "FC", date: Date): string {
+function referenceCode(prefix: "EL" | "FC" | "FTR", date: Date): string {
   // Date part in Manila so a letter generated at 07:00 Manila isn't dated "yesterday".
   const manila = new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const random = randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -542,6 +544,95 @@ export async function generateFinalCoverPdf(
     sleep: opts.sleep,
   });
   return { generatedDocumentId: documentId, status };
+}
+
+// Workstream H: the approved Final Technical Report — the cover page above
+// the report sections, scores and attachment list. One row per student;
+// regenerating overwrites it.
+export async function generateFinalTechnicalReportPdf(
+  studentProfileId: string,
+  actingUserId: string,
+  opts: { sleep?: Sleep } = {}
+): Promise<GenerationResult> {
+  const [profile, report] = await Promise.all([
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: {
+        requiredHours: true,
+        fullName: true,
+        studentNumber: true,
+        program: true,
+        company: { select: { name: true } },
+        semester: { select: { name: true, academicYear: true } },
+      },
+    }),
+    prisma.finalTechnicalReport.findUnique({ where: { studentProfileId } }),
+  ]);
+  if (!report || report.status !== "APPROVED") {
+    throw new DocumentNotReadyError(
+      "The final report PDF is available once the coordinator approves it"
+    );
+  }
+  const content = toContent(report);
+  const now = new Date();
+  const existing = await prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.FINAL_TECHNICAL_REPORT },
+    select: { id: true, referenceCode: true },
+  });
+  const code = existing?.referenceCode ?? referenceCode("FTR", now);
+  const documentId = existing
+    ? (
+        await prisma.generatedDocument.update({
+          where: { id: existing.id },
+          data: { status: DocumentStatus.PENDING_DRAFT },
+          select: { id: true },
+        })
+      ).id
+    : (
+        await prisma.generatedDocument.create({
+          data: {
+            studentProfileId,
+            documentType: DocumentType.FINAL_TECHNICAL_REPORT,
+            referenceCode: code,
+            status: DocumentStatus.PENDING_DRAFT,
+          },
+        })
+      ).id;
+  const renderedHours = await calculateRenderedHours(studentProfileId);
+
+  const status = await renderAndStoreDocument({
+    documentId,
+    path: `final-report/${studentProfileId}.pdf`,
+    buildHtml: () =>
+      renderFinalReportHtml({
+        cover: {
+          referenceCode: code,
+          generatedAt: now,
+          student: {
+            fullName: profile.fullName?.trim() || profile.studentNumber,
+            studentNumber: profile.studentNumber,
+            program: profile.program,
+          },
+          company: profile.company,
+          renderedHours,
+          requiredHours: profile.requiredHours,
+          academicYear: profile.semester.academicYear,
+          semesterName: profile.semester.name,
+        },
+        ...content,
+        preview: false,
+      }),
+    actingUserId,
+    detail: { studentProfileId, referenceCode: code },
+    sleep: opts.sleep,
+  });
+  return { generatedDocumentId: documentId, status };
+}
+
+export async function getFinalTechnicalReportDocument(studentProfileId: string) {
+  return prisma.generatedDocument.findFirst({
+    where: { studentProfileId, documentType: DocumentType.FINAL_TECHNICAL_REPORT },
+  });
 }
 
 export async function getFinalCoverDocument(

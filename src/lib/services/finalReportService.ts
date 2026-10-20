@@ -12,43 +12,21 @@ import {
 } from "@/lib/services/notificationEvents";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
+  asAttachments,
+  asSections,
   ATTACHMENT_KEYS,
   finalReportDraftSchema,
   submitProblems,
-  type FinalReportContent,
+  toContent,
+  type Attachments,
 } from "@/lib/validators/finalReport";
 
+export { toContent };
+
 type ActingUser = { id: string; role: Role };
-type Attachments = Partial<Record<string, { attached: boolean; confirmed: boolean }>>;
 
 export const FINAL_REPORT_REVIEWERS: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 const EDITABLE: FinalReportStatus[] = [FinalReportStatus.DRAFT, FinalReportStatus.RETURNED];
-
-const asSections = (v: unknown) =>
-  v && typeof v === "object" ? (v as Record<string, string>) : {};
-const asAttachments = (v: unknown) => (v && typeof v === "object" ? (v as Attachments) : {});
-const num = (v: unknown) => (v == null ? null : Number(v));
-
-export function toContent(report: {
-  sections: unknown;
-  supervisorScore: unknown;
-  supervisorScale: number | null;
-  peerScore: unknown;
-  peerScale: number | null;
-  attachments: unknown;
-}): FinalReportContent {
-  return {
-    sections: asSections(report.sections),
-    supervisorScore: num(report.supervisorScore),
-    supervisorScale: report.supervisorScale,
-    peerScore: num(report.peerScore),
-    peerScale: report.peerScale,
-    attachments: Object.fromEntries(
-      Object.entries(asAttachments(report.attachments)).map(([k, v]) => [k, Boolean(v?.attached)])
-    ),
-  };
-}
-
 // FR-FT-01: same gate as the final cover page (credited hours vs threshold).
 export async function getFinalReportState(studentProfileId: string) {
   const profile = await prisma.studentProfile.findUniqueOrThrow({
