@@ -235,6 +235,30 @@ describe("configureWorkSchedule", () => {
       where: { id: "wp-1" },
       data: { scheduleConfig: { daysOfWeek: [1, 2, 3], hoursPerDay: 8 } },
     });
+    expect(Object.keys(result.scheduleConfig)).toEqual(["daysOfWeek", "hoursPerDay"]);
+  });
+
+  it("persists the shift times when given", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({ id: "wp-1", scheduleConfig: null } as never);
+
+    await configureWorkSchedule(
+      "profile-1",
+      { daysOfWeek: [1], hoursPerDay: 8, startTime: "08:00", endTime: "17:00", breakMinutes: 60 },
+      studentUser
+    );
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: {
+        scheduleConfig: {
+          daysOfWeek: [1],
+          hoursPerDay: 8,
+          startTime: "08:00",
+          endTime: "17:00",
+          breakMinutes: 60,
+        },
+      },
+    });
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "SCHEDULE_CONFIGURED", entityId: "wp-1" }),
@@ -399,6 +423,47 @@ describe("requestScheduleChange", () => {
             status: "PENDING_FACULTY",
             reason: "New shift",
             newScheduleConfig: { daysOfWeek: [1, 2], hoursPerDay: 6 },
+          }),
+        ],
+      },
+    });
+  });
+
+  it("keeps the shift times on the requested schedule", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },
+      scheduleChangeHistory: [],
+    } as never);
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({ scheduleChangeHistory: [] } as never);
+
+    await requestScheduleChange(
+      "profile-1",
+      {
+        reason: "New shift",
+        newScheduleConfig: {
+          daysOfWeek: [1],
+          hoursPerDay: 8,
+          startTime: "09:00",
+          endTime: "18:00",
+          breakMinutes: 60,
+        },
+      },
+      studentUser
+    );
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: {
+        scheduleChangeHistory: [
+          expect.objectContaining({
+            newScheduleConfig: {
+              daysOfWeek: [1],
+              hoursPerDay: 8,
+              startTime: "09:00",
+              endTime: "18:00",
+              breakMinutes: 60,
+            },
           }),
         ],
       },

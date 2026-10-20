@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { formatSchedule, WEEKDAY_SHORT, type ScheduleConfig } from "@/lib/utils/schedule";
+import { parseHHMM } from "@/lib/utils/timeMath";
 
 // FR-AT-01, FR-AT-08 — Owner: gu457 (Ulrich)
 // Requirement: initial schedule config form, plus a mid-internship
@@ -20,7 +21,7 @@ import { formatSchedule, WEEKDAY_SHORT, type ScheduleConfig } from "@/lib/utils/
 // setup; PATCH same route → `requestScheduleChange` (Task 3) for a change
 // request, body validated by `scheduleChangeRequestSchema`
 // (`src/lib/validators/attendance.ts`, Task 2) — needs `reason` (string)
-// and `newScheduleConfig` (`{ daysOfWeek: number[], hoursPerDay: number }`),
+// and `newScheduleConfig` (`{ daysOfWeek, hoursPerDay, startTime?, endTime?, breakMinutes? }`),
 // plus an optional file upload for the supporting document.
 // Follow the Phase 2 `checklist-item-row.tsx` pattern exactly (fetch +
 // `sonner` toast + `router.refresh()`) — that file is the reference
@@ -39,7 +40,17 @@ const PENDING_LABEL: Record<string, string> = {
   PENDING_COORDINATOR: "Awaiting department coordinator",
 };
 
-const DEFAULT_SCHEDULE: ScheduleConfig = { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 };
+// Spec answer 1: per-student shift, defaulting to 08:00–17:00 with a 1 h break.
+const DEFAULT_SHIFT = { startTime: "08:00", endTime: "17:00", breakMinutes: 60 };
+const DEFAULT_SCHEDULE: ScheduleConfig = {
+  daysOfWeek: [1, 2, 3, 4, 5],
+  hoursPerDay: 8,
+  ...DEFAULT_SHIFT,
+};
+
+// A legacy schedule without times starts its change form on the default shift.
+const withShift = (s: ScheduleConfig): ScheduleConfig =>
+  s.startTime ? s : { ...s, ...DEFAULT_SHIFT };
 
 function DayPicker({
   value,
@@ -90,8 +101,14 @@ function ScheduleFields({
   onChange: (schedule: ScheduleConfig) => void;
   disabled?: boolean;
 }) {
+  // Changing the shift refills hours per day; the student can still edit it.
+  function setShift(patch: Partial<ScheduleConfig>) {
+    const next = { ...schedule, ...patch };
+    const hours = shiftHours(next);
+    onChange(hours != null && hours > 0 ? { ...next, hoursPerDay: hours } : next);
+  }
   return (
-    <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+    <div className="space-y-4">
       <div className="space-y-2">
         <Label>Working days</Label>
         <DayPicker
@@ -100,22 +117,65 @@ function ScheduleFields({
           disabled={disabled}
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-hours`}>Hours per day</Label>
-        <Input
-          id={`${idPrefix}-hours`}
-          type="number"
-          min={1}
-          max={24}
-          step={0.5}
-          value={schedule.hoursPerDay}
-          disabled={disabled}
-          onChange={(e) => onChange({ ...schedule, hoursPerDay: Number(e.target.value) })}
-          className="w-28"
-        />
+      <div className="flex flex-wrap gap-4">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-start`}>Start time</Label>
+          <Input
+            id={`${idPrefix}-start`}
+            type="time"
+            value={schedule.startTime ?? ""}
+            disabled={disabled}
+            onChange={(e) => setShift({ startTime: e.target.value })}
+            className="w-32"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-end`}>End time</Label>
+          <Input
+            id={`${idPrefix}-end`}
+            type="time"
+            value={schedule.endTime ?? ""}
+            disabled={disabled}
+            onChange={(e) => setShift({ endTime: e.target.value })}
+            className="w-32"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-break`}>Break (minutes)</Label>
+          <Input
+            id={`${idPrefix}-break`}
+            type="number"
+            min={0}
+            max={240}
+            step={5}
+            value={schedule.breakMinutes ?? 0}
+            disabled={disabled}
+            onChange={(e) => setShift({ breakMinutes: Number(e.target.value) })}
+            className="w-28"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-hours`}>Hours per day</Label>
+          <Input
+            id={`${idPrefix}-hours`}
+            type="number"
+            min={1}
+            max={24}
+            step={0.5}
+            value={schedule.hoursPerDay}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...schedule, hoursPerDay: Number(e.target.value) })}
+            className="w-28"
+          />
+        </div>
       </div>
     </div>
   );
+}
+
+function shiftHours(s: ScheduleConfig): number | null {
+  if (!s.startTime || !s.endTime) return null;
+  return (parseHHMM(s.endTime) - parseHHMM(s.startTime) - (s.breakMinutes ?? 0)) / 60;
 }
 
 function validateSchedule(schedule: ScheduleConfig): string | null {
@@ -123,7 +183,21 @@ function validateSchedule(schedule: ScheduleConfig): string | null {
   if (!(schedule.hoursPerDay > 0 && schedule.hoursPerDay <= 24)) {
     return "Hours per day must be between 1 and 24";
   }
+  if (!schedule.startTime !== !schedule.endTime) return "Give both a start and an end time";
+  if (
+    schedule.startTime &&
+    schedule.endTime &&
+    parseHHMM(schedule.endTime) <= parseHHMM(schedule.startTime)
+  ) {
+    return "End time must be after start time";
+  }
   return null;
+}
+
+function appendShift(formData: FormData, schedule: ScheduleConfig) {
+  if (schedule.startTime) formData.set("startTime", schedule.startTime);
+  if (schedule.endTime) formData.set("endTime", schedule.endTime);
+  if (schedule.breakMinutes != null) formData.set("breakMinutes", String(schedule.breakMinutes));
 }
 
 export function AttendanceScheduleForm({
@@ -141,7 +215,9 @@ export function AttendanceScheduleForm({
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [schedule, setSchedule] = useState<ScheduleConfig>(currentSchedule ?? DEFAULT_SCHEDULE);
+  const [schedule, setSchedule] = useState<ScheduleConfig>(
+    currentSchedule ? withShift(currentSchedule) : DEFAULT_SCHEDULE
+  );
   const [reason, setReason] = useState("");
   const [showChangeForm, setShowChangeForm] = useState(false);
   const [isPending, setIsPending] = useState(false);
@@ -194,6 +270,7 @@ export function AttendanceScheduleForm({
     formData.set("reason", reason.trim());
     formData.set("daysOfWeek", schedule.daysOfWeek.join(","));
     formData.set("hoursPerDay", String(schedule.hoursPerDay));
+    appendShift(formData, schedule);
     const file = fileInputRef.current?.files?.[0];
     if (file) formData.set("file", file);
 
@@ -330,7 +407,7 @@ export function AttendanceScheduleForm({
                 disabled={isPending}
                 onClick={() => {
                   setShowChangeForm(false);
-                  setSchedule(currentSchedule);
+                  setSchedule(withShift(currentSchedule));
                 }}
                 className="cursor-pointer"
               >

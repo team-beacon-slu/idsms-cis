@@ -20,6 +20,21 @@ import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
 export interface ConfigureWorkScheduleInput {
   daysOfWeek: number[]; // 0=Sunday..6=Saturday
   hoursPerDay: number;
+  startTime?: string; // "HH:MM" Manila, shift start
+  endTime?: string;
+  breakMinutes?: number;
+}
+
+// De-duplicates and sorts the days; shift keys are kept only when set so
+// legacy schedules keep their two-key shape.
+function normalizeSchedule(input: ConfigureWorkScheduleInput): ConfigureWorkScheduleInput {
+  return {
+    daysOfWeek: Array.from(new Set(input.daysOfWeek)).sort((a, b) => a - b),
+    hoursPerDay: input.hoursPerDay,
+    ...(input.startTime ? { startTime: input.startTime } : {}),
+    ...(input.endTime ? { endTime: input.endTime } : {}),
+    ...(input.breakMinutes != null ? { breakMinutes: input.breakMinutes } : {}),
+  };
 }
 
 // Thrown by the schedule functions below when the student has no APPROVED
@@ -91,10 +106,7 @@ export async function configureWorkSchedule(
 ): Promise<{ studentProfileId: string; scheduleConfig: ConfigureWorkScheduleInput }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
 
-  const scheduleConfig: ConfigureWorkScheduleInput = {
-    daysOfWeek: Array.from(new Set(input.daysOfWeek)).sort((a, b) => a - b),
-    hoursPerDay: input.hoursPerDay,
-  };
+  const scheduleConfig = normalizeSchedule(input);
 
   return prisma.$transaction(async (tx) => {
     const workPlan = await tx.workPlan.findFirst({
@@ -699,10 +711,7 @@ export async function requestScheduleChange(
 ): Promise<{ workPlanId: string; status: "PENDING_FACULTY" }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
 
-  const newScheduleConfig: ConfigureWorkScheduleInput = {
-    daysOfWeek: Array.from(new Set(input.newScheduleConfig.daysOfWeek)).sort((a, b) => a - b),
-    hoursPerDay: input.newScheduleConfig.hoursPerDay,
-  };
+  const newScheduleConfig = normalizeSchedule(input.newScheduleConfig);
 
   return prisma.$transaction(async (tx) => {
     const workPlan = await tx.workPlan.findFirst({

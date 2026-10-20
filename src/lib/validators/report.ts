@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { timeOfDay } from "@/lib/utils/timeMath";
 
 export const weeklyReportGenerateSchema = z.object({
   weekStart: z.coerce.date(),
@@ -13,7 +14,7 @@ export function isAttendanceStatus(value: string): value is AttendanceStatus {
   return (ATTENDANCE_STATUSES as readonly string[]).includes(value);
 }
 
-const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24-hour)");
+export { timeOfDay };
 
 export function minutesBetween(timeIn: string, timeOut: string): number {
   const [inH, inM] = timeIn.split(":").map(Number);
