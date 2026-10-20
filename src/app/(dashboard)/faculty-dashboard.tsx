@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarOff, ClipboardCheck, Download, Send, Users, UserX } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { countRequestsAwaitingReview } from "@/lib/services/attentionService";
+import { getDeductionTally } from "@/lib/services/deductionService";
 import { getComplianceRows, summarize } from "@/lib/services/complianceService";
 import { ComplianceTable } from "@/components/compliance-table";
 import { StatCard } from "@/components/stat-card";
@@ -23,6 +24,16 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
   ]);
   const summary = summarize(rows);
   const requestsAwaiting = await countRequestsAwaitingReview(assigned);
+  // shortcut: one tally per student (a few queries each); fine for a class
+  // group of ~40, batch the loads if advisers get much larger rosters.
+  const deductions = Object.fromEntries(
+    await Promise.all(
+      rows.map(
+        async (r) =>
+          [r.studentProfileId, (await getDeductionTally(r.studentProfileId)).totals] as const
+      )
+    )
+  );
   // One bulk button per class group, even if advised across several semesters.
   const groupNames = new Map(assigned.map((g) => [g.classGroupId, g.classGroup.name]));
 
@@ -107,7 +118,7 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
               ))}
             </div>
           )}
-          <ComplianceTable rows={rows} />
+          <ComplianceTable rows={rows} deductions={deductions} />
         </CardContent>
       </Card>
     </div>

@@ -21,11 +21,14 @@ const linkClass =
 export function ComplianceTable({
   rows,
   showProgram = false,
+  deductions,
 }: {
   rows: ComplianceRow[];
   showProgram?: boolean;
+  // Workstream L2: ADVISER / WWR deduction totals per studentProfileId.
+  deductions?: Record<string, { adviser: number; wwr: number }>;
 }) {
-  const columnCount = showProgram ? 8 : 7;
+  const columnCount = (showProgram ? 8 : 7) + (deductions ? 1 : 0);
 
   return (
     <div
@@ -44,6 +47,7 @@ export function ComplianceTable({
             {showProgram && <TableHead>Program</TableHead>}
             <TableHead>Hours</TableHead>
             <TableHead>Docs</TableHead>
+            {deductions && <TableHead>Deductions (ADVISER / WWR)</TableHead>}
             <TableHead>Weekly report</TableHead>
             <TableHead>AI flag</TableHead>
             <TableHead>Status</TableHead>
@@ -86,6 +90,13 @@ export function ComplianceTable({
                 <TableCell>
                   {row.checklistApproved}/{CHECKLIST_REQUIRED}
                 </TableCell>
+                {deductions && (
+                  <TableCell>
+                    {deductions[row.studentProfileId]
+                      ? `−${deductions[row.studentProfileId].adviser} / −${deductions[row.studentProfileId].wwr}`
+                      : "—"}
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="flex flex-col items-start gap-1">
                     <StatusBadge status={row.dueWeekState} />

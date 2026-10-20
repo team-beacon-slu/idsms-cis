@@ -19,6 +19,7 @@ export type NotificationTrigger =
   | "WORK_PLAN_REVIEWED"
   | "DEVIATION_VALIDATED"
   | "REQUEST_RETURNED"
+  | "CONDUCT_RECORD_ISSUED"
   | "DSAR_REQUESTED"
   | "DSAR_FULFILLED"
   | "DSAR_DUE"

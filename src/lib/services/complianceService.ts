@@ -175,17 +175,21 @@ export async function getComplianceRows(
           dailyEntries: { select: CREDITED_HOURS_SELECT },
         },
       },
+      conductRecords: { where: { revokedAt: null }, select: { hoursDeducted: true } },
     },
     orderBy: { studentNumber: "asc" },
   });
 
   return students.map((s) => {
-    // Same rule as calculateRenderedHours: only APPROVED + REGARDED reports count.
-    const confirmedHours = sumCreditedHours(
+    // Same rule as calculateRenderedHours: only APPROVED + REGARDED reports
+    // count, minus active conduct-record hours (L2), never below 0.
+    const credited = sumCreditedHours(
       s.weeklyReports
         .filter((report) => CONFIRMING_STATUSES.has(report.status))
         .flatMap((report) => report.dailyEntries)
     );
+    const deducted = (s.conductRecords ?? []).reduce((t, r) => t + Number(r.hoursDeducted), 0);
+    const confirmedHours = Math.max(0, Math.round((credited - deducted) * 100) / 100);
     const hoursPercent =
       s.requiredHours > 0 ? Math.min(100, Math.round((confirmedHours / s.requiredHours) * 100)) : 0;
 

@@ -4,7 +4,7 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { DeviationType, Prisma, Role, WeeklyReportStatus } from "@prisma/client";
-import { dayGaps } from "@/lib/utils/timeMath";
+import { dayGaps, isGapCovered } from "@/lib/utils/timeMath";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import {
@@ -613,15 +613,8 @@ async function assertUndertimeFiled(
     if (e.timeIn2 && e.timeOut2) ranges.push([e.timeIn2, e.timeOut2]);
     const sameDay = requests.filter((r) => toDateKey(r.date) === toDateKey(e.reportDate));
     for (const gap of dayGaps(ranges, shift)) {
-      const covered = sameDay.some(
-        (r) =>
-          r.deviationType === DeviationType.UNDERTIME ||
-          (r.startTime != null &&
-            r.endTime != null &&
-            r.startTime <= gap.start &&
-            r.endTime >= gap.end)
-      );
-      if (!covered) {
+      // Any status counts here (filing is what the gate asks for); the range must span the gap.
+      if (!isGapCovered(gap, sameDay)) {
         missing.push(
           `${shortDate(e.reportDate)} (${gap.kind === "late" ? "late arrival" : "early leave"})`
         );

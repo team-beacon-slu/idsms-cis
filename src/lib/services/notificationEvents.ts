@@ -163,6 +163,20 @@ const REQUEST_LABEL: Record<string, string> = {
 };
 
 // 11 (Workstream L1): leave / OT / UT request approved or returned.
+// Workstream L2: a warning, demerit, violation or suspension was recorded.
+export async function notifyConductRecordIssued(
+  studentProfileId: string,
+  categoryLabel: string,
+  reason: string
+) {
+  await toStudent(studentProfileId, {
+    trigger: "CONDUCT_RECORD_ISSUED",
+    title: `New conduct record: ${categoryLabel}`,
+    body: `Your adviser recorded: ${reason}`,
+    link: `/students/${studentProfileId}/attendance`,
+  });
+}
+
 export async function notifyTimeRequestReviewed(
   studentProfileId: string,
   action: "APPROVE" | "RETURN",
