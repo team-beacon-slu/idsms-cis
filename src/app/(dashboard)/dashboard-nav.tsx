@@ -17,6 +17,7 @@ import {
   Clock,
   CalendarOff,
   NotebookText,
+  BookOpenCheck,
   ScrollText,
   Download,
   UserCircle,
@@ -43,6 +44,7 @@ function getNavItems(role: Role): NavItem[] {
   if (STAFF_ROLES.includes(role)) {
     items.push({ href: "/users", label: "Users", icon: Users });
     items.push({ href: "/semesters", label: "Semesters", icon: CalendarRange });
+    items.push({ href: "/final-reports", label: "Final Reports", icon: BookOpenCheck });
   }
   if (role === Role.SUPER_ADMIN) {
     items.push({ href: "/audit-log", label: "Audit log", icon: ScrollText });
@@ -60,6 +62,7 @@ function getNavItems(role: Role): NavItem[] {
     items.push({ href: "/leave-requests", label: "Leave & Time Requests", icon: CalendarOff });
     items.push({ href: "/weekly-reports", label: "Weekly Reports", icon: FileText });
     items.push({ href: "/monthly-reports", label: "Monthly Reports", icon: FileBarChart2 });
+    items.push({ href: "/final-report", label: "Final Report", icon: BookOpenCheck });
   }
   items.push({ href: "/profile", label: "Profile", icon: UserCircle });
 
