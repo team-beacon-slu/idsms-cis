@@ -1,7 +1,13 @@
+import { Prisma, Role } from "@prisma/client";
 import { ZodError } from "zod";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { DEFAULT_MATRIX } from "@/lib/utils/deductionMatrix";
+import { ForbiddenError } from "@/lib/services/userService";
 import {
+  ConductStateError,
+  excuseItem,
+  listAutomaticItems,
+  withdrawExcuse,
   getDefaultConductHours,
   getDeductionMatrix,
   setDeductionMatrix,
@@ -36,6 +42,113 @@ describe("deduction matrix config", () => {
       })
     );
     await expect(setDeductionMatrix([{ key: "x" }], "admin-1")).rejects.toThrow(ZodError);
+  });
+});
+
+describe("automatic items and excuses", () => {
+  const faculty = { id: "faculty-1", role: Role.FACULTY_ADVISER };
+  const missingWeek = {
+    id: "wr-1",
+    weekStart: new Date("2026-10-05T00:00:00Z"),
+    weekEnd: new Date("2026-10-11T00:00:00Z"),
+    revisionHistory: [],
+    dailyEntries: [],
+  };
+
+  beforeEach(() => {
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      userId: "student-1",
+      classGroupId: "cg-1",
+      semesterId: "s-1",
+    } as never);
+    prismaMock.facultyClassGroup.findFirst.mockResolvedValue({ id: "fcg-1" } as never);
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([missingWeek] as never);
+    prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+    prismaMock.deductionException.findMany.mockResolvedValue([] as never);
+    prismaMock.deductionException.create.mockResolvedValue({ id: "ex-1" } as never);
+    prismaMock.deductionException.updateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  const now = new Date("2026-10-20T00:00:00Z");
+  const excuse = {
+    itemType: "MISSING_WWR",
+    itemKey: "2026-10-05",
+    reasonCode: "BEYOND_INTERN_CONTROL",
+    note: "Site closed by the typhoon all week",
+  };
+
+  it("lists automatic items with their active excuse", async () => {
+    prismaMock.deductionException.findMany.mockResolvedValue([
+      {
+        id: "ex-1",
+        itemType: "MISSING_WWR",
+        itemKey: "2026-10-05",
+        reasonCode: "BEYOND_INTERN_CONTROL",
+        note: "x",
+      },
+    ] as never);
+    const [item] = await listAutomaticItems("profile-1", now);
+    expect(item).toEqual(
+      expect.objectContaining({
+        itemType: "MISSING_WWR",
+        itemKey: "2026-10-05",
+        excused: expect.objectContaining({ id: "ex-1" }),
+      })
+    );
+  });
+
+  it("excuses an existing item, audited", async () => {
+    await expect(excuseItem("profile-1", excuse, faculty, null, now)).resolves.toEqual({
+      id: "ex-1",
+    });
+    expect(prismaMock.deductionException.create).toHaveBeenCalledWith({
+      data: { studentProfileId: "profile-1", ...excuse, createdById: "faculty-1" },
+      select: { id: true },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "DEDUCTION_EXCUSED" }) })
+    );
+  });
+
+  it("refuses an item that doesn't exist, a bad reason code and a short note", async () => {
+    await expect(
+      excuseItem("profile-1", { ...excuse, itemKey: "2026-09-28" }, faculty, null, now)
+    ).rejects.toThrow(ZodError);
+    await expect(
+      excuseItem("profile-1", { ...excuse, reasonCode: "OTHER" }, faculty, null, now)
+    ).rejects.toThrow(ZodError);
+    await expect(
+      excuseItem("profile-1", { ...excuse, note: "short" }, faculty, null, now)
+    ).rejects.toThrow(ZodError);
+  });
+
+  it("maps a second active excuse to a 409 state error", async () => {
+    prismaMock.deductionException.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "6" })
+    );
+    await expect(excuseItem("profile-1", excuse, faculty, null, now)).rejects.toThrow(
+      ConductStateError
+    );
+  });
+
+  it("withdraws once, audited", async () => {
+    prismaMock.deductionException.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+    } as never);
+    await withdrawExcuse("ex-1", faculty);
+    expect(prismaMock.deductionException.updateMany).toHaveBeenCalledWith({
+      where: { id: "ex-1", withdrawnAt: null },
+      data: { withdrawnAt: expect.any(Date), withdrawnById: "faculty-1" },
+    });
+    prismaMock.deductionException.updateMany.mockResolvedValue({ count: 0 } as never);
+    await expect(withdrawExcuse("ex-1", faculty)).rejects.toThrow(ConductStateError);
+  });
+
+  it("refuses students", async () => {
+    await expect(
+      excuseItem("profile-1", excuse, { id: "student-1", role: Role.STUDENT_INTERN }, null, now)
+    ).rejects.toThrow(ForbiddenError);
   });
 });
 

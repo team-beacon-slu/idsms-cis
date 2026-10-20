@@ -1,11 +1,36 @@
 // Workstream L2: the deduction matrix and default hours per conduct record
 // (SystemConfig), automatic deduction items, excuses and the per-intern tally.
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import { DeviationType, Prisma, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
+import { loadShift } from "@/lib/services/creditedHours";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { findAutomaticItems, type AutomaticItem } from "@/lib/utils/automaticDeductions";
 import { DEFAULT_MATRIX, type MatrixCategory } from "@/lib/utils/deductionMatrix";
 import { deductionMatrixSchema } from "@/lib/validators/deductionMatrix";
+
+type ActingUser = { id: string; role: Role };
+
+// Who may issue, revoke and excuse: the assigned adviser, coordinator, Super Admin.
+export const CONDUCT_STAFF_ROLES: Role[] = [
+  Role.FACULTY_ADVISER,
+  Role.DEPARTMENT_COORDINATOR,
+  Role.SUPER_ADMIN,
+];
+
+// A revoke or withdraw that already happened (409).
+export class ConductStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConductStateError";
+  }
+}
+
+export async function assertStaffFor(actingUser: ActingUser, studentProfileId: string) {
+  if (!CONDUCT_STAFF_ROLES.includes(actingUser.role)) throw new ForbiddenError();
+  await assertCanAccessStudent(actingUser, studentProfileId);
+}
 
 const MATRIX_KEY = "deduction_matrix";
 const DEFAULT_HOURS_KEY = "conduct:default_hours";
@@ -56,4 +81,143 @@ export async function getDefaultConductHours(): Promise<number> {
 export async function setDefaultConductHours(hours: number, actingUserId: string): Promise<void> {
   const value = z.number().min(0).max(MAX_CONDUCT_HOURS).parse(hours);
   await upsertConfig(DEFAULT_HOURS_KEY, value, "CONDUCT_DEFAULT_HOURS_UPDATED", actingUserId);
+}
+
+// ── Automatic items and excuses ────────────────────────────────────────────
+
+export type AutomaticItemView = AutomaticItem & {
+  excused: { id: string; reasonCode: string; note: string } | null;
+};
+
+export async function listAutomaticItems(
+  studentProfileId: string,
+  now: Date = new Date()
+): Promise<AutomaticItemView[]> {
+  const [shift, reports, requests, exceptions] = await Promise.all([
+    loadShift(studentProfileId),
+    prisma.weeklyReport.findMany({
+      where: { studentProfileId },
+      select: {
+        id: true,
+        weekStart: true,
+        weekEnd: true,
+        revisionHistory: true,
+        dailyEntries: {
+          select: {
+            reportDate: true,
+            scheduledHours: true,
+            attendanceStatus: true,
+            timeIn: true,
+            timeOut: true,
+            timeIn2: true,
+            timeOut2: true,
+          },
+        },
+      },
+    }),
+    prisma.deviationReport.findMany({
+      where: {
+        studentProfileId,
+        deviationType: { in: [DeviationType.UNDERTIME, DeviationType.ABSENCE] },
+      },
+      select: {
+        deviationType: true,
+        validationStatus: true,
+        date: true,
+        endDate: true,
+        startTime: true,
+        endTime: true,
+      },
+    }),
+    prisma.deductionException.findMany({
+      where: { studentProfileId, withdrawnAt: null },
+      select: { id: true, itemType: true, itemKey: true, reasonCode: true, note: true },
+    }),
+  ]);
+  return findAutomaticItems({ now, shift, reports, requests }).map((item) => {
+    const ex = exceptions.find((e) => e.itemType === item.itemType && e.itemKey === item.itemKey);
+    return {
+      ...item,
+      excused: ex ? { id: ex.id, reasonCode: ex.reasonCode, note: ex.note } : null,
+    };
+  });
+}
+
+const excuseSchema = z.object({
+  itemType: z.enum(["LATE_WWR", "MISSING_WWR", "UNSUPPORTED_UT"]),
+  itemKey: z.string().min(1).max(64),
+  reasonCode: z.enum(["HTE_ATTESTED_DOCUMENTATION", "BEYOND_INTERN_CONTROL"]),
+  note: z.string().trim().min(10, "Give a note of at least 10 characters").max(500),
+});
+
+// SLU exception: HTE-attested documentation or circumstances beyond the
+// intern's control. The documentation itself stays in Google Classroom.
+export async function excuseItem(
+  studentProfileId: string,
+  input: unknown,
+  actingUser: ActingUser,
+  ip?: string | null,
+  now: Date = new Date()
+): Promise<{ id: string }> {
+  await assertStaffFor(actingUser, studentProfileId);
+  const data = excuseSchema.parse(input);
+  const items = await listAutomaticItems(studentProfileId, now);
+  z.literal(true, { message: "That item isn't on this intern's record" }).parse(
+    items.some((i) => i.itemType === data.itemType && i.itemKey === data.itemKey)
+  );
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const created = await tx.deductionException.create({
+        data: { studentProfileId, ...data, createdById: actingUser.id },
+        select: { id: true },
+      });
+      await logEvent(
+        {
+          userId: actingUser.id,
+          action: "DEDUCTION_EXCUSED",
+          entityType: "DeductionException",
+          entityId: created.id,
+          ipAddress: ip,
+          detail: { studentProfileId, ...data },
+        },
+        tx
+      );
+      return created;
+    });
+  } catch (error) {
+    // The partial unique index allows one active excuse per item.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new ConductStateError("This item is already excused");
+    }
+    throw error;
+  }
+}
+
+export async function withdrawExcuse(
+  id: string,
+  actingUser: ActingUser,
+  ip?: string | null
+): Promise<void> {
+  const ex = await prisma.deductionException.findUniqueOrThrow({
+    where: { id },
+    select: { studentProfileId: true },
+  });
+  await assertStaffFor(actingUser, ex.studentProfileId);
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.deductionException.updateMany({
+      where: { id, withdrawnAt: null },
+      data: { withdrawnAt: new Date(), withdrawnById: actingUser.id },
+    });
+    if (count === 0) throw new ConductStateError("This excuse was already withdrawn");
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "DEDUCTION_EXCUSE_WITHDRAWN",
+        entityType: "DeductionException",
+        entityId: id,
+        ipAddress: ip,
+      },
+      tx
+    );
+  });
 }

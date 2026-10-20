@@ -6,30 +6,18 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { computeTotalHoursRendered } from "@/lib/services/attendanceService";
 import { logEvent } from "@/lib/services/auditService";
-import { getDefaultConductHours, getDeductionMatrix } from "@/lib/services/deductionService";
+import {
+  assertStaffFor,
+  ConductStateError,
+  getDefaultConductHours,
+  getDeductionMatrix,
+} from "@/lib/services/deductionService";
 import { notifyConductRecordIssued } from "@/lib/services/notificationEvents";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { conductRecordSchema, revokeReasonSchema } from "@/lib/validators/conduct";
 
+export { CONDUCT_STAFF_ROLES, ConductStateError } from "@/lib/services/deductionService";
+
 type ActingUser = { id: string; role: Role };
-
-export const CONDUCT_STAFF_ROLES: Role[] = [
-  Role.FACULTY_ADVISER,
-  Role.DEPARTMENT_COORDINATOR,
-  Role.SUPER_ADMIN,
-];
-
-export class ConductStateError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConductStateError";
-  }
-}
-
-async function assertStaffFor(actingUser: ActingUser, studentProfileId: string) {
-  if (!CONDUCT_STAFF_ROLES.includes(actingUser.role)) throw new ForbiddenError();
-  await assertCanAccessStudent(actingUser, studentProfileId);
-}
 
 export async function issueConductRecord(
   studentProfileId: string,
