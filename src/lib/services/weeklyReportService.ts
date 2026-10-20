@@ -694,6 +694,26 @@ export async function recordWeeklyReportSubmission(
 // hours now count toward both. The route also calls
 // `notificationService.sendReportStatusEmail` (Task 8) after this returns.
 // Edge cases: none beyond the status transition itself.
+export class WeeklyReportNotAwaitingReviewError extends Error {
+  constructor(
+    message = "This report isn't awaiting review — the student hasn't submitted it, or it was already reviewed"
+  ) {
+    super(message);
+    this.name = "WeeklyReportNotAwaitingReviewError";
+  }
+}
+
+// Every faculty review action applies only to a submitted report that is
+// still awaiting review; read inside the action's transaction.
+async function assertAwaitingReview(tx: Prisma.TransactionClient, weeklyReportId: string) {
+  const report = await tx.weeklyReport.findUniqueOrThrow({
+    where: { id: weeklyReportId },
+    select: { status: true, revisionHistory: true },
+  });
+  if (!isAwaitingReview(report)) throw new WeeklyReportNotAwaitingReviewError();
+  return report;
+}
+
 export async function reviewWeeklyReport_Approve(
   weeklyReportId: string,
   facultyId: string,
@@ -706,13 +726,16 @@ export async function reviewWeeklyReport_Approve(
   // available to record who reviewed it. A single unconditional update
   // needs no `$transaction` wrapper — there's no read-then-write state
   // gate here.
-  const { id, status, studentProfileId } = await prisma.weeklyReport.update({
-    where: { id: weeklyReportId },
-    data: {
-      status: WeeklyReportStatus.APPROVED,
-      facultyAction: `APPROVED by ${facultyId}`,
-    },
-    select: { id: true, status: true, studentProfileId: true },
+  const { id, status, studentProfileId } = await prisma.$transaction(async (tx) => {
+    await assertAwaitingReview(tx, weeklyReportId);
+    return tx.weeklyReport.update({
+      where: { id: weeklyReportId },
+      data: {
+        status: WeeklyReportStatus.APPROVED,
+        facultyAction: `APPROVED by ${facultyId}`,
+      },
+      select: { id: true, status: true, studentProfileId: true },
+    });
   });
 
   // This report's hours now count toward both, per the contract above —
@@ -739,10 +762,7 @@ export async function reviewWeeklyReport_Return(
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
   const revisionNotes = z.string().trim().min(1, "Revision notes are required").parse(notes);
   return prisma.$transaction(async (tx) => {
-    const report = await tx.weeklyReport.findUniqueOrThrow({
-      where: { id: weeklyReportId },
-      select: { revisionHistory: true },
-    });
+    const report = await assertAwaitingReview(tx, weeklyReportId);
     const entry = {
       type: "RETURNED",
       timestamp: new Date().toISOString(),
@@ -790,10 +810,13 @@ export async function reviewWeeklyReport_Regard(
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
   void ipAddress;
-  const { id, status, studentProfileId } = await prisma.weeklyReport.update({
-    where: { id: weeklyReportId },
-    data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
-    select: { id: true, status: true, studentProfileId: true },
+  const { id, status, studentProfileId } = await prisma.$transaction(async (tx) => {
+    await assertAwaitingReview(tx, weeklyReportId);
+    return tx.weeklyReport.update({
+      where: { id: weeklyReportId },
+      data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
+      select: { id: true, status: true, studentProfileId: true },
+    });
   });
   await computeTotalHoursRendered(studentProfileId);
   await computeProjectedCompletionDate(studentProfileId);
@@ -840,6 +863,7 @@ export async function reviewWeeklyReport_Disregard(
   void ipAddress;
 
   return prisma.$transaction(async (tx) => {
+    await assertAwaitingReview(tx, weeklyReportId);
     await tx.dailyReportEntry.deleteMany({ where: { weeklyReportId } });
     await tx.weeklyReport.delete({ where: { id: weeklyReportId } });
 

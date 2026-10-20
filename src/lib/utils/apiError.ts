@@ -31,6 +31,7 @@ import {
   LateSubmissionReasonRequiredError,
   WeeklyReportIncompleteError,
   WeeklyReportLockedError,
+  WeeklyReportNotAwaitingReviewError,
 } from "@/lib/services/weeklyReportService";
 
 // Student-facing business-rule violations from Phase 3's attendance and
@@ -88,7 +89,8 @@ export function handleApiError(error: unknown): NextResponse {
     error instanceof SemesterStateError ||
     error instanceof DataRequestStateError ||
     error instanceof RetentionStateError ||
-    error instanceof TimeRequestStateError
+    error instanceof TimeRequestStateError ||
+    error instanceof WeeklyReportNotAwaitingReviewError
   ) {
     return NextResponse.json({ error: error.message }, { status: 409 });
   }

@@ -26,13 +26,31 @@ import {
   validateLateSubmissionReason,
 } from "@/lib/services/weeklyReportService";
 
-beforeEach(() => resetPrismaMock());
+beforeEach(() => {
+  resetPrismaMock();
+  // Review actions require a submitted report awaiting review; tests that
+  // need another state set their own.
+  prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+    status: WeeklyReportStatus.PENDING,
+    revisionHistory: [{ type: "SUBMITTED", timestamp: "t0" }],
+  } as never);
+});
 
 describe("reviewWeeklyReport_Return", () => {
-  it.each([[], [{ type: "SUBMITTED", timestamp: "2026-10-10", referenceCode: "WR-1" }], null])(
+  it.each([
+    [[{ type: "SUBMITTED", timestamp: "2026-10-10", referenceCode: "WR-1" }]],
+    [
+      [
+        { type: "SUBMITTED", timestamp: "2026-10-03", referenceCode: "WR-0" },
+        { type: "RETURNED", timestamp: "2026-10-04", notes: "Fix" },
+        { type: "SUBMITTED", timestamp: "2026-10-10", referenceCode: "WR-1" },
+      ],
+    ],
+  ])(
     "preserves history %p and appends revision notes without recalculating hours",
     async (history) => {
       prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+        status: WeeklyReportStatus.PENDING,
         revisionHistory: history,
       } as never);
       prismaMock.weeklyReport.update.mockResolvedValue({
