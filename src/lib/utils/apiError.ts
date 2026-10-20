@@ -25,6 +25,7 @@ import {
   RetentionStateError,
 } from "@/lib/errors/compliance";
 import {
+  DailyEntryDateError,
   LateSubmissionReasonRequiredError,
   WeeklyReportIncompleteError,
   WeeklyReportLockedError,
@@ -41,6 +42,7 @@ const BAD_REQUEST_ERRORS = [
   WeeklyReportLockedError,
   WeeklyReportIncompleteError,
   LateSubmissionReasonRequiredError,
+  DailyEntryDateError,
   DocumentNotReadyError,
   EndorsementDataIncompleteError,
   FinalReportLockedError,

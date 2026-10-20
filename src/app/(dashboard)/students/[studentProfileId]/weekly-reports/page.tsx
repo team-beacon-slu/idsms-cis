@@ -235,6 +235,8 @@ export default async function WeeklyReportsPage({
                         attendanceStatus: e.attendanceStatus,
                         timeIn: e.timeIn,
                         timeOut: e.timeOut,
+                        timeIn2: e.timeIn2,
+                        timeOut2: e.timeOut2,
                       }))}
                     />
                   </div>

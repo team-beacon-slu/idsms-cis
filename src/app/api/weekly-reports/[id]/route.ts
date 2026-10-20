@@ -52,6 +52,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       attendanceStatus,
       timeIn,
       timeOut,
+      timeIn2,
+      timeOut2,
     } = dailyEntrySchema.parse(body);
 
     const entryWeeklyReportId = await getDailyReportEntryWeeklyReportId(dailyReportEntryId);
@@ -65,7 +67,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       accomplishments,
       user.id,
       toolsUsed,
-      { attendanceStatus, timeIn: timeIn ?? null, timeOut: timeOut ?? null }
+      {
+        attendanceStatus,
+        timeIn: timeIn ?? null,
+        timeOut: timeOut ?? null,
+        timeIn2: timeIn2 ?? null,
+        timeOut2: timeOut2 ?? null,
+      }
     );
     const totalHours = await calculateWeeklyTotalHours(params.id);
     const { runningTotal, remainingHours } = await calculateRunningTotalAndRemaining(

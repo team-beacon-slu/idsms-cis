@@ -77,6 +77,17 @@ enum DeviationType {
   UNDERTIME
 }
 
+enum RequestKind {
+  ANTICIPATED
+  EMERGENCY
+}
+
+enum ProofType {
+  MEDICAL_CERTIFICATE
+  PROOF_OF_LEAVE
+  WRITTEN_NOTICE
+}
+
 enum ValidationStatus {
   PENDING
   VALIDATED
@@ -286,6 +297,8 @@ model Semester {
   academicYear String    @map("academic_year")
   isActive     Boolean   @default(false) @map("is_active")
   archivedAt   DateTime? @map("archived_at")
+  // Faculty-defined start of Week 1 for the term (weekly report numbering).
+  weekOneStart DateTime? @map("week_one_start")
 
   students       StudentProfile[]
   facultyGroups  FacultyClassGroup[]
@@ -410,6 +423,11 @@ model DailyReportEntry {
   // Phase 4 (adviser request): optional wall-clock times, "HH:MM" Manila.
   timeIn           String?  @map("time_in")
   timeOut          String?  @map("time_out")
+  // Workstream L1: optional second ("afternoon") range, and the SLU-credited
+  // hours computed at save time (null on legacy rows; read via entryCreditedHours).
+  timeIn2          String?  @map("time_in_2")
+  timeOut2         String?  @map("time_out_2")
+  creditedHours    Decimal? @map("credited_hours") @db.Decimal(4, 2)
   // embeddingVector: pgvector column, added via raw SQL migration (see
   // prisma/migrations_manual/) — Prisma has no native `vector` type, so this
   // field is queried through $queryRaw in aiService.ts, not through the client.
@@ -428,6 +446,16 @@ model DeviationReport {
   proofUrl         String?          @map("proof_url")
   validationStatus ValidationStatus @default(PENDING) @map("validation_status")
   facultyId        String?          @map("faculty_id") @db.Uuid
+  // Workstream L1: the deviation is now a leave / OT / UT request.
+  requestKind      RequestKind?     @map("request_kind")
+  endDate          DateTime?        @map("end_date")
+  startTime        String?          @map("start_time")
+  endTime          String?          @map("end_time")
+  requestedMinutes Int?             @map("requested_minutes")
+  proofType        ProofType?       @map("proof_type")
+  reviewNote       String?          @map("review_note")
+  submittedAt      DateTime?        @map("submitted_at") @db.Timestamptz(3)
+  updatedAt        DateTime?        @map("updated_at") @db.Timestamptz(3)
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
 

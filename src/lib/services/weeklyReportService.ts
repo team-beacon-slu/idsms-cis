@@ -114,6 +114,13 @@ export class WeeklyReportIncompleteError extends Error {
   }
 }
 
+export class DailyEntryDateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DailyEntryDateError";
+  }
+}
+
 export class LateSubmissionReasonRequiredError extends Error {
   constructor(
     message = "This report is past its Tuesday deadline — a reason for delay is required"
@@ -166,21 +173,25 @@ export async function generateWeeklyReportForm(
   }
 
   const holidays = await getHolidayCalendarForStudent(studentProfileId);
-  const nonWorkingDates = new Set(
-    holidays.filter((h) => h.applicable).map((h) => toDateKey(h.date))
-  );
+  const holidayDates = new Set(holidays.filter((h) => h.applicable).map((h) => toDateKey(h.date)));
   const workingDays = new Set(schedule.daysOfWeek);
 
+  // Applicable holidays on scheduled days get a 0-hour HOLIDAY row so the SLU
+  // template can print "Holiday (PH Calendar)".
   const dailyEntries: Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[] = [];
   for (let offset = 0; offset < 7; offset += 1) {
     const day = addDays(normalizedWeekStart, offset);
     if (!workingDays.has(day.getUTCDay())) continue;
-    if (nonWorkingDates.has(toDateKey(day))) continue;
-    dailyEntries.push({
-      reportDate: day,
-      attendanceStatus: "SCHEDULED",
-      scheduledHours: schedule.hoursPerDay,
-    });
+    dailyEntries.push(
+      holidayDates.has(toDateKey(day))
+        ? {
+            reportDate: day,
+            attendanceStatus: "HOLIDAY",
+            scheduledHours: schedule.hoursPerDay,
+            actualHours: 0,
+          }
+        : { reportDate: day, attendanceStatus: "SCHEDULED", scheduledHours: schedule.hoursPerDay }
+    );
   }
 
   try {
@@ -305,6 +316,8 @@ export async function saveDailyAccomplishment(
     attendanceStatus?: AttendanceStatus;
     timeIn?: string | null;
     timeOut?: string | null;
+    timeIn2?: string | null;
+    timeOut2?: string | null;
   } = {}
 ): Promise<{ id: string; hours: number; accomplishments: string }> {
   // Explicit status wins; legacy callers (no status) keep the old
@@ -344,9 +357,19 @@ export async function saveDailyAccomplishment(
               ...(toolsUsed !== undefined ? { toolsUsed: toolsUsed || null } : {}),
               ...(details.timeIn !== undefined ? { timeIn: details.timeIn } : {}),
               ...(details.timeOut !== undefined ? { timeOut: details.timeOut } : {}),
+              ...(details.timeIn2 !== undefined ? { timeIn2: details.timeIn2 } : {}),
+              ...(details.timeOut2 !== undefined ? { timeOut2: details.timeOut2 } : {}),
             }
           : // Absent/holiday days carry nothing that could print on the PDF.
-            { actualHours: 0, accomplishments: "", toolsUsed: null, timeIn: null, timeOut: null }),
+            {
+              actualHours: 0,
+              accomplishments: "",
+              toolsUsed: null,
+              timeIn: null,
+              timeOut: null,
+              timeIn2: null,
+              timeOut2: null,
+            }),
       },
       select: { id: true, actualHours: true, accomplishments: true },
     });
@@ -356,6 +379,41 @@ export async function saveDailyAccomplishment(
       hours: Number(updated.actualHours ?? 0),
       accomplishments: updated.accomplishments ?? "",
     };
+  });
+}
+
+// Workstream L1: a row for a non-scheduled date in the week (e.g. a Saturday
+// worked under an approved OT request). Owner only, editable weeks only.
+export async function addDailyEntry(
+  weeklyReportId: string,
+  reportDate: Date,
+  studentUserId: string
+): Promise<{ id: string }> {
+  const report = await prisma.weeklyReport.findUniqueOrThrow({
+    where: { id: weeklyReportId },
+    select: {
+      weekStart: true,
+      weekEnd: true,
+      status: true,
+      revisionHistory: true,
+      studentProfile: { select: { userId: true } },
+      dailyEntries: { select: { reportDate: true } },
+    },
+  });
+  if (report.studentProfile.userId !== studentUserId) {
+    throw new ForbiddenError("Only the student who owns this report can edit it");
+  }
+  if (!isWeeklyReportEditable(report)) throw new WeeklyReportLockedError();
+  const key = toDateKey(reportDate);
+  if (key < toDateKey(report.weekStart) || key > toDateKey(report.weekEnd)) {
+    throw new DailyEntryDateError("Pick a date within this report's week");
+  }
+  if (report.dailyEntries.some((e) => toDateKey(e.reportDate) === key)) {
+    throw new DailyEntryDateError("That day is already in this report");
+  }
+  return prisma.dailyReportEntry.create({
+    data: { weeklyReportId, reportDate, attendanceStatus: "SCHEDULED", scheduledHours: 0 },
+    select: { id: true },
   });
 }
 
