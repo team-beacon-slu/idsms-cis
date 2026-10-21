@@ -95,7 +95,7 @@ export function MonthlyReportView({
     return (
       <div
         data-testid="monthly-report-view"
-        className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground"
+        className="text-muted-foreground flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center text-sm"
       >
         <CircleDashed className="size-5" aria-hidden="true" />
         <p>No weekly reports yet — monthly reports roll up approved weekly reports.</p>
@@ -113,10 +113,10 @@ export function MonthlyReportView({
           <div key={month.calendarMonth} className="space-y-3 rounded-lg border p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-foreground text-sm font-semibold">
                   {monthLabel(month.calendarMonth)}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   {month.weeklyReports.length} weekly report
                   {month.weeklyReports.length === 1 ? "" : "s"} ·{" "}
                   {Math.round(monthHours * 100) / 100} approved hours
@@ -141,7 +141,7 @@ export function MonthlyReportView({
                   title={
                     month.eligible
                       ? undefined
-                      : "Every weekly report in this month must be Approved or Regarded first"
+                      : "Every week this month needs an Approved or Regarded weekly report first"
                   }
                   className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
                 >
@@ -165,7 +165,7 @@ export function MonthlyReportView({
                     {shortDate(report.weekStart)} – {shortDate(report.weekEnd)}
                   </span>
                   <span className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">{report.totalHours} hrs</span>
+                    <span className="text-muted-foreground text-xs">{report.totalHours} hrs</span>
                     <StatusBadge status={report.status} />
                   </span>
                 </li>

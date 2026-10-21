@@ -2,6 +2,7 @@
 import { DocumentStatus, DocumentType, WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
+import { addDays, toDateKey } from "@/lib/utils/reportDeadline";
 
 // `calendarMonth` is always "YYYY-MM" (see both functions' JSDoc below).
 // Shared here since both the eligibility check and (eventually) any
@@ -42,23 +43,40 @@ export async function checkMonthlyAggregationEligibility(
   // ends on/after the month starts (e.g. a week straddling a month
   // boundary counts toward both months, same as `computeTotalHoursRendered`
   // would see it via its own APPROVED/REGARDED status filter).
-  const overlappingReports = await prisma.weeklyReport.findMany({
-    where: {
-      studentProfileId,
-      weekStart: { lte: monthEnd },
-      weekEnd: { gte: monthStart },
-    },
-    select: { status: true },
+  // Every week is read (a few dozen at most) so a week with no report shows up.
+  const reports = await prisma.weeklyReport.findMany({
+    where: { studentProfileId },
+    select: { weekStart: true, weekEnd: true, status: true },
   });
+  const overlappingReports = reports.filter(
+    (r) => r.weekStart <= monthEnd && r.weekEnd >= monthStart
+  );
 
   if (overlappingReports.length === 0) {
     return false;
   }
 
-  return overlappingReports.every(
+  const allApproved = overlappingReports.every(
     (report) =>
       report.status === WeeklyReportStatus.APPROVED || report.status === WeeklyReportStatus.REGARDED
   );
+  const weekStarts = reports.map((r) => r.weekStart);
+  return allApproved && missingWeeksInRange(weekStarts, monthStart, monthEnd).length === 0;
+}
+
+// Weeks with no report between the student's first and last report weeks that
+// overlap [from, to], as YYYY-MM-DD Mondays. Same rule as the automatic
+// MISSING_WWR deduction: weeks before the first or after the last report aren't
+// counted, so an intern who finished early isn't blocked.
+export function missingWeeksInRange(weekStarts: Date[], from: Date, to: Date): string[] {
+  if (weekStarts.length === 0) return [];
+  const have = new Set(weekStarts.map(toDateKey));
+  const sorted = [...weekStarts].sort((a, b) => +a - +b);
+  const missing: string[] = [];
+  for (let w = sorted[0]; w <= sorted[sorted.length - 1]; w = addDays(w, 7)) {
+    if (!have.has(toDateKey(w)) && w <= to && addDays(w, 6) >= from) missing.push(toDateKey(w));
+  }
+  return missing;
 }
 
 // FR-WR-08 — Owner: JayPing23 (Danielle)

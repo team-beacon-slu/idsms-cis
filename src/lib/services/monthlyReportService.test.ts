@@ -67,26 +67,26 @@ describe("submitMonthlyReport", () => {
   });
 });
 
+// A weekly report row for the Monday `monday` (YYYY-MM-DD).
+const week = (monday: string, status: WeeklyReportStatus = WeeklyReportStatus.APPROVED) => {
+  const weekStart = new Date(`${monday}T00:00:00.000Z`);
+  return { weekStart, weekEnd: new Date(weekStart.getTime() + 6 * 86_400_000), status };
+};
+
 describe("checkMonthlyAggregationEligibility", () => {
   it("returns false when no weekly reports overlap the calendar month", async () => {
-    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([week("2026-06-01")] as never);
 
     await expect(checkMonthlyAggregationEligibility("profile-1", "2026-08")).resolves.toBe(false);
     expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          studentProfileId: "profile-1",
-          weekStart: { lte: new Date("2026-08-31T23:59:59.999Z") },
-          weekEnd: { gte: new Date("2026-08-01T00:00:00.000Z") },
-        },
-      })
+      expect.objectContaining({ where: { studentProfileId: "profile-1" } })
     );
   });
 
   it("returns true when every overlapping report is APPROVED or REGARDED", async () => {
     prismaMock.weeklyReport.findMany.mockResolvedValue([
-      { status: WeeklyReportStatus.APPROVED },
-      { status: WeeklyReportStatus.REGARDED },
+      week("2026-08-03"),
+      week("2026-08-10", WeeklyReportStatus.REGARDED),
     ] as never);
 
     await expect(checkMonthlyAggregationEligibility("profile-1", "2026-08")).resolves.toBe(true);
@@ -94,8 +94,41 @@ describe("checkMonthlyAggregationEligibility", () => {
 
   it("returns false when any overlapping report is still PENDING/RETURNED", async () => {
     prismaMock.weeklyReport.findMany.mockResolvedValue([
-      { status: WeeklyReportStatus.APPROVED },
-      { status: WeeklyReportStatus.PENDING },
+      week("2026-08-03"),
+      week("2026-08-10", WeeklyReportStatus.PENDING),
+    ] as never);
+
+    await expect(checkMonthlyAggregationEligibility("profile-1", "2026-08")).resolves.toBe(false);
+  });
+
+  it("returns false when a week inside the month has no report at all", async () => {
+    // Aug 10 was never started: approving the weeks around it must not unlock August.
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      week("2026-08-03"),
+      week("2026-08-17"),
+    ] as never);
+
+    await expect(checkMonthlyAggregationEligibility("profile-1", "2026-08")).resolves.toBe(false);
+  });
+
+  it("ignores a missing week that falls in another month", async () => {
+    // Jul 13 is missing, but it ends Jul 19 and so only blocks July.
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      week("2026-07-06"),
+      week("2026-07-20"),
+      week("2026-07-27"),
+      week("2026-08-03"),
+      week("2026-08-10"),
+    ] as never);
+
+    await expect(checkMonthlyAggregationEligibility("profile-1", "2026-08")).resolves.toBe(true);
+  });
+
+  it("counts a missing week that straddles into the month", async () => {
+    // Jul 27 – Aug 2 has no report and overlaps August.
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      week("2026-07-20"),
+      week("2026-08-03"),
     ] as never);
 
     await expect(checkMonthlyAggregationEligibility("profile-1", "2026-08")).resolves.toBe(false);
