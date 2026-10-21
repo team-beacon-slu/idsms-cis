@@ -1,4 +1,3 @@
-import { Bell } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { listNotifications } from "@/lib/services/inbox";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,10 +24,7 @@ export default async function NotificationsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
-          <Bell className="size-6 text-primary" aria-hidden="true" />
-          Notifications
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Notifications</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Review outcomes, deadlines, and account updates.
         </p>

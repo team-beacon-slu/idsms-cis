@@ -46,8 +46,8 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-foreground text-2xl font-semibold tracking-tight">Companies</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Companies</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Host companies registered for student internships.
           </p>
         </div>
@@ -60,19 +60,14 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatCard
-          label="Registered companies"
-          value={companies.length}
-          icon={Building2}
-          tone="blue"
-        />
-        <StatCard label="Verified" value={verifiedCount} icon={ShieldCheck} tone="green" />
+        <StatCard label="Registered companies" value={companies.length} icon={Building2} />
+        <StatCard label="Verified" value={verifiedCount} icon={ShieldCheck} />
       </div>
 
       <form className="flex gap-2">
         <div className="relative w-full max-w-sm">
           <Search
-            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
           />
           <input
@@ -80,7 +75,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
             name="search"
             placeholder="Search by name..."
             defaultValue={searchParams.search}
-            className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent py-1 pr-3 pl-9 text-sm shadow-xs transition-colors duration-200 focus-visible:ring-1 focus-visible:outline-hidden"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent py-1 pr-3 pl-9 text-sm shadow-xs transition-colors duration-200 placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden"
           />
         </div>
         <Button type="submit" variant="outline" className="cursor-pointer">
@@ -88,7 +83,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
         </Button>
       </form>
 
-      <div className="border-border overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <Table>
           <TableCaption className="sr-only">Registered companies</TableCaption>
           <TableHeader>
@@ -104,7 +99,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
                 <TableCell>
                   <Link
                     href={`/companies/${company.id}`}
-                    className="text-primary hover:text-primary/80 cursor-pointer font-medium transition-colors duration-200 hover:underline"
+                    className="cursor-pointer font-medium text-primary transition-colors duration-200 hover:text-primary/80 hover:underline"
                   >
                     {company.name}
                   </Link>
@@ -119,11 +114,11 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
               <TableRow>
                 <TableCell colSpan={3} className="py-14 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <div className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-full">
+                    <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                       <Building2 className="size-5" aria-hidden="true" />
                     </div>
-                    <p className="text-foreground text-sm font-medium">No companies found</p>
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm font-medium text-foreground">No companies found</p>
+                    <p className="text-sm text-muted-foreground">
                       Register the first host company to get started.
                     </p>
                   </div>

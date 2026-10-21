@@ -1,23 +1,37 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
-import { countRequestsAwaitingReview, getAttentionItems } from "@/lib/services/attentionService";
+import {
+  getAttentionItems,
+  requestsAwaitingReviewByStudent,
+} from "@/lib/services/attentionService";
 
-describe("countRequestsAwaitingReview", () => {
-  it("counts pending requests across the adviser's groups", async () => {
-    prismaMock.deviationReport.count.mockResolvedValue(3);
-    await expect(
-      countRequestsAwaitingReview([{ classGroupId: "cg-1", semesterId: "s-1" }])
-    ).resolves.toBe(3);
-    expect(prismaMock.deviationReport.count).toHaveBeenCalledWith({
+describe("requestsAwaitingReviewByStudent", () => {
+  it("counts pending requests per intern across the adviser's groups", async () => {
+    (prismaMock.deviationReport.groupBy as unknown as jest.Mock).mockResolvedValue([
+      { studentProfileId: "sp-1", _count: { _all: 2 } },
+      { studentProfileId: "sp-2", _count: { _all: 1 } },
+    ] as never);
+
+    const byStudent = await requestsAwaitingReviewByStudent([
+      { classGroupId: "cg-1", semesterId: "s-1" },
+    ]);
+
+    expect([...byStudent]).toEqual([
+      ["sp-1", 2],
+      ["sp-2", 1],
+    ]);
+    expect(prismaMock.deviationReport.groupBy).toHaveBeenCalledWith({
+      by: ["studentProfileId"],
       where: {
         validationStatus: "PENDING",
         studentProfile: { OR: [{ classGroupId: "cg-1", semesterId: "s-1" }] },
       },
+      _count: { _all: true },
     });
   });
 
-  it("is 0 without any assigned group", async () => {
-    await expect(countRequestsAwaitingReview([])).resolves.toBe(0);
-    expect(prismaMock.deviationReport.count).not.toHaveBeenCalled();
+  it("is empty without any assigned group", async () => {
+    await expect(requestsAwaitingReviewByStudent([])).resolves.toEqual(new Map());
+    expect(prismaMock.deviationReport.groupBy).not.toHaveBeenCalled();
   });
 });
 

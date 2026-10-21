@@ -751,7 +751,18 @@ export async function listUsers(filters: ListUsersFilters = {}) {
     deletedAt: null,
     ...(filters.role ? { role: filters.role } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
-    ...(filters.search ? { email: { contains: filters.search, mode: "insensitive" } } : {}),
+    // People are found by email, or for students by name or student number.
+    ...(filters.search
+      ? {
+          OR: [
+            { email: { contains: filters.search, mode: "insensitive" } },
+            { studentProfile: { fullName: { contains: filters.search, mode: "insensitive" } } },
+            {
+              studentProfile: { studentNumber: { contains: filters.search, mode: "insensitive" } },
+            },
+          ],
+        }
+      : {}),
   };
 
   const [users, total] = await Promise.all([
@@ -760,11 +771,21 @@ export async function listUsers(filters: ListUsersFilters = {}) {
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
+      include: { studentProfile: { select: { fullName: true, studentNumber: true } } },
     }),
     prisma.user.count({ where }),
   ]);
 
-  return { users: users.map(toSafeUser), total, page, pageSize };
+  return {
+    users: users.map((u) => ({
+      ...toSafeUser(u),
+      name: u.studentProfile?.fullName ?? null,
+      studentNumber: u.studentProfile?.studentNumber ?? null,
+    })),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getUserProfile(userId: string) {

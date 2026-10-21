@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CalendarOff, CalendarX2 } from "lucide-react";
+import { CalendarX2 } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { listTimeRequests } from "@/lib/services/timeRequestService";
@@ -63,8 +63,7 @@ export default async function LeaveRequestsPage(props: {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-          <CalendarOff className="size-5 text-primary" aria-hidden="true" />
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Leave &amp; Time Requests
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -148,7 +147,7 @@ export default async function LeaveRequestsPage(props: {
                         {r.requestedMinutes != null &&
                           ` · ${formatHrsMins(r.requestedMinutes / 60)}`}
                       </p>
-                      <p className="whitespace-pre-wrap text-sm text-foreground">{r.reason}</p>
+                      <p className="text-sm whitespace-pre-wrap text-foreground">{r.reason}</p>
                       {r.validationStatus === "REJECTED" && r.reviewNote && (
                         <p className="text-sm text-red-700 dark:text-red-400">
                           Adviser&apos;s note: {r.reviewNote}

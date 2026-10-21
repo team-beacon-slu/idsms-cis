@@ -2,43 +2,53 @@ import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type StatCardTone = "blue" | "green" | "amber" | "red" | "slate";
-
-const ICON_WRAP_CLASSES: Record<StatCardTone, string> = {
-  blue: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
-  green: "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400",
-  amber: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
-  red: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
-  slate: "bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-300",
-};
-
+// A KPI is type, not a tile: grey label (with an optional small glyph), the value in ink
+// with tabular figures, and an optional grey hint. No tinted icon square, no hover lift.
 export function StatCard({
   label,
   value,
   icon: Icon,
-  tone = "blue",
   hint,
   className,
 }: {
   label: string;
   value: string | number;
-  icon: LucideIcon;
-  tone?: StatCardTone;
+  icon?: LucideIcon;
   hint?: string;
   className?: string;
 }) {
   return (
-    <Card className={cn("transition-shadow hover:shadow-md", className)}>
-      <CardContent className="flex items-start justify-between gap-4 p-5">
-        <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
-          {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
-        </div>
-        <div className={cn("shrink-0 rounded-lg p-2.5", ICON_WRAP_CLASSES[tone])}>
-          <Icon className="size-5" aria-hidden="true" />
-        </div>
+    <Card className={className}>
+      <CardContent className="p-5">
+        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          {Icon && <Icon className="size-3.5 shrink-0" strokeWidth={1.6} aria-hidden="true" />}
+          {label}
+        </p>
+        <p className="mt-1.5 text-2xl font-medium tracking-tight text-foreground tabular-nums">
+          {value}
+        </p>
+        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
+    </Card>
+  );
+}
+
+// Several KPIs share one container split by hairlines, rather than one tile each.
+export function StatStrip({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card
+      className={cn(
+        "grid grid-cols-2 divide-border overflow-hidden sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none sm:divide-x [&>*]:rounded-none [&>*]:border-0",
+        className
+      )}
+    >
+      {children}
     </Card>
   );
 }

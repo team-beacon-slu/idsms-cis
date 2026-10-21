@@ -1,20 +1,6 @@
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
 import { Role } from "@prisma/client";
-import {
-  Users,
-  Building2,
-  ClipboardCheck,
-  NotebookText,
-  Clock,
-  FileText,
-  CalendarDays,
-  UserCircle,
-  ArrowRight,
-  Timer,
-  CalendarCheck,
-  FileBarChart2,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import {
   computeProjectedCompletionDate,
@@ -27,331 +13,217 @@ import { ReportPdfActions } from "./students/[studentProfileId]/weekly-reports/r
 import { prisma } from "@/lib/prisma";
 import { getUserProfile } from "@/lib/services/userService";
 import { getChecklistProgress } from "@/lib/services/checklistService";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { StatCard } from "@/components/stat-card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import { FacultyDashboard } from "./faculty-dashboard";
 import { CoordinatorDashboard } from "./coordinator-dashboard";
 import { StudentDashboardTables } from "./student-dashboard";
 import { weeklyHistory } from "@/lib/services/complianceService";
 
-const ROLE_LABELS: Record<Role, string> = {
-  SUPER_ADMIN: "Super Admin",
-  DEPARTMENT_COORDINATOR: "Department Coordinator",
-  FACULTY_ADVISER: "Faculty Adviser",
-  STUDENT_INTERN: "Student Intern",
-};
-
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 
-type QuickLink = { href: string; label: string; icon: LucideIcon; description: string };
-
-function getQuickLinks(role: Role): QuickLink[] {
-  const links: QuickLink[] = [];
-  if (STAFF_ROLES.includes(role)) {
-    links.push({
-      href: "/users",
-      label: "Users",
-      icon: Users,
-      description: "Manage accounts and roles",
-    });
-  }
-  links.push({
-    href: "/companies",
-    label: "Companies",
-    icon: Building2,
-    description: "Browse host companies",
-  });
-  links.push({
-    href: "/calendar",
-    label: "Calendar",
-    icon: CalendarDays,
-    description: "Deadlines, holidays, milestones",
-  });
-  if (role === Role.FACULTY_ADVISER) {
-    links.push({
-      href: "/my-students",
-      label: "My Students",
-      icon: Users,
-      description: "Your assigned roster",
-    });
-  }
-  if (role === Role.STUDENT_INTERN) {
-    links.push({
-      href: "/checklist",
-      label: "Checklist",
-      icon: ClipboardCheck,
-      description: "Pre-deployment requirements",
-    });
-    links.push({
-      href: "/work-plan",
-      label: "Work Plan",
-      icon: NotebookText,
-      description: "Your OJT work plan",
-    });
-    links.push({
-      href: "/attendance",
-      label: "Attendance",
-      icon: Clock,
-      description: "Schedule, hours, deviations",
-    });
-    links.push({
-      href: "/weekly-reports",
-      label: "Weekly Reports",
-      icon: FileText,
-      description: "Submit weekly reports",
-    });
-    links.push({
-      href: "/monthly-reports",
-      label: "Monthly Reports",
-      icon: FileBarChart2,
-      description: "Roll up approved weeks",
-    });
-  }
-  links.push({
-    href: "/profile",
-    label: "Profile",
-    icon: UserCircle,
-    description: "Account details",
-  });
-  return links;
-}
+const fmtDate = (d: Date) =>
+  d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
 
 export default async function DashboardHomePage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const searchParams = await props.searchParams;
   const user = await requireUserPage();
-  const roleLabel = ROLE_LABELS[user.role] ?? user.role;
-
-  let stats: React.ReactNode = null;
 
   if (STAFF_ROLES.includes(user.role)) {
-    stats = <CoordinatorDashboard role={user.role} searchParams={searchParams} />;
-  } else if (user.role === Role.FACULTY_ADVISER) {
-    stats = <FacultyDashboard facultyId={user.id} />;
-  } else if (user.role === Role.STUDENT_INTERN) {
-    const profile = await getUserProfile(user.id);
-    const studentProfile = profile?.studentProfile;
-    const [progress, hours, projectedCompletion, reportsNeedingAction] = studentProfile
-      ? await Promise.all([
-          getChecklistProgress(studentProfile.id),
-          getHoursSummary(studentProfile.id),
-          computeProjectedCompletionDate(studentProfile.id),
-          prisma.weeklyReport.count({
-            where: {
-              studentProfileId: studentProfile.id,
-              status: { in: ["PENDING", "RETURNED"] },
-            },
-          }),
-        ])
-      : [null, null, null, 0];
-    const confirmedHours = hours?.confirmedHours ?? 0;
-    const requiredHours = hours?.requiredHours ?? 0;
-    const [finalThreshold, finalCover] = studentProfile
-      ? await Promise.all([
-          getFinalReportThreshold(studentProfile.program, studentProfile.requiredHours),
-          getFinalCoverDocument(studentProfile.id),
-        ])
-      : [null, null];
-    const coverUnlocked = finalThreshold !== null && confirmedHours >= finalThreshold;
-    const attention = studentProfile ? await getAttentionItems(studentProfile.id) : null;
-    const reportHistory = studentProfile
-      ? weeklyHistory(
-          await prisma.weeklyReport.findMany({
-            where: { studentProfileId: studentProfile.id },
-            select: {
-              id: true,
-              weekStart: true,
-              weekEnd: true,
-              status: true,
-              revisionHistory: true,
-            },
-            orderBy: { weekStart: "desc" },
-          })
-        )
-      : [];
-    const attentionRows = attention
-      ? [
-          {
-            count: attention.returnedReports,
-            label: "Weekly reports returned for revision",
-            href: "/weekly-reports",
-          },
-          {
-            count: attention.reportsDueSoon,
-            label: "Weekly reports due within 48 hours",
-            href: "/weekly-reports",
-          },
-          {
-            count: attention.pendingDeviations,
-            label: "Leave & time requests awaiting review",
-            href: "/leave-requests",
-          },
-          {
-            count: attention.incompleteChecklistItems,
-            label: "Checklist items not yet approved",
-            href: "/checklist",
-          },
-        ].filter((row) => row.count > 0)
-      : [];
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Department overview"
+          description="Every intern this semester: hours, requirements and weekly reports."
+        />
+        <CoordinatorDashboard role={user.role} searchParams={searchParams} />
+      </div>
+    );
+  }
+  if (user.role === Role.FACULTY_ADVISER) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Advising overview"
+          description="Your class groups: what is waiting for your review, then each intern."
+        />
+        <FacultyDashboard facultyId={user.id} />
+      </div>
+    );
+  }
 
-    stats = (
-      <>
-        {attentionRows.length > 0 && (
-          <Card className="mb-4 border-amber-300 dark:border-amber-500/40">
-            <CardHeader>
-              <CardTitle>Needs attention</CardTitle>
-              <CardDescription>Items that need action from you.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1">
+  const profile = await getUserProfile(user.id);
+  const studentProfile = profile?.studentProfile;
+  const [progress, hours, projectedCompletion] = studentProfile
+    ? await Promise.all([
+        getChecklistProgress(studentProfile.id),
+        getHoursSummary(studentProfile.id),
+        computeProjectedCompletionDate(studentProfile.id),
+      ])
+    : [null, null, null];
+  const confirmedHours = hours?.confirmedHours ?? 0;
+  const requiredHours = hours?.requiredHours ?? 0;
+  const pendingHours = hours?.pendingHours ?? 0;
+  const [finalThreshold, finalCover] = studentProfile
+    ? await Promise.all([
+        getFinalReportThreshold(studentProfile.program, studentProfile.requiredHours),
+        getFinalCoverDocument(studentProfile.id),
+      ])
+    : [null, null];
+  const coverUnlocked = finalThreshold !== null && confirmedHours >= finalThreshold;
+  const attention = studentProfile ? await getAttentionItems(studentProfile.id) : null;
+  const reportHistory = studentProfile
+    ? weeklyHistory(
+        await prisma.weeklyReport.findMany({
+          where: { studentProfileId: studentProfile.id },
+          select: { id: true, weekStart: true, weekEnd: true, status: true, revisionHistory: true },
+          orderBy: { weekStart: "desc" },
+        })
+      )
+    : [];
+  const attentionRows = attention
+    ? [
+        {
+          count: attention.returnedReports,
+          label: "Weekly reports returned for revision",
+          href: "/weekly-reports",
+        },
+        {
+          count: attention.reportsDueSoon,
+          label: "Weekly reports due within 48 hours",
+          href: "/weekly-reports",
+        },
+        {
+          count: attention.pendingDeviations,
+          label: "Leave & time requests awaiting review",
+          href: "/leave-requests",
+        },
+        {
+          count: attention.incompleteChecklistItems,
+          label: "Checklist items not yet approved",
+          href: "/checklist",
+        },
+      ].filter((row) => row.count > 0)
+    : [];
+
+  const percent = requiredHours > 0 ? Math.min(100, (confirmedHours / requiredHours) * 100) : 0;
+  const finding = !studentProfile
+    ? "Your student profile is not set up yet. Ask your coordinator."
+    : `${confirmedHours} of ${requiredHours} hours confirmed · ` +
+      (projectedCompletion
+        ? `on schedule to finish ${fmtDate(projectedCompletion)}`
+        : "set your work schedule to see your finish date");
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="My internship"
+        description={finding}
+        actions={
+          <Button asChild>
+            <Link href="/weekly-reports">This week&apos;s report</Link>
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        {/* The screen's question, "am I on track?", gets the biggest block and the one hue. */}
+        <Card className="lg:col-span-2">
+          <CardContent className="p-6">
+            <p className="text-sm text-muted-foreground">Confirmed hours</p>
+            <p className="mt-1 text-3xl font-medium tracking-tight tabular-nums">
+              {confirmedHours}
+              <span className="text-lg text-muted-foreground"> / {requiredHours} hrs</span>
+            </p>
+            <div
+              className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-label="Confirmed hours"
+              aria-valuemin={0}
+              aria-valuemax={requiredHours}
+              aria-valuenow={confirmedHours}
+            >
+              <div className="h-full rounded-full bg-chart-1" style={{ width: `${percent}%` }} />
+            </div>
+            <div className="mt-2 flex justify-between text-xs text-muted-foreground tabular-nums">
+              <span>0</span>
+              <span>{requiredHours} hrs</span>
+            </div>
+            <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+              <div>
+                <dt className="text-muted-foreground">Pending review</dt>
+                <dd className="mt-0.5 tabular-nums">
+                  {pendingHours > 0 ? `+${pendingHours} hrs` : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Projected finish</dt>
+                <dd className="mt-0.5">
+                  {projectedCompletion ? fmtDate(projectedCompletion) : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Host company</dt>
+                <dd className="mt-0.5">{studentProfile?.companyId ? "Assigned" : "Not yet"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Program</dt>
+                <dd className="mt-0.5">{studentProfile?.program ?? "—"}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Waiting on you</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {attentionRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing is waiting on you right now.</p>
+            ) : (
+              <ul className="-mx-2">
                 {attentionRows.map((row) => (
                   <li key={row.label}>
                     <Link
                       href={row.href}
-                      className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
+                      className="flex min-h-11 items-center gap-3 rounded-md px-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
                     >
-                      <span>{row.label}</span>
-                      <span className="font-semibold text-amber-700 dark:text-amber-400">
-                        {row.count}
-                      </span>
+                      <span className="w-6 text-right font-medium tabular-nums">{row.count}</span>
+                      <span className="flex-1">{row.label}</span>
+                      <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
               </ul>
-            </CardContent>
-          </Card>
-        )}
-        {studentProfile && finalThreshold !== null && (
-          <Card className="mb-4">
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <CardTitle>Final report cover</CardTitle>
-                  <CardDescription>
-                    {coverUnlocked
-                      ? "Unlocked — generate the cover page for your final internship report."
-                      : `Unlocks at ${finalThreshold} confirmed hours (${confirmedHours} / ${finalThreshold} so far).`}
-                  </CardDescription>
-                </div>
-                <ReportPdfActions
-                  endpoint={`/api/students/${studentProfile.id}/final-cover`}
-                  status={finalCover?.status ?? null}
-                  canGenerate={coverUnlocked}
-                />
+            )}
+            {studentProfile && finalThreshold !== null && (
+              <div className="mt-4 border-t pt-4">
+                <p className="text-sm font-medium">Final report cover</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {coverUnlocked
+                    ? "Unlocked: generate the cover page for your final report."
+                    : `Unlocks at ${finalThreshold} confirmed hours.`}
+                </p>
+                {coverUnlocked && (
+                  <div className="mt-3">
+                    <ReportPdfActions
+                      endpoint={`/api/students/${studentProfile.id}/final-cover`}
+                      status={finalCover?.status ?? null}
+                      canGenerate={coverUnlocked}
+                    />
+                  </div>
+                )}
               </div>
-            </CardHeader>
-          </Card>
-        )}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            label="Hours rendered (confirmed)"
-            value={`${confirmedHours} / ${requiredHours}`}
-            icon={Timer}
-            tone="blue"
-            hint={
-              hours && hours.pendingHours > 0
-                ? `+${hours.pendingHours} hrs pending review`
-                : requiredHours > 0
-                  ? `${Math.min(100, Math.round((confirmedHours / requiredHours) * 100))}% of required hours`
-                  : undefined
-            }
-          />
-          <StatCard
-            label="Projected completion"
-            value={
-              projectedCompletion
-                ? projectedCompletion.toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })
-                : "—"
-            }
-            icon={CalendarCheck}
-            tone={projectedCompletion ? "green" : "slate"}
-            hint={projectedCompletion ? "Based on your schedule" : "Set your work schedule first"}
-          />
-          <StatCard
-            label="Weekly reports in progress"
-            value={reportsNeedingAction}
-            icon={FileText}
-            tone={reportsNeedingAction > 0 ? "amber" : "slate"}
-            hint="Drafts, submitted, or returned"
-          />
-          <StatCard
-            label="Pre-deployment checklist"
-            value={progress ? `${progress.approvedCount}/${progress.total}` : "—"}
-            icon={ClipboardCheck}
-            tone={progress?.gateSatisfied ? "green" : "amber"}
-            hint={progress ? `${progress.percentage}% approved` : undefined}
-          />
-          <StatCard
-            label="Host company"
-            value={studentProfile?.companyId ? "Assigned" : "Not yet"}
-            icon={Building2}
-            tone={studentProfile?.companyId ? "green" : "slate"}
-          />
-          <StatCard
-            label="Program"
-            value={studentProfile?.program ?? "—"}
-            icon={UserCircle}
-            tone="blue"
-          />
-        </div>
-        <StudentDashboardTables requirements={progress?.items ?? []} history={reportHistory} />
-      </>
-    );
-  }
-
-  const quickLinks = getQuickLinks(user.role);
-
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-            {user.email}
-          </h1>
-        </div>
-        <Badge variant="secondary" className="w-fit">
-          {roleLabel}
-        </Badge>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {stats}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick links</CardTitle>
-          <CardDescription>Jump back into what you were working on.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {quickLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="group flex cursor-pointer items-start gap-3 rounded-lg border border-border p-4 transition-colors duration-200 hover:border-primary/40 hover:bg-accent"
-              >
-                <div className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
-                  <link.icon className="size-4" aria-hidden="true" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{link.label}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{link.description}</p>
-                </div>
-                <ArrowRight
-                  className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <StudentDashboardTables requirements={progress?.items ?? []} history={reportHistory} />
     </div>
   );
 }

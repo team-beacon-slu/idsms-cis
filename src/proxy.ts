@@ -63,11 +63,11 @@ export const config = {
      * Every page, except:
      * - api (every API route handles its own auth and returns JSON
      *   401/403 — a redirect here would break that instead of gating it)
-     * - _next/static, _next/image, favicon.ico (static files need no CSP)
+     * - _next/static, _next/image, favicon.ico, icon.svg (static files need no CSP or login)
      * - <Link> prefetches, which render nothing themselves
      */
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!api|_next/static|_next/image|favicon.ico|icon.svg).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

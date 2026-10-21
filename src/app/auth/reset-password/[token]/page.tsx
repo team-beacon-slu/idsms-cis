@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FieldError, errorProps } from "@/components/field-error";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -72,17 +73,23 @@ export default function ConfirmResetPasswordPage() {
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
               <Label htmlFor="newPassword">New password</Label>
-              <Input id="newPassword" type="password" {...register("newPassword")} />
-              {errors.newPassword && (
-                <p className="text-sm text-destructive">{errors.newPassword.message}</p>
-              )}
+              <Input
+                id="newPassword"
+                type="password"
+                {...register("newPassword")}
+                {...errorProps("newPassword", errors.newPassword?.message)}
+              />
+              <FieldError id="newPassword-error" message={errors.newPassword?.message} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm password</Label>
-              <Input id="confirmPassword" type="password" {...register("confirmPassword")} />
-              {errors.confirmPassword && (
-                <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-              )}
+              <Input
+                id="confirmPassword"
+                type="password"
+                {...register("confirmPassword")}
+                {...errorProps("confirmPassword", errors.confirmPassword?.message)}
+              />
+              <FieldError id="confirmPassword-error" message={errors.confirmPassword?.message} />
             </div>
             {error && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

@@ -793,12 +793,31 @@ describe("listUsers", () => {
           deletedAt: null,
           role: Role.SUPER_ADMIN,
           isActive: true,
-          email: { contains: "admin", mode: "insensitive" },
+          // A coordinator looks people up by name or student number, not only email.
+          OR: [
+            { email: { contains: "admin", mode: "insensitive" } },
+            { studentProfile: { fullName: { contains: "admin", mode: "insensitive" } } },
+            { studentProfile: { studentNumber: { contains: "admin", mode: "insensitive" } } },
+          ],
         },
         skip: 10,
         take: 10,
       })
     );
+  });
+
+  it("returns each student's name and student number with the account", async () => {
+    prismaMock.user.findMany.mockResolvedValue([
+      { ...baseUser(), studentProfile: { fullName: "Maria Santos", studentNumber: "2289890" } },
+      { ...baseUser(), id: "u-2", studentProfile: null },
+    ] as never);
+    prismaMock.user.count.mockResolvedValue(2);
+
+    const { users } = await listUsers();
+
+    expect(users[0]).toMatchObject({ name: "Maria Santos", studentNumber: "2289890" });
+    expect(users[1]).toMatchObject({ name: null, studentNumber: null });
+    expect(users[0]).not.toHaveProperty("passwordHash");
   });
 });
 

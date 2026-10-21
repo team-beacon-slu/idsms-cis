@@ -9,6 +9,9 @@ export interface SafeUser {
   mustResetPassword: boolean;
   lockedUntil: Date | null;
   createdAt: Date;
+  // Students only (listUsers); staff accounts have no profile name.
+  name?: string | null;
+  studentNumber?: string | null;
 }
 
 export interface BulkImportRowResult {

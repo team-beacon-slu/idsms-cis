@@ -137,8 +137,7 @@ export default async function AttendancePage(props: {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-          <CalendarClock className="size-5 text-primary" aria-hidden="true" />
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Attendance &amp; Schedule
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -215,21 +214,21 @@ export default async function AttendancePage(props: {
           label="Pending review"
           value={pendingCount}
           icon={Clock}
-          tone="amber"
+
           hint="Awaiting faculty validation"
         />
         <StatCard
           label="Validated"
           value={validatedCount}
           icon={ShieldCheck}
-          tone="green"
+
           hint="Counted toward hours"
         />
         <StatCard
           label="Rejected"
           value={rejectedCount}
           icon={FileWarning}
-          tone="red"
+
           hint="Excluded from hours"
         />
       </div>

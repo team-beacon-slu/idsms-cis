@@ -46,6 +46,12 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
+  /* Status pairs (pale ground, dark ink of the same hue): one name per meaning. */
+  --color-notice: #fffbeb;
+  --color-notice-foreground: #92400e;
+  --color-notice-border: #fde68a;
+  --color-danger-soft: #ffedea;
+  --color-danger-soft-foreground: #831c1e;
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -65,7 +71,7 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--color-border, currentcolor);
   }
 }
 
@@ -75,40 +81,43 @@
 
 @layer base {
   :root {
-    /* Enterprise dashboard palette — navy/slate + blue accent, per design-system/idsms-cis/MASTER.md */
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* Achromatic ledger (taste skill, app-screens): no colour in the chrome. A blue-grey
+       "ledger" ground, white cards, ink text, a near-black primary action, and one data
+       hue for the main figure on a screen and for focus: the logo navy #1f4e79 (the brand
+       hue the taste sheet allows at 3:1+ on white). Status keeps pale pairs. */
+    --background: 216 23% 96%;
+    --foreground: 0 0% 4%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 0 0% 8%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-    --chart-1: 221 83% 53%;
-    --chart-2: 142 71% 45%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 84% 60%;
-    --chart-5: 262 83% 58%;
+    --secondary: 220 13% 91%;
+    --secondary-foreground: 0 0% 4%;
+    --muted: 220 13% 93%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 220 13% 93%;
+    --accent-foreground: 0 0% 4%;
+    --destructive: 358 69% 46%;
+    --border: 0 0% 90%;
+    --input: 0 0% 83%;
+    --ring: 209 59% 30%;
+    --chart-1: 209 59% 30%;
+    --chart-2: 0 0% 54%;
+    --chart-3: 0 0% 8%;
+    --chart-4: 358 69% 46%;
+    --chart-5: 152 39% 30%;
     --radius: 0.5rem;
-    /* Sidebar stays dark navy in both themes — thesis wireframe's fixed chrome color */
-    --sidebar: 222 47% 11%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 221 83% 53%;
+    /* The sidebar sits on the page ground; the active item is a neutral grey pill. */
+    --sidebar: 216 23% 96%;
+    --sidebar-foreground: 0 0% 4%;
+    --sidebar-primary: 0 0% 8%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 19% 35%;
-    --sidebar-ring: 221 83% 53%;
+    --sidebar-accent: 220 13% 89%;
+    --sidebar-accent-foreground: 0 0% 4%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 209 59% 30%;
   }
   .dark {
     --background: 222 47% 11%;
@@ -142,5 +151,17 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 215 25% 27%;
     --sidebar-ring: 217 91% 60%;
+  }
+}
+
+/* Honour reduced motion: keep every state change, drop the travel. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

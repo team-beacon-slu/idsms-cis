@@ -86,16 +86,11 @@ export default async function WeeklyReportReviewPage(props: {
               </p>
             )}
             {view.similarity && (
-              <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm dark:border-blue-500/20 dark:bg-blue-500/10">
-                <Copy
-                  className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400"
-                  aria-hidden="true"
-                />
+              <div className="flex gap-3 rounded-lg border bg-muted/50 p-4 text-sm">
+                <Copy className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <div className="space-y-0.5">
-                  <p className="font-medium text-blue-900 dark:text-blue-300">
-                    Similarity advisory
-                  </p>
-                  <p className="text-blue-800/90 dark:text-blue-300/80">
+                  <p className="font-medium text-foreground">Similarity advisory</p>
+                  <p className="text-muted-foreground">
                     This week resembles the student&apos;s earlier reports (similarity score{" "}
                     {view.similarity.score.toFixed(2)}). This is a signal for your review, not a
                     determination — use your judgment.

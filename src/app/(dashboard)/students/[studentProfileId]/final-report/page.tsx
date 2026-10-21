@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { BookOpenCheck, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
@@ -51,8 +51,7 @@ export default async function FinalReportPage(props: {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-          <BookOpenCheck className="size-5 text-primary" aria-hidden="true" />
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Final Technical Report
         </h1>
         <p className="text-sm text-muted-foreground">

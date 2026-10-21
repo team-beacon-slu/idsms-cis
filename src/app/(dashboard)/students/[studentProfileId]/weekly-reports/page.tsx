@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -18,7 +19,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, toDateKey } from "@/lib/utils/reportDeadline";
-import { ClipboardCheck, FileBarChart2, FileText, Hash, MessageSquareWarning } from "lucide-react";
+import { ClipboardCheck, Hash, MessageSquareWarning } from "lucide-react";
 import { WeeklyReportForm } from "./weekly-report-form";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
@@ -73,35 +74,20 @@ export default async function WeeklyReportsPage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-            <FileText className="size-5 text-primary" aria-hidden="true" />
-            Weekly Reports
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Daily accomplishments for each week of the internship. Reports are due the Tuesday after
-            each week ends.
+      <PageHeader
+        title="Weekly reports"
+        description="Daily accomplishments for each week. Due the Tuesday after the week ends."
+      />
+      {isOwner && (
+        <details className="rounded-lg border bg-card px-4 py-3 text-sm">
+          <summary className="cursor-pointer font-medium">How signing works</summary>
+          <p className="mt-2 text-muted-foreground">
+            After submitting, download the PDF and have your supervisor sign it. Upload the signed
+            copy to <span className="font-medium text-foreground">Google Classroom</span>; signed
+            documents are never uploaded to IDSMS.
           </p>
-          {isOwner && (
-            <p className="text-sm text-muted-foreground">
-              After submitting, download the PDF and have your supervisor sign it. Upload the signed
-              copy to <span className="font-medium text-foreground">Google Classroom</span> — signed
-              documents are never uploaded to IDSMS.
-            </p>
-          )}
-        </div>
-        <Link
-          href={`/students/${params.studentProfileId}/monthly-reports`}
-          className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "cursor-pointer gap-1.5"
-          )}
-        >
-          <FileBarChart2 className="size-4" aria-hidden="true" />
-          Monthly reports
-        </Link>
-      </div>
+        </details>
+      )}
 
       {isOwner && (
         <Card>
@@ -209,7 +195,15 @@ export default async function WeeklyReportsPage(props: {
                   )}
 
                   {(feedback.length > 0 || report.facultyAction) && (
-                    <div className="mt-3 space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-500/20 dark:bg-amber-500/10">
+                    // Amber only when the report came back for changes; otherwise neutral.
+                    <div
+                      className={cn(
+                        "mt-3 space-y-1 rounded-md border p-3 text-sm",
+                        report.status === "RETURNED"
+                          ? "border-notice-border bg-notice"
+                          : "bg-muted/50"
+                      )}
+                    >
                       <p className="flex items-center gap-1.5 font-medium text-foreground">
                         <MessageSquareWarning className="size-4" aria-hidden="true" />
                         Faculty feedback
