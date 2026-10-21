@@ -10,7 +10,11 @@ import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-AT-02: holiday calendar for this student's semester, with their opt-outs applied.
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);
@@ -24,8 +28,9 @@ export async function GET(req: NextRequest, { params }: { params: { studentProfi
 // FR-AT-02: student self-only toggle of whether a holiday applies to them.
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { studentProfileId: string } }
+  props: { params: Promise<{ studentProfileId: string }> }
 ) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

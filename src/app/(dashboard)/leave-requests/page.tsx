@@ -4,11 +4,10 @@ import { prisma } from "@/lib/prisma";
 
 // Thin redirect so a student never needs to know their own studentProfileId.
 // Query params (prefilled date/type/times from the weekly report) carry over.
-export default async function OwnLeaveRequestsPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function OwnLeaveRequestsPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUserPage();
   const studentProfile = await prisma.studentProfile.findUnique({
     where: { userId: user.id },

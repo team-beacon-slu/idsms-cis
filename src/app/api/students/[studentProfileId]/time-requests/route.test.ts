@@ -19,7 +19,7 @@ import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userServi
 import { createTimeRequest, listTimeRequests } from "@/lib/services/timeRequestService";
 import { GET, POST } from "@/app/api/students/[studentProfileId]/time-requests/route";
 
-const params = { params: { studentProfileId: "p-1" } };
+const params = { params: Promise.resolve({ studentProfileId: "p-1" }) };
 const post = (body: BodyInit, contentType = "application/json") =>
   POST(
     new NextRequest("http://localhost/api/students/p-1/time-requests", {

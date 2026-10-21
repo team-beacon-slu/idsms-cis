@@ -14,7 +14,8 @@ const bodySchema = z.object({ password: z.unknown() });
 
 // Permanent file deletion, Super Admin only. Re-authentication (NFR-SEC-05)
 // precedes any storage or database access.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.SUPER_ADMIN]);

@@ -16,7 +16,11 @@ import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-AT-01: initial schedule config, student self-only.
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);
@@ -35,8 +39,9 @@ export async function POST(req: NextRequest, { params }: { params: { studentProf
 // attached (fields: reason, daysOfWeek (comma-separated), hoursPerDay, file).
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { studentProfileId: string } }
+  props: { params: Promise<{ studentProfileId: string }> }
 ) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

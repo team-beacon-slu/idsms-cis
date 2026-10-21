@@ -7,7 +7,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 export const runtime = "nodejs";
 
 // FR-DB-05: makes this the single active semester (Super Admin only).
-export async function POST(_req: NextRequest, { params }: { params: { semesterId: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ semesterId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.SUPER_ADMIN]);

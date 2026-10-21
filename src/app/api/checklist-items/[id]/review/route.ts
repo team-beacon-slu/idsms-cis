@@ -7,7 +7,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 
 // Staff-only and ownership-scoped, both enforced inside reviewChecklistItem
 // (it rejects STUDENT_INTERN outright, then runs assertCanAccessStudent).
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     const { action, comments } = reviewChecklistItemSchema.parse(await req.json());

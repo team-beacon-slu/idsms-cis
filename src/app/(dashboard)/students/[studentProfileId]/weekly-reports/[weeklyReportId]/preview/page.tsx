@@ -8,11 +8,10 @@ import { PrintButton } from "./print-button";
 // FR-WR-09 preview target (see weeklyReportService.generateReportPdfPreview).
 // Renders the same HTML template Module 8's Puppeteer pipeline prints, so the
 // preview and the generated PDF can't drift apart.
-export default async function WeeklyReportPreviewPage({
-  params,
-}: {
-  params: { studentProfileId: string; weeklyReportId: string };
+export default async function WeeklyReportPreviewPage(props: {
+  params: Promise<{ studentProfileId: string; weeklyReportId: string }>;
 }) {
+  const params = await props.params;
   const user = await requireUserPage();
   try {
     await assertCanAccessStudent(user, params.studentProfileId);

@@ -36,11 +36,8 @@ function VerificationPill({ isVerified }: { isVerified: boolean }) {
 
 // Companies aren't sensitive on their own (only MOA records are, FR-MOA-07),
 // so every role can browse this list.
-export default async function CompaniesPage({
-  searchParams,
-}: {
-  searchParams: { search?: string };
-}) {
+export default async function CompaniesPage(props: { searchParams: Promise<{ search?: string }> }) {
+  const searchParams = await props.searchParams;
   await requireUserPage();
   const companies = await listCompanies({ search: searchParams.search });
   const verifiedCount = companies.filter((c) => c.isVerified).length;

@@ -13,7 +13,11 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 // Workstream H: anyone with access to the student downloads the generated PDF.
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);
@@ -31,7 +35,11 @@ export async function GET(req: NextRequest, { params }: { params: { studentProfi
 }
 
 // The intern generates it once the coordinator has approved the report.
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

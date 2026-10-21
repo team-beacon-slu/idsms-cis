@@ -12,7 +12,8 @@ export const maxDuration = 60;
 // faculty usually see the advisory immediately; the daily cron catches up
 // anything this misses. Provider failures are reported in the body, not as
 // a 5xx — the submission itself already succeeded.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     const report = await getWeeklyReport(params.id);

@@ -14,7 +14,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 // for the same reason every other student-record route keeps it: uniform
 // shape, and it becomes load-bearing again if a narrower Coordinator
 // scoping rule is ever introduced.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);

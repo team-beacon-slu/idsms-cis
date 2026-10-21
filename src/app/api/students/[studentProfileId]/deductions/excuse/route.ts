@@ -4,7 +4,11 @@ import { CONDUCT_STAFF_ROLES, excuseItem } from "@/lib/services/deductionService
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L2: excuse an automatic deduction item (reason code + note).
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, CONDUCT_STAFF_ROLES);

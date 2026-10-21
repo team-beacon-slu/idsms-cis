@@ -4,7 +4,8 @@ import { FINAL_REPORT_REVIEWERS, reviewFinalReport } from "@/lib/services/finalR
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream H (FR-FT-03): coordinator / Super Admin approve or return.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, FINAL_REPORT_REVIEWERS);

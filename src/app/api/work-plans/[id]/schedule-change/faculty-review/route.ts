@@ -11,7 +11,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-AT-09 step 1: Faculty Adviser only, and only for a student they're
 // assigned to.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.FACULTY_ADVISER]);

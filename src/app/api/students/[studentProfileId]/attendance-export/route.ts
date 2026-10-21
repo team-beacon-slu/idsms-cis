@@ -5,7 +5,11 @@ import { requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     if (!z.uuid().safeParse(params.studentProfileId).success) {
       return NextResponse.json({ error: "Invalid studentProfileId" }, { status: 400 });

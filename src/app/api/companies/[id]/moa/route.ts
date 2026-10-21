@@ -17,7 +17,8 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   "image/png": "png",
 };
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, STAFF_ROLES);
@@ -32,7 +33,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // (a Google Drive link, FR-MOA-03) — the assembled object is what actually
 // gets validated, so createMoaRecordSchema's "exactly one of
 // documentUrl/documentPath" refine applies uniformly either way.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, STAFF_ROLES);

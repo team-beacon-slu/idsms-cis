@@ -20,7 +20,8 @@ const bodySchema = z.object({
 
 // FR-DB bulk export, Super Admin only. Re-authentication (NFR-SEC-05) comes
 // before any query, and the audit row is written only after the export built.
-export async function POST(req: NextRequest, { params }: { params: { kind: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ kind: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.SUPER_ADMIN]);

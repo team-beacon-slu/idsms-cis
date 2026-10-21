@@ -7,7 +7,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WP-02: Coordinator/Admin only, enforced inside reviewWorkPlan itself
 // (not Faculty — a narrower role set than checklist review gets).
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     const { action, comments } = reviewWorkPlanSchema.parse(await req.json());

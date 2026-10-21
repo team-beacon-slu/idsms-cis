@@ -50,7 +50,10 @@ const DEVIATION_TYPE_LABEL: Record<string, string> = {
   UNDERTIME: "Undertime",
 };
 
-export default async function AttendancePage({ params }: { params: { studentProfileId: string } }) {
+export default async function AttendancePage(props: {
+  params: Promise<{ studentProfileId: string }>;
+}) {
+  const params = await props.params;
   const user = await requireUserPage();
 
   try {

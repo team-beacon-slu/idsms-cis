@@ -12,7 +12,8 @@ import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     const report = await getWeeklyReport(params.id);
@@ -33,7 +34,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // would be spoofable. Recomputes and returns live totals (FR-WR-02) after
 // every save so the client form can show an up-to-date running total
 // without a page reload.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

@@ -30,7 +30,7 @@ const call = (kind: string, body: unknown) =>
       headers: { "x-forwarded-for": "10.0.0.1", "content-type": "application/json" },
       body: JSON.stringify(body),
     }),
-    { params: { kind } }
+    { params: Promise.resolve({ kind }) }
   );
 
 beforeEach(() => {

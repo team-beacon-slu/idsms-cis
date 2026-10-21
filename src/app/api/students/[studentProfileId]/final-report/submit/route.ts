@@ -5,7 +5,11 @@ import { submitFinalReport } from "@/lib/services/finalReportService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream H: the intern submits the final report for the coordinator's review.
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

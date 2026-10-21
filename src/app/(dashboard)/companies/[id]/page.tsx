@@ -45,7 +45,8 @@ function VerificationPill({ isVerified }: { isVerified: boolean }) {
   );
 }
 
-export default async function CompanyDetailPage({ params }: { params: { id: string } }) {
+export default async function CompanyDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUserPage();
   const company = await getCompany(params.id);
   if (!company) {

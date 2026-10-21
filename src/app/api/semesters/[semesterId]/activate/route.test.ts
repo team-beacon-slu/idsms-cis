@@ -14,7 +14,7 @@ import { SemesterStateError, activateSemester } from "@/lib/services/semesterSer
 import { POST } from "@/app/api/semesters/[semesterId]/activate/route";
 
 const req = () => new NextRequest("http://localhost/x", { method: "POST" });
-const ctx = { params: { semesterId: "sem-1" } };
+const ctx = { params: Promise.resolve({ semesterId: "sem-1" }) };
 
 beforeEach(() => jest.resetAllMocks());
 

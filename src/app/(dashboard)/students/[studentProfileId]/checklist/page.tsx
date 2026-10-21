@@ -19,7 +19,10 @@ import { getEndorsementLetterDocument } from "@/lib/services/documentService";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { EndorsementLetterActions } from "./endorsement-letter-actions";
 
-export default async function ChecklistPage({ params }: { params: { studentProfileId: string } }) {
+export default async function ChecklistPage(props: {
+  params: Promise<{ studentProfileId: string }>;
+}) {
+  const params = await props.params;
   const user = await requireUserPage();
 
   try {

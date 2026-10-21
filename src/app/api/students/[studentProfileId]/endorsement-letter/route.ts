@@ -13,7 +13,11 @@ import { handleApiError } from "@/lib/utils/apiError";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);
@@ -31,7 +35,11 @@ export async function GET(req: NextRequest, { params }: { params: { studentProfi
 }
 
 // Staff-only: the department issues the endorsement, not the student.
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN, Role.FACULTY_ADVISER]);

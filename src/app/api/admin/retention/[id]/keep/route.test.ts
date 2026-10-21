@@ -14,7 +14,7 @@ import { POST } from "@/app/api/admin/retention/[id]/keep/route";
 const ID = "11111111-1111-4111-8111-111111111111";
 const call = () =>
   POST(new NextRequest(`http://localhost/api/admin/retention/${ID}/keep`, { method: "POST" }), {
-    params: { id: ID },
+    params: Promise.resolve({ id: ID }),
   });
 
 beforeEach(() => {

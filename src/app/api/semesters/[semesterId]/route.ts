@@ -8,7 +8,8 @@ export const runtime = "nodejs";
 
 // Workstream L1: coordinator or Super Admin sets the term's Week 1 start
 // (body: { weekOneStart: "YYYY-MM-DD" | null }).
-export async function PATCH(req: NextRequest, { params }: { params: { semesterId: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ semesterId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR]);

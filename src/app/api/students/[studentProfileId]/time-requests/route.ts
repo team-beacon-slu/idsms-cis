@@ -7,7 +7,11 @@ import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L1: the intern's leave / OT / UT requests. JSON only — no
 // uploads (D2/D7); proof goes to Google Classroom.
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);
@@ -17,7 +21,11 @@ export async function GET(req: NextRequest, { params }: { params: { studentProfi
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

@@ -9,7 +9,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 export const runtime = "nodejs";
 
 // NFR-DP-07: the Super Admin marks the request done after sending the file.
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.SUPER_ADMIN]);

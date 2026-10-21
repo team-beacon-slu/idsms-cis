@@ -20,7 +20,7 @@ import { GET } from "@/app/api/deviations/[id]/proof/route";
 const call = (proofUrl: string) => {
   (getDeviationReport as jest.Mock).mockResolvedValue({ studentProfileId: "p-1", proofUrl });
   return GET(new NextRequest("http://localhost/api/deviations/d-1/proof"), {
-    params: { id: "d-1" },
+    params: Promise.resolve({ id: "d-1" }),
   });
 };
 
