@@ -8,6 +8,10 @@ import { requireUserApi, requireRole } from "@/lib/auth/session";
 import { notifyAccountsCreatedByEmail } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
+// A class list is a few hundred rows; anything far larger is a mistake, and
+// parsing it would hold the whole workbook in memory.
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserApi();
@@ -17,6 +21,9 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
+    }
+    if (file.size > MAX_IMPORT_BYTES) {
+      return NextResponse.json({ error: "File exceeds the 2MB limit" }, { status: 413 });
     }
 
     const { classGroupId, semesterId } = bulkImportRequestSchema.parse({

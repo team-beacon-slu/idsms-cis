@@ -38,8 +38,17 @@ const supabaseInstance = mockedCreateClient.mock.results[0].value;
 const mockFrom = supabaseInstance.storage.from as jest.Mock;
 const { upload: mockUpload, createSignedUrl: mockCreateSignedUrl, remove: mockRemove } = mockFrom();
 
+const MAGIC: Record<string, number[]> = {
+  "application/pdf": [0x25, 0x50, 0x44, 0x46],
+  "image/jpeg": [0xff, 0xd8, 0xff],
+  "image/png": [0x89, 0x50, 0x4e, 0x47],
+};
+
+// Real leading bytes for the type, so uploadFile's content check passes.
 function makeFile(sizeBytes: number, type: string) {
-  return new File([new Uint8Array(sizeBytes)], "file", { type });
+  const bytes = new Uint8Array(sizeBytes);
+  bytes.set((MAGIC[type] ?? []).slice(0, sizeBytes));
+  return new File([bytes], "file", { type });
 }
 
 beforeEach(() => {
@@ -113,6 +122,16 @@ describe("uploadFile", () => {
     await expect(
       uploadFile(CHECKLIST_BUCKET, "path.zip", makeFile(10, "application/zip"))
     ).rejects.toThrow(InvalidFileError);
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file whose bytes don't match its declared type", async () => {
+    const renamed = new File([new TextEncoder().encode("<html>hi</html>")], "x.pdf", {
+      type: "application/pdf",
+    });
+    await expect(uploadFile(CHECKLIST_BUCKET, "p/x.pdf", renamed)).rejects.toThrow(
+      /don't match its type/
+    );
     expect(mockUpload).not.toHaveBeenCalled();
   });
 

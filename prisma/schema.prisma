@@ -167,6 +167,7 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
 
   @@map("sessions")
 }
@@ -437,6 +438,7 @@ model DailyReportEntry {
   // field is queried through $queryRaw in aiService.ts, not through the client.
 
   weeklyReport WeeklyReport @relation(fields: [weeklyReportId], references: [id])
+  @@index([weeklyReportId])
 
   @@map("daily_report_entries")
 }
@@ -462,6 +464,7 @@ model DeviationReport {
   updatedAt        DateTime?        @map("updated_at") @db.Timestamptz(3)
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  @@index([studentProfileId, validationStatus])
 
   @@map("deviation_reports")
 }
@@ -588,6 +591,7 @@ model AuditLog {
   detail     Json?
 
   user User? @relation(fields: [userId], references: [id])
+  @@index([userId])
 
   @@map("audit_logs")
 }
