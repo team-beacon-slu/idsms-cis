@@ -1058,6 +1058,48 @@ describe("reviewWeeklyReport_Disregard", () => {
   });
 });
 
+describe("approving an earlier week refreshes later weeks' running totals", () => {
+  it("week 2's stored total gains week 1's hours once week 1 is approved", async () => {
+    const eightHourDays = Array.from({ length: 5 }, () => ({
+      creditedHours: 8,
+      actualHours: 8,
+      scheduledHours: 8,
+      attendanceStatus: "PRESENT",
+    }));
+    prismaMock.weeklyReport.update.mockResolvedValue({
+      id: "wr-1",
+      status: WeeklyReportStatus.APPROVED,
+      studentProfileId: "profile-1",
+      weekStart: new Date("2026-09-28T00:00:00Z"),
+    } as never);
+    prismaMock.weeklyReport.findUniqueOrThrow.mockImplementation(((args: {
+      where: { id: string };
+    }) =>
+      Promise.resolve(
+        args.where.id === "wr-2"
+          ? { weekStart: new Date("2026-10-05T00:00:00Z"), dailyEntries: eightHourDays }
+          : { status: WeeklyReportStatus.PENDING, revisionHistory: [{ type: "SUBMITTED" }] }
+      )) as never);
+    prismaMock.weeklyReport.findMany.mockImplementation(((args: {
+      where?: { weekStart?: { gt?: Date; lt?: Date } };
+    }) => {
+      if (args.where?.weekStart?.gt) return Promise.resolve([{ id: "wr-2" }]);
+      if (args.where?.weekStart?.lt) return Promise.resolve([{ dailyEntries: eightHourDays }]);
+      return Promise.resolve([]);
+    }) as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 486 } as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+
+    await reviewWeeklyReport_Approve("wr-1", "faculty-1");
+
+    expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
+      where: { id: "wr-2" },
+      data: { runningTotal: 80, remainingHours: 406 },
+    });
+  });
+});
+
 describe("reviewWeeklyReport_Approve", () => {
   it("sets the report APPROVED and records the reviewing faculty in facultyAction", async () => {
     prismaMock.weeklyReport.update.mockResolvedValue({
