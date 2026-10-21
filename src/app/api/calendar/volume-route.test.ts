@@ -29,7 +29,7 @@ it("exposes faculty volume highlights with the authenticated faculty id", async 
       highVolumeWeeks: [{ weekStart: highVolumeWeeks[0].weekStart.toISOString(), count: 21 }],
     })
   );
-  expect(detectHighVolumeSubmissionWeeks).toHaveBeenCalledWith("faculty-1");
+  expect(detectHighVolumeSubmissionWeeks).toHaveBeenCalledWith("faculty-1", expect.any(Array));
 });
 it.each([Role.STUDENT_INTERN, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN])(
   "does not calculate faculty volumes for %s",

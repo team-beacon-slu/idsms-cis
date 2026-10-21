@@ -232,6 +232,29 @@ describe("detectEndorsementLetterSpikes", () => {
     ]);
     expect(spikes.every((s) => s.expectedCount === 3)).toBe(true);
   });
+
+  // The calendar page already holds every student's COMPLETION event; recomputing
+  // each projection again doubled the page's queries.
+  it("reuses the view's COMPLETION events instead of recomputing every student", async () => {
+    const completion = (iso: string) => ({
+      type: "COMPLETION" as const,
+      date: new Date(iso),
+      label: "Projected OJT Completion Date",
+      studentProfileId: iso,
+    });
+    const events = [
+      completion("2026-03-02T01:00:00.000Z"),
+      completion("2026-03-03T01:00:00.000Z"),
+      completion("2026-03-04T01:00:00.000Z"),
+      { type: "HOLIDAY" as const, date: new Date("2026-03-03T00:00:00.000Z"), label: "Holiday" },
+    ];
+
+    const spikes = await detectEndorsementLetterSpikes("coord-1", events);
+
+    expect(spikes).toEqual([{ weekStart: new Date("2026-03-01T16:00:00.000Z"), expectedCount: 3 }]);
+    expect(prismaMock.studentProfile.findMany).not.toHaveBeenCalled();
+    expect(mockedComputeProjectedCompletionDate).not.toHaveBeenCalled();
+  });
 });
 
 describe("calendarService stubs — reachable and wired correctly", () => {

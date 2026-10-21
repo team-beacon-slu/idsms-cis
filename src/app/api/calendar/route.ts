@@ -28,8 +28,11 @@ export async function GET() {
       : isCoordinatorView
         ? await getCoordinatorCalendarView(user.id)
         : await getUnifiedCalendarEvents(user.id, user.role);
-    const highVolumeWeeks = isFaculty ? await detectHighVolumeSubmissionWeeks(user.id) : [];
-    const endorsementSpikes = isCoordinatorView ? await detectEndorsementLetterSpikes(user.id) : [];
+    // Reuse the view just built instead of rebuilding it per detector.
+    const highVolumeWeeks = isFaculty ? await detectHighVolumeSubmissionWeeks(user.id, events) : [];
+    const endorsementSpikes = isCoordinatorView
+      ? await detectEndorsementLetterSpikes(user.id, events)
+      : [];
 
     return NextResponse.json({
       events: colorCodeCalendarEvents(events),

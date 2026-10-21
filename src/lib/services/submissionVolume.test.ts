@@ -63,3 +63,12 @@ it("propagates config lookup failures", async () => {
   prismaMock.systemConfig.findUnique.mockRejectedValue(new Error("Unavailable"));
   await expect(detectHighVolumeSubmissionWeeks("faculty-1")).rejects.toThrow("Unavailable");
 });
+
+it("reuses the events the page already loaded instead of rebuilding the faculty view", async () => {
+  prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+
+  expect(await detectHighVolumeSubmissionWeeks("faculty-1", [])).toEqual([]);
+
+  expect(prismaMock.facultyClassGroup.findMany).not.toHaveBeenCalled();
+  expect(prismaMock.studentProfile.findMany).not.toHaveBeenCalled();
+});

@@ -147,6 +147,8 @@ export async function getUnifiedCalendarEvents(
   role: Role
 ): Promise<CalendarEvent[]> {
   const studentProfileIds = await resolveVisibleStudentProfileIds(userId, role);
+  // shortcut: ~9 queries per student (reports, holidays, requests, projection);
+  // batch them into per-table queries if department-wide pages get slow at full enrollment.
   const perStudentEvents = await Promise.all(
     studentProfileIds.map((studentProfileId) => getStudentCalendarEvents(studentProfileId))
   );
@@ -215,8 +217,11 @@ export async function getFacultyCalendarView(facultyId: string): Promise<Calenda
 // pattern for the threshold value, or hardcode a documented default —
 // implementer's call).
 // Edge cases: none.
+// Pass `events` when the caller already built the faculty view, so it isn't
+// rebuilt (every student's events, a few queries each).
 export async function detectHighVolumeSubmissionWeeks(
-  facultyId: string
+  facultyId: string,
+  events?: CalendarEvent[]
 ): Promise<{ weekStart: Date; count: number }[]> {
   const config = await prisma.systemConfig.findUnique({
     where: { configKey: "faculty_submission_threshold" },
@@ -227,7 +232,10 @@ export async function detectHighVolumeSubmissionWeeks(
   if (typeof threshold !== "number" || !Number.isSafeInteger(threshold) || threshold <= 0) {
     throw new Error("Invalid faculty submission threshold: expected a positive integer");
   }
-  return bucketHighVolumeSubmissionWeeks(await getFacultyCalendarView(facultyId), threshold);
+  return bucketHighVolumeSubmissionWeeks(
+    events ?? (await getFacultyCalendarView(facultyId)),
+    threshold
+  );
 }
 
 export function bucketHighVolumeSubmissionWeeks(
@@ -326,22 +334,27 @@ function getManilaWeekStart(date: Date): Date {
 // above. Revisit if/when a coordinator-configurable threshold is needed.
 const ENDORSEMENT_SPIKE_THRESHOLD = 3;
 
+// Pass `events` (the coordinator view, which already holds every active
+// student's COMPLETION event) to skip recomputing each projection.
 export async function detectEndorsementLetterSpikes(
-  coordinatorId: string
+  coordinatorId: string,
+  events?: CalendarEvent[]
 ): Promise<{ weekStart: Date; expectedCount: number }[]> {
   // The schema has no Department model — this system serves a single
   // department (SLU SAMCIS) — so there is no per-coordinator filter to
   // apply; every active student's projected completion date is in scope.
   void coordinatorId;
 
-  const students = await prisma.studentProfile.findMany({
-    where: { deletedAt: null },
-    select: { id: true },
-  });
-
-  const completionDates = await Promise.all(
-    students.map((student) => computeProjectedCompletionDate(student.id))
-  );
+  const completionDates = events
+    ? events.filter((e) => e.type === "COMPLETION").map((e) => e.date)
+    : await Promise.all(
+        (
+          await prisma.studentProfile.findMany({
+            where: { deletedAt: null },
+            select: { id: true },
+          })
+        ).map((student) => computeProjectedCompletionDate(student.id))
+      );
 
   const buckets = new Map<number, { weekStart: Date; expectedCount: number }>();
   for (const completionDate of completionDates) {

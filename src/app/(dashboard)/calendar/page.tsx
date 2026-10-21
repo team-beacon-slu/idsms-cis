@@ -30,9 +30,6 @@ export default async function CalendarPage() {
   const isFaculty = user.role === Role.FACULTY_ADVISER;
   const coordinatorView =
     user.role === Role.DEPARTMENT_COORDINATOR || user.role === Role.SUPER_ADMIN;
-  const highVolumeWeeks = isFaculty ? await detectHighVolumeSubmissionWeeks(user.id) : [];
-  const endorsementSpikes = coordinatorView ? await detectEndorsementLetterSpikes(user.id) : [];
-
   // Each role gets its own scoped view: students (FR-CAL-02), faculty
   // (FR-CAL-03), coordinators/admins (FR-CAL-04).
   let events;
@@ -55,6 +52,11 @@ export default async function CalendarPage() {
   } else {
     events = colorCodeCalendarEvents(await getUnifiedCalendarEvents(user.id, user.role));
   }
+  // Reuse the view just built: rebuilding it per detector doubled the page's queries.
+  const highVolumeWeeks = isFaculty ? await detectHighVolumeSubmissionWeeks(user.id, events) : [];
+  const endorsementSpikes = coordinatorView
+    ? await detectEndorsementLetterSpikes(user.id, events)
+    : [];
 
   return (
     <div className="space-y-6">

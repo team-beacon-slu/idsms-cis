@@ -31,7 +31,7 @@ it.each([Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN])(
       expect.objectContaining({ events: [], endorsementSpikes: [] })
     );
     expect(getCoordinatorCalendarView).toHaveBeenCalledWith("viewer-1");
-    expect(detectEndorsementLetterSpikes).toHaveBeenCalledWith("viewer-1");
+    expect(detectEndorsementLetterSpikes).toHaveBeenCalledWith("viewer-1", expect.any(Array));
   }
 );
 it.each([Role.STUDENT_INTERN, Role.FACULTY_ADVISER])(
