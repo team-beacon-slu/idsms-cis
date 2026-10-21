@@ -1,7 +1,9 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { Role } from "@prisma/client";
-import { getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { prisma } from "@/lib/prisma";
+import { getWeeklyReport, isAwaitingReview } from "@/lib/services/weeklyReportService";
+import { WeeklyReportForm } from "../../weekly-report-form";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
@@ -42,6 +44,15 @@ export default async function WeeklyReportReviewPage({
   if (!report) {
     redirect(`/students/${params.studentProfileId}/weekly-reports`);
   }
+  // The URL's student was access-checked above, so the report must be theirs (same rule as preview).
+  if (report!.studentProfileId !== params.studentProfileId) {
+    notFound();
+  }
+  const student = await prisma.studentProfile.findUnique({
+    where: { id: params.studentProfileId },
+    select: { fullName: true, studentNumber: true },
+  });
+  const awaitingReview = isAwaitingReview(report!);
 
   // FR-AI-05/07: cached columns only, with NFR-AI-04's confidence floor.
   const view = getAdvisoryView(report!, await getAiSettings());
@@ -59,8 +70,9 @@ export default async function WeeklyReportReviewPage({
             <StatusBadge status={report!.status} />
           </div>
           <CardDescription>
-            Week of {new Date(report!.weekStart).toLocaleDateString()} –{" "}
-            {new Date(report!.weekEnd).toLocaleDateString()}
+            {student?.fullName ?? student?.studentNumber ?? "Student"} · Week of{" "}
+            {new Date(report!.weekStart).toLocaleDateString("en-PH", { timeZone: "UTC" })} –{" "}
+            {new Date(report!.weekEnd).toLocaleDateString("en-PH", { timeZone: "UTC" })}
           </CardDescription>
           <p className="text-xs text-muted-foreground">
             Supervisor-signed copies are submitted on Google Classroom, not in IDSMS.
@@ -118,8 +130,44 @@ export default async function WeeklyReportReviewPage({
           </CardContent>
         )}
 
-        <CardContent className={hasAiSignal ? "pt-0" : undefined}>
-          <WeeklyReportReviewActions weeklyReportId={params.weeklyReportId} />
+        {/* The report itself, so the adviser decides with the entries in front of them. */}
+        <CardContent className="pt-0">
+          <WeeklyReportForm
+            weeklyReportId={report!.id}
+            editable={false}
+            weekEnd={report!.weekEnd.toISOString()}
+            priorAccomplishments={[]}
+            totals={{
+              totalHours: Number(report!.totalHours),
+              runningTotal: Number(report!.runningTotal),
+              remainingHours: Number(report!.remainingHours),
+            }}
+            entries={[...report!.dailyEntries]
+              .sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime())
+              .map((e) => ({
+                id: e.id,
+                reportDate: e.reportDate.toISOString(),
+                scheduledHours: Number(e.scheduledHours),
+                actualHours: e.actualHours == null ? null : Number(e.actualHours),
+                accomplishments: e.accomplishments,
+                toolsUsed: e.toolsUsed,
+                attendanceStatus: e.attendanceStatus,
+                timeIn: e.timeIn,
+                timeOut: e.timeOut,
+                timeIn2: e.timeIn2,
+                timeOut2: e.timeOut2,
+              }))}
+          />
+        </CardContent>
+
+        <CardContent className="pt-0">
+          {awaitingReview ? (
+            <WeeklyReportReviewActions weeklyReportId={params.weeklyReportId} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Nothing to review: this report isn&apos;t waiting for a decision.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
