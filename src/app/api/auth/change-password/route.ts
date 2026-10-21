@@ -7,7 +7,7 @@ import { handleApiError } from "@/lib/utils/apiError";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireUserApi();
+    const user = await requireUserApi({ allowPendingPasswordChange: true });
     const sessionToken = getCurrentSessionToken();
     if (!sessionToken) {
       throw new UnauthorizedError();

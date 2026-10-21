@@ -404,6 +404,25 @@ describe("FR-UM-11 session revocation triggers", () => {
     expect(prismaMock.session.deleteMany).not.toHaveBeenCalled();
   });
 
+  it("a coordinator can't deactivate a Super Admin or another coordinator", async () => {
+    prismaMock.user.findUnique.mockImplementation(((args: { where: { id: string } }) =>
+      Promise.resolve(
+        args.where.id === "coord-1"
+          ? baseUser({ id: "coord-1", role: Role.DEPARTMENT_COORDINATOR })
+          : baseUser({ id: args.where.id, role: Role.SUPER_ADMIN })
+      )) as never);
+    await expect(setUserActive("admin-2", false, "coord-1")).rejects.toThrow(ForbiddenError);
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it("nobody can deactivate their own account", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ id: "admin-1", role: Role.SUPER_ADMIN }) as never
+    );
+    await expect(setUserActive("admin-1", false, "admin-1")).rejects.toThrow(ForbiddenError);
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
   it("forceLogout revokes sessions (trigger c)", async () => {
     await forceLogout("user-1", "admin-1");
 
@@ -419,6 +438,7 @@ describe("FR-UM-11 session revocation triggers", () => {
       usedAt: null,
       createdAt: new Date(),
     } as never);
+    prismaMock.passwordResetToken.updateMany.mockResolvedValue({ count: 1 } as never);
 
     const result = await completePasswordReset("raw-token", "new-password");
 
@@ -476,12 +496,49 @@ describe("completePasswordReset", () => {
       usedAt: null,
       createdAt: new Date(),
     } as never);
+    prismaMock.passwordResetToken.updateMany.mockResolvedValue({ count: 1 } as never);
 
     await completePasswordReset("raw-token", "new-password");
 
     expect(prismaMock.user.update).toHaveBeenCalledWith({
       where: { id: "user-1" },
       data: { hashedPassword: "new-hashed-password", mustResetPassword: false },
+    });
+  });
+
+  it("refuses a link that a simultaneous reset already used", async () => {
+    prismaMock.passwordResetToken.findUnique.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      tokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60 * 1000),
+      usedAt: null,
+      createdAt: new Date(),
+    } as never);
+    prismaMock.passwordResetToken.updateMany.mockResolvedValue({ count: 0 } as never);
+
+    const result = await completePasswordReset("raw-token", "new-password");
+
+    expect(result).toEqual({ ok: false, reason: "INVALID_OR_EXPIRED_TOKEN" });
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it("using a link invalidates the user's other unused reset links", async () => {
+    prismaMock.passwordResetToken.findUnique.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      tokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60 * 1000),
+      usedAt: null,
+      createdAt: new Date(),
+    } as never);
+    prismaMock.passwordResetToken.updateMany.mockResolvedValue({ count: 1 } as never);
+
+    await completePasswordReset("raw-token", "new-password");
+
+    expect(prismaMock.passwordResetToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", usedAt: null },
+      data: { usedAt: expect.any(Date) },
     });
   });
 });
@@ -495,6 +552,31 @@ describe("changePassword", () => {
 
     expect(result).toEqual({ ok: false, reason: "INVALID_CURRENT_PASSWORD" });
     expect(prismaMock.session.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("the 5th wrong current password locks the account and signs out every session", async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue(
+      baseUser({ failedLoginAttempts: 4 }) as never
+    );
+    mockedVerifyPassword.mockResolvedValue(false);
+    prismaMock.user.update.mockResolvedValue(baseUser({ failedLoginAttempts: 5 }) as never);
+
+    const result = await changePassword("user-1", "guess-5", "new-pass", "session-a");
+
+    expect(result).toEqual(expect.objectContaining({ ok: false, reason: "ACCOUNT_LOCKED" }));
+    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+  });
+
+  it("a locked account can't change its password, even with the right current one", async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue(
+      baseUser({ lockedUntil: new Date(Date.now() + 10 * 60 * 1000) }) as never
+    );
+    mockedVerifyPassword.mockResolvedValue(true);
+
+    const result = await changePassword("user-1", "correct-current", "new-pass", "session-a");
+
+    expect(result).toEqual(expect.objectContaining({ ok: false, reason: "ACCOUNT_LOCKED" }));
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
   it("keeps the calling session alive and revokes every other one", async () => {
@@ -551,6 +633,16 @@ describe("requestPasswordReset", () => {
     expect(result).not.toBeNull();
     expect(result?.token).toHaveLength(64); // 32 bytes hex-encoded
     expect(prismaMock.passwordResetToken.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops creating links after 3 in an hour, so a victim's inbox can't be flooded", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(baseUser() as never);
+    prismaMock.passwordResetToken.count.mockResolvedValue(3 as never);
+
+    const result = await requestPasswordReset("student@example.com");
+
+    expect(result).toBeNull();
+    expect(prismaMock.passwordResetToken.create).not.toHaveBeenCalled();
   });
 });
 

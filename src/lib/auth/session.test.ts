@@ -93,6 +93,19 @@ describe("requireUserApi", () => {
     mockedGetServerSession.mockResolvedValue({ user: sessionUser() } as never);
     await expect(requireUserApi()).resolves.toEqual(sessionUser());
   });
+
+  it("refuses a session that still has to change its temporary password (FR-UM-04)", async () => {
+    mockedGetServerSession.mockResolvedValue({
+      user: sessionUser({ mustResetPassword: true }),
+    } as never);
+    await expect(requireUserApi()).rejects.toThrow("Change your temporary password first");
+  });
+
+  it("lets the change-password route through a pending password change", async () => {
+    const user = sessionUser({ mustResetPassword: true });
+    mockedGetServerSession.mockResolvedValue({ user } as never);
+    await expect(requireUserApi({ allowPendingPasswordChange: true })).resolves.toEqual(user);
+  });
 });
 
 describe("requireRole", () => {
