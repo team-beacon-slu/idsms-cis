@@ -8,6 +8,7 @@
 //   TS_NODE_BASEURL=. npx ts-node -r tsconfig-paths/register --compiler-options '{"module":"commonjs"}' prisma/backfill-credited-hours.ts --apply   # write
 //
 // Prints each student whose rendered hours change (for the PR / adviser).
+import "dotenv/config"; // Prisma 7 no longer loads .env itself
 import { prisma } from "@/lib/prisma";
 import { recomputeCreditedHours } from "@/lib/services/weeklyReportService";
 
