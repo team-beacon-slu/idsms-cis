@@ -17,6 +17,8 @@ beforeEach(() => {
     status: WeeklyReportStatus.PENDING,
     revisionHistory: [{ type: "SUBMITTED", timestamp: "t0" }],
   } as never);
+  // No later weeks whose running totals need refreshing.
+  prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
 });
 
 it("records REGARDED and refreshes hours and completion for the report's owner", async () => {
@@ -32,7 +34,7 @@ it("records REGARDED and refreshes hours and completion for the report's owner",
   expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
     where: { id: "wr-1" },
     data: { status: WeeklyReportStatus.REGARDED, facultyAction: "REGARDED by faculty-1" },
-    select: { id: true, status: true, studentProfileId: true },
+    select: { id: true, status: true, studentProfileId: true, weekStart: true },
   });
   expect(total).toHaveBeenCalledWith("profile-1");
   expect(projection).toHaveBeenCalledWith("profile-1");

@@ -134,7 +134,9 @@ describe("attendance", () => {
       where: unknown;
       orderBy: unknown;
     };
-    expect(args.where).toEqual({ weeklyReport: { studentProfile: { semesterId: "s1" } } });
+    expect(args.where).toEqual({
+      weeklyReport: { studentProfile: { deletedAt: null, semesterId: "s1" } },
+    });
     expect(args.orderBy).toEqual([
       { weeklyReport: { studentProfile: { studentNumber: "asc" } } },
       { reportDate: "asc" },
@@ -153,11 +155,28 @@ describe("attendance", () => {
     });
   });
 
-  it("applies no semester filter when none is given", async () => {
+  it("applies no semester filter when none is given, but still skips deleted students", async () => {
     prismaMock.dailyReportEntry.findMany.mockResolvedValue([] as never);
     await buildAdminExport("attendance");
     const args = prismaMock.dailyReportEntry.findMany.mock.calls[0][0] as { where: unknown };
-    expect(args.where).toEqual({});
+    expect(args.where).toEqual({ weeklyReport: { studentProfile: { deletedAt: null } } });
+  });
+
+  it("reports and checklist exports skip deleted students too", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.generatedDocument.findMany.mockResolvedValue([] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([] as never);
+    await buildAdminExport("reports");
+    await buildAdminExport("checklist");
+    for (const mock of [
+      prismaMock.weeklyReport.findMany,
+      prismaMock.generatedDocument.findMany,
+      prismaMock.preDeploymentChecklistItem.findMany,
+    ]) {
+      expect((mock.mock.calls[0][0] as { where: unknown }).where).toEqual(
+        expect.objectContaining({ studentProfile: { deletedAt: null } })
+      );
+    }
   });
 });
 

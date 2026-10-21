@@ -43,7 +43,9 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       setError(
         body.error === "INVALID_CURRENT_PASSWORD"
           ? "Current password is incorrect."
-          : "Something went wrong. Please try again."
+          : body.error === "ACCOUNT_LOCKED"
+            ? "Too many wrong attempts. Your account is locked for 15 minutes and you've been signed out."
+            : "Something went wrong. Please try again."
       );
       return;
     }

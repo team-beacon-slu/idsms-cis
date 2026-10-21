@@ -243,12 +243,21 @@ describe("deleteRetentionFlaggedFile", () => {
     ["GENERATED_DOCUMENT", "generatedDocument", { fileUrl: null }],
   ] as const)("deletes the object then nulls the %s column", async (sourceType, model, data) => {
     prismaMock.retentionFlag.findUnique.mockResolvedValue(flag({ sourceType }) as never);
+    prismaMock.retentionFlag.updateMany.mockResolvedValue({ count: 1 } as never);
     jest.mocked(deleteObject).mockResolvedValue(undefined);
     await deleteRetentionFlaggedFile("f-1", "a-1", "10.0.0.1");
     expect(deleteObject).toHaveBeenCalledWith("checklist-documents", "c/1.pdf");
-    expect(prismaMock[model].updateMany).toHaveBeenCalledWith({ where: { id: "i-1" }, data });
-    expect(prismaMock.retentionFlag.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: "DELETED" }) })
+    // Only clears the column if it still points at the file that was deleted.
+    const [column] = Object.keys(data);
+    expect(prismaMock[model].updateMany).toHaveBeenCalledWith({
+      where: { id: "i-1", [column]: "c/1.pdf" },
+      data,
+    });
+    expect(prismaMock.retentionFlag.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "f-1", status: "PENDING" },
+        data: expect.objectContaining({ status: "DELETED" }),
+      })
     );
     expect(logEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -269,16 +278,30 @@ describe("deleteRetentionFlaggedFile", () => {
 
   it("succeeds when the object was already gone (deleteObject resolves)", async () => {
     prismaMock.retentionFlag.findUnique.mockResolvedValue(flag() as never);
+    prismaMock.retentionFlag.updateMany.mockResolvedValue({ count: 1 } as never);
     jest.mocked(deleteObject).mockResolvedValue(undefined);
     await expect(deleteRetentionFlaggedFile("f-1", "a-1", null)).resolves.toBeUndefined();
-    expect(prismaMock.retentionFlag.update).toHaveBeenCalled();
+    expect(prismaMock.retentionFlag.updateMany).toHaveBeenCalled();
   });
 
-  it("leaves the flag PENDING and rethrows on StorageDeleteError", async () => {
+  it("a Keep that won the race stops the delete before storage is touched", async () => {
     prismaMock.retentionFlag.findUnique.mockResolvedValue(flag() as never);
+    prismaMock.retentionFlag.updateMany.mockResolvedValue({ count: 0 } as never);
+    await expect(deleteRetentionFlaggedFile("f-1", "a-1", null)).rejects.toThrow(
+      RetentionStateError
+    );
+    expect(deleteObject).not.toHaveBeenCalled();
+  });
+
+  it("puts the flag back to PENDING and rethrows on StorageDeleteError", async () => {
+    prismaMock.retentionFlag.findUnique.mockResolvedValue(flag() as never);
+    prismaMock.retentionFlag.updateMany.mockResolvedValue({ count: 1 } as never);
     jest.mocked(deleteObject).mockRejectedValue(new StorageDeleteError("storage down"));
     await expect(deleteRetentionFlaggedFile("f-1", "a-1", null)).rejects.toThrow("storage down");
-    expect(prismaMock.retentionFlag.update).not.toHaveBeenCalled();
+    expect(prismaMock.retentionFlag.update).toHaveBeenCalledWith({
+      where: { id: "f-1" },
+      data: { status: "PENDING", reviewedAt: null, reviewedBy: null },
+    });
     expect(prismaMock.preDeploymentChecklistItem.updateMany).not.toHaveBeenCalled();
     expect(logEvent).not.toHaveBeenCalled();
   });

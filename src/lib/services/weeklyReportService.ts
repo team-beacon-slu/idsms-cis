@@ -292,6 +292,18 @@ export async function calculateRunningTotalAndRemaining(
   return { runningTotal, remainingHours };
 }
 
+// A week approved or regarded late now counts, so the totals stored on later weeks move too.
+async function refreshLaterRunningTotals(studentProfileId: string, weekStart: Date) {
+  const later = await prisma.weeklyReport.findMany({
+    where: { studentProfileId, weekStart: { gt: weekStart } },
+    orderBy: { weekStart: "asc" },
+    select: { id: true },
+  });
+  for (const { id } of later) {
+    await calculateRunningTotalAndRemaining(studentProfileId, id);
+  }
+}
+
 // FR-WR-03 — Owner: gu457 (Ulrich)
 // Requirement: only the student may enter actual hours worked and daily
 // accomplishments.
@@ -757,7 +769,7 @@ export async function reviewWeeklyReport_Approve(
   // available to record who reviewed it. A single unconditional update
   // needs no `$transaction` wrapper — there's no read-then-write state
   // gate here.
-  const { id, status, studentProfileId } = await prisma.$transaction(async (tx) => {
+  const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
     return tx.weeklyReport.update({
       where: { id: weeklyReportId },
@@ -765,7 +777,7 @@ export async function reviewWeeklyReport_Approve(
         status: WeeklyReportStatus.APPROVED,
         facultyAction: `APPROVED by ${facultyId}`,
       },
-      select: { id: true, status: true, studentProfileId: true },
+      select: { id: true, status: true, studentProfileId: true, weekStart: true },
     });
   });
 
@@ -773,6 +785,7 @@ export async function reviewWeeklyReport_Approve(
   // no `logEvent` audit-log call here, the contract doesn't ask for one.
   await computeTotalHoursRendered(studentProfileId);
   await computeProjectedCompletionDate(studentProfileId);
+  await refreshLaterRunningTotals(studentProfileId, weekStart);
 
   return { id, status };
 }
@@ -841,16 +854,17 @@ export async function reviewWeeklyReport_Regard(
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
   void ipAddress;
-  const { id, status, studentProfileId } = await prisma.$transaction(async (tx) => {
+  const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
     return tx.weeklyReport.update({
       where: { id: weeklyReportId },
       data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
-      select: { id: true, status: true, studentProfileId: true },
+      select: { id: true, status: true, studentProfileId: true, weekStart: true },
     });
   });
   await computeTotalHoursRendered(studentProfileId);
   await computeProjectedCompletionDate(studentProfileId);
+  await refreshLaterRunningTotals(studentProfileId, weekStart);
   return { id, status };
 }
 

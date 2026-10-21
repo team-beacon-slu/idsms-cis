@@ -19,6 +19,14 @@ export class WorkPlanPendingError extends Error {
   }
 }
 
+// A review that arrives after the plan was already decided (409).
+export class WorkPlanStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkPlanStateError";
+  }
+}
+
 export interface SubmitWorkPlanInput {
   plannedTasks: Prisma.InputJsonValue;
   scheduleConfig?: Prisma.InputJsonValue;
@@ -83,10 +91,14 @@ export async function reviewWorkPlan(
 
   const workPlan = await prisma.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
   await assertCanAccessStudent(actingUser, workPlan.studentProfileId);
+  // FR-WP-06: a decided plan is locked; an old link or a double click can't flip it.
+  if (workPlan.status !== WorkPlanStatus.SUBMITTED) {
+    throw new WorkPlanStateError("This work plan was already reviewed");
+  }
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.workPlan.update({
-      where: { id: workPlanId },
+      where: { id: workPlanId, status: WorkPlanStatus.SUBMITTED },
       data: {
         status: action === "APPROVE" ? WorkPlanStatus.APPROVED : WorkPlanStatus.RETURNED,
         coordinatorId: actingUser.id,

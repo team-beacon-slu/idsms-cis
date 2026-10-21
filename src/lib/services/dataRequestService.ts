@@ -452,21 +452,12 @@ export async function buildPersonalDataWorkbook(
     ),
     sheet(
       "Final report",
-      [
-        "Status",
-        "Submitted",
-        "Sections",
-        "Supervisor score",
-        "Peer score",
-        "Attachments",
-        "Review note",
-      ],
+      ["Status", "Submitted", "Supervisor score", "Peer score", "Attachments", "Review note"],
       finalReport
         ? [
             {
               Status: finalReport.status,
               Submitted: manila(finalReport.submittedAt),
-              Sections: JSON.stringify(finalReport.sections),
               "Supervisor score": scoreOf(finalReport.supervisorScore, finalReport.supervisorScale),
               "Peer score": scoreOf(finalReport.peerScore, finalReport.peerScale),
               Attachments: JSON.stringify(finalReport.attachments),
@@ -474,6 +465,14 @@ export async function buildPersonalDataWorkbook(
             },
           ]
         : []
+    ),
+    // One row per section: each is capped at 10,000 characters, so the full text always fits.
+    sheet(
+      "Final report sections",
+      ["Section", "Text"],
+      Object.entries((finalReport?.sections ?? {}) as Record<string, string>).map(
+        ([section, text]) => ({ Section: section, Text: text })
+      )
     ),
     sheet(
       "Notifications",

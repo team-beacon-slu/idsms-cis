@@ -249,7 +249,9 @@ describe("reviewChecklistItem", () => {
         expect.objectContaining({
           where: expect.objectContaining({
             companyId: "company-1",
-            status: MoaStatus.APPROVED_ACTIVE,
+            // A still-valid agreement: active or marked expiring, and not past its end date.
+            status: { in: [MoaStatus.APPROVED_ACTIVE, MoaStatus.EXPIRING] },
+            validTo: { gte: expect.any(Date) },
             programsCovered: { has: "BSIT" },
           }),
         })

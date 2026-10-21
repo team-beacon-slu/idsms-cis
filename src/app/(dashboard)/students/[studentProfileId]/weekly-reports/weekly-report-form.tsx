@@ -439,7 +439,41 @@ export function WeeklyReportForm({
     return (
       <div data-testid="weekly-report-form" className="space-y-3">
         <TotalsBar totals={totals} />
-        <div className="overflow-x-auto">
+        {/* Phones: one stacked row per day, so the accomplishment text keeps the full width. */}
+        <ul className="divide-y sm:hidden">
+          {entries.map((entry) => (
+            <li key={entry.id} className="space-y-1 py-3 text-sm">
+              <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="font-medium">
+                  {formatDay(entry.reportDate)} ·{" "}
+                  {entry.attendanceStatus === "HOLIDAY"
+                    ? HOLIDAY_LABEL
+                    : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
+                </span>
+                <span className="whitespace-nowrap">
+                  {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
+                  {entry.scheduledHours > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {" "}
+                      / {formatHrsMins(entry.scheduledHours)}
+                    </span>
+                  )}
+                </span>
+              </p>
+              {entry.timeIn && entry.timeOut && (
+                <p className="text-xs text-muted-foreground">
+                  {entry.timeIn}–{entry.timeOut}
+                  {entry.timeIn2 && entry.timeOut2 && `, ${entry.timeIn2}–${entry.timeOut2}`}
+                </p>
+              )}
+              <p className="whitespace-pre-wrap">{entry.accomplishments ?? "—"}</p>
+              {entry.toolsUsed && (
+                <p className="text-xs text-muted-foreground">Tools: {entry.toolsUsed}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">

@@ -297,6 +297,20 @@ export async function setUserActive(
   actingUserId: string,
   ipAddress?: string | null
 ): Promise<SafeUser> {
+  if (!isActive && targetUserId === actingUserId) {
+    throw new ForbiddenError("You can't deactivate your own account");
+  }
+  // Only a Super Admin manages staff accounts, so a coordinator can't lock out the admins.
+  const [target, actor] = await Promise.all([
+    prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } }),
+    prisma.user.findUnique({ where: { id: actingUserId }, select: { role: true } }),
+  ]);
+  const staffTarget =
+    target?.role === Role.SUPER_ADMIN || target?.role === Role.DEPARTMENT_COORDINATOR;
+  if (staffTarget && actor?.role !== Role.SUPER_ADMIN) {
+    throw new ForbiddenError("Only a Super Admin can change a staff account's status");
+  }
+
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.update({ where: { id: targetUserId }, data: { isActive } });
 
@@ -376,6 +390,13 @@ export async function requestPasswordReset(
   if (!user || user.deletedAt || !user.isActive) {
     return null;
   }
+  // Caps reset emails per account; the route's reply is identical either way, so nothing leaks.
+  const recent = await prisma.passwordResetToken.count({
+    where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
+  });
+  if (recent >= 3) {
+    return null;
+  }
 
   const rawToken = randomBytes(32).toString("hex");
   const tokenHash = createHash("sha256").update(rawToken).digest("hex");
@@ -410,24 +431,33 @@ export async function completePasswordReset(
   ipAddress?: string | null
 ): Promise<CompletePasswordResetResult> {
   const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+  const invalid = { ok: false, reason: "INVALID_OR_EXPIRED_TOKEN" } as const;
+
+  const resetToken = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+    return invalid;
+  }
+  // bcrypt runs before the transaction so a slow hash can't hit its 5 s timeout.
+  const hashedPassword = await hashPassword(newPassword);
 
   return prisma.$transaction(async (tx) => {
-    const resetToken = await tx.passwordResetToken.findUnique({ where: { tokenHash } });
-
-    if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
-      return { ok: false, reason: "INVALID_OR_EXPIRED_TOKEN" };
-    }
-
-    const hashedPassword = await hashPassword(newPassword);
+    const now = new Date();
+    // The conditional claim makes the link single-use even when two requests race.
+    const { count } = await tx.passwordResetToken.updateMany({
+      where: { id: resetToken.id, usedAt: null },
+      data: { usedAt: now },
+    });
+    if (count === 0) return invalid;
 
     await tx.user.update({
       where: { id: resetToken.userId },
       data: { hashedPassword, mustResetPassword: false },
     });
 
-    await tx.passwordResetToken.update({
-      where: { id: resetToken.id },
-      data: { usedAt: new Date() },
+    // Older links in the user's inbox stop working once the password changes.
+    await tx.passwordResetToken.updateMany({
+      where: { userId: resetToken.userId, usedAt: null },
+      data: { usedAt: now },
     });
 
     await revokeSessionsForUser(resetToken.userId, tx);
@@ -447,7 +477,10 @@ export async function completePasswordReset(
   });
 }
 
-export type ChangePasswordResult = { ok: true } | { ok: false; reason: "INVALID_CURRENT_PASSWORD" };
+export type ChangePasswordResult =
+  | { ok: true }
+  | { ok: false; reason: "INVALID_CURRENT_PASSWORD" }
+  | { ok: false; reason: "ACCOUNT_LOCKED"; lockedUntil: Date };
 
 // Serves both the FR-UM-04 forced first-login change and a voluntary profile
 // password change — same operation either way. Revokes every *other* session
@@ -459,25 +492,39 @@ export async function changePassword(
   currentSessionToken: string,
   ipAddress?: string | null
 ): Promise<ChangePasswordResult> {
-  return prisma.$transaction(async (tx) => {
-    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const now = new Date();
+  if (user.lockedUntil && user.lockedUntil > now) {
+    return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil: user.lockedUntil };
+  }
 
-    const matches = await verifyPassword(currentPassword, user.hashedPassword);
-    if (!matches) {
-      await logEvent(
-        {
-          userId,
-          action: "PASSWORD_CHANGE_FAILED",
-          entityType: "User",
-          entityId: userId,
-          ipAddress,
-        },
-        tx
-      );
-      return { ok: false, reason: "INVALID_CURRENT_PASSWORD" };
+  // bcrypt stays outside the transaction so a slow hash can't hit its 5 s timeout.
+  const matches = await verifyPassword(currentPassword, user.hashedPassword);
+  if (!matches) {
+    // FR-UM-07: wrong current passwords count toward the same lockout as sign-in.
+    const after = await prisma.user.update({
+      where: { id: userId },
+      data: { failedLoginAttempts: { increment: 1 } },
+    });
+    await logEvent({
+      userId,
+      action: "PASSWORD_CHANGE_FAILED",
+      entityType: "User",
+      entityId: userId,
+      ipAddress,
+    });
+    if ((after?.failedLoginAttempts ?? 0) >= MAX_FAILED_ATTEMPTS) {
+      const lockedUntil = new Date(now.getTime() + LOCKOUT_DURATION_MS);
+      await prisma.user.update({ where: { id: userId }, data: { lockedUntil } });
+      // Whoever is guessing holds a session, so every session ends, this one included.
+      await revokeSessionsForUser(userId);
+      return { ok: false, reason: "ACCOUNT_LOCKED", lockedUntil };
     }
+    return { ok: false, reason: "INVALID_CURRENT_PASSWORD" };
+  }
 
-    const hashedPassword = await hashPassword(newPassword);
+  const hashedPassword = await hashPassword(newPassword);
+  return prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: userId },
       data: { hashedPassword, mustResetPassword: false },

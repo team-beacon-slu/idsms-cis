@@ -15,7 +15,7 @@ import {
 import { EndorsementDataIncompleteError } from "@/lib/documents/endorsementLetterData";
 import { ChecklistGateError } from "@/lib/services/checklistService";
 import { InvalidMoaTransitionError } from "@/lib/services/companyService";
-import { WorkPlanPendingError } from "@/lib/services/workPlanService";
+import { WorkPlanPendingError, WorkPlanStateError } from "@/lib/services/workPlanService";
 import {
   HolidayNotFoundError,
   InvalidScheduleChangeCoordinatorStateError,
@@ -99,6 +99,7 @@ export function handleApiError(error: unknown): NextResponse {
     error instanceof RetentionStateError ||
     error instanceof TimeRequestStateError ||
     error instanceof ConductStateError ||
+    error instanceof WorkPlanStateError ||
     error instanceof WeeklyReportNotAwaitingReviewError
   ) {
     return NextResponse.json({ error: error.message }, { status: 409 });

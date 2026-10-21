@@ -1,6 +1,7 @@
 import { WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { MonthlyReportDocumentData } from "@/lib/documents/monthlyReportTemplate";
+import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
 
 // Same overlap rule as monthlyReportService.checkMonthlyAggregationEligibility:
 // a week counts toward every calendar month it touches.
@@ -39,8 +40,16 @@ export async function loadMonthlyReportDocumentData(
       weekEnd: { gte: monthStart },
     },
     orderBy: { weekStart: "asc" },
-    select: { weekStart: true, weekEnd: true, status: true, totalHours: true },
+    select: {
+      weekStart: true,
+      weekEnd: true,
+      status: true,
+      totalHours: true,
+      dailyEntries: { select: { reportDate: true, ...CREDITED_HOURS_SELECT } },
+    },
   });
+  // A week that straddles two months adds only its in-month days to each month's figure.
+  const inMonth = (d: Date) => d >= monthStart && d <= monthEnd;
 
   const approved = new Set<string>([WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED]);
   const profile = doc.studentProfile;
@@ -59,12 +68,16 @@ export async function loadMonthlyReportDocumentData(
       requiredHours: profile.requiredHours,
     },
     company: profile.company,
-    weeks: weeks.map((w) => ({ ...w, totalHours: Number(w.totalHours) })),
-    approvedHours:
-      Math.round(
-        weeks
-          .filter((w) => approved.has(w.status))
-          .reduce((sum, w) => sum + Number(w.totalHours), 0) * 100
-      ) / 100,
+    weeks: weeks.map((w) => ({
+      weekStart: w.weekStart,
+      weekEnd: w.weekEnd,
+      status: w.status,
+      totalHours: Number(w.totalHours),
+    })),
+    approvedHours: sumCreditedHours(
+      weeks
+        .filter((w) => approved.has(w.status))
+        .flatMap((w) => w.dailyEntries.filter((e) => inMonth(e.reportDate)))
+    ),
   };
 }

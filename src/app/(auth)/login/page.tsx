@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import { AlertCircle, Loader2, Lock, Mail } from "lucide-react";
 import { loginSchema } from "@/lib/validators/auth";
+import { safeInternalPath } from "@/lib/utils/safeInternalPath";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +33,8 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  // Only same-site paths, so a crafted link can't send a signed-in user to another site.
+  const callbackUrl = safeInternalPath(searchParams.get("callbackUrl")) ?? "/";
 
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

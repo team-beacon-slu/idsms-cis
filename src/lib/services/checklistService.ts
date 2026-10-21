@@ -135,7 +135,9 @@ async function assertUnderlyingRecordApproved(item: PreDeploymentChecklistItem):
     const activeMoa = await prisma.moaRecord.findFirst({
       where: {
         companyId: studentProfile.companyId,
-        status: MoaStatus.APPROVED_ACTIVE,
+        // Still valid: active or marked expiring, and not past its end date.
+        status: { in: [MoaStatus.APPROVED_ACTIVE, MoaStatus.EXPIRING] },
+        validTo: { gte: new Date() },
         programsCovered: { has: studentProfile.program },
       },
     });
