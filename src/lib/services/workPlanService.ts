@@ -53,11 +53,25 @@ export async function submitWorkPlan(
       throw new WorkPlanPendingError();
     }
 
+    // Schedules are read from the latest APPROVED plan, so a resubmission without
+    // its own schedule carries the current one forward; otherwise approving it
+    // would drop the schedule and its change history.
+    const approved =
+      input.scheduleConfig === undefined
+        ? await tx.workPlan.findFirst({
+            where: { studentProfileId, status: WorkPlanStatus.APPROVED },
+            orderBy: { createdAt: "desc" },
+          })
+        : null;
+
     const workPlan = await tx.workPlan.create({
       data: {
         studentProfileId,
         plannedTasks: input.plannedTasks,
-        scheduleConfig: input.scheduleConfig,
+        scheduleConfig: input.scheduleConfig ?? approved?.scheduleConfig ?? undefined,
+        ...(approved && {
+          scheduleChangeHistory: approved.scheduleChangeHistory as Prisma.InputJsonValue,
+        }),
       },
     });
 
