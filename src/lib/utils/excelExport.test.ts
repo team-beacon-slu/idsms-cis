@@ -22,6 +22,17 @@ describe("Manila calendar days", () => {
   });
 });
 
+describe("toSheetRows cell limit", () => {
+  it("cuts text longer than Excel's 32,767-character cell limit instead of crashing the export", () => {
+    const [, [cell]] = toSheetRows(
+      [{ text: "a".repeat(40_000) }],
+      [{ key: "text", header: "Text" }]
+    );
+    expect(String(cell).length).toBeLessThanOrEqual(32_767);
+    expect(String(cell)).toMatch(/cut at Excel's cell limit/);
+  });
+});
+
 describe("toSheetRows", () => {
   const columns = [
     { key: "name" as const, header: "Name" },

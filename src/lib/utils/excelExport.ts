@@ -4,6 +4,9 @@ import { toDateKey } from "@/lib/utils/reportDeadline";
 const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+// Excel's hard limit per cell; SheetJS throws past it and the whole export fails.
+const CELL_LIMIT = 32_767;
+const CUT_NOTE = " … [cut at Excel's cell limit]";
 
 // Header row first, then one row per item. Strings that a spreadsheet would
 // evaluate as a formula (= + - @ tab CR) get a leading `'` so student-supplied
@@ -15,8 +18,9 @@ export function toSheetRows<T extends Record<string, unknown>>(
   const cell = (value: unknown): string | number => {
     if (value === null || value === undefined) return "";
     if (typeof value === "number") return value;
-    const text = String(value);
-    return FORMULA_PREFIX.test(text) ? `'${text}` : text;
+    const raw = String(value);
+    const text = FORMULA_PREFIX.test(raw) ? `'${raw}` : raw;
+    return text.length > CELL_LIMIT ? text.slice(0, CELL_LIMIT - CUT_NOTE.length) + CUT_NOTE : text;
   };
   return [columns.map((c) => c.header), ...rows.map((r) => columns.map((c) => cell(r[c.key])))];
 }

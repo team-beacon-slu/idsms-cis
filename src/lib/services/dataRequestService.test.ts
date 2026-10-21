@@ -213,6 +213,7 @@ describe("buildPersonalDataWorkbook", () => {
     "Deviation reports",
     "Generated documents",
     "Final report",
+    "Final report sections",
     "Notifications",
     "Activity",
   ];
@@ -364,9 +365,10 @@ describe("buildPersonalDataWorkbook", () => {
 
     // The intern's own report text and scores are personal data too.
     const final = wb.sheets.find((s) => s.name === "Final report")!;
-    expect(final.rows[1]).toEqual(
-      expect.arrayContaining(["RETURNED", '{"learnings":"Mine"}', "4.5 / 5", "", "Expand"])
-    );
+    expect(final.rows[1]).toEqual(expect.arrayContaining(["RETURNED", "4.5 / 5", "", "Expand"]));
+    // One row per section, so five 10,000-character sections never meet the cell limit.
+    const sections = wb.sheets.find((s) => s.name === "Final report sections")!;
+    expect(sections.rows[1]).toEqual(["learnings", "Mine"]);
 
     const weekly = wb.sheets.find((s) => s.name === "Weekly reports")!;
     expect(weekly.rows[0].slice(4)).toEqual([
@@ -410,7 +412,7 @@ describe("buildPersonalDataWorkbook", () => {
     const wb = await buildPersonalDataWorkbook("u-2");
 
     expect(wb.sheets.map((s) => s.name)).toEqual(SHEETS);
-    for (const name of SHEETS.slice(1, 9)) {
+    for (const name of SHEETS.slice(1, 10)) {
       expect(wb.sheets.find((s) => s.name === name)!.rows).toHaveLength(1);
     }
     expect(wb.sheets[0].rows).toHaveLength(2);
