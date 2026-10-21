@@ -10,7 +10,7 @@ export const STATUS_OPTIONS: Array<{ value: ComplianceStatus; label: string }> =
 ];
 
 const selectClass =
-  "h-9 min-w-40 cursor-pointer rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-9 min-w-40 cursor-pointer rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
 
 export interface SemesterOption {
   id: string;
@@ -41,7 +41,7 @@ export function ComplianceFilters({
       className="flex flex-wrap items-end gap-3"
     >
       <div className="flex flex-col gap-1">
-        <label htmlFor="filter-semester" className="text-xs font-medium text-muted-foreground">
+        <label htmlFor="filter-semester" className="text-muted-foreground text-xs font-medium">
           Semester
         </label>
         <select
@@ -60,7 +60,7 @@ export function ComplianceFilters({
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor="filter-program" className="text-xs font-medium text-muted-foreground">
+        <label htmlFor="filter-program" className="text-muted-foreground text-xs font-medium">
           Program
         </label>
         <select
@@ -78,7 +78,7 @@ export function ComplianceFilters({
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor="filter-status" className="text-xs font-medium text-muted-foreground">
+        <label htmlFor="filter-status" className="text-muted-foreground text-xs font-medium">
           Status
         </label>
         <select

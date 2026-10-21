@@ -52,14 +52,14 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
             <Label htmlFor="name">Company name</Label>
             <Input id="name" {...register("name")} />
             {errors.name && (
-              <p className="text-sm text-destructive">{errors.name.message as string}</p>
+              <p className="text-destructive text-sm">{errors.name.message as string}</p>
             )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>
             <Input id="address" {...register("address")} />
             {errors.address && (
-              <p className="text-sm text-destructive">{errors.address.message as string}</p>
+              <p className="text-destructive text-sm">{errors.address.message as string}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -67,7 +67,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
             <select
               id="workModality"
               {...register("workModality")}
-              className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="border-input focus-visible:ring-ring flex h-9 w-full cursor-pointer rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors duration-200 focus-visible:ring-1 focus-visible:outline-hidden"
             >
               {WORK_MODALITIES.map((modality) => (
                 <option key={modality} value={modality}>
@@ -81,7 +81,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
               <Label htmlFor="supervisorName">Supervisor name</Label>
               <Input id="supervisorName" {...register("supervisorName")} />
               {errors.supervisorName && (
-                <p className="text-sm text-destructive">
+                <p className="text-destructive text-sm">
                   {errors.supervisorName.message as string}
                 </p>
               )}
@@ -90,7 +90,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
               <Label htmlFor="supervisorContact">Supervisor contact</Label>
               <Input id="supervisorContact" {...register("supervisorContact")} />
               {errors.supervisorContact && (
-                <p className="text-sm text-destructive">
+                <p className="text-destructive text-sm">
                   {errors.supervisorContact.message as string}
                 </p>
               )}

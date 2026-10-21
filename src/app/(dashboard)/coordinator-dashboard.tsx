@@ -131,7 +131,7 @@ export async function CoordinatorDashboard({
             </p>
             <Link
               href="/companies"
-              className="cursor-pointer py-1 text-sm font-medium text-amber-900 underline underline-offset-2 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-200"
+              className="focus-visible:ring-ring cursor-pointer py-1 text-sm font-medium text-amber-900 underline underline-offset-2 hover:text-amber-700 focus-visible:ring-2 focus-visible:outline-hidden dark:text-amber-200"
             >
               Review companies
             </Link>
@@ -142,7 +142,7 @@ export async function CoordinatorDashboard({
       {semester &&
         programs.map((p) => (
           <section key={p.program} aria-label={`${p.program} summary`} className="space-y-2">
-            <h2 className="text-sm font-semibold text-foreground">{p.program}</h2>
+            <h2 className="text-foreground text-sm font-semibold">{p.program}</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label="Students" value={p.students} icon={GraduationCap} tone="blue" />
               <StatCard
@@ -244,7 +244,7 @@ export async function CoordinatorDashboard({
           {semesterNotFound && (
             <p
               role="status"
-              className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
+              className="bg-muted text-muted-foreground rounded-md px-3 py-2 text-sm"
             >
               {semester
                 ? "That semester wasn't found — showing the active semester."
@@ -252,7 +252,7 @@ export async function CoordinatorDashboard({
             </p>
           )}
           {semester?.archivedAt && (
-            <p className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+            <p className="bg-muted text-muted-foreground flex items-center gap-2 rounded-md px-3 py-2 text-sm">
               <Archive className="size-4 shrink-0" aria-hidden="true" />
               Archived semester — read-only history
             </p>

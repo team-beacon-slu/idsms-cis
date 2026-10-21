@@ -14,7 +14,7 @@ import {
 import type { ComplianceRow } from "@/lib/services/complianceService";
 
 const linkClass =
-  "inline-block cursor-pointer py-1 text-xs font-medium text-primary transition-colors duration-200 hover:text-primary/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-block cursor-pointer py-1 text-xs font-medium text-primary transition-colors duration-200 hover:text-primary/80 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
 
 // FR-DB-03: shared per-student compliance table (faculty dashboard now;
 // coordinator and admin dashboards reuse it with showProgram).
@@ -35,7 +35,7 @@ export function ComplianceTable({
       role="region"
       aria-label="Student compliance"
       tabIndex={0}
-      className="overflow-x-auto rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="border-border focus-visible:ring-ring overflow-x-auto rounded-lg border focus-visible:ring-2 focus-visible:outline-hidden"
     >
       <Table>
         <TableCaption className="sr-only">
@@ -60,15 +60,15 @@ export function ComplianceTable({
             return (
               <TableRow key={row.studentProfileId}>
                 <TableCell>
-                  <p className="font-medium text-foreground">{name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-foreground font-medium">{name}</p>
+                  <p className="text-muted-foreground text-xs">
                     {row.fullName ? `${row.studentNumber} · ${row.email}` : row.email}
                   </p>
                 </TableCell>
                 {showProgram && <TableCell>{row.program}</TableCell>}
                 <TableCell>
                   <div className="min-w-32">
-                    <p className="text-xs text-foreground">
+                    <p className="text-foreground text-xs">
                       {row.confirmedHours} / {row.requiredHours}
                     </p>
                     <div
@@ -78,10 +78,10 @@ export function ComplianceTable({
                       aria-valuemax={100}
                       aria-label={`Hours progress for ${name}`}
                       aria-valuetext={`${row.confirmedHours} of ${row.requiredHours} hours, ${row.hoursPercent}%`}
-                      className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+                      className="bg-muted mt-1 h-1.5 overflow-hidden rounded-full"
                     >
                       <div
-                        className="h-full rounded-full bg-primary"
+                        className="bg-primary h-full rounded-full"
                         style={{ width: `${row.hoursPercent}%` }}
                       />
                     </div>
@@ -139,10 +139,10 @@ export function ComplianceTable({
             <TableRow>
               <TableCell colSpan={columnCount} className="py-14 text-center">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <div className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-full">
                     <Users className="size-5" aria-hidden="true" />
                   </div>
-                  <p className="text-sm font-medium text-foreground">No students yet</p>
+                  <p className="text-foreground text-sm font-medium">No students yet</p>
                 </div>
               </TableCell>
             </TableRow>
