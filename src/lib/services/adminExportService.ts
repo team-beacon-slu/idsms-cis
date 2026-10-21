@@ -132,9 +132,15 @@ async function studentsSheet(semesterId?: string): Promise<ExportSheet[]> {
   return [sheet("Students", [...headers, "Semester"], rows)];
 }
 
+// Soft-deleted students are gone from every sheet, matching the users and students sheets.
+const liveStudents = (semesterId?: string) => ({
+  deletedAt: null,
+  ...(semesterId ? { semesterId } : {}),
+});
+
 async function attendanceSheet(semesterId?: string): Promise<ExportSheet[]> {
   const entries = await prisma.dailyReportEntry.findMany({
-    where: semesterId ? { weeklyReport: { studentProfile: { semesterId } } } : {},
+    where: { weeklyReport: { studentProfile: liveStudents(semesterId) } },
     select: {
       reportDate: true,
       timeIn: true,
@@ -176,7 +182,7 @@ async function attendanceSheet(semesterId?: string): Promise<ExportSheet[]> {
 }
 
 async function reportsSheets(semesterId?: string): Promise<ExportSheet[]> {
-  const studentScope = semesterId ? { studentProfile: { semesterId } } : {};
+  const studentScope = { studentProfile: liveStudents(semesterId) };
   const [weekly, docs] = await Promise.all([
     prisma.weeklyReport.findMany({
       where: studentScope,
@@ -257,7 +263,7 @@ async function reportsSheets(semesterId?: string): Promise<ExportSheet[]> {
 
 async function checklistSheet(semesterId?: string): Promise<ExportSheet[]> {
   const items = await prisma.preDeploymentChecklistItem.findMany({
-    where: semesterId ? { studentProfile: { semesterId } } : {},
+    where: { studentProfile: liveStudents(semesterId) },
     select: {
       requirementType: true,
       status: true,
