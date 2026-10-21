@@ -11,6 +11,8 @@ const config: Config = {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
   testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/", "<rootDir>/cypress/"],
+  // Build output contains package.json files that collide in the module map.
+  modulePathIgnorePatterns: ["<rootDir>/.next/"],
   // NFR-MNT-04: >=70% line coverage for service modules, >=90% for critical logic
   // (hour computation, checklist gating, RBAC). Phase 1 is the first module with
   // real logic behind it, so its critical files get a threshold now; everything

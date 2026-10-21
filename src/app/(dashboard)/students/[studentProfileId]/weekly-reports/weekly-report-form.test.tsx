@@ -1,7 +1,6 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 jest.mock("next/navigation", () => ({ useRouter: () => ({ refresh: jest.fn() }) }));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() } }));
@@ -37,7 +36,7 @@ beforeEach(() => {
 
 it("brings back what the student typed after the tab was closed", async () => {
   const first = render(<WeeklyReportForm {...props} entries={[entry]} editable />);
-  await userEvent.type(accomplishments(), "Built the login page");
+  fireEvent.change(accomplishments(), { target: { value: "Built the login page" } });
   first.unmount(); // tab closed without saving
 
   render(<WeeklyReportForm {...props} entries={[entry]} editable />);
@@ -48,7 +47,7 @@ it("brings back what the student typed after the tab was closed", async () => {
 
 it("keeps the server's version when the day was saved elsewhere since", async () => {
   const first = render(<WeeklyReportForm {...props} entries={[entry]} editable />);
-  await userEvent.type(accomplishments(), "Draft text");
+  fireEvent.change(accomplishments(), { target: { value: "Draft text" } });
   first.unmount();
 
   const savedOnPhone = { ...entry, attendanceStatus: "PRESENT", accomplishments: "Phone text" };
@@ -60,7 +59,7 @@ it("keeps the server's version when the day was saved elsewhere since", async ()
 
 it("drops the draft once the report is no longer editable", async () => {
   const first = render(<WeeklyReportForm {...props} entries={[entry]} editable />);
-  await userEvent.type(accomplishments(), "Draft text");
+  fireEvent.change(accomplishments(), { target: { value: "Draft text" } });
   first.unmount();
 
   render(<WeeklyReportForm {...props} entries={[entry]} editable={false} />);
