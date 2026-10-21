@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { createCompanySchema } from "@/lib/validators/company";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,21 +26,16 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
 
   async function onSubmit(data: Record<string, unknown>) {
     setIsSubmitting(true);
-    const res = await fetch("/api/companies", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const res = await sendJson("/api/companies", { method: "POST", body: data });
     setIsSubmitting(false);
 
     if (!res.ok) {
-      toast.error("Failed to register company");
+      toast.error(res.error);
       return;
     }
 
-    const company = await res.json();
     toast.success("Company registered");
-    router.push(`/companies/${company.id}`);
+    router.push(`/companies/${String(res.body.id)}`);
   }
 
   return (

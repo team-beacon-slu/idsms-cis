@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Pencil, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,10 +52,6 @@ function toBody(v: RequestFormValues) {
   };
 }
 
-function firstIssue(body: { error?: string; issues?: { message: string }[] }, fallback: string) {
-  return body.issues?.[0]?.message ?? body.error ?? fallback;
-}
-
 export function RequestForm({
   studentProfileId,
   requestId,
@@ -76,19 +73,15 @@ export function RequestForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setPending(true);
-    const res = await fetch(
+    const res = await sendJson(
       requestId
         ? `/api/time-requests/${requestId}`
         : `/api/students/${studentProfileId}/time-requests`,
-      {
-        method: requestId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toBody(v)),
-      }
+      { method: requestId ? "PATCH" : "POST", body: toBody(v) }
     );
     setPending(false);
     if (!res.ok) {
-      toast.error(firstIssue(await res.json().catch(() => ({})), "Couldn't save the request"));
+      toast.error(res.error);
       return;
     }
     toast.success(requestId ? "Request resubmitted for review" : "Request sent to your adviser");

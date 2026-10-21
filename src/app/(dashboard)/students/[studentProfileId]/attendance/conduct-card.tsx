@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,14 +53,9 @@ const fmtDate = (iso: string) =>
   });
 
 async function send(url: string, body: unknown, ok: string, onDone: () => void) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await sendJson(url, { method: "POST", body });
   if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    toast.error(b.issues?.[0]?.message ?? b.error ?? "Something went wrong");
+    toast.error(res.error);
     return false;
   }
   toast.success(ok);

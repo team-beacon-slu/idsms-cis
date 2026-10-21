@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,15 +26,13 @@ export function GenerateWeekButton({ studentProfileId }: { studentProfileId: str
   async function generate(e: React.FormEvent) {
     e.preventDefault();
     setIsPending(true);
-    const res = await fetch(`/api/students/${studentProfileId}/weekly-reports`, {
+    const res = await sendJson(`/api/students/${studentProfileId}/weekly-reports`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekStart: weekOf }),
+      body: { weekStart: weekOf },
     });
     setIsPending(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Could not start the weekly report");
+      toast.error(res.error);
       return;
     }
     toast.success("Weekly report ready — fill in each day below");

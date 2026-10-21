@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { PartyPopper } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,15 +33,13 @@ export function HolidayList({
 
   async function toggle(holiday: HolidayRow) {
     setPendingId(holiday.id);
-    const res = await fetch(`/api/students/${studentProfileId}/holidays`, {
+    const res = await sendJson(`/api/students/${studentProfileId}/holidays`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ holidayEntryId: holiday.id, applicable: !holiday.applicable }),
+      body: { holidayEntryId: holiday.id, applicable: !holiday.applicable },
     });
     setPendingId(null);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to update holiday");
+      toast.error(res.error);
       return;
     }
     toast.success(

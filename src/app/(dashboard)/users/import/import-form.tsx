@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { OFFLINE_MESSAGE } from "@/lib/utils/sendJson";
 import { UploadCloud, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,9 +45,15 @@ export function BulkImportForm() {
     formData.set("classGroupId", classGroupId);
     formData.set("semesterId", semesterId);
 
-    const res = await fetch("/api/users/bulk-import", { method: "POST", body: formData });
+    const res = await fetch("/api/users/bulk-import", { method: "POST", body: formData }).catch(
+      () => null
+    );
     setIsSubmitting(false);
 
+    if (!res) {
+      toast.error(OFFLINE_MESSAGE);
+      return;
+    }
     if (!res.ok) {
       toast.error("Import failed");
       return;

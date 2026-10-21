@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { passwordSchema } from "@/lib/validators/auth";
+import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,20 +40,20 @@ export default function ConfirmResetPasswordPage() {
     setError(null);
     setIsSubmitting(true);
 
-    const res = await fetch("/api/auth/reset-password/confirm", {
+    const res = await sendJson("/api/auth/reset-password/confirm", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: params.token, ...data }),
+      body: { token: params.token, ...data },
     });
 
     setIsSubmitting(false);
 
     if (!res.ok) {
-      const body = await res.json();
       setError(
-        body.error === "INVALID_OR_EXPIRED_TOKEN"
+        res.body.error === "INVALID_OR_EXPIRED_TOKEN"
           ? "This reset link is invalid or has expired. Request a new one."
-          : "Something went wrong. Please try again."
+          : res.status === 0
+            ? OFFLINE_MESSAGE
+            : "Something went wrong. Please try again."
       );
       return;
     }

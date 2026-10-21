@@ -19,6 +19,7 @@ import {
 } from "@/lib/validators/report";
 import { addDays, toDateKey } from "@/lib/utils/reportDeadline";
 import { dayGaps, formatHrsMins, timeOfDay, type Shift } from "@/lib/utils/timeMath";
+import { sendJson } from "@/lib/utils/sendJson";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
 
@@ -170,15 +171,13 @@ function AddDayControl({
       return;
     }
     setBusy(true);
-    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/entries`, {
+    const res = await sendJson(`/api/weekly-reports/${weeklyReportId}/entries`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reportDate: date }),
+      body: { reportDate: date },
     });
     setBusy(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Couldn't add that day");
+      toast.error(res.error);
       return;
     }
     setDate("");
@@ -221,6 +220,21 @@ function AddDayControl({
   );
 }
 
+function rowFromEntry(e: DailyEntryRow): RowState {
+  return {
+    // An unfilled (SCHEDULED) day starts as Present.
+    status: isAttendanceStatus(e.attendanceStatus) ? e.attendanceStatus : "PRESENT",
+    hours: e.actualHours == null ? "" : String(e.actualHours),
+    timeIn: e.timeIn ?? "",
+    timeOut: e.timeOut ?? "",
+    timeIn2: e.timeIn2 ?? "",
+    timeOut2: e.timeOut2 ?? "",
+    accomplishments: e.accomplishments ?? "",
+    toolsUsed: e.toolsUsed ?? "",
+    dirty: false,
+  };
+}
+
 export function WeeklyReportForm({
   weeklyReportId,
   entries,
@@ -240,24 +254,17 @@ export function WeeklyReportForm({
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
-    Object.fromEntries(
-      entries.map((e) => [
-        e.id,
-        {
-          // An unfilled (SCHEDULED) day starts as Present.
-          status: isAttendanceStatus(e.attendanceStatus) ? e.attendanceStatus : "PRESENT",
-          hours: e.actualHours == null ? "" : String(e.actualHours),
-          timeIn: e.timeIn ?? "",
-          timeOut: e.timeOut ?? "",
-          timeIn2: e.timeIn2 ?? "",
-          timeOut2: e.timeOut2 ?? "",
-          accomplishments: e.accomplishments ?? "",
-          toolsUsed: e.toolsUsed ?? "",
-          dirty: false,
-        },
-      ])
-    )
+    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e)]))
   );
+  // A day added with "Add a day" arrives after a refresh; give it a row without
+  // dropping the unsaved edits on the other days.
+  const missing = entries.filter((e) => !rows[e.id]);
+  if (missing.length > 0) {
+    setRows((prev) => ({
+      ...prev,
+      ...Object.fromEntries(missing.map((e) => [e.id, rowFromEntry(e)])),
+    }));
+  }
   const [totals, setTotals] = useState(initialTotals);
   const [reasonForDelay, setReasonForDelay] = useState("");
   const [isPending, setIsPending] = useState(false);
@@ -306,7 +313,7 @@ export function WeeklyReportForm({
   }
 
   function rowProblem(entry: DailyEntryRow): string | null {
-    const row = rows[entry.id];
+    const row = rows[entry.id] ?? rowFromEntry(entry);
     // Absent and holiday days count 0 hours and need no description.
     if (row.status !== "PRESENT") return null;
     if (row.hours === "" || Number.isNaN(Number(row.hours))) return "Enter hours worked";
@@ -320,27 +327,24 @@ export function WeeklyReportForm({
   async function saveDirtyRows(): Promise<boolean> {
     for (const entry of entries) {
       const row = rows[entry.id];
-      if (!row.dirty) continue;
+      if (!row?.dirty) continue;
       const problem = rowProblem(entry);
       if (problem) {
         toast.error(`${formatDay(entry.reportDate)}: ${problem}`);
         return false;
       }
-      const res = await fetch(`/api/weekly-reports/${weeklyReportId}`, {
+      const res = await sendJson(`/api/weekly-reports/${weeklyReportId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rowPayload(entry.id, row)),
+        body: rowPayload(entry.id, row),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast.error(body.error ?? `Failed to save ${formatDay(entry.reportDate)}`);
+        toast.error(`${formatDay(entry.reportDate)}: ${res.error}`);
         return false;
       }
-      const body = await res.json();
       setTotals({
-        totalHours: body.totalHours,
-        runningTotal: body.runningTotal,
-        remainingHours: body.remainingHours,
+        totalHours: Number(res.body.totalHours),
+        runningTotal: Number(res.body.runningTotal),
+        remainingHours: Number(res.body.remainingHours),
       });
       setRows((prev) => ({ ...prev, [entry.id]: { ...prev[entry.id], dirty: false } }));
     }
@@ -349,13 +353,13 @@ export function WeeklyReportForm({
 
   async function removeAddedDay(entry: DailyEntryRow) {
     setIsPending(true);
-    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/entries?entryId=${entry.id}`, {
-      method: "DELETE",
-    });
+    const res = await sendJson(
+      `/api/weekly-reports/${weeklyReportId}/entries?entryId=${entry.id}`,
+      { method: "DELETE" }
+    );
     setIsPending(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Couldn't remove that day");
+      toast.error(res.error);
       return;
     }
     toast.success(`${formatDay(entry.reportDate)} removed`);
@@ -373,13 +377,12 @@ export function WeeklyReportForm({
   }
 
   async function onPreview() {
-    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/preview`);
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body.previewUrl) {
-      toast.error(body.error ?? "Preview unavailable");
+    const res = await sendJson(`/api/weekly-reports/${weeklyReportId}/preview`);
+    if (!res.ok || typeof res.body.previewUrl !== "string") {
+      toast.error(res.ok ? "Preview unavailable" : res.error);
       return;
     }
-    window.open(body.previewUrl, "_blank", "noopener,noreferrer");
+    window.open(res.body.previewUrl, "_blank", "noopener,noreferrer");
   }
 
   async function onSubmit() {
@@ -403,19 +406,16 @@ export function WeeklyReportForm({
       setIsPending(false);
       return;
     }
-    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/submit`, {
+    const res = await sendJson(`/api/weekly-reports/${weeklyReportId}/submit`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(late ? { reasonForDelay: reasonForDelay.trim() } : {}),
+      body: late ? { reasonForDelay: reasonForDelay.trim() } : {},
     });
     setIsPending(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to submit report");
+      toast.error(res.error);
       return;
     }
-    const body = await res.json();
-    toast.success(`Report submitted · reference ${body.referenceCode}`);
+    toast.success(`Report submitted · reference ${String(res.body.referenceCode)}`);
     router.refresh();
     // Module 8: render the PDF (for supervisor signing) in the background. Failures are
     // recorded server-side as FAILED and offered as "Regenerate PDF".
@@ -537,7 +537,7 @@ export function WeeklyReportForm({
 
       <div className="space-y-3">
         {entries.map((entry) => {
-          const row = rows[entry.id];
+          const row = rows[entry.id] ?? rowFromEntry(entry);
           const flag = copyPasteFlags[entry.id];
           return (
             <div
@@ -592,7 +592,8 @@ export function WeeklyReportForm({
                       updateRow(
                         entry.id,
                         status === "PRESENT"
-                          ? { status }
+                          ? // Back to Present: clear the forced 0 so "Enter hours worked" applies again.
+                            { status, hours: row.status === "PRESENT" ? row.hours : "" }
                           : {
                               status,
                               hours: "0",

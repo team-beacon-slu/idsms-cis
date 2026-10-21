@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { CheckCircle2, CircleDashed, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -71,26 +72,22 @@ export function MonthlyReportView({
 
   async function submit(calendarMonth: string) {
     setPendingMonth(calendarMonth);
-    const res = await fetch(`/api/students/${studentProfileId}/monthly-reports`, {
+    const res = await sendJson(`/api/students/${studentProfileId}/monthly-reports`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ calendarMonth }),
+      body: { calendarMonth },
     });
     setPendingMonth(null);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to submit monthly report");
+      toast.error(res.error);
       return;
     }
     toast.success(`${monthLabel(calendarMonth)} monthly report submitted`);
     router.refresh();
     // Module 8: render the PDF in the background; a failure shows as
     // "Regenerate PDF" instead of failing the submission.
-    const body = await res.json().catch(() => ({}));
-    if (typeof body.generatedDocumentId === "string") {
-      void generatePdfInBackground(`/api/monthly-reports/${body.generatedDocumentId}/pdf`, () =>
-        router.refresh()
-      );
+    const docId = res.body.generatedDocumentId;
+    if (typeof docId === "string") {
+      void generatePdfInBackground(`/api/monthly-reports/${docId}/pdf`, () => router.refresh());
     }
   }
 

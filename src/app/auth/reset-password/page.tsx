@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, MailCheck } from "lucide-react";
+import { AlertCircle, Loader2, MailCheck } from "lucide-react";
 import { requestPasswordResetSchema } from "@/lib/validators/auth";
+import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ import { AuthShell } from "@/components/auth-shell";
 export default function RequestResetPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
@@ -23,12 +25,14 @@ export default function RequestResetPasswordPage() {
 
   async function onSubmit(data: { email: string }) {
     setIsSubmitting(true);
-    await fetch("/api/auth/reset-password/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const res = await sendJson("/api/auth/reset-password/request", { method: "POST", body: data });
     setIsSubmitting(false);
+    // Only a request that never reached the server is an error worth showing.
+    if (res.status === 0) {
+      setError(OFFLINE_MESSAGE);
+      return;
+    }
+    setError(null);
     // The API always responds the same way regardless of whether the email
     // exists (FR-UM-10 — no enumeration leak), so the UI does too.
     setSubmitted(true);
@@ -56,6 +60,15 @@ export default function RequestResetPasswordPage() {
                 <Input id="email" type="email" autoComplete="email" {...register("email")} />
                 {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
               </div>
+              {error && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                >
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
+              )}
               <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                 {isSubmitting ? "Sending..." : "Send reset link"}

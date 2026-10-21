@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,16 +24,14 @@ export function ChecklistItemRow({ itemId, status, canReview }: ChecklistItemRow
 
   async function review(action: "APPROVE" | "RETURN", comments?: string) {
     setIsPending(true);
-    const res = await fetch(`/api/checklist-items/${itemId}/review`, {
+    const res = await sendJson(`/api/checklist-items/${itemId}/review`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, comments }),
+      body: { action, comments },
     });
     setIsPending(false);
 
     if (!res.ok) {
-      const body = await res.json();
-      toast.error(body.error ?? "Review failed");
+      toast.error(res.error);
       return;
     }
     toast.success(action === "APPROVE" ? "Approved" : "Returned");

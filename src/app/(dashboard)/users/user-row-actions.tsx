@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { UserCheck, UserX, LogOut, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,14 +27,13 @@ export function UserRowActions({
 
   async function toggleActive() {
     setIsPending(true);
-    const res = await fetch(`/api/users/${userId}`, {
+    const res = await sendJson(`/api/users/${userId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !isActive }),
+      body: { isActive: !isActive },
     });
     setIsPending(false);
     if (!res.ok) {
-      toast.error("Failed to update user");
+      toast.error(res.error);
       return;
     }
     toast.success(isActive ? "User deactivated" : "User activated");
@@ -42,10 +42,10 @@ export function UserRowActions({
 
   async function forceLogout() {
     setIsPending(true);
-    const res = await fetch(`/api/users/${userId}/force-logout`, { method: "POST" });
+    const res = await sendJson(`/api/users/${userId}/force-logout`, { method: "POST" });
     setIsPending(false);
     if (!res.ok) {
-      toast.error("Failed to force logout");
+      toast.error(res.error);
       return;
     }
     toast.success("User signed out of all sessions");
@@ -53,10 +53,10 @@ export function UserRowActions({
 
   async function unlock() {
     setIsPending(true);
-    const res = await fetch(`/api/users/${userId}/unlock`, { method: "POST" });
+    const res = await sendJson(`/api/users/${userId}/unlock`, { method: "POST" });
     setIsPending(false);
     if (!res.ok) {
-      toast.error("Failed to unlock account");
+      toast.error(res.error);
       return;
     }
     toast.success("Account unlocked");

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,16 +14,14 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
 
   async function review(action: "APPROVE" | "RETURN") {
     setIsPending(true);
-    const res = await fetch(`/api/work-plans/${workPlanId}/review`, {
+    const res = await sendJson(`/api/work-plans/${workPlanId}/review`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: { action },
     });
     setIsPending(false);
 
     if (!res.ok) {
-      const body = await res.json();
-      toast.error(body.error ?? "Review failed");
+      toast.error(res.error);
       return;
     }
     toast.success(action === "APPROVE" ? "Work plan approved" : "Work plan returned");
