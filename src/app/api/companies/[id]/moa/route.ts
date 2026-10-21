@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { Role } from "@prisma/client";
 import { createMoaRecordSchema } from "@/lib/validators/company";
 import { createMoaRecord, listMoaRecordsForCompany } from "@/lib/services/companyService";
@@ -52,6 +53,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       // The record's id is needed to build the Storage path before the
       // record exists — generated here, passed through to createMoaRecord,
       // which uses it as the row's own primary key.
+      // The id becomes part of the storage path: check it before anything is stored.
+      z.uuid().parse(params.id);
       const moaId = randomUUID();
       const extension = EXTENSION_BY_MIME[file.type] ?? "bin";
       const path = `${params.id}/${moaId}.${extension}`;
