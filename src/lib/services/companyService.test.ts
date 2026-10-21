@@ -261,14 +261,17 @@ describe("listMoaRecordsForCompany", () => {
 });
 
 describe("getExpiringMoaRecords", () => {
-  it("only returns active MOAs expiring within the given window", async () => {
+  it("returns active or expiring MOAs that end between now and the window, not ones already past", async () => {
     prismaMock.moaRecord.findMany.mockResolvedValue([]);
 
     await getExpiringMoaRecords(30);
 
     expect(prismaMock.moaRecord.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: MoaStatus.APPROVED_ACTIVE }),
+        where: expect.objectContaining({
+          status: { in: [MoaStatus.APPROVED_ACTIVE, MoaStatus.EXPIRING] },
+          validTo: { gte: expect.any(Date), lte: expect.any(Date) },
+        }),
       })
     );
   });

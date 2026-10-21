@@ -246,10 +246,13 @@ export async function getExpiringMoaRecords(
   daysAhead = 30,
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<MoaRecord[]> {
+  const now = new Date();
   return client.moaRecord.findMany({
     where: {
-      status: MoaStatus.APPROVED_ACTIVE,
-      validTo: { lte: new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000) },
+      // EXPIRING is the status a coordinator sets on purpose, so it must keep alerting;
+      // an end date already past stops the daily alert (the checklist gate then blocks it).
+      status: { in: [MoaStatus.APPROVED_ACTIVE, MoaStatus.EXPIRING] },
+      validTo: { gte: now, lte: new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000) },
     },
     orderBy: { validTo: "asc" },
   });

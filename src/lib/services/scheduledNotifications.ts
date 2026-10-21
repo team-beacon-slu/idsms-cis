@@ -201,10 +201,16 @@ export async function runDailyNotifications(now: Date) {
       companyId: { not: null },
       internshipStartDate: { lte: lastWeekEnd },
       weeklyReports: { none: { weekStart: lastWeekStart } },
+      // Former interns: their semester is archived.
+      semester: { archivedAt: null },
     },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, renderedHours: true, requiredHours: true },
   });
-  for (const profile of notStarted) {
+  // Interns who already finished their hours owe no more weekly reports.
+  const stillInterning = notStarted.filter(
+    (p) => p.requiredHours == null || Number(p.renderedHours ?? 0) < p.requiredHours
+  );
+  for (const profile of stillInterning) {
     targets.push({
       profileId: profile.id,
       userId: profile.userId,

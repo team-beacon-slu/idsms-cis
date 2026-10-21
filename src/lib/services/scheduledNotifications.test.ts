@@ -106,6 +106,26 @@ it("reminds deployed students who have not started last week's report", async ()
   );
 });
 
+it("does not remind former interns: archived semesters or hours already complete", async () => {
+  prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+  prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+  prismaMock.studentProfile.findMany.mockResolvedValue([
+    { id: "p-done", userId: "u-done", renderedHours: 486, requiredHours: 486 },
+    { id: "p-active", userId: "u-active", renderedHours: 120, requiredHours: 486 },
+  ] as never);
+  prismaMock.notification.findFirst.mockResolvedValue(null);
+
+  await runDailyNotifications(NOW);
+
+  expect(notify).toHaveBeenCalledTimes(1);
+  expect(notify).toHaveBeenCalledWith(expect.objectContaining({ userIds: ["u-active"] }));
+  expect(prismaMock.studentProfile.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ semester: { archivedAt: null } }),
+    })
+  );
+});
+
 it("logs when stored settings are invalid and falls back to defaults", async () => {
   prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: "garbage" } as never);
   await expect(getNotificationSettings()).resolves.toEqual({
