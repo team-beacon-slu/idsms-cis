@@ -219,17 +219,30 @@ export async function keepRetentionFlag(id: string, actingUserId: string): Promi
   });
 }
 
-function nullSourcePath(tx: Prisma.TransactionClient, type: RetentionSource, sourceId: string) {
+// Clears the column only while it still points at the deleted object: a file re-uploaded
+// since the scan keeps its new path.
+function nullSourcePath(
+  tx: Prisma.TransactionClient,
+  type: RetentionSource,
+  sourceId: string,
+  objectPath: string
+) {
   switch (type) {
     case RetentionSource.CHECKLIST:
       return tx.preDeploymentChecklistItem.updateMany({
-        where: { id: sourceId },
+        where: { id: sourceId, filePath: objectPath },
         data: { filePath: null },
       });
     case RetentionSource.DEVIATION_PROOF:
-      return tx.deviationReport.updateMany({ where: { id: sourceId }, data: { proofUrl: null } });
+      return tx.deviationReport.updateMany({
+        where: { id: sourceId, proofUrl: objectPath },
+        data: { proofUrl: null },
+      });
     case RetentionSource.GENERATED_DOCUMENT:
-      return tx.generatedDocument.updateMany({ where: { id: sourceId }, data: { fileUrl: null } });
+      return tx.generatedDocument.updateMany({
+        where: { id: sourceId, fileUrl: objectPath },
+        data: { fileUrl: null },
+      });
   }
 }
 
@@ -240,16 +253,26 @@ export async function deleteRetentionFlaggedFile(
 ): Promise<void> {
   const flag = await getPendingFlag(id);
 
-  // Storage first: if it fails the flag stays PENDING and can be retried. A
-  // missing object resolves (already gone), so it still ends DELETED.
-  await deleteObject(flag.bucket, flag.objectPath);
+  // Claim before storage, so a concurrent Keep that already won stops the delete.
+  const { count } = await prisma.retentionFlag.updateMany({
+    where: { id, status: RetentionStatus.PENDING },
+    data: { status: RetentionStatus.DELETED, reviewedAt: new Date(), reviewedBy: actingUserId },
+  });
+  if (count === 0) throw new RetentionStateError("This file was already reviewed");
+
+  // A missing object resolves (already gone); a failure releases the claim so it can be retried.
+  try {
+    await deleteObject(flag.bucket, flag.objectPath);
+  } catch (error) {
+    await prisma.retentionFlag.update({
+      where: { id },
+      data: { status: RetentionStatus.PENDING, reviewedAt: null, reviewedBy: null },
+    });
+    throw error;
+  }
 
   await prisma.$transaction(async (tx) => {
-    await nullSourcePath(tx, flag.sourceType, flag.sourceId);
-    await tx.retentionFlag.update({
-      where: { id },
-      data: { status: RetentionStatus.DELETED, reviewedAt: new Date(), reviewedBy: actingUserId },
-    });
+    await nullSourcePath(tx, flag.sourceType, flag.sourceId, flag.objectPath);
     await logEvent(
       {
         userId: actingUserId,
