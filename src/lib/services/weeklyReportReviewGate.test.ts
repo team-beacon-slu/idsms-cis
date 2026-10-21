@@ -17,7 +17,11 @@ jest.mock("@/lib/services/attendanceService", () => ({
   computeProjectedCompletionDate: jest.fn(),
 }));
 
-beforeEach(() => resetPrismaMock());
+beforeEach(() => {
+  resetPrismaMock();
+  // No later weeks whose running totals need refreshing.
+  prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+});
 
 const submitted = [{ type: "SUBMITTED", timestamp: "t0" }];
 const actions = {
