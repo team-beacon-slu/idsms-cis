@@ -17,7 +17,8 @@ const bodySchema = z.object({ reportDate: z.coerce.date() });
 
 // Workstream L1: add a non-scheduled day (e.g. a Saturday worked as OT) to a
 // weekly report. Ownership, editability and the date checks live in the service.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);
@@ -30,7 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // Remove a day added by mistake (?entryId=…), then refresh the week's totals.
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

@@ -20,7 +20,8 @@ async function loadAccessibleMonthlyDoc(id: string) {
   return { user, doc };
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { doc } = await loadAccessibleMonthlyDoc(params.id);
     if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -36,7 +37,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { user, doc } = await loadAccessibleMonthlyDoc(params.id);
     if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });

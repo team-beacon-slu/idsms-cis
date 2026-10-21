@@ -14,7 +14,7 @@ import { SemesterStateError, archiveSemester } from "@/lib/services/semesterServ
 import { POST } from "@/app/api/semesters/[semesterId]/archive/route";
 
 const req = () => new NextRequest("http://localhost/x", { method: "POST" });
-const ctx = { params: { semesterId: "sem-1" } };
+const ctx = { params: Promise.resolve({ semesterId: "sem-1" }) };
 
 beforeEach(() => jest.resetAllMocks());
 

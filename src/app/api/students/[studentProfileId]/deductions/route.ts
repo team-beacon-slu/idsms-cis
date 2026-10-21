@@ -5,7 +5,11 @@ import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L2: the intern's tally and automatic items (intern and their staff).
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);

@@ -18,11 +18,10 @@ function monthsTouched(weekStart: Date, weekEnd: Date): string[] {
   return Array.from(keys);
 }
 
-export default async function MonthlyReportsPage({
-  params,
-}: {
-  params: { studentProfileId: string };
+export default async function MonthlyReportsPage(props: {
+  params: Promise<{ studentProfileId: string }>;
 }) {
+  const params = await props.params;
   const user = await requireUserPage();
 
   try {

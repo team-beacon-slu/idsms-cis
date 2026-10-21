@@ -21,11 +21,10 @@ const SENTIMENT_LABEL: Record<string, string> = {
 // Ownership note (pre-flight fix): a role check alone isn't enough — a
 // Faculty Adviser must also be assigned to this specific student (same
 // FacultyClassGroup rule every other review surface in this plan enforces).
-export default async function WeeklyReportReviewPage({
-  params,
-}: {
-  params: { studentProfileId: string; weeklyReportId: string };
+export default async function WeeklyReportReviewPage(props: {
+  params: Promise<{ studentProfileId: string; weeklyReportId: string }>;
 }) {
+  const params = await props.params;
   const user = await requireUserPage();
   if (user.role !== Role.FACULTY_ADVISER) {
     redirect("/");

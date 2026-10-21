@@ -18,7 +18,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 // (assertCanAccessStudent's FACULTY_ADVISER branch checks
 // FacultyClassGroup — same rule Phase 2's checklist review route uses).
 // Dispatches on `action`.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.FACULTY_ADVISER]);

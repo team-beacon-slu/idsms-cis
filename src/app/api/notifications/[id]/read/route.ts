@@ -5,7 +5,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 
 // Ownership is enforced by the query (scoped to the session user): a foreign
 // or already-read id matches nothing and is a 404.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     const updated = await markNotificationRead(user.id, params.id);

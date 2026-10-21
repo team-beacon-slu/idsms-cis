@@ -117,11 +117,10 @@ function getQuickLinks(role: Role): QuickLink[] {
   return links;
 }
 
-export default async function DashboardHomePage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function DashboardHomePage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUserPage();
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
 

@@ -20,7 +20,8 @@ function isAllowedProofLink(url: string): boolean {
 // Opens a deviation report's proof document. Redirects to a short-lived
 // signed URL, the same server-mediated pattern as the checklist file route,
 // so the private bucket is never exposed directly. Usable as a plain link.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     const report = await getDeviationReport(params.id);

@@ -4,7 +4,8 @@ import { CONDUCT_STAFF_ROLES, withdrawExcuse } from "@/lib/services/deductionSer
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L2: withdraw an excuse (never deleted).
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, CONDUCT_STAFF_ROLES);

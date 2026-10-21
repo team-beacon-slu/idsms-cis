@@ -19,7 +19,7 @@ const call = () =>
   POST(
     new NextRequest(`http://localhost/api/admin/data-requests/${ID}/fulfil`, { method: "POST" }),
     {
-      params: { id: ID },
+      params: Promise.resolve({ id: ID }),
     }
   );
 

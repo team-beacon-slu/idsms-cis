@@ -6,7 +6,8 @@ import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-09: student self-only preview before final submission.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

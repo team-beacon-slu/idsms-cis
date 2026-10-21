@@ -18,11 +18,10 @@ const STATUS_TEXT: Record<string, string> = {
   RETURNED: "Returned for revision",
 };
 
-export default async function FinalReportPage({
-  params,
-}: {
-  params: { studentProfileId: string };
+export default async function FinalReportPage(props: {
+  params: Promise<{ studentProfileId: string }>;
 }) {
+  const params = await props.params;
   const user = await requireUserPage();
   try {
     await assertCanAccessStudent(user, params.studentProfileId);

@@ -32,7 +32,7 @@ const call = (body: unknown = { password: "pw" }) =>
       headers: { "x-forwarded-for": "10.0.0.1", "content-type": "application/json" },
       body: JSON.stringify(body),
     }),
-    { params: { id: ID } }
+    { params: Promise.resolve({ id: ID }) }
   );
 
 beforeEach(() => {

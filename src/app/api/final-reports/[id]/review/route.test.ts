@@ -21,7 +21,7 @@ const call = () =>
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "APPROVE", confirmed: [] }),
     }),
-    { params: { id: "fr-1" } }
+    { params: Promise.resolve({ id: "fr-1" }) }
   );
 
 beforeEach(() => {

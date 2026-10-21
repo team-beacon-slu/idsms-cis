@@ -14,7 +14,8 @@ import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-05 + FR-WR-10: student self-only. The late-reason gate runs first so
 // no reference code is issued for a submission that will be rejected.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

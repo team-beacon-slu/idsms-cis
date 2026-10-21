@@ -36,7 +36,7 @@ it("refuses another student's report opened under this student's URL", async () 
 
   await expect(
     WeeklyReportReviewPage({
-      params: { studentProfileId: "my-student", weeklyReportId: "wr-other" },
+      params: Promise.resolve({ studentProfileId: "my-student", weeklyReportId: "wr-other" }),
     })
   ).rejects.toThrow("NOT_FOUND");
   expect(notFound).toHaveBeenCalled();

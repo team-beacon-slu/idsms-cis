@@ -23,7 +23,8 @@ async function loadAccessibleReport(id: string) {
 }
 
 // Download: redirect to a short-lived signed URL (private bucket).
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { report } = await loadAccessibleReport(params.id);
     if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -46,7 +47,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // who can access the student may trigger it; generation itself refuses
 // unsubmitted reports (FR-DG-05). A FAILED result is a normal 200 response —
 // the submission is intact and the UI offers Regenerate.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { user, report } = await loadAccessibleReport(params.id);
     if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -5,7 +5,8 @@ import { CONDUCT_STAFF_ROLES, revokeConductRecord } from "@/lib/services/conduct
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L2: revoke a conduct record with a reason (never deleted).
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, CONDUCT_STAFF_ROLES);

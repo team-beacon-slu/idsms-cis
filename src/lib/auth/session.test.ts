@@ -121,13 +121,13 @@ describe("requireRole", () => {
 });
 
 describe("getCurrentSessionToken", () => {
-  it("returns the cookie value when present", () => {
+  it("returns the cookie value when present", async () => {
     mockedCookies.mockReturnValue({ get: () => ({ value: "abc123" }) } as never);
-    expect(getCurrentSessionToken()).toBe("abc123");
+    await expect(getCurrentSessionToken()).resolves.toBe("abc123");
   });
 
-  it("returns null when the cookie is missing", () => {
+  it("returns null when the cookie is missing", async () => {
     mockedCookies.mockReturnValue({ get: () => undefined } as never);
-    expect(getCurrentSessionToken()).toBeNull();
+    await expect(getCurrentSessionToken()).resolves.toBeNull();
   });
 });

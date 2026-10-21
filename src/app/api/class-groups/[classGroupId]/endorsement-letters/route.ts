@@ -14,7 +14,8 @@ export const maxDuration = 300;
 const MAX_BULK = 40;
 
 // FR-DG-02 bulk export; NFR-SEC-05 re-authentication via password re-entry.
-export async function POST(req: NextRequest, { params }: { params: { classGroupId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ classGroupId: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);

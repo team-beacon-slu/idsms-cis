@@ -15,8 +15,8 @@ function getSessionCookieName(): string {
 // The database-session cookie value IS the sessionToken (see authOptions.ts's
 // jwt.encode override) — reading it directly is how a Route Handler identifies
 // "this request's own session" versus every other active session for the user.
-export function getCurrentSessionToken(): string | null {
-  return cookies().get(getSessionCookieName())?.value ?? null;
+export async function getCurrentSessionToken(): Promise<string | null> {
+  return (await cookies()).get(getSessionCookieName())?.value ?? null;
 }
 
 export async function getCurrentUser() {

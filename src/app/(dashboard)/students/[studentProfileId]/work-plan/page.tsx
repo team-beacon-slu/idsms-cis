@@ -23,7 +23,10 @@ function isTaskList(value: unknown): value is { description: string }[] {
   );
 }
 
-export default async function WorkPlanPage({ params }: { params: { studentProfileId: string } }) {
+export default async function WorkPlanPage(props: {
+  params: Promise<{ studentProfileId: string }>;
+}) {
+  const params = await props.params;
   const user = await requireUserPage();
 
   try {

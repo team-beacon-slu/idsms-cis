@@ -8,7 +8,8 @@ import { MoaForm } from "./moa-form";
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
 // FR-MOA-07: MOA records are staff-only — students never reach this page.
-export default async function NewMoaPage({ params }: { params: { id: string } }) {
+export default async function NewMoaPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUserPage();
   if (!STAFF_ROLES.includes(user.role)) {
     redirect("/");

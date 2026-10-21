@@ -6,7 +6,11 @@ import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream H: the intern's final report (gate + content); the intern saves drafts.
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);
@@ -16,7 +20,11 @@ export async function GET(req: NextRequest, { params }: { params: { studentProfi
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);

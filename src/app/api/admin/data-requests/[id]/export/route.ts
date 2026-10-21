@@ -20,7 +20,8 @@ const bodySchema = z.object({ password: z.unknown() });
 // NFR-DP-07 DSAR export, Super Admin only. Re-authentication (NFR-SEC-05)
 // precedes any personal-data query, and DSAR_EXPORTED is written only once
 // the workbook exists.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.SUPER_ADMIN]);

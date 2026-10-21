@@ -17,7 +17,7 @@ import { generateBulkEndorsementLetters } from "@/lib/services/documentService";
 import { prisma } from "@/lib/prisma";
 import { POST } from "@/app/api/class-groups/[classGroupId]/endorsement-letters/route";
 
-const params = { params: { classGroupId: "cg-1" } };
+const params = { params: Promise.resolve({ classGroupId: "cg-1" }) };
 const req = (body: unknown) =>
   new NextRequest("http://localhost/x", { method: "POST", body: JSON.stringify(body) });
 

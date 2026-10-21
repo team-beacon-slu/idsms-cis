@@ -16,13 +16,13 @@ beforeEach(() => {
 
 it("marks the caller's own notification read, scoped to the session user", async () => {
   (markNotificationRead as jest.Mock).mockResolvedValue(true);
-  const res = await PATCH(req(), { params: { id: "n-1" } });
+  const res = await PATCH(req(), { params: Promise.resolve({ id: "n-1" }) });
   expect(res.status).toBe(200);
   expect(markNotificationRead).toHaveBeenCalledWith("u-1", "n-1");
 });
 
 it("cannot mark someone else's notification (404, nothing changed)", async () => {
   (markNotificationRead as jest.Mock).mockResolvedValue(false);
-  const res = await PATCH(req(), { params: { id: "n-other" } });
+  const res = await PATCH(req(), { params: Promise.resolve({ id: "n-other" }) });
   expect(res.status).toBe(404);
 });

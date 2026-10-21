@@ -33,7 +33,7 @@ import {
 } from "@/lib/services/documentService";
 import { GET, POST } from "@/app/api/weekly-reports/[id]/pdf/route";
 
-const params = { params: { id: "wr-1" } };
+const params = { params: Promise.resolve({ id: "wr-1" }) };
 const req = (method: string) =>
   new NextRequest("http://localhost/api/weekly-reports/wr-1/pdf", { method });
 

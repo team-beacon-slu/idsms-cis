@@ -37,13 +37,12 @@ const fmtDate = (d: Date) =>
     timeZone: "UTC",
   });
 
-export default async function LeaveRequestsPage({
-  params,
-  searchParams,
-}: {
-  params: { studentProfileId: string };
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function LeaveRequestsPage(props: {
+  params: Promise<{ studentProfileId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireUserPage();
   try {
     await assertCanAccessStudent(user, params.studentProfileId);

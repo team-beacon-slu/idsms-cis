@@ -9,7 +9,8 @@ const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, 
 
 // Workstream L1: Approve, or Return with a required note. The service checks
 // the reviewer is assigned to the student (assertCanAccessStudent).
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, STAFF_ROLES);
