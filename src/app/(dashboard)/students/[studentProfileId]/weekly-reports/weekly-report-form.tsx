@@ -277,6 +277,7 @@ export function WeeklyReportForm({
   );
   // Read after mount (the server render has no localStorage), once per report.
   const [draftChecked, setDraftChecked] = useState(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- localStorage is an external store only readable after hydration */
   useEffect(() => {
     if (!editable) {
       clearDraft(weeklyReportId);
@@ -296,6 +297,7 @@ export function WeeklyReportForm({
     setDraftChecked(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once, not on every refresh
   }, [weeklyReportId, editable]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (editable && draftChecked) saveDraft(weeklyReportId, rows, serverRows);
   }, [editable, draftChecked, weeklyReportId, rows, serverRows]);

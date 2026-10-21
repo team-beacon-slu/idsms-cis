@@ -5,6 +5,7 @@
 //
 //   TS_NODE_BASEURL=. npx ts-node -r tsconfig-paths/register --compiler-options '{"module":"commonjs"}' scripts/ai-golden-eval.ts docs/ai/golden-set.csv
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import "dotenv/config"; // Prisma 7 no longer loads .env itself
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { embedText } from "@/lib/services/aiService";

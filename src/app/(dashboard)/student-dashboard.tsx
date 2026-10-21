@@ -40,11 +40,11 @@ function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center">
-      <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+      <div className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-full">
         <Icon className="size-5" aria-hidden="true" />
       </div>
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="max-w-xs text-xs text-muted-foreground">{hint}</p>
+      <p className="text-foreground text-sm font-medium">{title}</p>
+      <p className="text-muted-foreground max-w-xs text-xs">{hint}</p>
     </div>
   );
 }
@@ -85,7 +85,7 @@ export function StudentDashboardTables({
               <TableBody>
                 {requirements.map((item) => (
                   <TableRow key={item.requirementType}>
-                    <TableCell className="font-medium text-foreground">
+                    <TableCell className="text-foreground font-medium">
                       {requirementLabel(item.requirementType)}
                     </TableCell>
                     <TableCell>
@@ -127,7 +127,7 @@ export function StudentDashboardTables({
               <TableBody>
                 {history.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="whitespace-nowrap font-medium text-foreground">
+                    <TableCell className="text-foreground font-medium whitespace-nowrap">
                       {row.week}
                     </TableCell>
                     <TableCell>
@@ -139,7 +139,7 @@ export function StudentDashboardTables({
                     <TableCell>
                       <Link
                         href="/weekly-reports"
-                        className="inline-block cursor-pointer py-1 text-xs font-medium text-primary transition-colors duration-200 hover:text-primary/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="text-primary hover:text-primary/80 focus-visible:ring-ring inline-block cursor-pointer py-1 text-xs font-medium transition-colors duration-200 hover:underline focus-visible:ring-2 focus-visible:outline-hidden"
                       >
                         View<span className="sr-only"> report for {row.week}</span>
                       </Link>

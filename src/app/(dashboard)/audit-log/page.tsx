@@ -72,8 +72,8 @@ export default async function AuditLogPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Audit log</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-foreground text-2xl font-semibold tracking-tight">Audit log</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
             Append-only record of security and administrative events. Times are Manila time.
           </p>
         </div>
@@ -123,7 +123,7 @@ export default async function AuditLogPage({
         </Button>
       </form>
       {!parsed.success && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-destructive text-sm">
           Those filters were not valid, so they were ignored.
         </p>
       )}
@@ -135,7 +135,7 @@ export default async function AuditLogPage({
           description="Try widening the date range or clearing a filter."
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="border-border overflow-x-auto rounded-lg border">
           <Table>
             <caption className="sr-only">Audit log entries, newest first</caption>
             <TableHeader>
@@ -156,11 +156,11 @@ export default async function AuditLogPage({
                     {stampFmt.format(r.timestamp)}
                   </TableCell>
                   <TableCell>{r.email ?? "—"}</TableCell>
-                  <TableCell className="font-medium text-foreground">{r.action}</TableCell>
+                  <TableCell className="text-foreground font-medium">{r.action}</TableCell>
                   <TableCell>{r.entityType}</TableCell>
                   <TableCell className="font-mono text-xs">{r.entityId ?? "—"}</TableCell>
                   <TableCell>{r.ipAddress ?? "—"}</TableCell>
-                  <TableCell className="max-w-xs break-words font-mono text-xs">
+                  <TableCell className="max-w-xs font-mono text-xs wrap-break-word">
                     {detailText(r.detail) || "—"}
                   </TableCell>
                 </TableRow>

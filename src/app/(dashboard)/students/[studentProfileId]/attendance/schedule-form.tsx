@@ -77,7 +77,7 @@ function DayPicker({
             aria-pressed={selected}
             onClick={() => toggle(day)}
             className={cn(
-              "h-9 min-w-[3rem] cursor-pointer rounded-md border px-3 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50",
+              "h-9 min-w-12 cursor-pointer rounded-md border px-3 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50",
               selected
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-input bg-background text-foreground hover:bg-accent"
@@ -225,7 +225,7 @@ export function AttendanceScheduleForm({
 
   if (!workPlanApproved) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-center text-sm">
         <Hourglass className="size-6" aria-hidden="true" />
         <p>The work schedule can be set once the work plan is approved.</p>
       </div>
@@ -297,7 +297,7 @@ export function AttendanceScheduleForm({
   // ── Mode 1: no schedule yet → initial setup (FR-AT-01) ──
   if (!currentSchedule) {
     if (!canEdit) {
-      return <p className="text-sm text-muted-foreground">No work schedule configured yet.</p>;
+      return <p className="text-muted-foreground text-sm">No work schedule configured yet.</p>;
     }
     return (
       <form
@@ -305,7 +305,7 @@ export function AttendanceScheduleForm({
         className="space-y-4"
         onSubmit={submitInitialSchedule}
       >
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Set the days and hours you report to your host company. Weekly report forms are generated
           from this schedule.
         </p>
@@ -330,28 +330,28 @@ export function AttendanceScheduleForm({
   // ── Mode 2: schedule exists → show it, allow a change request (FR-AT-08) ──
   return (
     <div data-testid="attendance-schedule-form" className="space-y-4">
-      <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4">
-        <Clock3 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+      <div className="bg-muted/30 flex items-start gap-3 rounded-lg border p-4">
+        <Clock3 className="text-primary mt-0.5 size-5 shrink-0" aria-hidden="true" />
         <div>
-          <p className="text-sm font-medium text-foreground">Current schedule</p>
-          <p className="text-sm text-muted-foreground">{formatSchedule(currentSchedule)}</p>
+          <p className="text-foreground text-sm font-medium">Current schedule</p>
+          <p className="text-muted-foreground text-sm">{formatSchedule(currentSchedule)}</p>
         </div>
       </div>
 
       {pendingChange ? (
         <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">Schedule change requested</p>
+            <p className="text-foreground text-sm font-medium">Schedule change requested</p>
             <StatusBadge status="PENDING" />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               {PENDING_LABEL[pendingChange.status] ?? pendingChange.status}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             New schedule: {formatSchedule(pendingChange.newScheduleConfig)}
           </p>
-          <p className="text-sm text-muted-foreground">Reason: {pendingChange.reason}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-sm">Reason: {pendingChange.reason}</p>
+          <p className="text-muted-foreground text-xs">
             Requested {new Date(pendingChange.requestedAt).toLocaleString()}
           </p>
         </div>
@@ -359,7 +359,7 @@ export function AttendanceScheduleForm({
         canEdit &&
         (showChangeForm ? (
           <form className="space-y-4 rounded-lg border p-4" onSubmit={submitChangeRequest}>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Changes need faculty adviser validation and coordinator approval. Once approved they
               apply from that day forward — hours already validated are not affected.
             </p>
@@ -393,7 +393,7 @@ export function AttendanceScheduleForm({
                 disabled={isPending}
                 className="cursor-pointer"
               />
-              <p className="text-xs text-muted-foreground">PDF up to 5MB, or JPG/PNG up to 2MB.</p>
+              <p className="text-muted-foreground text-xs">PDF up to 5MB, or JPG/PNG up to 2MB.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button

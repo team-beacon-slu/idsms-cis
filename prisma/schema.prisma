@@ -9,10 +9,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Connection URLs live in prisma.config.ts (CLI) and src/lib/prisma.ts (app) since Prisma 7.
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ── Enums ────────────────────────────────────────────────────────────────

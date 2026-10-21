@@ -9,7 +9,9 @@
 // the official Malacañang proclamation for each year before relying on them;
 // movable Islamic holidays (Eid'l Fitr / Eid'l Adha) are announced separately
 // and are not included.
-import { HolidayType, PrismaClient } from "@prisma/client";
+import "dotenv/config"; // Prisma 7 no longer loads .env itself
+import { HolidayType } from "@prisma/client";
+import { prisma } from "../src/lib/prisma";
 
 const HOLIDAYS: { date: string; name: string; type: HolidayType }[] = [
   // 2026
@@ -55,7 +57,7 @@ const HOLIDAYS: { date: string; name: string; type: HolidayType }[] = [
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  const prisma = new PrismaClient();
+
   try {
     const semester = await prisma.semester.findFirst({ where: { isActive: true } });
     if (!semester) {

@@ -3,19 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 // Matches next-auth's own default cookie-name logic (core/lib/cookie.js).
 // Duplicated here rather than imported from lib/auth/session.ts, because that
 // module pulls in Prisma/bcrypt through authOptions — none of which can run
-// in the Edge runtime middleware executes in.
+// in this tiny proxy that runs before every page request.
 function getSessionCookieName(): string {
   const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false;
   return useSecureCookies ? "__Secure-next-auth.session-token" : "next-auth.session-token";
 }
 
 // Deliberately "dumb": only checks whether a session cookie is present, not
-// whether it's still valid — the Edge runtime can't reach Prisma to check a
-// database session. Real authorization (role, isActive, lockedUntil,
+// whether it's still valid, so it never touches the database. Validating the
+// session here would add a DB round trip to every page. Real authorization (role, isActive, lockedUntil,
 // ownership) happens per request in Server Components/Route Handlers via
 // requireUserPage()/requireUserApi() (lib/auth/session.ts) — that's the
 // actual FR-UM-09 security boundary. This is a UX redirect gate only.
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const sessionCookie = req.cookies.get(getSessionCookieName());
 
   if (!sessionCookie) {
