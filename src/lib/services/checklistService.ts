@@ -43,19 +43,24 @@ export interface ChecklistProgress {
   gateSatisfied: boolean;
 }
 
+const REQUIRED_CHECKLIST_ITEMS = 9;
+
 export async function getChecklistProgress(studentProfileId: string): Promise<ChecklistProgress> {
   const items = await prisma.preDeploymentChecklistItem.findMany({
     where: { studentProfileId },
     orderBy: { requirementType: "asc" },
   });
   const approvedCount = items.filter((item) => item.status === ChecklistStatus.APPROVED).length;
+  // FR-CK-04: all 9 are required even before their rows exist, so "0/0" never shows.
+  const total = Math.max(items.length, REQUIRED_CHECKLIST_ITEMS);
 
   return {
     items,
     approvedCount,
-    total: items.length,
-    percentage: items.length > 0 ? Math.round((approvedCount / items.length) * 100) : 0,
-    gateSatisfied: items.length === 9 && approvedCount === 9,
+    total,
+    percentage: Math.round((approvedCount / total) * 100),
+    gateSatisfied:
+      items.length === REQUIRED_CHECKLIST_ITEMS && approvedCount === REQUIRED_CHECKLIST_ITEMS,
   };
 }
 

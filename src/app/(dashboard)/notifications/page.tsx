@@ -30,7 +30,7 @@ export default async function NotificationsPage() {
           Notifications
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Review outcomes, deadlines, and account updates (FR-NT-01).
+          Review outcomes, deadlines, and account updates.
         </p>
       </div>
       <Card>

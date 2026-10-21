@@ -23,6 +23,16 @@ import { WeeklyReportForm } from "./weekly-report-form";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
 
+// facultyAction is stored as "<ACTION> by <user id>"; the id means nothing to the intern.
+const FACULTY_ACTION_TEXT: Record<string, string> = {
+  APPROVED: "Approved by your faculty adviser.",
+  REGARDED: "Accepted as submitted by your faculty adviser.",
+  DISREGARDED: "Not counted toward your hours by your faculty adviser.",
+  RETURNED: "Returned by your faculty adviser for revision.",
+};
+const describeFacultyAction = (action: string) =>
+  FACULTY_ACTION_TEXT[action.split(" ")[0]] ?? "Reviewed by your faculty adviser.";
+
 function formatDate(date: Date) {
   return date.toLocaleDateString(undefined, {
     month: "short",
@@ -211,7 +221,9 @@ export default async function WeeklyReportsPage({
                         </p>
                       ))}
                       {feedback.length === 0 && report.facultyAction && (
-                        <p className="text-muted-foreground">{report.facultyAction}</p>
+                        <p className="text-muted-foreground">
+                          {describeFacultyAction(report.facultyAction)}
+                        </p>
                       )}
                     </div>
                   )}

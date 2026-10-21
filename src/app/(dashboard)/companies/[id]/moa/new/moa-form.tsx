@@ -72,7 +72,7 @@ export function MoaForm({ companyId }: { companyId: string }) {
     <Card className="max-w-lg">
       <CardHeader>
         <CardTitle>Add MOA record</CardTitle>
-        <CardDescription>Upload a PDF or link a Google Drive document (FR-MOA-03).</CardDescription>
+        <CardDescription>Upload a PDF or link a Google Drive document.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={onSubmit}>
