@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import {
 import { addDays, toDateKey } from "@/lib/utils/reportDeadline";
 import { dayGaps, formatHrsMins, timeOfDay, type Shift } from "@/lib/utils/timeMath";
 import { sendJson } from "@/lib/utils/sendJson";
+import { clearDraft, loadDraft, saveDraft } from "@/lib/utils/reportDraft";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
 
@@ -269,6 +270,36 @@ export function WeeklyReportForm({
   const [reasonForDelay, setReasonForDelay] = useState("");
   const [isPending, setIsPending] = useState(false);
 
+  // Each day as the server last sent it; drafts restore only over an unchanged day.
+  const serverRows = useMemo(
+    () => Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e)])),
+    [entries]
+  );
+  // Read after mount (the server render has no localStorage), once per report.
+  const [draftChecked, setDraftChecked] = useState(false);
+  useEffect(() => {
+    if (!editable) {
+      clearDraft(weeklyReportId);
+      return;
+    }
+    const draft = loadDraft(weeklyReportId, serverRows);
+    if (draft) {
+      setRows((prev) => ({ ...prev, ...draft.rows }));
+      const at = new Date(draft.savedAt).toLocaleString("en-PH", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      toast.info(`Restored your unsaved changes from ${at}. Save draft to keep them.`, {
+        id: `draft-${weeklyReportId}`,
+      });
+    }
+    setDraftChecked(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once, not on every refresh
+  }, [weeklyReportId, editable]);
+  useEffect(() => {
+    if (editable && draftChecked) saveDraft(weeklyReportId, rows, serverRows);
+  }, [editable, draftChecked, weeklyReportId, rows, serverRows]);
+
   const weekEndDate = useMemo(() => new Date(weekEnd), [weekEnd]);
   const late = isWeeklyReportLate(weekEndDate);
   const dueDate = getWeeklyReportDueDate(weekEndDate);
@@ -415,6 +446,7 @@ export function WeeklyReportForm({
       toast.error(res.error);
       return;
     }
+    clearDraft(weeklyReportId);
     toast.success(`Report submitted · reference ${String(res.body.referenceCode)}`);
     router.refresh();
     // Module 8: render the PDF (for supervisor signing) in the background. Failures are
