@@ -119,7 +119,7 @@ export default async function UsersPage() {
           <CardHeader>
             <CardTitle>Notification settings</CardTitle>
             <CardDescription>
-              Deadline reminders and MOA expiry warnings sent by the daily job (FR-NT-02).
+              Deadline reminders and MOA expiry warnings sent by the daily job.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -148,8 +148,8 @@ export default async function UsersPage() {
           <CardHeader>
             <CardTitle>Required internship hours</CardTitle>
             <CardDescription>
-              Hours each program must complete (FR-AT-06). Sets the default for students imported
-              after you save. Existing students keep their current required hours.
+              Hours each program must complete. Sets the default for students imported after you
+              save. Existing students keep their current required hours.
             </CardDescription>
           </CardHeader>
           <CardContent>

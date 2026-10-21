@@ -35,7 +35,7 @@ export default async function ProfilePage() {
           <CardHeader>
             <CardTitle>Legal name</CardTitle>
             <CardDescription>
-              Printed on your endorsement letter (FR-DG-01). Use your full legal name.
+              Printed on your endorsement letter. Use your full legal name.
             </CardDescription>
           </CardHeader>
           <CardContent>

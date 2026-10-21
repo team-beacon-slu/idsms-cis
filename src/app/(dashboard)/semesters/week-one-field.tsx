@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -22,15 +23,13 @@ export function WeekOneField({
 
   async function save() {
     setPending(true);
-    const res = await fetch(`/api/semesters/${semesterId}`, {
+    const res = await sendJson(`/api/semesters/${semesterId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekOneStart: date || null }),
+      body: { weekOneStart: date || null },
     });
     setPending(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Could not save Week 1");
+      toast.error(res.error);
       return;
     }
     toast.success(`Week 1 for ${name} saved`);

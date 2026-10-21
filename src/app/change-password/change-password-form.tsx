@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { changePasswordSchema } from "@/lib/validators/auth";
+import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,22 +31,19 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
     setError(null);
     setIsSubmitting(true);
 
-    const res = await fetch("/api/auth/change-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const res = await sendJson("/api/auth/change-password", { method: "POST", body: data });
 
     setIsSubmitting(false);
 
     if (!res.ok) {
-      const body = await res.json();
       setError(
-        body.error === "INVALID_CURRENT_PASSWORD"
+        res.body.error === "INVALID_CURRENT_PASSWORD"
           ? "Current password is incorrect."
-          : body.error === "ACCOUNT_LOCKED"
+          : res.body.error === "ACCOUNT_LOCKED"
             ? "Too many wrong attempts. Your account is locked for 15 minutes and you've been signed out."
-            : "Something went wrong. Please try again."
+            : res.status === 0
+              ? OFFLINE_MESSAGE
+              : "Something went wrong. Please try again."
       );
       return;
     }

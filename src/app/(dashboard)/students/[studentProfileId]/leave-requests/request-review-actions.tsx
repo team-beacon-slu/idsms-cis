@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Check, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -37,15 +38,13 @@ export function RequestReviewActions({
       return;
     }
     setPending(true);
-    const res = await fetch(`/api/time-requests/${requestId}/review`, {
+    const res = await sendJson(`/api/time-requests/${requestId}/review`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(action === "RETURN" ? { action, note: note.trim() } : { action }),
+      body: action === "RETURN" ? { action, note: note.trim() } : { action },
     });
     setPending(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.issues?.[0]?.message ?? body.error ?? "Review failed");
+      toast.error(res.error);
       return;
     }
     toast.success(action === "APPROVE" ? "Request approved" : "Request returned to the student");

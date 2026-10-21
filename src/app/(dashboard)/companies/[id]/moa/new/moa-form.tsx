@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { OFFLINE_MESSAGE } from "@/lib/utils/sendJson";
 import { Link2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,7 @@ export function MoaForm({ companyId }: { companyId: string }) {
     }
 
     setIsSubmitting(true);
-    let res: Response;
+    let res: Response | null;
 
     if (sourceType === "file") {
       if (!file) {
@@ -48,17 +49,24 @@ export function MoaForm({ companyId }: { companyId: string }) {
       formData.set("validFrom", validFrom);
       formData.set("validTo", validTo);
       programsCovered.forEach((p) => formData.append("programsCovered", p));
-      res = await fetch(`/api/companies/${companyId}/moa`, { method: "POST", body: formData });
+      res = await fetch(`/api/companies/${companyId}/moa`, {
+        method: "POST",
+        body: formData,
+      }).catch(() => null);
     } else {
       res = await fetch(`/api/companies/${companyId}/moa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentUrl, validFrom, validTo, programsCovered }),
-      });
+      }).catch(() => null);
     }
 
     setIsSubmitting(false);
 
+    if (!res) {
+      toast.error(OFFLINE_MESSAGE);
+      return;
+    }
     if (!res.ok) {
       toast.error("Failed to create MOA record");
       return;
@@ -72,7 +80,7 @@ export function MoaForm({ companyId }: { companyId: string }) {
     <Card className="max-w-lg">
       <CardHeader>
         <CardTitle>Add MOA record</CardTitle>
-        <CardDescription>Upload a PDF or link a Google Drive document (FR-MOA-03).</CardDescription>
+        <CardDescription>Upload a PDF or link a Google Drive document.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={onSubmit}>

@@ -81,7 +81,7 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
               <CardTitle>Endorsement letter</CardTitle>
               <CardDescription>
                 {progress.gateSatisfied
-                  ? "Issued by the department once all requirements are approved (FR-DG-01)."
+                  ? "Issued by the department once all requirements are approved."
                   : "Available once all 9 requirements are approved."}
               </CardDescription>
             </div>

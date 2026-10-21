@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { ShieldCheck, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -18,14 +19,13 @@ export function CompanyVerifyToggle({
 
   async function toggle() {
     setIsPending(true);
-    const res = await fetch(`/api/companies/${companyId}`, {
+    const res = await sendJson(`/api/companies/${companyId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isVerified: !isVerified }),
+      body: { isVerified: !isVerified },
     });
     setIsPending(false);
     if (!res.ok) {
-      toast.error("Failed to update verification status");
+      toast.error(res.error);
       return;
     }
     toast.success(isVerified ? "Company unverified" : "Company verified");

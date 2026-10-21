@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Download, FileDown, Save, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,17 +51,9 @@ export function FinalReportEditor({
   const [pending, setPending] = useState<"save" | "submit" | "pdf" | null>(null);
 
   async function call(url: string, method: string, body?: unknown) {
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
-      toast.error(b.issues?.[0]?.message ?? b.error ?? "Something went wrong");
-      return false;
-    }
-    return true;
+    const res = await sendJson(url, { method, body });
+    if (!res.ok) toast.error(res.error);
+    return res.ok;
   }
 
   const save = () =>

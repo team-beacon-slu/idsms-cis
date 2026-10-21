@@ -203,7 +203,7 @@ export default async function DashboardHomePage({
           <Card className="mb-4 border-amber-300 dark:border-amber-500/40">
             <CardHeader>
               <CardTitle>Needs attention</CardTitle>
-              <CardDescription>Items that need action from you (FR-NT-03).</CardDescription>
+              <CardDescription>Items that need action from you.</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-1">

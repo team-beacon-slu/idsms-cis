@@ -83,14 +83,15 @@ describe("getChecklistProgress", () => {
     });
   });
 
-  it("reports 0% and an unsatisfied gate when a student has no items yet", async () => {
+  it("reports 0 of the 9 requirements when a student has no items yet", async () => {
     prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([]);
 
     const progress = await getChecklistProgress("profile-1");
 
+    // All 9 are required whether or not their rows exist yet, matching "9 not yet approved".
     expect(progress).toMatchObject({
       approvedCount: 0,
-      total: 0,
+      total: 9,
       percentage: 0,
       gateSatisfied: false,
     });

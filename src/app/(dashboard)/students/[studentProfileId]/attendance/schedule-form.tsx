@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { formatSchedule, WEEKDAY_SHORT, type ScheduleConfig } from "@/lib/utils/schedule";
 import { parseHHMM } from "@/lib/utils/timeMath";
+import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
 
 // FR-AT-01, FR-AT-08 — Owner: gu457 (Ulrich)
 // Requirement: initial schedule config form, plus a mid-internship
@@ -239,15 +240,13 @@ export function AttendanceScheduleForm({
       return;
     }
     setIsPending(true);
-    const res = await fetch(`/api/students/${studentProfileId}/schedule`, {
+    const res = await sendJson(`/api/students/${studentProfileId}/schedule`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(schedule),
+      body: schedule,
     });
     setIsPending(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? "Failed to save schedule");
+      toast.error(res.error);
       return;
     }
     toast.success("Work schedule saved");
@@ -278,8 +277,12 @@ export function AttendanceScheduleForm({
     const res = await fetch(`/api/students/${studentProfileId}/schedule`, {
       method: "PATCH",
       body: formData,
-    });
+    }).catch(() => null);
     setIsPending(false);
+    if (!res) {
+      toast.error(OFFLINE_MESSAGE);
+      return;
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? "Failed to submit change request");

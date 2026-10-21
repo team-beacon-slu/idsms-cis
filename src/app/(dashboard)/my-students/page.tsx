@@ -90,8 +90,8 @@ export default async function MyStudentsPage() {
           <CardHeader>
             <CardTitle>Endorsement letters</CardTitle>
             <CardDescription>
-              Generate letters for a whole class group (FR-DG-02). Students without all 9
-              requirements approved are skipped.
+              Generate letters for a whole class group. Students without all 9 requirements approved
+              are skipped.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">

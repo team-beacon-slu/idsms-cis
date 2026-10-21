@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -37,16 +38,14 @@ export function WeeklyReportReviewActions({ weeklyReportId }: { weeklyReportId: 
     }
 
     setIsPending(true);
-    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/review`, {
+    const res = await sendJson(`/api/weekly-reports/${weeklyReportId}/review`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, notes: notes.trim() || undefined }),
+      body: { action, notes: notes.trim() || undefined },
     });
     setIsPending(false);
 
     if (!res.ok) {
-      const body = await res.json();
-      toast.error(body.error ?? "Review failed");
+      toast.error(res.error);
       return;
     }
     toast.success(`Report ${ACTION_PAST_TENSE[action]}`);

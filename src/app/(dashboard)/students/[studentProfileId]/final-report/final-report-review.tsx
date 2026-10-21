@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,19 +27,17 @@ export function FinalReportReview({
 
   async function review(action: "APPROVE" | "RETURN") {
     setPending(true);
-    const res = await fetch(`/api/final-reports/${reportId}/review`, {
+    const res = await sendJson(`/api/final-reports/${reportId}/review`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         action,
         note: action === "RETURN" ? note : undefined,
         confirmed: ATTACHMENT_KEYS.filter((k) => confirmed[k]),
-      }),
+      },
     });
     setPending(false);
     if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
-      toast.error(b.issues?.[0]?.message ?? b.error ?? "Review failed");
+      toast.error(res.error);
       return;
     }
     toast.success(action === "APPROVE" ? "Final report approved" : "Final report returned");
