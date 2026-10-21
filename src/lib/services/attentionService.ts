@@ -53,17 +53,21 @@ export async function getAttentionItems(
 }
 
 // Workstream L1: leave / OT / UT requests awaiting a faculty adviser's review,
-// across the (class group, semester) pairs they advise.
-export async function countRequestsAwaitingReview(
+// across the (class group, semester) pairs they advise, per intern so the review
+// queue can link straight to each intern's requests.
+export async function requestsAwaitingReviewByStudent(
   assigned: { classGroupId: string; semesterId: string }[]
-): Promise<number> {
-  if (assigned.length === 0) return 0;
-  return prisma.deviationReport.count({
+): Promise<Map<string, number>> {
+  if (assigned.length === 0) return new Map();
+  const groups = await prisma.deviationReport.groupBy({
+    by: ["studentProfileId"],
     where: {
       validationStatus: ValidationStatus.PENDING,
       studentProfile: {
         OR: assigned.map(({ classGroupId, semesterId }) => ({ classGroupId, semesterId })),
       },
     },
+    _count: { _all: true },
   });
+  return new Map(groups.map((g) => [g.studentProfileId, g._count._all]));
 }

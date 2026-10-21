@@ -1,4 +1,4 @@
-import { CalendarDays, Clock3 } from "lucide-react";
+import { Clock3 } from "lucide-react";
 import { Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -61,10 +61,7 @@ export default async function CalendarPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
-          <CalendarDays className="size-6 text-primary" aria-hidden="true" />
-          Calendar
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Calendar</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Deadlines, holidays, and OJT milestones for your role.
         </p>

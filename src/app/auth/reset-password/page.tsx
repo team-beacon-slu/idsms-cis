@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FieldError, errorProps } from "@/components/field-error";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2, MailCheck } from "lucide-react";
@@ -57,8 +58,14 @@ export default function RequestResetPasswordPage() {
             <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" autoComplete="email" {...register("email")} />
-                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  {...register("email")}
+                  {...errorProps("email", errors.email?.message)}
+                />
+                <FieldError id="email-error" message={errors.email?.message} />
               </div>
               {error && (
                 <div

@@ -69,15 +69,15 @@ function buildMonthGrid(monthDate: Date): Date[] {
 }
 function EmptyState() {
   return (
-    <div className="border-border flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-8 text-center">
-      <CalendarX2 className="text-muted-foreground size-6" aria-hidden="true" />
-      <p className="text-muted-foreground text-sm">No events this month.</p>
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-8 text-center">
+      <CalendarX2 className="size-6 text-muted-foreground" aria-hidden="true" />
+      <p className="text-sm text-muted-foreground">No events this month.</p>
     </div>
   );
 }
 function EventList({ events, staff }: { events: CalendarEvent[]; staff: boolean }) {
   return (
-    <ul className="divide-border border-border divide-y rounded-lg border">
+    <ul className="divide-y divide-border rounded-lg border border-border">
       {events.map((event, index) => (
         <li
           key={`${event.type}-${event.studentProfileId ?? ""}-${event.date.toISOString()}-${index}`}
@@ -88,8 +88,8 @@ function EventList({ events, staff }: { events: CalendarEvent[]; staff: boolean 
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <p className="text-foreground text-sm font-medium wrap-break-word">{event.label}</p>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-sm font-medium wrap-break-word text-foreground">{event.label}</p>
+            <p className="text-xs text-muted-foreground">
               {displayDate(new Date(`${manilaDateKey(event.date)}T00:00:00Z`), {
                 month: "short",
                 day: "numeric",
@@ -100,7 +100,7 @@ function EventList({ events, staff }: { events: CalendarEvent[]; staff: boolean 
             {staff && event.studentProfileId && (
               <a
                 href={`/students/${event.studentProfileId}/weekly-reports`}
-                className="text-primary text-xs underline underline-offset-2"
+                className="text-xs text-primary underline underline-offset-2"
               >
                 Student reports
               </a>
@@ -161,7 +161,7 @@ export function UnifiedCalendarView({
     "rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <div data-testid="unified-calendar-view" className="space-y-4">
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {role === "STUDENT_INTERN"
           ? "Your internship calendar"
           : role === "FACULTY_ADVISER"
@@ -208,7 +208,7 @@ export function UnifiedCalendarView({
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
         </button>
-        <h2 className="text-foreground text-sm font-semibold" aria-live="polite">
+        <h2 className="text-sm font-semibold text-foreground" aria-live="polite">
           {monthLabel}
         </h2>
         <div className="flex items-center gap-1">
@@ -233,11 +233,11 @@ export function UnifiedCalendarView({
         </div>
       </div>
       <div className="hidden sm:block" role="group" aria-label="Month calendar">
-        <div className="border-border bg-border grid grid-cols-7 gap-px overflow-hidden rounded-lg border text-xs">
+        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-xs">
           {WEEKDAYS.map((day) => (
             <div
               key={day}
-              className="bg-muted/50 text-muted-foreground px-2 py-1.5 text-center font-medium"
+              className="bg-muted/50 px-2 py-1.5 text-center font-medium text-muted-foreground"
             >
               {day}
             </div>
@@ -257,16 +257,16 @@ export function UnifiedCalendarView({
                 aria-controls="calendar-day-details"
                 aria-current={isToday ? "date" : undefined}
                 className={cn(
-                  "bg-card focus-visible:ring-ring flex min-h-24 min-w-0 flex-col items-stretch justify-start p-1.5 text-left focus-visible:z-10 focus-visible:ring-2 focus-visible:outline-hidden",
+                  "flex min-h-24 min-w-0 flex-col items-stretch justify-start bg-card p-1.5 text-left focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden",
                   !inMonth && "bg-muted/20",
-                  selectedDay === key && "ring-primary ring-2 ring-inset"
+                  selectedDay === key && "ring-2 ring-primary ring-inset"
                 )}
               >
                 <span
                   className={cn(
                     "inline-flex size-5 items-center justify-center rounded-full text-[11px]",
                     inMonth ? "text-foreground" : "text-muted-foreground/50",
-                    isToday && "bg-primary text-primary-foreground font-semibold"
+                    isToday && "bg-chart-1 font-semibold text-white"
                   )}
                 >
                   {day.getUTCDate()}
@@ -284,7 +284,7 @@ export function UnifiedCalendarView({
                     </span>
                   ))}
                   {dayEvents.length > 3 && (
-                    <span className="text-muted-foreground block px-1 text-[10px]">
+                    <span className="block px-1 text-[10px] text-muted-foreground">
                       +{dayEvents.length - 3} more
                     </span>
                   )}
@@ -310,7 +310,7 @@ export function UnifiedCalendarView({
             {selectedEvents.length ? (
               <EventList events={selectedEvents} staff={staff} />
             ) : (
-              <p className="text-muted-foreground text-sm">No events on this date.</p>
+              <p className="text-sm text-muted-foreground">No events on this date.</p>
             )}
           </section>
         )}
@@ -319,7 +319,7 @@ export function UnifiedCalendarView({
         {monthEvents.length ? <EventList events={monthEvents} staff={staff} /> : <EmptyState />}
       </section>
       {monthEvents.length === 0 && (
-        <p className="text-muted-foreground hidden text-sm sm:block">No events this month.</p>
+        <p className="hidden text-sm text-muted-foreground sm:block">No events this month.</p>
       )}
     </div>
   );

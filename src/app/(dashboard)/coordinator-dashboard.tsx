@@ -13,7 +13,6 @@ import {
   GraduationCap,
   Rocket,
   TriangleAlert,
-  Users,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
@@ -27,7 +26,7 @@ import { listSemesters } from "@/lib/services/semesterService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
 import { ComplianceTable } from "@/components/compliance-table";
 import { EmptyState } from "@/components/empty-state";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatStrip } from "@/components/stat-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -69,21 +68,14 @@ export async function CoordinatorDashboard({
   const status = parseParam(searchParams, "status");
 
   // Independent fetches run together; only the rows depend on the semester.
-  const [
-    requestedSemester,
-    semesters,
-    expiringMoas,
-    totalUsers,
-    totalCompanies,
-    verifiedCompanies,
-  ] = await Promise.all([
-    resolveDepartmentSemester(semesterId),
-    listSemesters(),
-    getExpiringMoaRecords(30),
-    prisma.user.count({ where: { deletedAt: null } }),
-    prisma.company.count({ where: { deletedAt: null } }),
-    prisma.company.count({ where: { deletedAt: null, isVerified: true } }),
-  ]);
+  const [requestedSemester, semesters, expiringMoas, totalCompanies, verifiedCompanies] =
+    await Promise.all([
+      resolveDepartmentSemester(semesterId),
+      listSemesters(),
+      getExpiringMoaRecords(30),
+      prisma.company.count({ where: { deletedAt: null } }),
+      prisma.company.count({ where: { deletedAt: null, isVerified: true } }),
+    ]);
 
   // A well-formed but unknown semesterId (stale link) falls back to the active
   // semester, with a notice so the change isn't silent.
@@ -119,19 +111,16 @@ export async function CoordinatorDashboard({
   return (
     <div className="space-y-4">
       {expiringMoas.length > 0 && (
-        <Card
-          role="alert"
-          className="border-amber-300 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-500/10"
-        >
+        <Card role="alert" className="border-notice-border bg-notice">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <p className="flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200">
+            <p className="flex items-center gap-2 text-sm font-medium text-notice-foreground">
               <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
               {expiringMoas.length} {expiringMoas.length === 1 ? "MOA expires" : "MOAs expire"}{" "}
               within 30 days
             </p>
             <Link
               href="/companies"
-              className="focus-visible:ring-ring cursor-pointer py-1 text-sm font-medium text-amber-900 underline underline-offset-2 hover:text-amber-700 focus-visible:ring-2 focus-visible:outline-hidden dark:text-amber-200"
+              className="cursor-pointer py-1 text-sm font-medium text-notice-foreground underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
             >
               Review companies
             </Link>
@@ -142,61 +131,45 @@ export async function CoordinatorDashboard({
       {semester &&
         programs.map((p) => (
           <section key={p.program} aria-label={`${p.program} summary`} className="space-y-2">
-            <h2 className="text-foreground text-sm font-semibold">{p.program}</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="Students" value={p.students} icon={GraduationCap} tone="blue" />
+            <h2 className="text-sm font-medium text-foreground">{p.program}</h2>
+            <StatStrip>
+              <StatCard label="Students" value={p.students} icon={GraduationCap} />
               <StatCard
                 label="Deployed"
                 value={p.deployed}
                 icon={Rocket}
-                tone="green"
                 hint={`of ${p.students} students`}
               />
               <StatCard
-                label="Avg hours"
+                label="Average hours"
                 value={`${p.avgHoursPercent}%`}
                 icon={Gauge}
-                tone="slate"
                 hint="of required hours"
               />
-              <StatCard
-                label="Needs attention"
-                value={p.needsAttention}
-                icon={TriangleAlert}
-                tone={p.needsAttention > 0 ? "amber" : "slate"}
-              />
-            </div>
+              <StatCard label="Needs attention" value={p.needsAttention} icon={TriangleAlert} />
+            </StatStrip>
           </section>
         ))}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total users" value={totalUsers} icon={Users} tone="blue" />
-        <StatCard
-          label="Registered companies"
-          value={totalCompanies}
-          icon={Building2}
-          tone="slate"
-        />
-        <StatCard
-          label="Verified companies"
-          value={verifiedCompanies}
-          icon={Building2}
-          tone="green"
-        />
-        <StatCard
-          label="MOAs expiring soon"
-          value={expiringMoas.length}
-          icon={FileClock}
-          tone={expiringMoas.length > 0 ? "amber" : "slate"}
-          hint="Next 30 days"
-        />
-      </div>
+      <section aria-label="Host companies" className="space-y-2">
+        <h2 className="text-sm font-medium text-foreground">Host companies</h2>
+        <StatStrip>
+          <StatCard label="Registered" value={totalCompanies} icon={Building2} />
+          <StatCard label="Verified" value={verifiedCompanies} icon={Building2} />
+          <StatCard
+            label="MOAs expiring"
+            value={expiringMoas.length}
+            icon={FileClock}
+            hint="Next 30 days"
+          />
+        </StatStrip>
+      </section>
 
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>All students compliance</CardTitle>
+              <CardTitle>Interns</CardTitle>
               <CardDescription>
                 {semester
                   ? `Hours, documents and weekly reports for ${semester.name}.`
@@ -244,7 +217,7 @@ export async function CoordinatorDashboard({
           {semesterNotFound && (
             <p
               role="status"
-              className="bg-muted text-muted-foreground rounded-md px-3 py-2 text-sm"
+              className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
             >
               {semester
                 ? "That semester wasn't found — showing the active semester."
@@ -252,7 +225,7 @@ export async function CoordinatorDashboard({
             </p>
           )}
           {semester?.archivedAt && (
-            <p className="bg-muted text-muted-foreground flex items-center gap-2 rounded-md px-3 py-2 text-sm">
+            <p className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
               <Archive className="size-4 shrink-0" aria-hidden="true" />
               Archived semester — read-only history
             </p>

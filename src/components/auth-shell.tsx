@@ -1,71 +1,70 @@
-import { ShieldCheck, Clock, CalendarRange } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 
 const FEATURES = [
   {
-    icon: ShieldCheck,
     title: "Compliance gating",
     description: "Endorsement letters stay locked until every pre-deployment document is approved.",
   },
   {
-    icon: Clock,
     title: "Automated tracking",
-    description: "Real-time hour computation and projected completion dates, no spreadsheets.",
+    description: "Hours confirmed as reports are approved, with a projected finish date.",
   },
   {
-    icon: CalendarRange,
     title: "Unified calendar",
-    description: "Deadlines, holidays, and OJT milestones in one role-aware view.",
+    description: "Deadlines, holidays and OJT milestones in one role-aware view.",
   },
 ];
 
+function Wordmark() {
+  return (
+    <span className="flex items-center gap-3">
+      <BrandMark className="size-10" />
+      <span className="leading-tight">
+        <span className="block text-lg font-semibold tracking-tight text-foreground">
+          IDSMS-CIS
+        </span>
+        <span className="block text-sm text-muted-foreground">Internship monitoring</span>
+      </span>
+    </span>
+  );
+}
+
+// The sign-in frame: the product and what it does on the left (desktop), the form on the
+// right. No ornament: the logo and the words carry it.
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-sidebar-foreground lg:flex">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage: "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
-            backgroundSize: "28px 28px",
-          }}
-          aria-hidden="true"
-        />
-        <span className="relative text-lg font-semibold tracking-tight">IDSMS-CIS</span>
+      <div className="hidden flex-col justify-between border-r bg-sidebar p-12 lg:flex">
+        <Wordmark />
 
-        <div className="relative space-y-10">
+        <div className="space-y-10">
           <div className="space-y-3">
-            <h1 className="text-balance text-3xl font-semibold tracking-tight">
-              Internship deployment, tracked end to end.
+            <h1 className="text-3xl font-semibold tracking-tight text-balance text-foreground">
+              Internship documents and hours, tracked end to end.
             </h1>
-            <p className="max-w-sm text-sm text-sidebar-foreground/70">
-              The centralized platform for SAMCIS internship compliance, hours, and reviews.
+            <p className="max-w-md text-base text-foreground/80">
+              Document submission and internship monitoring for SAMCIS IT, CS and MMA interns, their
+              faculty advisers and coordinators.
             </p>
           </div>
-          <ul className="space-y-5">
-            {FEATURES.map(({ icon: Icon, title, description }) => (
-              <li key={title} className="flex gap-3">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-primary">
-                  <Icon className="size-4" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{title}</p>
-                  <p className="text-sm text-sidebar-foreground/60">{description}</p>
-                </div>
+          <ul className="max-w-md space-y-5">
+            {FEATURES.map(({ title, description }) => (
+              <li key={title}>
+                <p className="text-sm font-medium text-foreground">{title}</p>
+                <p className="text-sm text-muted-foreground">{description}</p>
               </li>
             ))}
           </ul>
         </div>
 
-        <p className="relative text-xs text-sidebar-foreground/50">
-          Saint Louis University &mdash; SAMCIS
-        </p>
+        <p className="text-sm text-muted-foreground">Saint Louis University · SAMCIS</p>
       </div>
 
       <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-8">
         <div className="w-full max-w-sm">
-          <span className="mb-6 block text-center text-lg font-semibold tracking-tight text-foreground lg:hidden">
-            IDSMS-CIS
-          </span>
+          <div className="mb-8 flex justify-center lg:hidden">
+            <Wordmark />
+          </div>
           {children}
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import { FieldError, errorProps } from "@/components/field-error";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -79,7 +80,7 @@ function LoginForm() {
               <Label htmlFor="email">Email</Label>
               <div className="relative">
                 <Mail
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <Input
@@ -88,15 +89,16 @@ function LoginForm() {
                   autoComplete="email"
                   className="pl-9"
                   {...register("email")}
+                  {...errorProps("email", errors.email?.message)}
                 />
               </div>
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              <FieldError id="email-error" message={errors.email?.message} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Lock
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <Input
@@ -105,11 +107,10 @@ function LoginForm() {
                   autoComplete="current-password"
                   className="pl-9"
                   {...register("password")}
+                  {...errorProps("password", errors.password?.message)}
                 />
               </div>
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password.message}</p>
-              )}
+              <FieldError id="password-error" message={errors.password?.message} />
             </div>
             {error && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { requireUserPage } from "@/lib/auth/session";
 import { DashboardNav } from "./dashboard-nav";
 
@@ -9,14 +11,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/change-password");
   }
 
+  // Students are shown by name when their profile has one; staff accounts only have an email.
+  const profile =
+    user.role === Role.STUDENT_INTERN
+      ? await prisma.studentProfile.findUnique({
+          where: { userId: user.id },
+          select: { fullName: true },
+        })
+      : null;
+
   return (
     <div className="min-h-screen bg-background">
       {/* print:hidden — the weekly report preview is printed to PDF from the browser */}
       <div className="print:hidden">
-        <DashboardNav role={user.role} userEmail={user.email} />
+        <DashboardNav role={user.role} userLabel={profile?.fullName || user.email} />
       </div>
-      <main className="md:pl-64 print:pl-0">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 print:max-w-none print:p-0">
+      <main className="md:pl-60 print:pl-0">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-8 print:max-w-none print:p-0">
           {children}
         </div>
       </main>

@@ -1,18 +1,22 @@
 import Link from "next/link";
-import { CalendarOff, ClipboardCheck, Download, Send, Users, UserX } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Download, Send, Users, UserX } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { countRequestsAwaitingReview } from "@/lib/services/attentionService";
+import { requestsAwaitingReviewByStudent } from "@/lib/services/attentionService";
 import { getDeductionTally } from "@/lib/services/deductionService";
 import { getComplianceRows, summarize } from "@/lib/services/complianceService";
 import { ComplianceTable } from "@/components/compliance-table";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatStrip } from "@/components/stat-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { BulkEndorsementButton } from "./my-students/bulk-endorsement-button";
 
-// FR-DB-03: Faculty Adviser dashboard — KPI row plus the compliance table for
-// every student in the adviser's (class group, semester) pairs.
+const QUEUE_ROWS = 6;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// FR-DB-03: Faculty Adviser dashboard. Its question is "who is waiting for my review?",
+// so the review queue leads, each row linking to the exact page to act on, then the
+// compliance table for every student in the adviser's (class group, semester) pairs.
 export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
   const [rows, assigned] = await Promise.all([
     getComplianceRows({ kind: "faculty", facultyId }),
@@ -23,7 +27,7 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
     }),
   ]);
   const summary = summarize(rows);
-  const requestsAwaiting = await countRequestsAwaitingReview(assigned);
+  const requests = await requestsAwaitingReviewByStudent(assigned);
   // shortcut: one tally per student (a few queries each); fine for a class
   // group of ~40, batch the loads if advisers get much larger rosters.
   const deductions = Object.fromEntries(
@@ -37,46 +41,77 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
   // One bulk button per class group, even if advised across several semesters.
   const groupNames = new Map(assigned.map((g) => [g.classGroupId, g.classGroup.name]));
 
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total students" value={summary.total} icon={Users} tone="blue" />
-        <StatCard
-          label="Submitted this week"
-          value={summary.submittedThisWeek}
-          icon={Send}
-          tone="green"
-        />
-        <StatCard
-          label="Pending review"
-          value={summary.pendingReview}
-          icon={ClipboardCheck}
-          tone={summary.pendingReview > 0 ? "amber" : "slate"}
-        />
-        <StatCard
-          label="Not yet submitted"
-          value={summary.notYetSubmitted}
-          icon={UserX}
-          tone={summary.notYetSubmitted > 0 ? "red" : "slate"}
-        />
-      </div>
+  const queue = rows.flatMap((r) => {
+    const name = r.fullName || r.email;
+    const items = [];
+    if (r.awaitingReview > 0) {
+      items.push({
+        key: `${r.studentProfileId}-wr`,
+        name,
+        what: plural(r.awaitingReview, "weekly report", "weekly reports"),
+        href: `/students/${r.studentProfileId}/weekly-reports`,
+      });
+    }
+    const pending = requests.get(r.studentProfileId) ?? 0;
+    if (pending > 0) {
+      items.push({
+        key: `${r.studentProfileId}-lr`,
+        name,
+        what: plural(pending, "leave or time request", "leave or time requests"),
+        href: `/students/${r.studentProfileId}/leave-requests`,
+      });
+    }
+    return items;
+  });
+  const waiting = summary.pendingReview + [...requests.values()].reduce((a, b) => a + b, 0);
 
-      {requestsAwaiting > 0 && (
-        <Link
-          href="/my-students"
-          className="flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 transition-colors duration-200 hover:bg-amber-100 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
-        >
-          <CalendarOff className="size-4" aria-hidden="true" />
-          {requestsAwaiting} leave / time {requestsAwaiting === 1 ? "request" : "requests"} awaiting
-          your review — open a student&apos;s Leave &amp; Time Requests tab
-        </Link>
-      )}
+  return (
+    <div className="space-y-6">
+      <StatStrip>
+        <StatCard label="Interns" value={summary.total} icon={Users} />
+        <StatCard label="Submitted this week" value={summary.submittedThisWeek} icon={Send} />
+        <StatCard label="Waiting for your review" value={waiting} icon={ClipboardCheck} />
+        <StatCard label="Not yet submitted" value={summary.notYetSubmitted} icon={UserX} />
+      </StatStrip>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Waiting for your review</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {queue.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing is waiting for your review. New submissions appear here.
+            </p>
+          ) : (
+            <ul className="-mx-2">
+              {queue.slice(0, QUEUE_ROWS).map((item) => (
+                <li key={item.key}>
+                  <Link
+                    href={item.href}
+                    className="flex min-h-11 items-center gap-3 rounded-md px-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+                    <span className="text-muted-foreground">{item.what}</span>
+                    <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {queue.length > QUEUE_ROWS && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {plural(queue.length - QUEUE_ROWS, "more item", "more items")} in the table below.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>My students</CardTitle>
+              <CardTitle>Interns</CardTitle>
               <CardDescription>
                 Hours, documents and weekly reports for your assigned class groups.
               </CardDescription>
@@ -85,10 +120,7 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
               <a
                 href="/api/compliance/export"
                 download
-                className={cn(
-                  buttonVariants({ size: "sm", variant: "outline" }),
-                  "cursor-pointer gap-1.5 transition-colors duration-200"
-                )}
+                className={cn(buttonVariants({ size: "sm", variant: "outline" }), "gap-1.5")}
               >
                 <Download className="size-4" aria-hidden="true" />
                 Export to Excel
@@ -96,10 +128,7 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
               <a
                 href="/api/compliance/weekly-summary"
                 download
-                className={cn(
-                  buttonVariants({ size: "sm", variant: "outline" }),
-                  "cursor-pointer gap-1.5 transition-colors duration-200"
-                )}
+                className={cn(buttonVariants({ size: "sm", variant: "outline" }), "gap-1.5")}
               >
                 <Download className="size-4" aria-hidden="true" />
                 Weekly summary (Excel)

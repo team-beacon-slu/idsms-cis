@@ -47,18 +47,18 @@ export default async function ChecklistPage(props: {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3">
-        <div className="bg-primary/10 text-primary hidden shrink-0 rounded-lg p-2.5 sm:block">
+        <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
           <ClipboardCheck className="size-6" aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Pre-Deployment Checklist
           </h1>
-          <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             All 9 requirements must be Approved before the endorsement letter can be released.
           </p>
           {isOwner && (
-            <p className="text-foreground mt-2 max-w-2xl text-sm">
+            <p className="mt-2 max-w-2xl text-sm text-foreground">
               Submit this document in Google Classroom. Your adviser will update its status here.
             </p>
           )}
@@ -70,11 +70,11 @@ export default async function ChecklistPage(props: {
           label="Approved"
           value={`${progress.approvedCount} / ${progress.total}`}
           icon={CheckCircle2}
-          tone="green"
+
           hint={`${progress.percentage}% complete`}
         />
-        <StatCard label="Pending" value={pendingCount} icon={Clock3} tone="amber" />
-        <StatCard label="Returned" value={returnedCount} icon={RotateCcw} tone="red" />
+        <StatCard label="Pending" value={pendingCount} icon={Clock3} />
+        <StatCard label="Returned" value={returnedCount} icon={RotateCcw} />
       </div>
 
       <Card>
@@ -111,7 +111,7 @@ export default async function ChecklistPage(props: {
             <StatusBadge status={progress.gateSatisfied ? "APPROVED" : "PENDING"} />
           </div>
           <div
-            className="bg-muted h-2 w-full overflow-hidden rounded-full"
+            className="h-2 w-full overflow-hidden rounded-full bg-muted"
             role="progressbar"
             aria-valuenow={progress.percentage}
             aria-valuemin={0}
@@ -119,7 +119,7 @@ export default async function ChecklistPage(props: {
             aria-label="Checklist completion"
           >
             <div
-              className="bg-primary h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
+              className="h-full rounded-full bg-primary transition-[width] duration-300 motion-reduce:transition-none"
               style={{ width: `${progress.percentage}%` }}
             />
           </div>
@@ -139,13 +139,13 @@ export default async function ChecklistPage(props: {
               <TableBody>
                 {progress.items.map((item) => (
                   <TableRow key={item.id} className="transition-colors">
-                    <TableCell className="text-foreground font-medium">
+                    <TableCell className="font-medium text-foreground">
                       {item.requirementType.replaceAll("_", " ")}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={item.status} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground max-w-[16rem] wrap-break-word">
+                    <TableCell className="max-w-[16rem] wrap-break-word text-muted-foreground">
                       {item.comments
                         ? item.status === "RETURNED"
                           ? `Adviser's note: ${item.comments}`

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FieldError, errorProps } from "@/components/field-error";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,24 +51,31 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
         <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-2">
             <Label htmlFor="name">Company name</Label>
-            <Input id="name" {...register("name")} />
-            {errors.name && (
-              <p className="text-destructive text-sm">{errors.name.message as string}</p>
-            )}
+            <Input
+              id="name"
+              {...register("name")}
+              {...errorProps("name", errors.name?.message as string | undefined)}
+            />
+            <FieldError id="name-error" message={errors.name?.message as string | undefined} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>
-            <Input id="address" {...register("address")} />
-            {errors.address && (
-              <p className="text-destructive text-sm">{errors.address.message as string}</p>
-            )}
+            <Input
+              id="address"
+              {...register("address")}
+              {...errorProps("address", errors.address?.message as string | undefined)}
+            />
+            <FieldError
+              id="address-error"
+              message={errors.address?.message as string | undefined}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="workModality">Work modality</Label>
             <select
               id="workModality"
               {...register("workModality")}
-              className="border-input focus-visible:ring-ring flex h-9 w-full cursor-pointer rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors duration-200 focus-visible:ring-1 focus-visible:outline-hidden"
+              className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors duration-200 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden"
             >
               {WORK_MODALITIES.map((modality) => (
                 <option key={modality} value={modality}>
@@ -79,21 +87,33 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="supervisorName">Supervisor name</Label>
-              <Input id="supervisorName" {...register("supervisorName")} />
-              {errors.supervisorName && (
-                <p className="text-destructive text-sm">
-                  {errors.supervisorName.message as string}
-                </p>
-              )}
+              <Input
+                id="supervisorName"
+                {...register("supervisorName")}
+                {...errorProps(
+                  "supervisorName",
+                  errors.supervisorName?.message as string | undefined
+                )}
+              />
+              <FieldError
+                id="supervisorName-error"
+                message={errors.supervisorName?.message as string | undefined}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="supervisorContact">Supervisor contact</Label>
-              <Input id="supervisorContact" {...register("supervisorContact")} />
-              {errors.supervisorContact && (
-                <p className="text-destructive text-sm">
-                  {errors.supervisorContact.message as string}
-                </p>
-              )}
+              <Input
+                id="supervisorContact"
+                {...register("supervisorContact")}
+                {...errorProps(
+                  "supervisorContact",
+                  errors.supervisorContact?.message as string | undefined
+                )}
+              />
+              <FieldError
+                id="supervisorContact-error"
+                message={errors.supervisorContact?.message as string | undefined}
+              />
             </div>
           </div>
           {showPositionTitle && (

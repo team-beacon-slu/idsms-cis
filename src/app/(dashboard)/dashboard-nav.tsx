@@ -26,47 +26,83 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/brand-mark";
 import { NotificationBell } from "./notification-bell";
 
-const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
-// Coordinator/Admin already have the full roster via /users — this page's
-// only real content is the faculty_class_groups join, which only ever has
-// rows for FACULTY_ADVISER.
-const MY_STUDENTS_ROLES: Role[] = [Role.FACULTY_ADVISER];
-
 type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavGroup = { label?: string; items: NavItem[] };
 
-function getNavItems(role: Role): NavItem[] {
-  const items: NavItem[] = [{ href: "/", label: "Dashboard", icon: LayoutDashboard }];
+export const ROLE_LABEL: Record<Role, string> = {
+  STUDENT_INTERN: "Student intern",
+  FACULTY_ADVISER: "Faculty adviser",
+  DEPARTMENT_COORDINATOR: "Department coordinator",
+  SUPER_ADMIN: "Super admin",
+};
 
-  if (STAFF_ROLES.includes(role)) {
-    items.push({ href: "/users", label: "Users", icon: Users });
-    items.push({ href: "/semesters", label: "Semesters", icon: CalendarRange });
-    items.push({ href: "/final-reports", label: "Final Reports", icon: BookOpenCheck });
-  }
-  if (role === Role.SUPER_ADMIN) {
-    items.push({ href: "/audit-log", label: "Audit log", icon: ScrollText });
-    items.push({ href: "/admin/export-center", label: "Export Center", icon: Download });
-  }
-  items.push({ href: "/companies", label: "Companies", icon: Building2 });
-  items.push({ href: "/calendar", label: "Calendar", icon: Calendar });
-  if (MY_STUDENTS_ROLES.includes(role)) {
-    items.push({ href: "/my-students", label: "My Students", icon: Users });
-  }
+const REFERENCE: NavGroup = {
+  label: "Reference",
+  items: [
+    { href: "/companies", label: "Companies", icon: Building2 },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
+  ],
+};
+
+// Grouped by what each role does there, so a new screen has an obvious home.
+// Coordinator/Admin reach every student through /users and the dashboard; My students
+// is the faculty_class_groups roster, which only faculty have.
+export function getNavGroups(role: Role): NavGroup[] {
+  const home: NavGroup = { items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] };
   if (role === Role.STUDENT_INTERN) {
-    items.push({ href: "/checklist", label: "Checklist", icon: ClipboardCheck });
-    items.push({ href: "/work-plan", label: "Work Plan", icon: NotebookText });
-    items.push({ href: "/attendance", label: "Attendance", icon: Clock });
-    items.push({ href: "/leave-requests", label: "Leave & Time Requests", icon: CalendarOff });
-    items.push({ href: "/weekly-reports", label: "Weekly Reports", icon: FileText });
-    items.push({ href: "/monthly-reports", label: "Monthly Reports", icon: FileBarChart2 });
-    items.push({ href: "/final-report", label: "Final Report", icon: BookOpenCheck });
+    return [
+      home,
+      {
+        label: "Every week",
+        items: [
+          { href: "/weekly-reports", label: "Weekly reports", icon: FileText },
+          { href: "/attendance", label: "Attendance", icon: Clock },
+          { href: "/leave-requests", label: "Leave & time requests", icon: CalendarOff },
+        ],
+      },
+      {
+        label: "Requirements",
+        items: [
+          { href: "/checklist", label: "Checklist", icon: ClipboardCheck },
+          { href: "/work-plan", label: "Work plan", icon: NotebookText },
+          { href: "/monthly-reports", label: "Monthly reports", icon: FileBarChart2 },
+          { href: "/final-report", label: "Final report", icon: BookOpenCheck },
+        ],
+      },
+      REFERENCE,
+    ];
   }
-  items.push({ href: "/profile", label: "Profile", icon: UserCircle });
-
-  return items;
+  if (role === Role.FACULTY_ADVISER) {
+    return [
+      { items: [...home.items, { href: "/my-students", label: "My students", icon: Users }] },
+      REFERENCE,
+    ];
+  }
+  const groups: NavGroup[] = [
+    home,
+    {
+      label: "Manage",
+      items: [
+        { href: "/users", label: "Users", icon: Users },
+        { href: "/semesters", label: "Semesters", icon: CalendarRange },
+        { href: "/final-reports", label: "Final reports", icon: BookOpenCheck },
+      ],
+    },
+  ];
+  if (role === Role.SUPER_ADMIN) {
+    groups.push({
+      label: "Records",
+      items: [
+        { href: "/audit-log", label: "Audit log", icon: ScrollText },
+        { href: "/admin/export-center", label: "Export center", icon: Download },
+      ],
+    });
+  }
+  return [...groups, REFERENCE];
 }
 
 function isActive(pathname: string, href: string) {
@@ -74,122 +110,166 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+const rowClass =
+  "flex h-11 items-center gap-2.5 rounded-md px-2.5 text-sm md:h-8 text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring";
+
 function NavLinks({
-  items,
+  groups,
   pathname,
   onNavigate,
 }: {
-  items: NavItem[];
+  groups: NavGroup[];
   pathname: string;
   onNavigate?: () => void;
 }) {
   return (
-    <nav className="flex flex-1 flex-col gap-1 px-3">
-      {items.map(({ href, label, icon: Icon }) => {
-        const active = isActive(pathname, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-              active &&
-                "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
-            )}
-          >
-            <Icon className="size-4 shrink-0" aria-hidden="true" />
-            {label}
-          </Link>
-        );
-      })}
+    <nav aria-label="Main" className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pt-2">
+      {groups.map((group, i) => (
+        <div key={group.label ?? i} className="flex flex-col gap-0.5">
+          {group.label && (
+            <p className="px-2.5 pb-1 text-xs text-sidebar-foreground/60">{group.label}</p>
+          )}
+          {group.items.map(({ href, label, icon: Icon }) => {
+            const active = isActive(pathname, href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  rowClass,
+                  active &&
+                    "bg-sidebar-accent font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+                )}
+              >
+                <Icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
 
-export function DashboardNav({ role, userEmail }: { role: Role; userEmail?: string }) {
+function AccountRow({
+  userLabel,
+  role,
+  pathname,
+  onNavigate,
+}: {
+  userLabel?: string;
+  role: Role;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const profileActive = isActive(pathname, "/profile");
+  return (
+    <div className="flex flex-col gap-0.5 border-t border-sidebar-border p-3">
+      <Link
+        href="/profile"
+        onClick={onNavigate}
+        aria-current={profileActive ? "page" : undefined}
+        className={cn(
+          rowClass,
+          "h-auto py-1.5",
+          profileActive && "bg-sidebar-accent text-sidebar-foreground"
+        )}
+      >
+        <UserCircle className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+        <span className="min-w-0">
+          <span className="block truncate font-medium text-sidebar-foreground">
+            {userLabel ?? "Profile"}
+          </span>
+          <span className="block truncate text-xs text-sidebar-foreground/60">
+            {ROLE_LABEL[role]}
+          </span>
+        </span>
+      </Link>
+      <button
+        type="button"
+        className={cn(rowClass, "cursor-pointer")}
+        onClick={() => signOut({ callbackUrl: "/login" })}
+      >
+        <LogOut className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+function Brand() {
+  return (
+    <Link
+      href="/"
+      className="flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <BrandMark className="size-7" />
+      <span className="min-w-0 leading-tight">
+        <span className="block text-sm font-semibold text-sidebar-foreground">IDSMS-CIS</span>
+        <span className="block truncate text-xs text-sidebar-foreground/60">
+          Internship monitoring
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+export function DashboardNav({ role, userLabel }: { role: Role; userLabel?: string }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const items = getNavItems(role);
+  const groups = getNavGroups(role);
+  const close = () => setMobileOpen(false);
 
   return (
     <>
-      {/* Desktop sidebar — fixed dark-navy chrome, per the thesis prototype's left-nav layout */}
-      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:w-64 md:flex-col md:border-r md:border-sidebar-border md:bg-sidebar">
-        <div className="flex h-16 items-center gap-2 px-6">
-          <span className="text-lg font-semibold tracking-tight text-sidebar-foreground">
-            IDSMS-CIS
-          </span>
+      {/* Desktop: the sidebar sits on the page ground, divided by one hairline. */}
+      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:w-60 md:flex-col md:border-r md:border-sidebar-border md:bg-sidebar">
+        <div className="flex h-16 items-center gap-2 px-5">
+          <Brand />
           <NotificationBell className="ml-auto" />
         </div>
-        <NavLinks items={items} pathname={pathname} />
-        <div className="mt-auto border-t border-sidebar-border p-3">
-          {userEmail && (
-            <p className="truncate px-3 pb-2 text-xs text-sidebar-foreground/60">{userEmail}</p>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="size-4" aria-hidden="true" />
-            Sign out
-          </Button>
-        </div>
+        <NavLinks groups={groups} pathname={pathname} />
+        <AccountRow userLabel={userLabel} role={role} pathname={pathname} />
       </aside>
 
-      {/* Mobile top bar + slide-over drawer */}
-      <header className="flex h-14 items-center justify-between border-b bg-sidebar px-4 md:hidden">
-        <span className="text-base font-semibold text-sidebar-foreground">IDSMS-CIS</span>
-        <NotificationBell className="ml-auto mr-1" />
+      {/* Phone: a 48px bar with the product, the bell and the menu. */}
+      <header className="sticky top-0 z-40 flex h-12 items-center gap-1 border-b border-sidebar-border bg-sidebar px-4 md:hidden">
+        <Brand />
+        <NotificationBell className="ml-auto" />
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation menu"
-          className="cursor-pointer rounded-md p-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          aria-expanded={mobileOpen}
+          className="flex size-11 cursor-pointer items-center justify-center rounded-md text-sidebar-foreground/75 hover:bg-sidebar-accent"
         >
           <Menu className="size-5" aria-hidden="true" />
         </button>
       </header>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
-          <div
-            className="fixed inset-0 bg-black/50"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="fixed inset-y-0 left-0 flex w-72 flex-col bg-sidebar shadow-xl">
-            <div className="flex h-16 items-center justify-between px-6">
-              <span className="text-lg font-semibold text-sidebar-foreground">IDSMS-CIS</span>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                aria-label="Close navigation menu"
-                className="cursor-pointer rounded-md p-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              >
-                <X className="size-5" aria-hidden="true" />
-              </button>
-            </div>
-            <NavLinks items={items} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
-            <div className="mt-auto border-t border-sidebar-border p-3">
-              {userEmail && (
-                <p className="truncate px-3 pb-2 text-xs text-sidebar-foreground/60">{userEmail}</p>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                onClick={() => signOut({ callbackUrl: "/login" })}
-              >
-                <LogOut className="size-4" aria-hidden="true" />
-                Sign out
-              </Button>
-            </div>
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-sidebar md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+        >
+          <div className="flex h-12 items-center border-b border-sidebar-border px-4">
+            <Brand />
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close navigation menu"
+              className="ml-auto flex size-11 cursor-pointer items-center justify-center rounded-md text-sidebar-foreground/75 hover:bg-sidebar-accent"
+            >
+              <X className="size-5" aria-hidden="true" />
+            </button>
           </div>
+          <NavLinks groups={groups} pathname={pathname} onNavigate={close} />
+          <AccountRow userLabel={userLabel} role={role} pathname={pathname} onNavigate={close} />
         </div>
       )}
     </>
