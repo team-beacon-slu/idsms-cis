@@ -2,6 +2,7 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { DocumentStatus, DocumentType, Role, WorkPlanStatus } from "@prisma/client";
 import {
   WorkPlanPendingError,
+  WorkPlanStateError,
   getLatestApprovedWorkPlanForStudent,
   getLatestWorkPlanForStudent,
   getWorkPlanHistory,
@@ -9,6 +10,7 @@ import {
   submitWorkPlan,
 } from "@/lib/services/workPlanService";
 import { ForbiddenError } from "@/lib/services/userService";
+import { submitWorkPlanSchema } from "@/lib/validators/workPlan";
 
 // SUPER_ADMIN skips assertCanAccessStudent's profile lookup entirely (see
 // userService.test.ts), keeping these tests focused on workPlanService's own
@@ -51,6 +53,30 @@ describe("submitWorkPlan", () => {
   });
 });
 
+describe("work plan rules from the 2026-10-21 review", () => {
+  it("refuses to review a plan that was already decided", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      id: "wp-1",
+      studentProfileId: "profile-1",
+      status: WorkPlanStatus.APPROVED,
+    } as never);
+
+    await expect(reviewWorkPlan("wp-1", "RETURN", "late change", adminUser)).rejects.toThrow(
+      WorkPlanStateError
+    );
+    expect(prismaMock.workPlan.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a schedule the calendar could never finish projecting", () => {
+    const parse = (scheduleConfig: unknown) =>
+      submitWorkPlanSchema.safeParse({ plannedTasks: [{ description: "Build" }], scheduleConfig });
+
+    expect(parse({ daysOfWeek: [7], hoursPerDay: 8 }).success).toBe(false);
+    expect(parse({ daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 0 }).success).toBe(false);
+    expect(parse({ daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 }).success).toBe(true);
+  });
+});
+
 describe("reviewWorkPlan", () => {
   it("rejects a Faculty Adviser — review is Coordinator/Admin only (FR-WP-02)", async () => {
     await expect(
@@ -66,6 +92,7 @@ describe("reviewWorkPlan", () => {
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
       id: "wp-1",
       studentProfileId: "profile-1",
+      status: WorkPlanStatus.SUBMITTED,
     } as never);
     prismaMock.workPlan.update.mockResolvedValue({
       id: "wp-1",
@@ -85,6 +112,7 @@ describe("reviewWorkPlan", () => {
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
       id: "wp-1",
       studentProfileId: "profile-1",
+      status: WorkPlanStatus.SUBMITTED,
     } as never);
     prismaMock.workPlan.update.mockResolvedValue({
       id: "wp-1",
@@ -107,6 +135,7 @@ describe("reviewWorkPlan", () => {
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
       id: "wp-2",
       studentProfileId: "profile-1",
+      status: WorkPlanStatus.SUBMITTED,
     } as never);
     prismaMock.workPlan.update.mockResolvedValue({
       id: "wp-2",
@@ -123,6 +152,7 @@ describe("reviewWorkPlan", () => {
     prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
       id: "wp-1",
       studentProfileId: "profile-1",
+      status: WorkPlanStatus.SUBMITTED,
     } as never);
     prismaMock.workPlan.update.mockResolvedValue({
       id: "wp-1",
