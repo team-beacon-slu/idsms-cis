@@ -9,8 +9,9 @@ const nextConfig = {
   // decoding, which closes the GHSA-2xp9 image-optimizer RCE surface on 14.x.
   images: { unoptimized: true },
   poweredByHeader: false,
-  // No page may be framed (clickjacking on one-click admin actions).
-  // shortcut: no full script CSP yet, since Next 14 needs inline scripts; add nonces with the 15 upgrade.
+  // No page may be framed (clickjacking on one-click admin actions). Pages also get
+  // the full nonce-based script CSP from src/proxy.ts; this header covers API
+  // responses and static files too.
   async headers() {
     return [
       {

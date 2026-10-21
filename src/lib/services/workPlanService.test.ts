@@ -51,6 +51,49 @@ describe("submitWorkPlan", () => {
       submitWorkPlan("profile-1", { plannedTasks: [] }, adminUser)
     ).resolves.toMatchObject({ id: "wp-1" });
   });
+
+  // Schedules are read from the latest APPROVED plan, so a resubmitted plan that
+  // doesn't carry the schedule would drop it the moment it is approved.
+  const approved = {
+    id: "wp-1",
+    status: WorkPlanStatus.APPROVED,
+    scheduleConfig: { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 },
+    scheduleChangeHistory: [{ action: "REQUESTED" }],
+  };
+  const latestIs = (latest: object) =>
+    prismaMock.workPlan.findFirst.mockImplementation(((args: {
+      where: { status?: WorkPlanStatus };
+    }) =>
+      Promise.resolve(args.where.status === WorkPlanStatus.APPROVED ? approved : latest)) as never);
+
+  it.each([
+    ["right after the approval", approved],
+    ["after an approved plan and a returned one", { id: "wp-2", status: WorkPlanStatus.RETURNED }],
+  ])("keeps the approved schedule when resubmitting %s", async (_, latest) => {
+    latestIs(latest);
+    prismaMock.workPlan.create.mockResolvedValue({ id: "wp-3" } as never);
+
+    await submitWorkPlan("profile-1", { plannedTasks: ["new task"] }, adminUser);
+
+    expect(prismaMock.workPlan.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        scheduleConfig: approved.scheduleConfig,
+        scheduleChangeHistory: approved.scheduleChangeHistory,
+      }),
+    });
+  });
+
+  it("lets an explicit schedule in the submission win", async () => {
+    latestIs(approved);
+    prismaMock.workPlan.create.mockResolvedValue({ id: "wp-3" } as never);
+    const scheduleConfig = { daysOfWeek: [1, 3, 5], hoursPerDay: 6 };
+
+    await submitWorkPlan("profile-1", { plannedTasks: [], scheduleConfig }, adminUser);
+
+    expect(prismaMock.workPlan.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ scheduleConfig }),
+    });
+  });
 });
 
 describe("work plan rules from the 2026-10-21 review", () => {

@@ -50,8 +50,40 @@ export async function processWeeklyReportAi(weeklyReportId: string): Promise<{
   const names = report.studentProfile.fullName ? [report.studentProfile.fullName] : [];
   const texts = report.dailyEntries.filter((e) => e.accomplishments?.trim());
 
+  try {
+    return await analyse(report, texts, names, settings.similarityThreshold);
+  } catch (error) {
+    // 400: Gemini rejected this content, and retrying won't change that. Record it,
+    // or this week (and every later week of the student) waits forever. Anything
+    // else (quota, outage, bad key) stays retryable.
+    if ((error as { status?: number }).status !== 400) throw error;
+    await prisma.weeklyReport.update({
+      where: { id: report.id },
+      data: {
+        similarityScore: null,
+        similarityFlag: false,
+        sentimentLabel: null,
+        sentimentConfidence: null,
+        sentimentReasoning: "The AI could not analyse this report; review it as usual.",
+        aiProcessedAt: new Date(),
+      },
+    });
+    return { processed: false, reason: "Rejected by the AI provider" };
+  }
+}
+
+async function analyse(
+  report: { id: string; studentProfileId: string; weekStart: Date },
+  texts: { id: string; accomplishments: string | null }[],
+  names: string[],
+  similarityThreshold: number
+) {
   // 1. Embed the week's days in one call and store them in the pgvector
   //    column (raw SQL — Prisma has no vector type; see migrations_manual/001).
+  //    Old vectors go first, so a day emptied on resubmission stops comparing as its old text.
+  await prisma.$executeRaw`
+    UPDATE daily_report_entries SET embedding_vector = NULL
+    WHERE weekly_report_id = ${report.id}::uuid`;
   const vectors = await embedTexts(
     texts.map((e) => e.accomplishments!),
     { names }
@@ -88,7 +120,7 @@ export async function processWeeklyReportAi(weeklyReportId: string): Promise<{
     where: { id: report.id },
     data: {
       similarityScore,
-      similarityFlag: similarityScore !== null && similarityScore > settings.similarityThreshold,
+      similarityFlag: similarityScore !== null && similarityScore > similarityThreshold,
       sentimentLabel: sentiment?.label ?? null,
       sentimentConfidence: sentiment?.confidence ?? null,
       sentimentReasoning: sentiment?.reasoning ?? null,

@@ -73,14 +73,14 @@ export default async function MonthlyReportsPage(props: {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3">
-        <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
+        <div className="bg-primary/10 text-primary hidden shrink-0 rounded-lg p-2.5 sm:block">
           <FileBarChart2 className="size-6" aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Monthly Reports</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          <h1 className="text-foreground text-2xl font-semibold tracking-tight">Monthly Reports</h1>
+          <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
             Aggregated rollups of this student&apos;s qualifying weekly reports. A month can be
-            submitted once every weekly report in it is Approved or Regarded.
+            submitted once every week in it has an Approved or Regarded weekly report.
           </p>
         </div>
       </div>

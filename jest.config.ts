@@ -13,6 +13,10 @@ const config: Config = {
   testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/", "<rootDir>/cypress/"],
   // Build output contains package.json files that collide in the module map.
   modulePathIgnorePatterns: ["<rootDir>/.next/"],
+  // Every core as a worker saturated the machine: a worker could miss Jest's
+  // shutdown deadline ("failed to exit gracefully"; no open handles found), and the
+  // run took twice as long. Half the cores is faster and quiet.
+  maxWorkers: "50%",
   // NFR-MNT-04: >=70% line coverage for service modules, >=90% for critical logic
   // (hour computation, checklist gating, RBAC). Phase 1 is the first module with
   // real logic behind it, so its critical files get a threshold now; everything

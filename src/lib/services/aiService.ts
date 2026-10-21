@@ -14,7 +14,11 @@ export const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
 export const DEFAULT_SENTIMENT_MODEL = "gemini-3.8-flash";
 
 export class AiProviderError extends Error {
-  constructor(message: string) {
+  // HTTP status from Gemini, when there was a response; 400 means it rejected this input.
+  constructor(
+    message: string,
+    readonly status?: number
+  ) {
     super(message);
     this.name = "AiProviderError";
   }
@@ -32,7 +36,8 @@ async function callGemini(model: string, method: string, body: unknown): Promise
   const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
   if (!res.ok) {
     throw new AiProviderError(
-      `Gemini ${model}:${method} failed (${res.status}): ${json.error?.message ?? "unknown"}`
+      `Gemini ${model}:${method} failed (${res.status}): ${json.error?.message ?? "unknown"}`,
+      res.status
     );
   }
   return json;

@@ -28,7 +28,10 @@ export async function POST(
     );
     if (!eligible) {
       return NextResponse.json(
-        { error: "Not all weekly reports for this month are Approved or Regarded yet" },
+        {
+          error:
+            "Every week in this month needs a weekly report that is Approved or Regarded. Check for a week you haven't started.",
+        },
         { status: 400 }
       );
     }
