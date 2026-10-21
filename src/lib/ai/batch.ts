@@ -24,19 +24,27 @@ export async function processPendingAiReports(limit = 20) {
       },
     },
     orderBy: { weekStart: "asc" },
-    take: limit,
-    select: { id: true },
+    // More than `limit`: reports still waiting on an earlier week are skipped
+    // without a provider call, so they must not fill the whole window.
+    take: limit * 5,
+    select: { id: true, studentProfileId: true },
   });
 
   let processed = 0;
   let failed = 0;
-  for (const { id } of candidates) {
+  const failedStudents = new Set<string>();
+  for (const { id, studentProfileId } of candidates) {
+    if (processed + failed >= limit) break; // the cap counts provider calls only
+    // Its later weeks would wait on the failed one anyway; leave them for the next run.
+    if (failedStudents.has(studentProfileId)) continue;
     try {
       const result = await processWeeklyReportAi(id);
       if (result.processed) processed += 1;
+      else if (result.reason === "Rejected by the AI provider") failed += 1;
     } catch (error) {
       console.error("AI processing failed", { weeklyReportId: id, error });
       failed += 1;
+      failedStudents.add(studentProfileId);
     }
   }
   return { processed, failed, skipped: false };

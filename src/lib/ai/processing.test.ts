@@ -131,3 +131,48 @@ it("leaves the report unprocessed (retryable) when the provider fails", async ()
   await expect(processWeeklyReportAi("wr-2")).rejects.toThrow("quota");
   expect(prismaMock.weeklyReport.update).not.toHaveBeenCalled();
 });
+
+it("clears the report's old vectors before storing the new ones", async () => {
+  // A day emptied on resubmission (e.g. now Absent) must not keep comparing as its old text.
+  prismaMock.$queryRaw.mockResolvedValue([{ max_similarity: null }] as never);
+  await processWeeklyReportAi("wr-2");
+
+  const sql = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
+  const calls = prismaMock.$executeRaw.mock.calls as unknown[][];
+  expect(sql(calls[0])).toContain("SET embedding_vector = NULL");
+  expect(calls[0]).toContain("wr-2");
+  expect(sql(calls[1])).toContain("SET embedding_vector =");
+});
+
+it("records a content rejection (400) so the student's later weeks aren't blocked forever", async () => {
+  (embedTexts as jest.Mock).mockRejectedValue(
+    Object.assign(new Error("Gemini embed failed (400): invalid argument"), { status: 400 })
+  );
+
+  await expect(processWeeklyReportAi("wr-2")).resolves.toEqual({
+    processed: false,
+    reason: "Rejected by the AI provider",
+  });
+  expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
+    where: { id: "wr-2" },
+    data: expect.objectContaining({
+      similarityScore: null,
+      similarityFlag: false,
+      sentimentLabel: null,
+      sentimentReasoning: expect.stringContaining("could not analyse"),
+      aiProcessedAt: expect.any(Date),
+    }),
+  });
+});
+
+it.each([429, 500, 403, undefined])(
+  "keeps a %p failure retryable: throws without marking the report processed",
+  async (status) => {
+    (embedTexts as jest.Mock).mockRejectedValue(
+      Object.assign(new Error("Gemini failed"), { status })
+    );
+
+    await expect(processWeeklyReportAi("wr-2")).rejects.toThrow("Gemini failed");
+    expect(prismaMock.weeklyReport.update).not.toHaveBeenCalled();
+  }
+);
