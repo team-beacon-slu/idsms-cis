@@ -21,9 +21,7 @@ export function EmptyState({
         className
       )}
     >
-      <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <Icon className="size-6" aria-hidden="true" />
-      </div>
+      <Icon className="size-5 text-muted-foreground" strokeWidth={1.6} aria-hidden="true" />
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">{title}</p>
         {description && <p className="max-w-sm text-sm text-muted-foreground">{description}</p>}

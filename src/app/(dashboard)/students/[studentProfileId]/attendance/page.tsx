@@ -13,6 +13,7 @@ import {
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
 import { parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import {
   Table,
   TableBody,
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatStrip } from "@/components/stat-card";
 import {
   CalendarCheck,
   CalendarClock,
@@ -136,14 +137,10 @@ export default async function AttendancePage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Attendance &amp; Schedule
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Deployment schedule, hour tracking, and deviation reports for this internship.
-        </p>
-      </div>
+      <PageHeader
+        title="Attendance"
+        description="Hours, the deployment schedule, holidays, leave and conduct for this internship."
+      />
 
       <Card>
         <CardContent className="space-y-4 p-5">
@@ -166,14 +163,14 @@ export default async function AttendancePage(props: {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Hourglass className="size-5 text-amber-600" aria-hidden="true" />
+              <Hourglass className="size-5 text-muted-foreground" aria-hidden="true" />
               <div>
                 <p className="text-sm text-muted-foreground">Hours remaining</p>
                 <p className="text-xl font-semibold text-foreground">{remainingHours}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <CalendarCheck className="size-5 text-green-600" aria-hidden="true" />
+              <CalendarCheck className="size-5 text-muted-foreground" aria-hidden="true" />
               <div>
                 <p className="text-sm text-muted-foreground">Projected completion</p>
                 <p className="text-xl font-semibold text-foreground">
@@ -209,7 +206,7 @@ export default async function AttendancePage(props: {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatStrip>
         <StatCard
           label="Pending review"
           value={pendingCount}
@@ -231,13 +228,13 @@ export default async function AttendancePage(props: {
 
           hint="Excluded from hours"
         />
-      </div>
+      </StatStrip>
 
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle>Deployment Schedule</CardTitle>
+              <CardTitle>Deployment schedule</CardTitle>
               <CardDescription>
                 Configure or request a change to the weekly schedule.
               </CardDescription>

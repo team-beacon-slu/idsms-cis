@@ -53,7 +53,7 @@ export function ExportCard({
               id={selectId}
               value={semesterId}
               onChange={(e) => setSemesterId(e.target.value)}
-              className="border-input bg-background focus-visible:ring-ring flex h-9 w-full cursor-pointer rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+              className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
             >
               <option value="">All semesters</option>
               {semesters.map((s) => (

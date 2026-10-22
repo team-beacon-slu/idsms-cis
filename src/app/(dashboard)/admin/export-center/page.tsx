@@ -86,7 +86,7 @@ export default async function ExportCenterPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Export Center</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Export center</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Download system data as Excel workbooks. Times are Manila time.
         </p>
@@ -120,7 +120,7 @@ export default async function ExportCenterPage() {
         {dataRequests.open.length === 0 ? (
           <p className="text-sm text-muted-foreground">No open data requests.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <Table>
               <caption className="sr-only">Open data requests, soonest due first</caption>
               <TableHeader>
@@ -187,7 +187,7 @@ export default async function ExportCenterPage() {
         {retention.length === 0 ? (
           <p className="text-sm text-muted-foreground">No files are due for review.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <Table>
               <caption className="sr-only">Files due for retention review</caption>
               <TableHeader>
@@ -237,7 +237,7 @@ export default async function ExportCenterPage() {
             description="Exports you download appear here with who ran them and when."
           />
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <Table>
               <caption className="sr-only">Latest 20 exports, newest first</caption>
               <TableHeader>

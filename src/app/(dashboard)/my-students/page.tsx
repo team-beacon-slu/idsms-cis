@@ -92,7 +92,7 @@ export default async function MyStudentsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <Table>
               <TableCaption className="sr-only">
                 Students in your assigned class groups

@@ -196,7 +196,7 @@ export function ConductCard({
             <tr className="border-b text-left text-xs text-muted-foreground">
               <th className="py-2 pr-3 font-medium">Category</th>
               <th className="py-2 pr-3 font-medium">Count</th>
-              <th className="py-2 pr-3 font-medium">ADVISER</th>
+              <th className="py-2 pr-3 font-medium">Adviser</th>
               <th className="py-2 font-medium">WWR</th>
             </tr>
           </thead>

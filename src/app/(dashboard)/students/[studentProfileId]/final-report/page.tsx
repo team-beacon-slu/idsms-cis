@@ -7,6 +7,7 @@ import { FINAL_REPORT_REVIEWERS, getFinalReportState } from "@/lib/services/fina
 import { getFinalTechnicalReportDocument } from "@/lib/services/documentService";
 import { toContent } from "@/lib/validators/finalReport";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { FinalReportEditor } from "./final-report-editor";
 import { FinalReportReview } from "./final-report-review";
 
@@ -50,15 +51,10 @@ export default async function FinalReportPage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Final Technical Report
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Written once you reach {state.threshold} confirmed hours ({state.renderedHours} so far),
-          then reviewed by the department coordinator.
-        </p>
-      </div>
+      <PageHeader
+        title="Final report"
+        description={`The final technical report. Opens at ${state.threshold} confirmed hours (${state.renderedHours} so far); reviewed by the department coordinator.`}
+      />
 
       {!state.unlocked && !report ? (
         <Card>

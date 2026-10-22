@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { ClipboardCheck, CheckCircle2, Clock3, RotateCcw } from "lucide-react";
+import { CheckCircle2, Clock3, RotateCcw } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { getChecklistProgress } from "@/lib/services/checklistService";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import {
   Table,
   TableBody,
@@ -13,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatStrip } from "@/components/stat-card";
+import { requirementLabel } from "@/app/(dashboard)/student-dashboard";
 import { StatusBadge } from "@/components/status-badge";
 import { getEndorsementLetterDocument } from "@/lib/services/documentService";
 import { ChecklistItemRow } from "./checklist-item-row";
@@ -46,26 +48,16 @@ export default async function ChecklistPage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
-          <ClipboardCheck className="size-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Pre-Deployment Checklist
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            All 9 requirements must be Approved before the endorsement letter can be released.
-          </p>
-          {isOwner && (
-            <p className="mt-2 max-w-2xl text-sm text-foreground">
-              Submit this document in Google Classroom. Your adviser will update its status here.
-            </p>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Checklist"
+        description={
+          isOwner
+            ? "Nine pre-deployment requirements, submitted in Google Classroom. Your adviser updates each status here."
+            : "Nine pre-deployment requirements; all must be approved before the endorsement letter."
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatStrip>
         <StatCard
           label="Approved"
           value={`${progress.approvedCount} / ${progress.total}`}
@@ -75,7 +67,7 @@ export default async function ChecklistPage(props: {
         />
         <StatCard label="Pending" value={pendingCount} icon={Clock3} />
         <StatCard label="Returned" value={returnedCount} icon={RotateCcw} />
-      </div>
+      </StatStrip>
 
       <Card>
         <CardHeader>
@@ -105,10 +97,9 @@ export default async function ChecklistPage(props: {
               <CardDescription>
                 {progress.gateSatisfied
                   ? "All requirements approved — endorsement letter is unblocked."
-                  : "Your adviser updates each item's status after checking your submission."}
+                  : `${progress.approvedCount} of ${progress.total} approved.`}
               </CardDescription>
             </div>
-            <StatusBadge status={progress.gateSatisfied ? "APPROVED" : "PENDING"} />
           </div>
           <div
             className="h-2 w-full overflow-hidden rounded-full bg-muted"
@@ -140,7 +131,7 @@ export default async function ChecklistPage(props: {
                 {progress.items.map((item) => (
                   <TableRow key={item.id} className="transition-colors">
                     <TableCell className="font-medium text-foreground">
-                      {item.requirementType.replaceAll("_", " ")}
+                      {requirementLabel(item.requirementType)}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={item.status} />
@@ -161,6 +152,14 @@ export default async function ChecklistPage(props: {
                     </TableCell>
                   </TableRow>
                 ))}
+                {progress.items.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                      No requirements are tracked for this intern yet. The coordinator adds them
+                      when the intern is imported.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { FileBarChart2 } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import {
@@ -8,6 +7,7 @@ import {
 } from "@/lib/services/monthlyReportService";
 import { listWeeklyReportsForStudent } from "@/lib/services/weeklyReportService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { MonthlyReportView, type MonthRollup } from "./monthly-report-view";
 
 // "YYYY-MM" keys of every calendar month a week touches — a week straddling
@@ -72,18 +72,10 @@ export default async function MonthlyReportsPage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <div className="bg-primary/10 text-primary hidden shrink-0 rounded-lg p-2.5 sm:block">
-          <FileBarChart2 className="size-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-foreground text-2xl font-semibold tracking-tight">Monthly Reports</h1>
-          <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-            Aggregated rollups of this student&apos;s qualifying weekly reports. A month can be
-            submitted once every week in it has an Approved or Regarded weekly report.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Monthly reports"
+        description="Each month rolls up its weekly reports. It can be submitted once every week in it is approved or regarded."
+      />
 
       <Card>
         <CardHeader>

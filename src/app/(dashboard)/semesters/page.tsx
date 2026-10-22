@@ -70,7 +70,7 @@ export default async function SemestersPage() {
           }
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
             <caption className="sr-only">Semesters</caption>
             <TableHeader>
