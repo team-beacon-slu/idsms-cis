@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
+import { PRIVACY_KEY_POINTS, TERMS_KEY_POINTS } from "@/components/legal-content";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,10 +16,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Blocking: no close button, Escape and outside clicks do nothing. The only ways out are the two answers.
+// Blocking: no close button, Escape and outside clicks do nothing. The only ways out are the two
+// answers, and agreeing needs the box ticked.
 export function PrivacyConsentDialog() {
   const router = useRouter();
   const [pending, setPending] = useState<"agree" | "decline" | null>(null);
+  const [read, setRead] = useState(false);
 
   async function answer(agree: boolean) {
     setPending(agree ? "agree" : "decline");
@@ -44,32 +47,60 @@ export function PrivacyConsentDialog() {
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Data privacy notice</DialogTitle>
+          <DialogTitle>Privacy notice and terms of use</DialogTitle>
           <DialogDescription>
-            Please read this before using IDSMS-CIS. It follows the Data Privacy Act of 2012 (RA
+            Please read these before using IDSMS-CIS. They follow the Data Privacy Act of 2012 (RA
             10173).
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 text-sm text-foreground">
+        <div className="space-y-4 text-sm text-foreground">
+          <div>
+            <p className="font-medium">Your data</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {PRIVACY_KEY_POINTS.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="font-medium">Using IDSMS</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {TERMS_KEY_POINTS.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
           <p>
-            Saint Louis University SAMCIS collects your name, student number, email, program,
-            internship company, attendance, daily and weekly reports, and the documents you upload.
+            Read the full{" "}
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              privacy notice
+            </a>{" "}
+            and{" "}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              terms of use
+            </a>{" "}
+            (opens in a new tab).
           </p>
-          <p>
-            We use them only to monitor your internship: checking requirements, counting hours,
-            reviewing reports, and generating your endorsement letter and final report.
-          </p>
-          <p>
-            Only you, your faculty adviser, the department coordinator and system administrators can
-            see your records. Records are kept for three years after the semester, then deleted.
-          </p>
-          <p>
-            You may request a copy or correction of your data at any time from your Profile page.
-          </p>
-          <p>
-            Faculty and staff: you agree to use interns&apos; records only for monitoring their
-            internship, and not to copy or share them outside IDSMS-CIS.
-          </p>
+          {/* An explicit tick, not just a button: the agreement is informed and provable (NPC consent standard). */}
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border p-3">
+            <input
+              type="checkbox"
+              checked={read}
+              onChange={(e) => setRead(e.target.checked)}
+              className="mt-0.5 size-4 cursor-pointer accent-brand-600"
+            />
+            <span>I have read and agree to the privacy notice and the terms of use.</span>
+          </label>
           <p className="text-muted-foreground">
             If you disagree, you will be signed out. The system cannot monitor your internship
             without this data, so please talk to your coordinator.
@@ -85,7 +116,7 @@ export function PrivacyConsentDialog() {
             {pending === "decline" ? "Signing out..." : "I disagree"}
           </Button>
           <Button
-            disabled={pending !== null}
+            disabled={pending !== null || !read}
             onClick={() => void answer(true)}
             className="cursor-pointer"
           >

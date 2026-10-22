@@ -135,6 +135,15 @@ function LoginForm() {
           </p>
         </CardContent>
       </Card>
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+          Privacy notice
+        </Link>
+        {" · "}
+        <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
+          Terms of use
+        </Link>
+      </p>
     </AuthShell>
   );
 }
