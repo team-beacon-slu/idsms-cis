@@ -22,6 +22,8 @@ const REQUIREMENT_LABELS: Record<string, string> = {
   GOVERNMENT_COMPANY_PERMIT: "Government or company permit",
   WORK_PLAN: "Work plan",
   MOA: "Memorandum of Agreement (MOA)",
+  PROOF_OF_CORPORATE_LEGITIMACY: "Proof of corporate legitimacy",
+  INTERNSHIP_AGREEMENT: "Internship agreement",
 };
 
 export function requirementLabel(type: string): string {
@@ -42,16 +44,11 @@ export function StudentDashboardTables({
   requirements,
   history,
 }: {
-  requirements: Array<{ requirementType: string; status: string }>;
+  requirements: Array<{ requirementType: string; status: string; required: boolean }>;
   history: WeeklyHistoryRow[];
 }) {
-  // All nine requirements always show, so the list agrees with the "0/9" count even
-  // before the coordinator has created any checklist rows.
-  const byType = new Map(requirements.map((r) => [r.requirementType, r.status]));
-  const rows = Object.keys(REQUIREMENT_LABELS).map((type) => ({
-    requirementType: type,
-    status: byType.get(type) ?? "NOT_STARTED",
-  }));
+  // The items that apply to this intern; optional ones say so.
+  const rows = requirements;
   return (
     // Stacked, not side by side: nine requirements against a short history left the
     // shorter card ending far above its neighbour. History first: it changes weekly.
@@ -75,6 +72,11 @@ export function StudentDashboardTables({
               >
                 <span className="font-medium text-foreground">
                   {requirementLabel(item.requirementType)}
+                  {!item.required && (
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                      optional
+                    </span>
+                  )}
                 </span>
                 <StatusBadge status={item.status} />
               </li>

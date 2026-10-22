@@ -13,6 +13,7 @@ import {
 } from "@/lib/services/complianceService";
 
 import { ForbiddenError } from "@/lib/services/userService";
+import { DEFAULT_REQUIRED_CHECKLIST } from "@/lib/services/checklistService";
 
 beforeEach(() => {
   resetPrismaMock();
@@ -34,7 +35,10 @@ const profile = (over: Record<string, unknown> = {}) => ({
   user: { email: "ana@slu.edu.ph" },
   classGroup: { name: "BSIT 4A" },
   company: { name: "Acme" },
-  checklistItems: Array.from({ length: 9 }, () => ({ status: "APPROVED" })),
+  checklistItems: DEFAULT_REQUIRED_CHECKLIST.map((requirementType) => ({
+    requirementType,
+    status: "APPROVED",
+  })),
   weeklyReports: [],
   ...over,
 });
@@ -153,7 +157,7 @@ describe("getComplianceRows", () => {
     const [row] = await getComplianceRows({ kind: "department", semesterId: "sem-1" }, NOW);
 
     expect(row.confirmedHours).toBe(0);
-    expect(row.checklistTotal).toBe(0);
+    expect(row.checklistTotal).toBe(9); // the required count, even before any checklist rows exist
     expect(row.hoursPercent).toBe(0);
     expect(row.dueWeekState).toBe("NOT_STARTED");
     expect(row.status).toBe("NOT_DEPLOYED");
@@ -240,7 +244,13 @@ describe("getComplianceRows", () => {
 
   it("flags NEEDS_ATTENTION for an incomplete checklist or a missing due-week report", async () => {
     prismaMock.studentProfile.findMany.mockResolvedValue([
-      profile({ id: "a", checklistItems: [{ status: "APPROVED" }, { status: "PENDING" }] }),
+      profile({
+        id: "a",
+        checklistItems: [
+          { requirementType: "MEDICAL_CERTIFICATE", status: "APPROVED" },
+          { requirementType: "MOA", status: "PENDING" },
+        ],
+      }),
       profile({ id: "b" }), // full checklist but nothing for the due week
     ] as never);
     const rows = await getComplianceRows({ kind: "department", semesterId: "sem-1" }, NOW);

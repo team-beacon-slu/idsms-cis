@@ -240,6 +240,7 @@ export interface UpdateCompanyInput {
   workModality?: Company["workModality"];
   supervisorName?: string;
   supervisorContact?: string;
+  isForeign?: boolean;
 }
 
 // FR-MOA-06: edit/verify is staff-only — enforced by the route's requireRole,

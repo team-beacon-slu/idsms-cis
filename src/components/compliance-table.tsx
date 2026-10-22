@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { MiniTrack } from "@/components/internship-track";
 import { Users } from "lucide-react";
-import { CHECKLIST_REQUIRED } from "@/lib/utils/checklist";
 import { StatusBadge } from "@/components/status-badge";
 import {
   Table,
@@ -89,7 +88,7 @@ export function ComplianceTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  {row.checklistApproved}/{CHECKLIST_REQUIRED}
+                  {row.checklistApproved}/{row.checklistTotal}
                 </TableCell>
                 {deductions && (
                   <TableCell>

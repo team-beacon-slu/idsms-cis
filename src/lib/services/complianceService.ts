@@ -4,7 +4,7 @@ import { buildInternshipTrack, type TrackKind } from "@/lib/utils/internshipTrac
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/services/userService";
 import { getLatestSubmission, isAwaitingReview } from "@/lib/services/weeklyReportService";
-import { CHECKLIST_REQUIRED } from "@/lib/utils/checklist";
+import { checklistRequirements, getRequiredChecklistTypes } from "@/lib/services/checklistService";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
 import { formatManilaDateTime } from "@/lib/utils/excelExport";
 import {
@@ -64,7 +64,7 @@ export const COMPLIANCE_COLUMNS: Array<{ key: string; header: string }> = [
 
 // ComplianceRow -> record keyed by COMPLIANCE_COLUMNS ("approved/9" display).
 export function toComplianceSheetRow(r: ComplianceRow): Record<string, unknown> {
-  return { ...r, checklistApproved: `${r.checklistApproved}/${CHECKLIST_REQUIRED}` };
+  return { ...r, checklistApproved: `${r.checklistApproved}/${r.checklistTotal}` };
 }
 
 const CONFIRMING_STATUSES = new Set<WeeklyReportStatus>(["APPROVED", "REGARDED"]);
@@ -156,6 +156,7 @@ export async function getComplianceRows(
   const dueWeekStart = addDays(getWeekStartMonday(now), -7);
   const dueKey = toDateKey(dueWeekStart);
 
+  const required = await getRequiredChecklistTypes();
   // One bounded query for the whole scope: no per-student follow-up queries.
   const students = await prisma.studentProfile.findMany({
     where,
@@ -167,10 +168,11 @@ export async function getComplianceRows(
       classGroupId: true,
       companyId: true,
       requiredHours: true,
+      startBeforeMoaAllowed: true,
       user: { select: { email: true } },
-      classGroup: { select: { name: true } },
-      company: { select: { name: true } },
-      checklistItems: { select: { status: true } },
+      classGroup: { select: { name: true, classType: true } },
+      company: { select: { name: true, isForeign: true } },
+      checklistItems: { select: { requirementType: true, status: true } },
       weeklyReports: {
         select: {
           weekStart: true,
@@ -197,7 +199,16 @@ export async function getComplianceRows(
     const hoursPercent =
       s.requiredHours > 0 ? Math.min(100, Math.round((confirmedHours / s.requiredHours) * 100)) : 0;
 
-    const checklistApproved = s.checklistItems.filter((i) => i.status === "APPROVED").length;
+    // Counted against this intern's required items (Super Admin list, minus what doesn't apply).
+    const { gate } = checklistRequirements(required, {
+      isForeignCompany: s.company?.isForeign ?? false,
+      classType: s.classGroup?.classType ?? null,
+      startBeforeMoaAllowed: s.startBeforeMoaAllowed ?? false,
+    });
+    const checklistApproved = s.checklistItems.filter(
+      (i) => i.status === "APPROVED" && gate.has(i.requirementType)
+    ).length;
+    const checklistTotal = gate.size;
     const dueWeekState = reportState(
       s.weeklyReports.find((r) => toDateKey(r.weekStart) === dueKey)
     );
@@ -206,7 +217,7 @@ export async function getComplianceRows(
     let status: ComplianceStatus;
     if (!s.companyId) status = "NOT_DEPLOYED";
     else if (s.requiredHours > 0 && confirmedHours >= s.requiredHours) status = "COMPLETED";
-    else if (checklistApproved < CHECKLIST_REQUIRED || UNSUBMITTED_STATES.has(dueWeekState))
+    else if (checklistApproved < checklistTotal || UNSUBMITTED_STATES.has(dueWeekState))
       status = "NEEDS_ATTENTION";
     else status = "ON_TRACK";
 
@@ -231,7 +242,7 @@ export async function getComplianceRows(
       requiredHours: s.requiredHours,
       hoursPercent,
       checklistApproved,
-      checklistTotal: s.checklistItems.length,
+      checklistTotal,
       dueWeekStart: dueKey,
       dueWeekState,
       awaitingReview,
@@ -345,7 +356,7 @@ export function summarizeByProgram(rows: ComplianceRow[]): Array<{
     students: group.length,
     deployed: group.filter((r) => r.status !== "NOT_DEPLOYED").length,
     avgHoursPercent: Math.round(group.reduce((sum, r) => sum + r.hoursPercent, 0) / group.length),
-    checklistComplete: group.filter((r) => r.checklistApproved >= CHECKLIST_REQUIRED).length,
+    checklistComplete: group.filter((r) => r.checklistApproved >= r.checklistTotal).length,
     needsAttention: group.filter((r) => r.status === "NEEDS_ATTENTION").length,
   }));
 }
