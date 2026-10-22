@@ -27,6 +27,7 @@ import {
   WorkPlanNotApprovedError,
 } from "@/lib/services/attendanceService";
 import { SemesterStateError } from "@/lib/services/semesterService";
+import { ClassGroupStateError } from "@/lib/services/classGroupService";
 import {
   ComplianceNotFoundError,
   DataRequestStateError,
@@ -94,6 +95,7 @@ export function handleApiError(error: unknown): NextResponse {
   }
   if (
     error instanceof SemesterStateError ||
+    error instanceof ClassGroupStateError ||
     error instanceof FinalReportStateError ||
     error instanceof DataRequestStateError ||
     error instanceof RetentionStateError ||

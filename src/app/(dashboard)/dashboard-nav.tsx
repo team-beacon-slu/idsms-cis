@@ -8,6 +8,7 @@ import { Role } from "@prisma/client";
 import {
   LayoutDashboard,
   Users,
+  UsersRound,
   Building2,
   Calendar,
   CalendarRange,
@@ -88,6 +89,7 @@ export function getNavGroups(role: Role): NavGroup[] {
       label: "Manage",
       items: [
         { href: "/users", label: "Users", icon: Users },
+        { href: "/class-groups", label: "Class groups", icon: UsersRound },
         { href: "/semesters", label: "Semesters", icon: CalendarRange },
         { href: "/final-reports", label: "Final reports", icon: BookOpenCheck },
       ],
