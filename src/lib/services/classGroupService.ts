@@ -1,7 +1,11 @@
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
-import { assignAdviserSchema, createClassGroupSchema } from "@/lib/validators/classGroup";
+import {
+  assignAdviserSchema,
+  createClassGroupSchema,
+  renameClassGroupSchema,
+} from "@/lib/validators/classGroup";
 
 // Class groups and who advises them. Advisers only see interns through these
 // assignments (assertCanAccessStudent), and the class-list import files students
@@ -66,6 +70,69 @@ export async function createClassGroup(
       tx
     );
     return created;
+  });
+}
+
+export async function renameClassGroup(
+  classGroupId: string,
+  input: unknown,
+  actingUserId: string,
+  ipAddress?: string | null
+): Promise<void> {
+  const { name } = renameClassGroupSchema.parse(input);
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.classGroup.findUnique({
+      where: { id: classGroupId },
+      select: { name: true, deletedAt: true },
+    });
+    if (!before || before.deletedAt) {
+      throw new ClassGroupStateError("That class group no longer exists");
+    }
+    await tx.classGroup.update({ where: { id: classGroupId }, data: { name } });
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "CLASS_GROUP_RENAMED",
+        entityType: "ClassGroup",
+        entityId: classGroupId,
+        ipAddress,
+        detail: { from: before.name, to: name },
+      },
+      tx
+    );
+  });
+}
+
+// Soft delete, and only while empty: interns filed in a group would lose their adviser's view.
+export async function deleteClassGroup(
+  classGroupId: string,
+  actingUserId: string,
+  ipAddress?: string | null
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const group = await tx.classGroup.findUnique({
+      where: { id: classGroupId },
+      select: { name: true, deletedAt: true, _count: { select: { students: true } } },
+    });
+    if (!group || group.deletedAt) {
+      throw new ClassGroupStateError("That class group no longer exists");
+    }
+    if (group._count.students > 0) {
+      throw new ClassGroupStateError("Move or remove this group's interns before deleting it");
+    }
+    await tx.facultyClassGroup.deleteMany({ where: { classGroupId } });
+    await tx.classGroup.update({ where: { id: classGroupId }, data: { deletedAt: new Date() } });
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "CLASS_GROUP_DELETED",
+        entityType: "ClassGroup",
+        entityId: classGroupId,
+        ipAddress,
+        detail: { name: group.name },
+      },
+      tx
+    );
   });
 }
 

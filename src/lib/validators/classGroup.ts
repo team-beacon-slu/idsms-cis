@@ -18,6 +18,14 @@ export const createClassGroupSchema = z
     path: ["endDate"],
   });
 
+export const renameClassGroupSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter a class group name, e.g. BSIT 4A")
+    .max(60, "Keep the name under 60 characters"),
+});
+
 export const assignAdviserSchema = z.object({
   facultyId: z.uuid("Choose a faculty adviser"),
   semesterId: z.uuid("Choose a semester"),

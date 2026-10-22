@@ -687,8 +687,6 @@ export async function validateScheduleChangeFaculty(
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  void ipAddress;
-
   // The PENDING_FACULTY read and the resulting history append must be one
   // atomic unit — otherwise two concurrent reviews of the same request (a
   // double-click, a retried request) could both pass the state gate before
@@ -708,6 +706,16 @@ export async function validateScheduleChangeFaculty(
 
     const nextStatus = action === "APPROVE" ? "PENDING_COORDINATOR" : "REJECTED";
 
+    await logEvent(
+      {
+        userId: facultyId,
+        action: action === "APPROVE" ? "SCHEDULE_CHANGE_VALIDATED" : "SCHEDULE_CHANGE_REJECTED",
+        entityType: "WorkPlan",
+        entityId: workPlanId,
+        ipAddress,
+      },
+      tx
+    );
     await logScheduleChangeHistory(
       workPlanId,
       {
@@ -746,8 +754,6 @@ export async function approveScheduleChangeCoordinator(
   action: "APPROVE" | "REJECT",
   ipAddress?: string | null
 ): Promise<{ workPlanId: string; status: string }> {
-  void ipAddress;
-
   // Same reasoning as `validateScheduleChangeFaculty` above: the
   // PENDING_COORDINATOR read and the resulting history append must be one
   // atomic unit so two concurrent coordinator reviews of the same request
@@ -765,6 +771,16 @@ export async function approveScheduleChangeCoordinator(
 
     const resultStatus = action === "APPROVE" ? "APPROVED" : "REJECTED";
 
+    await logEvent(
+      {
+        userId: coordinatorId,
+        action: action === "APPROVE" ? "SCHEDULE_CHANGE_APPROVED" : "SCHEDULE_CHANGE_REJECTED",
+        entityType: "WorkPlan",
+        entityId: workPlanId,
+        ipAddress,
+      },
+      tx
+    );
     await logScheduleChangeHistory(
       workPlanId,
       {

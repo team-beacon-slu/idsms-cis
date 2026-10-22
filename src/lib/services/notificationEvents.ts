@@ -106,16 +106,6 @@ export async function notifyReportSubmitted(args: {
   }
 }
 
-// 4 — in-app only: the #70 sendReportStatusEmail already emails the student.
-export async function notifyReportReturned(studentProfileId: string, notes: string) {
-  await toStudent(studentProfileId, {
-    trigger: "REPORT_RETURNED",
-    title: "Weekly report returned for revision",
-    body: notes,
-    link: weeklyReportsLink(studentProfileId),
-  });
-}
-
 // 7
 export async function notifyEndorsementReady(studentProfileId: string) {
   await toStudent(studentProfileId, {
@@ -158,6 +148,47 @@ export async function notifyWorkPlanReviewed(
     link: `/students/${studentProfileId}/work-plan`,
     email: true,
   });
+}
+
+// Schedule changes need two approvals; tell whoever acts next, then the intern.
+export async function notifyScheduleChange(
+  studentProfileId: string,
+  stage: "REQUESTED" | "PENDING_COORDINATOR" | "APPROVED" | "REJECTED"
+) {
+  const link = `/students/${studentProfileId}/attendance`;
+  if (stage === "APPROVED" || stage === "REJECTED") {
+    await toStudent(studentProfileId, {
+      trigger: "SCHEDULE_CHANGE",
+      title: `Schedule change ${stage === "APPROVED" ? "approved" : "not approved"}`,
+      body:
+        stage === "APPROVED"
+          ? "Your new schedule applies from today. Earlier days keep the old one."
+          : "Your schedule change request was not approved. Your current schedule stays.",
+      link,
+      email: true,
+    });
+    return;
+  }
+  try {
+    const userIds =
+      stage === "REQUESTED"
+        ? await getAssignedFacultyIds(studentProfileId)
+        : await getDepartmentStaffIds();
+    if (userIds.length === 0) return;
+    await notify({
+      userIds,
+      trigger: "SCHEDULE_CHANGE",
+      title:
+        stage === "REQUESTED"
+          ? "Schedule change awaiting your validation"
+          : "Schedule change awaiting final approval",
+      body: "An intern asked to change their work schedule. Review it on their Attendance page.",
+      link,
+      email: true,
+    });
+  } catch (error) {
+    console.error("Notification recipient lookup failed", { trigger: "SCHEDULE_CHANGE", error });
+  }
 }
 
 const REQUEST_LABEL: Record<string, string> = {

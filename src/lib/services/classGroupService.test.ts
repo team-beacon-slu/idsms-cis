@@ -5,6 +5,8 @@ import {
   ClassGroupStateError,
   assignAdviser,
   createClassGroup,
+  deleteClassGroup,
+  renameClassGroup,
   removeAdviser,
 } from "@/lib/services/classGroupService";
 
@@ -102,6 +104,57 @@ describe("removeAdviser", () => {
       expect.objectContaining({
         data: expect.objectContaining({ action: "ADVISER_UNASSIGNED", entityId: "cg-1" }),
       })
+    );
+  });
+});
+
+describe("renameClassGroup / deleteClassGroup", () => {
+  it("renames and logs old and new names", async () => {
+    prismaMock.classGroup.findUnique.mockResolvedValue({
+      name: "BSIT 4A",
+      deletedAt: null,
+    } as never);
+    await renameClassGroup("cg-1", { name: " BSIT 4B " }, "coord-1");
+    expect(prismaMock.classGroup.update).toHaveBeenCalledWith({
+      where: { id: "cg-1" },
+      data: { name: "BSIT 4B" },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "CLASS_GROUP_RENAMED",
+          detail: { from: "BSIT 4A", to: "BSIT 4B" },
+        }),
+      })
+    );
+  });
+
+  it("refuses to delete a group that still has interns", async () => {
+    prismaMock.classGroup.findUnique.mockResolvedValue({
+      name: "BSIT 4A",
+      deletedAt: null,
+      _count: { students: 3 },
+    } as never);
+    await expect(deleteClassGroup("cg-1", "coord-1")).rejects.toThrow(ClassGroupStateError);
+    expect(prismaMock.classGroup.update).not.toHaveBeenCalled();
+  });
+
+  it("soft-deletes an empty group and drops its adviser assignments", async () => {
+    prismaMock.classGroup.findUnique.mockResolvedValue({
+      name: "BSIT 4A",
+      deletedAt: null,
+      _count: { students: 0 },
+    } as never);
+    await deleteClassGroup("cg-1", "coord-1");
+    expect(prismaMock.facultyClassGroup.deleteMany).toHaveBeenCalledWith({
+      where: { classGroupId: "cg-1" },
+    });
+    expect(prismaMock.classGroup.update).toHaveBeenCalledWith({
+      where: { id: "cg-1" },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "CLASS_GROUP_DELETED" }) })
     );
   });
 });

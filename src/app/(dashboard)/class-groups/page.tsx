@@ -5,7 +5,12 @@ import { listAdviserOptions, listClassGroups } from "@/lib/services/classGroupSe
 import { listSemesters } from "@/lib/services/semesterService";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AssignAdviserForm, NewClassGroupForm, RemoveAdviserButton } from "./class-group-forms";
+import {
+  AssignAdviserForm,
+  ClassGroupActions,
+  NewClassGroupForm,
+  RemoveAdviserButton,
+} from "./class-group-forms";
 
 const MANAGERS: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
@@ -50,12 +55,19 @@ export default async function ClassGroupsPage() {
       ) : (
         groups.map((g) => (
           <Card key={g.id}>
-            <CardHeader>
-              <CardTitle>{g.name}</CardTitle>
-              <CardDescription>
-                {g.program} · {g.classType} · {g._count.students}{" "}
-                {g._count.students === 1 ? "intern" : "interns"}
-              </CardDescription>
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>{g.name}</CardTitle>
+                <CardDescription>
+                  {g.program} · {g.classType} · {g._count.students}{" "}
+                  {g._count.students === 1 ? "intern" : "interns"}
+                </CardDescription>
+              </div>
+              <ClassGroupActions
+                classGroupId={g.id}
+                name={g.name}
+                internCount={g._count.students}
+              />
             </CardHeader>
             <CardContent className="space-y-4">
               {g.facultyGroups.length === 0 ? (

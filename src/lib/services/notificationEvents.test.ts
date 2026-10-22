@@ -2,19 +2,24 @@ jest.mock("@/lib/services/notify", () => ({ notify: jest.fn() }));
 jest.mock("@/lib/services/notificationRecipients", () => ({
   getStudentUserId: jest.fn(),
   getAssignedFacultyIds: jest.fn(),
+  getDepartmentStaffIds: jest.fn(),
 }));
 
 import { prismaMock } from "@/testUtils/prismaMock";
 import { notify } from "@/lib/services/notify";
-import { getAssignedFacultyIds, getStudentUserId } from "@/lib/services/notificationRecipients";
+import {
+  getAssignedFacultyIds,
+  getDepartmentStaffIds,
+  getStudentUserId,
+} from "@/lib/services/notificationRecipients";
 import {
   notifyAccountCreated,
   notifyAccountsCreatedByEmail,
   notifyChecklistReviewed,
   notifyEndorsementReady,
   notifyPasswordReset,
-  notifyReportReturned,
   notifyReportSubmitted,
+  notifyScheduleChange,
   notifyTimeRequestReviewed,
   notifyWorkPlanReviewed,
 } from "@/lib/services/notificationEvents";
@@ -64,16 +69,27 @@ it("report submitted → the student and their assigned faculty, by email too", 
   );
 });
 
-it("report returned → in-app only (the #70 status email already covers email)", async () => {
-  await notifyReportReturned("p-1", "Add more detail");
+it("schedule change: request goes to the advisers, validation to the coordinators, the decision to the intern", async () => {
+  jest.mocked(getAssignedFacultyIds).mockResolvedValue(["fac-1"]);
+  jest.mocked(getDepartmentStaffIds).mockResolvedValue(["coord-1"]);
+
+  await notifyScheduleChange("p-1", "REQUESTED");
   expect(lastCall()).toEqual(
     expect.objectContaining({
-      userIds: ["stu-1"],
-      trigger: "REPORT_RETURNED",
-      body: "Add more detail",
+      userIds: ["fac-1"],
+      trigger: "SCHEDULE_CHANGE",
+      link: "/students/p-1/attendance",
+      email: true,
     })
   );
-  expect(lastCall().email).toBeFalsy();
+
+  await notifyScheduleChange("p-1", "PENDING_COORDINATOR");
+  expect(lastCall()).toEqual(expect.objectContaining({ userIds: ["coord-1"] }));
+
+  await notifyScheduleChange("p-1", "APPROVED");
+  expect(lastCall()).toEqual(
+    expect.objectContaining({ userIds: ["stu-1"], title: "Schedule change approved" })
+  );
 });
 
 it("account created never carries a password", async () => {

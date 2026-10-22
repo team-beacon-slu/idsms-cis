@@ -14,6 +14,7 @@ import {
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
+import { notifyScheduleChange } from "@/lib/services/notificationEvents";
 
 // FR-AT-01: initial schedule config, student self-only.
 export async function POST(
@@ -75,6 +76,7 @@ export async function PATCH(
     }
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await requestScheduleChange(params.studentProfileId, body, user, ipAddress);
+    await notifyScheduleChange(params.studentProfileId, "REQUESTED");
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);

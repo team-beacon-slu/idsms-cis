@@ -8,6 +8,7 @@ import { scheduleChangeReviewSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
+import { notifyScheduleChange } from "@/lib/services/notificationEvents";
 
 // FR-AT-09 step 2: Department Coordinator/Admin only. `assertCanAccessStudent`
 // always passes for these two roles (see userService.ts) — kept here anyway
@@ -25,6 +26,10 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const { action } = scheduleChangeReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await approveScheduleChangeCoordinator(params.id, user.id, action, ipAddress);
+    await notifyScheduleChange(
+      studentProfileId,
+      result.status === "APPROVED" ? "APPROVED" : "REJECTED"
+    );
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, UserPlus, X } from "lucide-react";
+import { Pencil, Plus, Trash2, UserPlus, X } from "lucide-react";
 import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,5 +217,103 @@ export function RemoveAdviserButton({
       <X className="size-3.5" aria-hidden="true" />
       Remove<span className="sr-only"> {label}</span>
     </Button>
+  );
+}
+
+// Rename inline; delete asks for a second click instead of a browser dialog.
+export function ClassGroupActions({
+  classGroupId,
+  name,
+  internCount,
+}: {
+  classGroupId: string;
+  name: string;
+  internCount: number;
+}) {
+  const { isPending, run } = useSubmit();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+  const [confirming, setConfirming] = useState(false);
+
+  if (editing) {
+    return (
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const ok = await run(
+            `/api/class-groups/${classGroupId}`,
+            { method: "PATCH", body: { name: draft } },
+            "Class group renamed"
+          );
+          if (ok) setEditing(false);
+        }}
+        className="flex flex-wrap items-center gap-2"
+      >
+        <Label htmlFor={`rename-${classGroupId}`} className="sr-only">
+          New name
+        </Label>
+        <Input
+          id={`rename-${classGroupId}`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          autoFocus
+          required
+          className="h-8 w-44"
+        />
+        <Button type="submit" size="sm" disabled={isPending} className="cursor-pointer">
+          Save
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setDraft(name);
+            setEditing(false);
+          }}
+          className="cursor-pointer"
+        >
+          Cancel
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => setEditing(true)}
+        className="cursor-pointer gap-1 text-muted-foreground"
+      >
+        <Pencil className="size-3.5" aria-hidden="true" />
+        Rename<span className="sr-only"> {name}</span>
+      </Button>
+      {internCount > 0 ? (
+        <span className="px-2 text-xs text-muted-foreground">
+          Has interns, so it can&apos;t be deleted
+        </span>
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={isPending}
+          onClick={() => {
+            if (!confirming) return setConfirming(true);
+            void run(`/api/class-groups/${classGroupId}`, { method: "DELETE" }, `${name} deleted`);
+          }}
+          onBlur={() => setConfirming(false)}
+          className="cursor-pointer gap-1 text-destructive"
+        >
+          <Trash2 className="size-3.5" aria-hidden="true" />
+          {confirming ? "Click again to delete" : "Delete"}
+          <span className="sr-only"> {name}</span>
+        </Button>
+      )}
+    </div>
   );
 }

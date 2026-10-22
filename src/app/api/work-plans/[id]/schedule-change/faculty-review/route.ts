@@ -8,6 +8,7 @@ import { scheduleChangeReviewSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
 import { handleApiError } from "@/lib/utils/apiError";
+import { notifyScheduleChange } from "@/lib/services/notificationEvents";
 
 // FR-AT-09 step 1: Faculty Adviser only, and only for a student they're
 // assigned to.
@@ -22,6 +23,10 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const { action } = scheduleChangeReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await validateScheduleChangeFaculty(params.id, user.id, action, ipAddress);
+    await notifyScheduleChange(
+      studentProfileId,
+      result.status === "PENDING_COORDINATOR" ? "PENDING_COORDINATOR" : "REJECTED"
+    );
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);
