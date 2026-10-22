@@ -66,6 +66,10 @@ export function PrivacyConsentDialog() {
           <p>
             You may request a copy or correction of your data at any time from your Profile page.
           </p>
+          <p>
+            Faculty and staff: you agree to use interns&apos; records only for monitoring their
+            internship, and not to copy or share them outside IDSMS-CIS.
+          </p>
           <p className="text-muted-foreground">
             If you disagree, you will be signed out. The system cannot monitor your internship
             without this data, so please talk to your coordinator.

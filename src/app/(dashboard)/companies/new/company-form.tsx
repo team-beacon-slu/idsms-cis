@@ -8,6 +8,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { createCompanySchema } from "@/lib/validators/company";
+import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,7 +150,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
             >
               {WORK_MODALITIES.map((modality) => (
                 <option key={modality} value={modality}>
-                  {modality}
+                  {WORK_MODALITY_LABEL[modality]}
                 </option>
               ))}
             </select>

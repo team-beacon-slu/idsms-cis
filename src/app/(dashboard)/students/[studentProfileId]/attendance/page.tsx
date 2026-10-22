@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatCalendarDate } from "@/lib/documents/html";
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
@@ -336,7 +337,7 @@ export default async function AttendancePage(props: {
                   {deviationReports.map((report) => (
                     <TableRow key={report.id}>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {new Date(report.date).toLocaleDateString("en-PH", { timeZone: "UTC" })}
+                        {formatCalendarDate(new Date(report.date))}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal">

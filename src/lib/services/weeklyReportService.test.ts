@@ -1064,9 +1064,11 @@ describe("reviewWeeklyReport_Disregard", () => {
       where: { weeklyReportId: "wr-1" },
     });
     expect(prismaMock.weeklyReport.delete).toHaveBeenCalledWith({ where: { id: "wr-1" } });
-    // Deliberately no audit-log assertion: this contract never says "Log via
-    // logEvent" (see the comment above reviewWeeklyReport_Disregard).
-    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "WEEKLY_REPORT_DISREGARDED", entityId: "wr-1" }),
+      })
+    );
   });
 
   it("deletes daily entries before the report, within the same transaction", async () => {
@@ -1100,31 +1102,53 @@ describe("approving an earlier week refreshes later weeks' running totals", () =
       studentProfileId: "profile-1",
       weekStart: new Date("2026-09-28T00:00:00Z"),
     } as never);
-    prismaMock.weeklyReport.findUniqueOrThrow.mockImplementation(((args: {
-      where: { id: string };
-    }) =>
-      Promise.resolve(
-        args.where.id === "wr-2"
-          ? { weekStart: new Date("2026-10-05T00:00:00Z"), dailyEntries: eightHourDays }
-          : { status: WeeklyReportStatus.PENDING, revisionHistory: [{ type: "SUBMITTED" }] }
-      )) as never);
-    prismaMock.weeklyReport.findMany.mockImplementation(((args: {
-      where?: { weekStart?: { gt?: Date; lt?: Date } };
-    }) => {
-      if (args.where?.weekStart?.gt) return Promise.resolve([{ id: "wr-2" }]);
-      if (args.where?.weekStart?.lt) return Promise.resolve([{ dailyEntries: eightHourDays }]);
-      return Promise.resolve([]);
-    }) as never);
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      status: WeeklyReportStatus.PENDING,
+      revisionHistory: [{ type: "SUBMITTED" }],
+    } as never);
+    // One read of the student's weeks, oldest first; week 1 is now approved.
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      {
+        id: "wr-1",
+        status: WeeklyReportStatus.APPROVED,
+        weekStart: new Date("2026-09-28T00:00:00Z"),
+        weekEnd: new Date("2026-10-04T00:00:00Z"),
+        dailyEntries: eightHourDays,
+      },
+      {
+        id: "wr-2",
+        status: WeeklyReportStatus.PENDING,
+        weekStart: new Date("2026-10-05T00:00:00Z"),
+        weekEnd: new Date("2026-10-11T00:00:00Z"),
+        dailyEntries: eightHourDays,
+      },
+    ] as never);
+    prismaMock.conductRecord.findMany.mockResolvedValue([
+      { date: new Date("2026-10-06T00:00:00Z"), hoursDeducted: 2 },
+    ] as never);
     prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 486 } as never);
     prismaMock.studentProfile.update.mockResolvedValue({} as never);
     prismaMock.workPlan.findFirst.mockResolvedValue(null);
 
     await reviewWeeklyReport_Approve("wr-1", "faculty-1");
 
+    // Worked 80; the 2-hour deduction dated in week 2 comes off remaining only.
     expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
       where: { id: "wr-2" },
-      data: { runningTotal: 80, remainingHours: 406 },
+      data: { runningTotal: 80, remainingHours: 408 },
     });
+    // Week 1 itself isn't rewritten, and the approval is audited.
+    expect(prismaMock.weeklyReport.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wr-1" },
+        data: expect.objectContaining({ runningTotal: expect.anything() }),
+      })
+    );
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "WEEKLY_REPORT_APPROVED" }),
+      })
+    );
   });
 });
 

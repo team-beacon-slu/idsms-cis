@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import {
   getWeeklyReport,
@@ -11,7 +12,6 @@ import { sendReportStatusEmail } from "@/lib/services/notificationService";
 import { weeklyReportReviewSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/userService";
-import { notifyReportReturned } from "@/lib/services/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-06: Faculty only, and only for a student they're assigned to
@@ -43,11 +43,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       result = await reviewWeeklyReport_Disregard(params.id, user.id, ipAddress);
     }
 
-    await sendReportStatusEmail(params.id, action);
-    // FR-NT-01 #4 — in-app; the status email above already covers email.
-    if (action === "RETURN") {
-      await notifyReportReturned(report.studentProfileId, notes ?? "");
-    }
+    // FR-WR-07 / FR-NT-01 #4: in-app + email to the intern and their advisers.
+    waitUntil(sendReportStatusEmail(params.id, action));
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);

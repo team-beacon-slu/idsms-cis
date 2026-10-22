@@ -8,7 +8,6 @@ import { dayGaps, isGapCovered } from "@/lib/utils/timeMath";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/auditService";
 import {
-  computeProjectedCompletionDate,
   computeTotalHoursRendered,
   getHolidayCalendarForStudent,
   ScheduleNotConfiguredError,
@@ -307,25 +306,66 @@ export async function getConductDeductions(studentProfileId: string, asOf: Date)
 
 // A conduct record issued or revoked changes "remaining" on its week and every later one.
 export async function refreshWeeklyTotalsFrom(studentProfileId: string, date: Date) {
-  const weeks = await prisma.weeklyReport.findMany({
-    where: { studentProfileId, weekEnd: { gte: date } },
-    orderBy: { weekStart: "asc" },
-    select: { id: true },
-  });
-  for (const { id } of weeks) {
-    await calculateRunningTotalAndRemaining(studentProfileId, id);
-  }
+  await refreshStoredTotals(studentProfileId, (week) => week.weekEnd >= date);
 }
 
 // A week approved or regarded late now counts, so the totals stored on later weeks move too.
 async function refreshLaterRunningTotals(studentProfileId: string, weekStart: Date) {
-  const later = await prisma.weeklyReport.findMany({
-    where: { studentProfileId, weekStart: { gt: weekStart } },
-    orderBy: { weekStart: "asc" },
-    select: { id: true },
-  });
-  for (const { id } of later) {
-    await calculateRunningTotalAndRemaining(studentProfileId, id);
+  await refreshStoredTotals(studentProfileId, (week) => week.weekStart > weekStart);
+}
+
+// One pass over the student's weeks, oldest first, carrying the credited total:
+// the same figures calculateRunningTotalAndRemaining gives, without re-reading
+// every earlier week for each week refreshed.
+async function refreshStoredTotals(
+  studentProfileId: string,
+  shouldUpdate: (week: { weekStart: Date; weekEnd: Date }) => boolean
+) {
+  const [weeks, profile, conduct] = await Promise.all([
+    prisma.weeklyReport.findMany({
+      where: { studentProfileId },
+      orderBy: { weekStart: "asc" },
+      select: {
+        id: true,
+        status: true,
+        weekStart: true,
+        weekEnd: true,
+        dailyEntries: { select: CREDITED_HOURS_SELECT },
+      },
+    }),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: studentProfileId },
+      select: { requiredHours: true },
+    }),
+    prisma.conductRecord.findMany({
+      where: { studentProfileId, revokedAt: null },
+      select: { date: true, hoursDeducted: true },
+    }),
+  ]);
+  let countedBefore = 0; // credited hours of approved/regarded weeks before this one
+  for (const week of weeks) {
+    const own = sumCreditedHours(week.dailyEntries);
+    if (shouldUpdate(week)) {
+      const runningTotal = roundHours(countedBefore + own);
+      const deducted = roundHours(
+        conduct
+          .filter((c) => c.date <= week.weekEnd)
+          .reduce((sum, c) => sum + Number(c.hoursDeducted), 0)
+      );
+      const remainingHours = roundHours(
+        Math.max(0, profile.requiredHours - (runningTotal - deducted))
+      );
+      await prisma.weeklyReport.update({
+        where: { id: week.id },
+        data: { runningTotal, remainingHours },
+      });
+    }
+    if (
+      week.status === WeeklyReportStatus.APPROVED ||
+      week.status === WeeklyReportStatus.REGARDED
+    ) {
+      countedBefore += own;
+    }
   }
 }
 
@@ -785,21 +825,31 @@ async function assertAwaitingReview(tx: Prisma.TransactionClient, weeklyReportId
   return report;
 }
 
+// Every review decision leaves an audit row, in the same transaction as the decision.
+async function logReview(
+  tx: Prisma.TransactionClient,
+  facultyId: string,
+  weeklyReportId: string,
+  action: string,
+  ipAddress?: string | null
+) {
+  await logEvent(
+    { userId: facultyId, action, entityType: "WeeklyReport", entityId: weeklyReportId, ipAddress },
+    tx
+  );
+}
+
 export async function reviewWeeklyReport_Approve(
   weeklyReportId: string,
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  void ipAddress;
-
   // No dedicated `facultyId` column exists on `WeeklyReport` (see the
   // model in schema.prisma) — `facultyAction` is the only free-text field
-  // available to record who reviewed it. A single unconditional update
-  // needs no `$transaction` wrapper — there's no read-then-write state
-  // gate here.
+  // available to record who reviewed it.
   const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
-    return tx.weeklyReport.update({
+    const updated = await tx.weeklyReport.update({
       where: { id: weeklyReportId },
       data: {
         status: WeeklyReportStatus.APPROVED,
@@ -807,12 +857,12 @@ export async function reviewWeeklyReport_Approve(
       },
       select: { id: true, status: true, studentProfileId: true, weekStart: true },
     });
+    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_APPROVED", ipAddress);
+    return updated;
   });
 
-  // This report's hours now count toward both, per the contract above —
-  // no `logEvent` audit-log call here, the contract doesn't ask for one.
+  // This report's hours now count.
   await computeTotalHoursRendered(studentProfileId);
-  await computeProjectedCompletionDate(studentProfileId);
   await refreshLaterRunningTotals(studentProfileId, weekStart);
 
   return { id, status };
@@ -881,17 +931,17 @@ export async function reviewWeeklyReport_Regard(
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  void ipAddress;
   const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
-    return tx.weeklyReport.update({
+    const updated = await tx.weeklyReport.update({
       where: { id: weeklyReportId },
       data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
       select: { id: true, status: true, studentProfileId: true, weekStart: true },
     });
+    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_REGARDED", ipAddress);
+    return updated;
   });
   await computeTotalHoursRendered(studentProfileId);
-  await computeProjectedCompletionDate(studentProfileId);
   await refreshLaterRunningTotals(studentProfileId, weekStart);
   return { id, status };
 }
@@ -916,11 +966,8 @@ export async function reviewWeeklyReport_Regard(
 // Shantea23/Task 4) then needs no special-case handling for a leftover
 // DISREGARDED row; its plain `create` just works. `DailyReportEntry` has no
 // `onDelete: Cascade` back to `WeeklyReport` (see schema.prisma), so its rows
-// are deleted first, in the same transaction. No `logEvent` call: this
-// contract, unlike `configureWorkSchedule`/`submitDeviationReport` above,
-// never says "Log via logEvent" (same reasoning as `reviewWeeklyReport_Approve`'s
-// precedent) — and here there's also no surviving row to attach a
-// `facultyAction` note to before it's deleted.
+// are deleted first, in the same transaction. The audit row keeps the deleted
+// report's id, since there's no surviving row to attach a `facultyAction` note to.
 // Flag for whoever implements FR-WR-07 (`sendReportStatusEmail`, issue #27,
 // still unassigned): the review route calls it with only `weeklyReportId`
 // right after this function returns, for every action including DISREGARD —
@@ -932,13 +979,11 @@ export async function reviewWeeklyReport_Disregard(
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  void facultyId;
-  void ipAddress;
-
   return prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
     await tx.dailyReportEntry.deleteMany({ where: { weeklyReportId } });
     await tx.weeklyReport.delete({ where: { id: weeklyReportId } });
+    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_DISREGARDED", ipAddress);
 
     return { id: weeklyReportId, status: WeeklyReportStatus.DISREGARDED };
   });

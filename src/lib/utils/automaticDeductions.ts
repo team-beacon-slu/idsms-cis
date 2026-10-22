@@ -4,6 +4,14 @@
 import { addDays, getWeeklyReportDueInstant, toDateKey } from "@/lib/utils/reportDeadline";
 import { dayGaps, isGapCovered, type Shift } from "@/lib/utils/timeMath";
 
+const weekLabel = (week: Date) =>
+  week.toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
 export type AutomaticItemType = "LATE_WWR" | "MISSING_WWR" | "UNSUPPORTED_UT";
 
 export interface AutomaticItem {
@@ -82,7 +90,7 @@ export function findAutomaticItems(input: AutomaticItemsInput): AutomaticItem[] 
           itemType: "LATE_WWR",
           itemKey: weekKey,
           date: week,
-          detail: `Week of ${weekKey} submitted late`,
+          detail: `Week of ${weekLabel(week)} submitted late`,
           unjustified: !first.reasonForDelay,
         });
       } else if (!first && isDue(week)) {
@@ -90,7 +98,7 @@ export function findAutomaticItems(input: AutomaticItemsInput): AutomaticItem[] 
           itemType: "MISSING_WWR",
           itemKey: weekKey,
           date: week,
-          detail: `Week of ${weekKey} not submitted`,
+          detail: `Week of ${weekLabel(week)} not submitted`,
           unjustified: true,
         });
       }
