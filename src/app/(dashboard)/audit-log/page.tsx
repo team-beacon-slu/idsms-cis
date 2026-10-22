@@ -150,7 +150,7 @@ export default async function AuditLogPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Timestamp</TableHead>
-                <TableHead>User email</TableHead>
+                <TableHead>User</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Entity type</TableHead>
                 <TableHead>Entity id</TableHead>
@@ -164,7 +164,16 @@ export default async function AuditLogPage({
                   <TableCell className="whitespace-nowrap">
                     {stampFmt.format(r.timestamp)}
                   </TableCell>
-                  <TableCell>{r.email ?? "—"}</TableCell>
+                  <TableCell>
+                    {r.name ? (
+                      <>
+                        <span className="block font-medium">{r.name}</span>
+                        <span className="block text-xs text-muted-foreground">{r.email}</span>
+                      </>
+                    ) : (
+                      (r.email ?? "—")
+                    )}
+                  </TableCell>
                   <TableCell className="font-medium whitespace-nowrap text-foreground">
                     {humanizeAction(r.action)}
                   </TableCell>

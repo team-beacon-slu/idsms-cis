@@ -22,12 +22,12 @@ const CHOICES = [
   { value: "system", label: "Match device", icon: Monitor },
 ] as const;
 
-// The Appearance setting on Profile.
-export function ThemeChoice() {
+// The Appearance setting on Profile; `compact` is the same choice inside the account menu.
+export function ThemeChoice({ compact = false }: { compact?: boolean }) {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
   return (
-    <div role="radiogroup" aria-label="Theme" className="grid grid-cols-3 gap-2">
+    <div role="radiogroup" aria-label="Theme" className="grid grid-cols-3 gap-1.5">
       {CHOICES.map(({ value, label, icon: Icon }) => {
         const selected = mounted && theme === value;
         return (
@@ -38,14 +38,15 @@ export function ThemeChoice() {
             aria-checked={selected}
             onClick={() => setTheme(value)}
             className={cn(
-              "flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden",
+              "flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden",
+              compact ? "px-1 py-2 text-xs" : "px-3 py-3",
               selected
                 ? "border-brand-600 bg-brand-50 font-medium text-brand-900"
                 : "border-border text-foreground/80 hover:bg-brand-50/60"
             )}
           >
-            <Icon className="size-5" aria-hidden="true" />
-            {label}
+            <Icon className={compact ? "size-4" : "size-5"} aria-hidden="true" />
+            {compact && value === "system" ? "Device" : label}
           </button>
         );
       })}

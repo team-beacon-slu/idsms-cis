@@ -9,7 +9,9 @@ export interface SafeUser {
   mustResetPassword: boolean;
   lockedUntil: Date | null;
   createdAt: Date;
-  // Students only (listUsers); staff accounts have no profile name.
+  // Display name (staff set it; students' legal name is on their profile).
+  fullName: string | null;
+  // listUsers: the name to show, student legal name first, then fullName.
   name?: string | null;
   studentNumber?: string | null;
 }

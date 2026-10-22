@@ -28,6 +28,7 @@ function detailText(detail: unknown): string {
 const COLUMNS: Array<{ key: keyof AuditLogRow; header: string }> = [
   { key: "timestamp", header: "Timestamp" },
   { key: "email", header: "User email" },
+  { key: "name", header: "User name" },
   { key: "action", header: "Action" },
   { key: "entityType", header: "Entity type" },
   { key: "entityId", header: "Entity id" },

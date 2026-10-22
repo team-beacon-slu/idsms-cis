@@ -33,7 +33,7 @@ export async function listClassGroups() {
         orderBy: { semester: { startDate: "desc" } },
         select: {
           id: true,
-          faculty: { select: { email: true } },
+          faculty: { select: { email: true, fullName: true } },
           semester: { select: { name: true, academicYear: true } },
         },
       },
@@ -46,7 +46,7 @@ export async function listAdviserOptions() {
   return prisma.user.findMany({
     where: { role: Role.FACULTY_ADVISER, isActive: true, deletedAt: null },
     orderBy: { email: "asc" },
-    select: { id: true, email: true },
+    select: { id: true, email: true, fullName: true },
   });
 }
 
