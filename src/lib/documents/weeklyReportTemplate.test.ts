@@ -46,7 +46,14 @@ function sample(overrides: Partial<WeeklyReportDocumentData> = {}): WeeklyReport
     entries: [entry()],
     overtime: [],
     undertime: [],
-    totals: { totalHours: 8, runningTotal: 48, remainingHours: 552, beginning: 40, ending: 48 },
+    totals: {
+      totalHours: 8,
+      runningTotal: 48,
+      conductDeductions: 0,
+      remainingHours: 552,
+      beginning: 40,
+      ending: 48,
+    },
     ...overrides,
   };
 }
@@ -118,6 +125,13 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(html).toContain("TOTAL rendered so far (ending)");
     expect(html).toContain("40 hrs");
     expect(html).toContain("48 hrs");
+  });
+
+  it("prints conduct deductions as their own line only when there are any", () => {
+    expect(renderWeeklyReportHtml(sample())).not.toContain("conduct deductions");
+    const data = sample();
+    data.totals.conductDeductions = 4;
+    expect(renderWeeklyReportHtml(data)).toContain("Less conduct deductions (to date)");
   });
 
   it("omits the OT and UT sections when empty", () => {

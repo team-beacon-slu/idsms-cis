@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { computeTotalHoursRendered } from "@/lib/services/attendanceService";
 import { logEvent } from "@/lib/services/auditService";
+import { refreshWeeklyTotalsFrom } from "@/lib/services/weeklyReportService";
 import {
   assertStaffFor,
   ConductStateError,
@@ -69,14 +70,15 @@ export async function issueConductRecord(
 
   // After commit. The record is saved: a failed refresh must not report an error, or
   // the adviser retries and the intern is deducted twice. The next recompute catches up.
-  if (hoursDeducted > 0) await refreshRenderedHours(studentProfileId);
+  if (hoursDeducted > 0) await refreshRenderedHours(studentProfileId, data.date);
   await notifyConductRecordIssued(studentProfileId, category.label, data.reason);
   return created;
 }
 
-async function refreshRenderedHours(studentProfileId: string) {
+async function refreshRenderedHours(studentProfileId: string, recordDate: Date) {
   try {
     await computeTotalHoursRendered(studentProfileId);
+    await refreshWeeklyTotalsFrom(studentProfileId, recordDate);
   } catch (error) {
     console.error("[conduct] rendered-hours refresh failed", error);
   }
@@ -91,7 +93,7 @@ export async function revokeConductRecord(
   const revokeReason = revokeReasonSchema.parse(reason);
   const record = await prisma.conductRecord.findUniqueOrThrow({
     where: { id },
-    select: { studentProfileId: true, hoursDeducted: true },
+    select: { studentProfileId: true, hoursDeducted: true, date: true },
   });
   await assertStaffFor(actingUser, record.studentProfileId);
 
@@ -113,7 +115,8 @@ export async function revokeConductRecord(
       tx
     );
   });
-  if (Number(record.hoursDeducted) > 0) await refreshRenderedHours(record.studentProfileId);
+  if (Number(record.hoursDeducted) > 0)
+    await refreshRenderedHours(record.studentProfileId, record.date);
 }
 
 export async function listConductRecords(studentProfileId: string) {

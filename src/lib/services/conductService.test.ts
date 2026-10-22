@@ -1,5 +1,6 @@
 jest.mock("@/lib/services/notificationEvents", () => ({ notifyConductRecordIssued: jest.fn() }));
 jest.mock("@/lib/services/attendanceService", () => ({ computeTotalHoursRendered: jest.fn() }));
+jest.mock("@/lib/services/weeklyReportService", () => ({ refreshWeeklyTotalsFrom: jest.fn() }));
 
 import { Role } from "@prisma/client";
 import { ZodError } from "zod";
@@ -7,6 +8,7 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { ForbiddenError } from "@/lib/services/userService";
 import { notifyConductRecordIssued } from "@/lib/services/notificationEvents";
 import { computeTotalHoursRendered } from "@/lib/services/attendanceService";
+import { refreshWeeklyTotalsFrom } from "@/lib/services/weeklyReportService";
 import {
   ConductStateError,
   issueConductRecord,
@@ -65,6 +67,7 @@ describe("issueConductRecord", () => {
   it("refreshes rendered hours when the record deducts hours", async () => {
     await issueConductRecord("profile-1", { ...input, hoursDeducted: 2 }, faculty);
     expect(computeTotalHoursRendered).toHaveBeenCalledWith("profile-1");
+    expect(refreshWeeklyTotalsFrom).toHaveBeenCalledWith("profile-1", expect.any(Date));
   });
 
   it("refuses automatic or unknown categories", async () => {

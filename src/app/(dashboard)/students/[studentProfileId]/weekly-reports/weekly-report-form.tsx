@@ -58,8 +58,9 @@ export interface DailyEntryRow {
 
 export interface WeeklyTotals {
   totalHours: number;
-  runningTotal: number;
-  remainingHours: number;
+  runningTotal: number; // hours worked, before deductions
+  conductDeductions: number;
+  remainingHours: number; // after deductions
 }
 
 interface RowState {
@@ -124,15 +125,24 @@ function formatDay(iso: string) {
 
 function TotalsBar({ totals }: { totals: WeeklyTotals }) {
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-3 text-center">
+    <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-3 text-center sm:grid-cols-4">
       <div>
         <p className="text-xs text-muted-foreground">This week</p>
         <p className="text-lg font-semibold text-foreground">{formatHrsMins(totals.totalHours)}</p>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground">Running total</p>
+        <p className="text-xs text-muted-foreground">Running total (worked)</p>
         <p className="text-lg font-semibold text-foreground">
           {formatHrsMins(totals.runningTotal)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">Conduct deductions</p>
+        <p
+          className={`text-lg font-semibold ${totals.conductDeductions > 0 ? "text-destructive" : "text-foreground"}`}
+        >
+          {totals.conductDeductions > 0 ? "−" : ""}
+          {formatHrsMins(totals.conductDeductions)}
         </p>
       </div>
       <div>
@@ -377,6 +387,7 @@ export function WeeklyReportForm({
       setTotals({
         totalHours: Number(res.body.totalHours),
         runningTotal: Number(res.body.runningTotal),
+        conductDeductions: Number(res.body.conductDeductions),
         remainingHours: Number(res.body.remainingHours),
       });
       setRows((prev) => ({ ...prev, [entry.id]: { ...prev[entry.id], dirty: false } }));
@@ -522,7 +533,7 @@ export function WeeklyReportForm({
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.id} className="border-b align-top last:border-0">
-                  <td className="whitespace-nowrap py-2 pr-3 text-muted-foreground">
+                  <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
                     {formatDay(entry.reportDate)}
                   </td>
                   <td className="py-2 pr-3">
@@ -530,7 +541,7 @@ export function WeeklyReportForm({
                       ? HOLIDAY_LABEL
                       : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
                   </td>
-                  <td className="whitespace-nowrap py-2 pr-3 text-muted-foreground">
+                  <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
                     {entry.timeIn && entry.timeOut ? (
                       <>
                         {entry.timeIn}–{entry.timeOut}
@@ -545,7 +556,7 @@ export function WeeklyReportForm({
                       "—"
                     )}
                   </td>
-                  <td className="whitespace-nowrap py-2 pr-3">
+                  <td className="py-2 pr-3 whitespace-nowrap">
                     {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
                     {entry.scheduledHours > 0 && (
                       <span className="text-xs text-muted-foreground">
@@ -554,7 +565,7 @@ export function WeeklyReportForm({
                       </span>
                     )}
                   </td>
-                  <td className="whitespace-pre-wrap py-2 pr-3">{entry.accomplishments ?? "—"}</td>
+                  <td className="py-2 pr-3 whitespace-pre-wrap">{entry.accomplishments ?? "—"}</td>
                   <td className="py-2 text-muted-foreground">{entry.toolsUsed ?? "—"}</td>
                 </tr>
               ))}

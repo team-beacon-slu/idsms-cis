@@ -179,7 +179,14 @@ describe("loadWeeklyReportDocumentData", () => {
         submittedAt: new Date("2026-10-12T02:00:00.000Z"),
         dueDate: new Date("2026-10-13T00:00:00Z"),
         company: null,
-        totals: { totalHours: 8, runningTotal: 48, remainingHours: 552, beginning: 40, ending: 48 },
+        totals: {
+          totalHours: 8,
+          runningTotal: 48,
+          conductDeductions: 0,
+          remainingHours: 552,
+          beginning: 40,
+          ending: 48,
+        },
       })
     );
     expect(data!.entries[0]).toEqual(

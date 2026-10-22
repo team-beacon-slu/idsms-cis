@@ -167,25 +167,28 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  @@index([userId])
 
+  @@index([userId])
   @@map("sessions")
 }
 
 // ── Core domain tables ──────────────────────────────────────────────────
 
 model User {
-  id                  String    @id @default(uuid()) @db.Uuid
-  email               String    @unique
-  hashedPassword      String    @map("hashed_password")
-  role                Role
-  isActive            Boolean   @default(true) @map("is_active")
-  mustResetPassword   Boolean   @default(true) @map("must_reset_password")
-  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
-  lockedUntil         DateTime? @map("locked_until")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-  deletedAt           DateTime? @map("deleted_at")
+  id                    String    @id @default(uuid()) @db.Uuid
+  email                 String    @unique
+  hashedPassword        String    @map("hashed_password")
+  role                  Role
+  isActive              Boolean   @default(true) @map("is_active")
+  mustResetPassword     Boolean   @default(true) @map("must_reset_password")
+  failedLoginAttempts   Int       @default(0) @map("failed_login_attempts")
+  lockedUntil           DateTime? @map("locked_until")
+  // FR-CK-05: null until the user agrees to the privacy notice; a new version asks again.
+  privacyConsentAt      DateTime? @map("privacy_consent_at") @db.Timestamptz
+  privacyConsentVersion String?   @map("privacy_consent_version")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
 
   accounts               Account[]
   sessions               Session[]
@@ -438,8 +441,8 @@ model DailyReportEntry {
   // field is queried through $queryRaw in aiService.ts, not through the client.
 
   weeklyReport WeeklyReport @relation(fields: [weeklyReportId], references: [id])
-  @@index([weeklyReportId])
 
+  @@index([weeklyReportId])
   @@map("daily_report_entries")
 }
 
@@ -464,8 +467,8 @@ model DeviationReport {
   updatedAt        DateTime?        @map("updated_at") @db.Timestamptz(3)
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
-  @@index([studentProfileId, validationStatus])
 
+  @@index([studentProfileId, validationStatus])
   @@map("deviation_reports")
 }
 
@@ -591,8 +594,8 @@ model AuditLog {
   detail     Json?
 
   user User? @relation(fields: [userId], references: [id])
-  @@index([userId])
 
+  @@index([userId])
   @@map("audit_logs")
 }
 

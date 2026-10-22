@@ -78,12 +78,16 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       }
     );
     const totalHours = await calculateWeeklyTotalHours(params.id);
-    const { runningTotal, remainingHours } = await calculateRunningTotalAndRemaining(
-      report.studentProfileId,
-      params.id
-    );
+    const { runningTotal, remainingHours, conductDeductions } =
+      await calculateRunningTotalAndRemaining(report.studentProfileId, params.id);
 
-    return NextResponse.json({ entry, totalHours, runningTotal, remainingHours });
+    return NextResponse.json({
+      entry,
+      totalHours,
+      runningTotal,
+      conductDeductions,
+      remainingHours,
+    });
   } catch (error) {
     return handleApiError(error);
   }

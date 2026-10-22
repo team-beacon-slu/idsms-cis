@@ -256,11 +256,11 @@ function roundHours(hours: number): number {
 export async function calculateRunningTotalAndRemaining(
   studentProfileId: string,
   weeklyReportId: string
-): Promise<{ runningTotal: number; remainingHours: number }> {
+): Promise<{ runningTotal: number; remainingHours: number; conductDeductions: number }> {
   const [report, studentProfile] = await Promise.all([
     prisma.weeklyReport.findUniqueOrThrow({
       where: { id: weeklyReportId },
-      select: { weekStart: true, dailyEntries: { select: CREDITED_HOURS_SELECT } },
+      select: { weekStart: true, weekEnd: true, dailyEntries: { select: CREDITED_HOURS_SELECT } },
     }),
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: studentProfileId },
@@ -282,14 +282,39 @@ export async function calculateRunningTotalAndRemaining(
     ...priorReports.flatMap((prior) => prior.dailyEntries),
     ...report.dailyEntries,
   ]);
-  const remainingHours = roundHours(Math.max(0, studentProfile.requiredHours - runningTotal));
+  // runningTotal stays hours worked; conduct deductions are shown beside it, not hidden inside it.
+  const conductDeductions = await getConductDeductions(studentProfileId, report.weekEnd);
+  const remainingHours = roundHours(
+    Math.max(0, studentProfile.requiredHours - (runningTotal - conductDeductions))
+  );
 
   await prisma.weeklyReport.update({
     where: { id: weeklyReportId },
     data: { runningTotal, remainingHours },
   });
 
-  return { runningTotal, remainingHours };
+  return { runningTotal, remainingHours, conductDeductions };
+}
+
+// Active (unrevoked) conduct deductions dated on or before `asOf`, the end of the week shown.
+export async function getConductDeductions(studentProfileId: string, asOf: Date): Promise<number> {
+  const sum = await prisma.conductRecord.aggregate({
+    where: { studentProfileId, revokedAt: null, date: { lte: asOf } },
+    _sum: { hoursDeducted: true },
+  });
+  return roundHours(Number(sum?._sum?.hoursDeducted ?? 0));
+}
+
+// A conduct record issued or revoked changes "remaining" on its week and every later one.
+export async function refreshWeeklyTotalsFrom(studentProfileId: string, date: Date) {
+  const weeks = await prisma.weeklyReport.findMany({
+    where: { studentProfileId, weekEnd: { gte: date } },
+    orderBy: { weekStart: "asc" },
+    select: { id: true },
+  });
+  for (const { id } of weeks) {
+    await calculateRunningTotalAndRemaining(studentProfileId, id);
+  }
 }
 
 // A week approved or regarded late now counts, so the totals stored on later weeks move too.

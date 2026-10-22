@@ -23,7 +23,7 @@ const entry: DailyEntryRow = {
 };
 const props = {
   weeklyReportId: "wr-1",
-  totals: { totalHours: 0, runningTotal: 0, remainingHours: 240 },
+  totals: { totalHours: 0, runningTotal: 0, conductDeductions: 0, remainingHours: 240 },
   weekEnd: "2099-10-25T00:00:00.000Z",
   priorAccomplishments: [],
 };

@@ -69,6 +69,17 @@ export default async function WeeklyReportsPage(props: {
     select: { periodLabel: true, status: true, referenceCode: true },
   });
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
+  // One query for all weeks; each week counts deductions dated on or before its end (as getConductDeductions does).
+  const conduct = await prisma.conductRecord.findMany({
+    where: { studentProfileId: params.studentProfileId, revokedAt: null },
+    select: { date: true, hoursDeducted: true },
+  });
+  const deductionsAsOf = (weekEnd: Date) =>
+    Math.round(
+      conduct
+        .filter((c) => c.date <= weekEnd)
+        .reduce((sum, c) => sum + Number(c.hoursDeducted), 0) * 100
+    ) / 100;
   const shift = await loadShift(params.studentProfileId);
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
@@ -232,6 +243,7 @@ export default async function WeeklyReportsPage(props: {
                       totals={{
                         totalHours: Number(report.totalHours),
                         runningTotal: Number(report.runningTotal),
+                        conductDeductions: deductionsAsOf(report.weekEnd),
                         remainingHours: Number(report.remainingHours),
                       }}
                       entries={report.dailyEntries.map((e) => ({

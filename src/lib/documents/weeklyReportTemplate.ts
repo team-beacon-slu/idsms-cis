@@ -49,6 +49,7 @@ export interface WeeklyReportDocumentData {
   totals: {
     totalHours: number;
     runningTotal: number;
+    conductDeductions: number; // active, dated on or before the week end
     remainingHours: number;
     beginning: number; // before this week
     ending: number; // rendered so far, including this week
@@ -171,6 +172,11 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
     <div><dt>Total work-hours rendered</dt><dd>${escapeHtml(formatHrsMins(data.totals.totalHours))}</dd></div>
     <div><dt>TOTAL work-hours (beginning)</dt><dd>${escapeHtml(formatHrsMins(data.totals.beginning))}</dd></div>
     <div><dt>TOTAL rendered so far (ending)</dt><dd>${escapeHtml(formatHrsMins(data.totals.ending))}</dd></div>
+    ${
+      data.totals.conductDeductions > 0
+        ? `<div><dt>Less conduct deductions (to date)</dt><dd>−${escapeHtml(formatHrsMins(data.totals.conductDeductions))}</dd></div>`
+        : ""
+    }
   </dl>
 
   ${
