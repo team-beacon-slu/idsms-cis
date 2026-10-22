@@ -149,6 +149,35 @@ describe("getComplianceRows", () => {
     expect(row.email).toBe("ana@slu.edu.ph");
   });
 
+  it("ends the recent-weeks window at the current week even when a future week was filed early", async () => {
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      profile({
+        weeklyReports: [
+          {
+            weekStart: new Date("2026-09-28T00:00:00Z"),
+            status: "APPROVED",
+            revisionHistory: [],
+            dailyEntries: entries(8),
+          },
+          {
+            weekStart: new Date("2026-10-19T00:00:00Z"), // next week, filed early
+            status: "PENDING",
+            revisionHistory: [{ type: "SUBMITTED" }],
+            dailyEntries: entries(8),
+          },
+        ],
+      }),
+    ] as never);
+
+    const [row] = await getComplianceRows({ kind: "department", semesterId: "sem-1" }, NOW);
+
+    // weeks of Sep 28, Oct 5 and Oct 12 (current); the early Oct 19 report is not in the window
+    expect(row.recentWeeks).toHaveLength(3);
+    expect(row.recentWeeks[0]).toBe("confirmed");
+    expect(row.recentWeeks.at(-1)).toBe("open");
+    expect(row.recentWeeks).not.toContain("review");
+  });
+
   it("gives a student with no reports, checklist or company zeros, never NaN", async () => {
     prismaMock.studentProfile.findMany.mockResolvedValue([
       profile({ companyId: null, company: null, checklistItems: [], weeklyReports: [] }),

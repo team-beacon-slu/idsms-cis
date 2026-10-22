@@ -57,9 +57,7 @@ export function FinalReportReview({
               onChange={(e) => setConfirmed({ ...confirmed, [k]: e.target.checked })}
             />
             {sentence(ATTACHMENT_LABELS[k])}
-            {!attached[k] && (
-              <span className="text-xs text-red-700 dark:text-red-400">(not marked attached)</span>
-            )}
+            {!attached[k] && <span className="text-xs text-red-700">(not marked attached)</span>}
           </label>
         ))}
       </fieldset>

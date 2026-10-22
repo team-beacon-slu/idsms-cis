@@ -25,6 +25,7 @@ import {
 import { listSemesters } from "@/lib/services/semesterService";
 import { getExpiringMoaRecords } from "@/lib/services/companyService";
 import { ComplianceTable } from "@/components/compliance-table";
+import { InternCharts } from "@/components/intern-charts";
 import { EmptyState } from "@/components/empty-state";
 import { StatCard, StatStrip } from "@/components/stat-card";
 import { buttonVariants } from "@/components/ui/button";
@@ -156,6 +157,20 @@ export async function CoordinatorDashboard({
           </section>
         ))}
 
+      {semester && (
+        <InternCharts
+          rows={allRows}
+          activeStatus={status}
+          statusHref={(s) => {
+            // Same filters as the weekly summary link, plus the status (none clears it).
+            const p = new URLSearchParams(weeklyParams);
+            if (s) p.set("status", s);
+            const q = p.toString();
+            return `/${q ? `?${q}` : ""}#interns`;
+          }}
+        />
+      )}
+
       <section aria-label="Host companies" className="space-y-2">
         <h2 className="text-sm font-medium text-foreground">Host companies</h2>
         <StatStrip>
@@ -170,7 +185,7 @@ export async function CoordinatorDashboard({
         </StatStrip>
       </section>
 
-      <Card>
+      <Card id="interns" className="scroll-mt-6">
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>

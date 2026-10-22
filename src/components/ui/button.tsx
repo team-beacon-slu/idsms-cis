@@ -10,10 +10,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "btn-glow text-primary-foreground hover:-translate-y-px hover:brightness-110 motion-reduce:hover:translate-y-0",
+          "btn-glow text-white hover:-translate-y-px hover:brightness-110 motion-reduce:hover:translate-y-0",
         destructive: "bg-destructive text-white hover:bg-destructive/90",
         outline:
-          "border border-brand-200/80 bg-white/70 backdrop-blur-sm hover:border-brand-300 hover:bg-white hover:text-brand-900",
+          "border border-brand-200/80 bg-white/70 backdrop-blur-sm hover:border-brand-300 hover:bg-white hover:text-brand-900 dark:bg-white/5 dark:hover:bg-white/10",
         secondary: "bg-brand-50 text-brand-900 hover:bg-brand-100",
         ghost: "hover:bg-brand-50 hover:text-brand-900",
         link: "text-primary underline-offset-4 hover:underline",

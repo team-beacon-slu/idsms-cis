@@ -21,12 +21,12 @@ const TYPE_LABEL: Record<string, string> = {
 };
 const KIND_LABEL: Record<string, string> = { ANTICIPATED: "Anticipated", EMERGENCY: "Emergency" };
 const STATUS: Record<string, { label: string; className: string }> = {
-  PENDING: { label: "Pending", className: "border-amber-300 text-amber-800 dark:text-amber-300" },
+  PENDING: { label: "Pending", className: "border-amber-300 text-amber-800" },
   VALIDATED: {
     label: "Approved",
-    className: "border-green-300 text-green-800 dark:text-green-300",
+    className: "border-green-300 text-green-800",
   },
-  REJECTED: { label: "Returned", className: "border-red-300 text-red-800 dark:text-red-300" },
+  REJECTED: { label: "Returned", className: "border-red-300 text-red-800" },
 };
 const PREFILL_KEYS = ["deviationType", "date", "startTime", "endTime"] as const;
 
@@ -128,10 +128,7 @@ export default async function LeaveRequestsPage(props: {
                           {status.label}
                         </Badge>
                         {r.filedAfterTheFact && (
-                          <Badge
-                            variant="outline"
-                            className="border-red-300 text-red-800 dark:text-red-300"
-                          >
+                          <Badge variant="outline" className="border-red-300 text-red-800">
                             Filed after the fact
                           </Badge>
                         )}
@@ -145,9 +142,7 @@ export default async function LeaveRequestsPage(props: {
                       </p>
                       <p className="text-sm whitespace-pre-wrap text-foreground">{r.reason}</p>
                       {r.validationStatus === "REJECTED" && r.reviewNote && (
-                        <p className="text-sm text-red-700 dark:text-red-400">
-                          Adviser&apos;s note: {r.reviewNote}
-                        </p>
+                        <p className="text-sm text-red-700">Adviser&apos;s note: {r.reviewNote}</p>
                       )}
                     </div>
                     {isOwner && editable && (

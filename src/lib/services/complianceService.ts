@@ -221,13 +221,22 @@ export async function getComplianceRows(
       status = "NEEDS_ATTENTION";
     else status = "ON_TRACK";
 
-    const recentWeeks = buildInternshipTrack({
+    // The window ends at the current week, not the track's end: a report filed early for a
+    // future week extends the track past today. shortcut: a track capped before today
+    // (MAX_TRACK_WEEKS, longer than any SIPP term) gets no mini track.
+    const track = buildInternshipTrack({
       reports: s.weeklyReports.map((r) => ({ weekStart: r.weekStart, state: reportState(r) })),
       projectedFinish: null,
       now,
-    })
-      .slice(-RECENT_WEEKS)
-      .map((w) => w.kind);
+    });
+    const current = track.findIndex((w) => w.isCurrent);
+    const recentWeeks =
+      current === -1
+        ? []
+        : track
+            .slice(0, current + 1)
+            .slice(-RECENT_WEEKS)
+            .map((w) => w.kind);
 
     return {
       studentProfileId: s.id,

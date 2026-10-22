@@ -35,8 +35,8 @@ function VerificationPill({ isVerified }: { isVerified: boolean }) {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-medium",
         isVerified
-          ? "border-green-200 bg-green-50 text-green-700 dark:border-green-500/20 dark:bg-green-500/10 dark:text-green-400"
-          : "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300"
+          ? "border-green-200 bg-green-50 text-green-700"
+          : "border-slate-200 bg-slate-100 text-slate-700"
       )}
     >
       <span

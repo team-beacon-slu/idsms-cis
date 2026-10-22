@@ -57,7 +57,21 @@
   --color-brand-700: #1a426a;
   --color-brand-900: #123153;
   --color-beacon: #2f6b4f;
+  --color-beacon-light: #5fbf8f;
+  /* The logo green's pale family, for "done" tiles and badges. */
+  --color-mint-50: #e6f2ec;
+  --color-mint-100: #d7ece1;
+  --color-mint-200: #b9d8c8;
+  --color-mint-900: #173b2b;
+  /* Intern status in charts (validated: CVD and normal-vision separation pass in both
+     themes; the grey is the deliberate "not started", always labelled). */
+  --color-status-done: #4fae7f;
+  --color-status-on: #1f4e79;
+  --color-status-alert: #d4343a;
+  --color-status-idle: #94a3b8;
   --font-sans: var(--font-dm-sans), Inter, system-ui, sans-serif;
+  /* Titles and big figures: a grotesque with some character, so the product has a voice. */
+  --font-display: var(--font-bricolage), var(--font-dm-sans), system-ui, sans-serif;
 
   /* Status pairs (pale ground, dark ink of the same hue): one name per meaning. */
   --color-notice: #fffbeb;
@@ -96,22 +110,52 @@
    Frosted surfaces over a soft coloured backdrop. Every glass surface stays at least
    72% white, so body text keeps 4.5:1 or better whatever sits behind it. */
 @utility glass {
-  background-color: rgb(255 255 255 / 0.72);
+  background-color: var(--glass-bg);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1px solid rgb(255 255 255 / 0.7);
+  border: 1px solid var(--glass-border);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.85),
-    0 1px 3px rgb(18 49 83 / 0.06);
+    inset 0 1px 0 var(--glass-highlight),
+    0 1px 3px var(--glass-shadow);
 }
 @utility glass-strong {
-  background-color: rgb(255 255 255 / 0.86);
+  background-color: var(--glass-strong-bg);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgb(255 255 255 / 0.75);
+  border: 1px solid var(--glass-border);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.9),
-    0 18px 48px -18px rgb(18 49 83 / 0.28);
+    inset 0 1px 0 var(--glass-highlight),
+    0 18px 48px -18px var(--glass-drop);
+}
+/* The lighthouse turning: a wedge of light rotating about the band's top-right corner.
+   Reduced motion leaves it still (the rule at the end of this file). */
+@keyframes beacon-sweep {
+  from {
+    transform: translate(50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(50%, -50%) rotate(360deg);
+  }
+}
+@utility beacon-beam {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1600px;
+  height: 1600px;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 200deg,
+    transparent 0deg,
+    rgb(255 255 255 / 0.11) 10deg,
+    rgb(95 191 143 / 0.1) 18deg,
+    transparent 30deg,
+    transparent 360deg
+  );
+  /* Static too, so the wedge stays centred on the corner when reduced motion stops the animation. */
+  transform: translate(50%, -50%);
+  animation: beacon-sweep 26s linear infinite;
 }
 /* The beacon's light: navy hero bands with a soft beam. */
 @utility beacon-band {
@@ -136,6 +180,14 @@
       radial-gradient(52rem 38rem at 102% 6%, rgb(95 191 143 / 0.38), transparent 62%),
       radial-gradient(48rem 34rem at 40% 60%, rgb(186 214 240 / 0.45), transparent 65%),
       radial-gradient(62rem 42rem at 78% 112%, rgb(143 176 211 / 0.6), transparent 62%),
+      hsl(var(--background));
+  }
+  .dark .app-backdrop {
+    background:
+      radial-gradient(60rem 42rem at 6% -8%, rgb(31 78 121 / 0.55), transparent 62%),
+      radial-gradient(52rem 38rem at 102% 6%, rgb(47 107 79 / 0.32), transparent 62%),
+      radial-gradient(48rem 34rem at 40% 60%, rgb(36 70 108 / 0.3), transparent 65%),
+      radial-gradient(62rem 42rem at 78% 112%, rgb(31 78 121 / 0.45), transparent 62%),
       hsl(var(--background));
   }
 }
@@ -180,39 +232,129 @@
     --sidebar-accent-foreground: 211 64% 20%;
     --sidebar-border: 215 28% 90%;
     --sidebar-ring: 209 59% 30%;
+    --glass-bg: rgb(255 255 255 / 0.72);
+    --glass-strong-bg: rgb(255 255 255 / 0.86);
+    --glass-border: rgb(255 255 255 / 0.7);
+    --glass-highlight: rgb(255 255 255 / 0.85);
+    --glass-shadow: rgb(18 49 83 / 0.06);
+    --glass-drop: rgb(18 49 83 / 0.28);
   }
+  /* Night watch: the same navy family after dark. Inks lighten, grounds deepen, and the
+     palettes the screens use are mirrored (50 <-> 950, 400-600 kept), so a "pale ground,
+     dark ink" badge becomes "deep ground, light ink" without touching each component. */
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 215 25% 27%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 25% 27%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 215 25% 27%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 91% 71%;
-    --border: 215 19% 35%;
-    --input: 215 19% 35%;
-    --ring: 217 91% 60%;
-    --chart-1: 217 91% 60%;
-    --chart-2: 142 71% 45%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 91% 71%;
-    --chart-5: 262 83% 68%;
-    --sidebar: 229 84% 5%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 25% 27%;
-    --sidebar-ring: 217 91% 60%;
+    color-scheme: dark;
+    --background: 214 50% 8%;
+    --foreground: 212 38% 93%;
+    --card: 214 42% 12%;
+    --card-foreground: 212 38% 93%;
+    --popover: 214 42% 12%;
+    --popover-foreground: 212 38% 93%;
+    --primary: 210 58% 64%;
+    --primary-foreground: 214 50% 8%;
+    --secondary: 214 36% 17%;
+    --secondary-foreground: 212 38% 93%;
+    --muted: 214 36% 17%;
+    --muted-foreground: 213 20% 68%;
+    --accent: 214 36% 17%;
+    --accent-foreground: 212 38% 93%;
+    /* Mid-tone, not light: these two carry white text (delete buttons, the calendar's today). */
+    --destructive: 0 70% 50%;
+    --border: 214 32% 21%;
+    --input: 214 28% 27%;
+    --ring: 210 58% 64%;
+    --chart-1: 210 52% 45%;
+    --chart-2: 151 42% 56%;
+    --chart-3: 212 38% 93%;
+    --chart-4: 0 84% 66%;
+    --chart-5: 38 92% 60%;
+    --sidebar: 214 50% 8%;
+    --sidebar-foreground: 212 38% 93%;
+    --sidebar-primary: 210 58% 64%;
+    --sidebar-primary-foreground: 214 50% 8%;
+    --sidebar-accent: 214 36% 17%;
+    --sidebar-accent-foreground: 212 38% 93%;
+    --sidebar-border: 214 32% 21%;
+    --sidebar-ring: 210 58% 64%;
+    --glass-bg: rgb(17 30 46 / 0.74);
+    --glass-strong-bg: rgb(17 30 46 / 0.94);
+    --glass-border: rgb(255 255 255 / 0.08);
+    --glass-highlight: rgb(255 255 255 / 0.05);
+    --glass-shadow: rgb(0 0 0 / 0.3);
+    --glass-drop: rgb(0 0 0 / 0.55);
+
+    --color-brand-50: #13233a;
+    --color-brand-100: #18304d;
+    --color-brand-200: #24466c;
+    --color-brand-300: #3a6491;
+    --color-brand-600: #7fb0e0;
+    --color-brand-700: #a6c8ea;
+    --color-brand-900: #e4eef8;
+    --color-mint-50: #10281d;
+    --color-mint-100: #143223;
+    --color-mint-200: #1f4a35;
+    --color-mint-900: #cdeadb;
+    --color-status-done: #5fbf8f;
+    --color-status-on: #3f7fc0;
+    --color-status-alert: #e5484d;
+    --color-status-idle: #64748b;
+    --color-beacon: #5fbf8f;
+    --color-notice: #2a2110;
+    --color-notice-foreground: #fcd34d;
+    --color-notice-border: #5c4613;
+    --color-danger-soft: #3a1517;
+    --color-danger-soft-foreground: #fca5a5;
+
+    --color-slate-50: #131f30;
+    --color-slate-100: #1a2738;
+    --color-slate-200: #2a3a50;
+    --color-slate-300: #3d4f66;
+    --color-slate-500: #94a3b8;
+    --color-slate-600: #a9b6c8;
+    --color-slate-700: #cbd5e1;
+    --color-slate-800: #e2e8f0;
+    --color-slate-900: #f1f5f9;
+    --color-slate-950: #f8fafc;
+    --color-red-50: #2b1215;
+    --color-red-100: #3d1619;
+    --color-red-200: #5c1d20;
+    --color-red-300: #7f1d1d;
+    --color-red-700: #fca5a5;
+    --color-red-800: #fecaca;
+    --color-red-900: #fee2e2;
+    --color-green-50: #0d2318;
+    --color-green-100: #12301f;
+    --color-green-200: #14532d;
+    --color-green-300: #166534;
+    --color-green-700: #86efac;
+    --color-green-800: #bbf7d0;
+    --color-green-900: #dcfce7;
+    --color-amber-50: #2a1f0c;
+    --color-amber-100: #3a2a0e;
+    --color-amber-200: #5c4613;
+    --color-amber-300: #78350f;
+    --color-amber-700: #fcd34d;
+    --color-amber-800: #fde68a;
+    --color-amber-900: #fef3c7;
+    --color-sky-50: #0b2236;
+    --color-sky-100: #0c2d47;
+    --color-sky-200: #0c4a6e;
+    --color-sky-300: #075985;
+    --color-sky-700: #7dd3fc;
+    --color-sky-800: #bae6fd;
+    --color-sky-900: #e0f2fe;
+    --color-sky-950: #f0f9ff;
+    --color-red-950: #fef2f2;
+    --color-green-950: #f0fdf4;
+    --color-amber-950: #fffbeb;
+    --color-rose-950: #fff1f2;
+    --color-rose-50: #2d1119;
+    --color-rose-100: #3f1520;
+    --color-rose-200: #5f1a2c;
+    --color-rose-300: #881337;
+    --color-rose-700: #fda4af;
+    --color-rose-800: #fecdd3;
+    --color-rose-900: #ffe4e6;
   }
 }
 

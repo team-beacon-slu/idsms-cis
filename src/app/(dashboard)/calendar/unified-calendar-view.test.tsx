@@ -74,16 +74,11 @@ it("makes every overflow event accessible using the keyboard", async () => {
 });
 it("keeps the required event colors and text labels for all four types", () => {
   render(<UnifiedCalendarView events={[]} />);
-  expect(screen.getByText("Submission deadline")).toHaveClass("text-red-700", "dark:text-red-400");
-  expect(screen.getByText("Holiday")).toHaveClass("text-slate-700", "dark:text-slate-300");
-  expect(screen.getByText("Approved deviation")).toHaveClass(
-    "text-amber-700",
-    "dark:text-amber-400"
-  );
-  expect(screen.getByText("Projected completion")).toHaveClass(
-    "text-green-700",
-    "dark:text-green-400"
-  );
+  // Dark mode mirrors these palettes in globals.css, so one class serves both themes.
+  expect(screen.getByText("Submission deadline")).toHaveClass("text-red-700");
+  expect(screen.getByText("Holiday")).toHaveClass("text-slate-700");
+  expect(screen.getByText("Approved deviation")).toHaveClass("text-amber-700");
+  expect(screen.getByText("Projected completion")).toHaveClass("text-green-700");
 });
 it("updates the student completion milestone and details when props change", () => {
   const { rerender } = render(

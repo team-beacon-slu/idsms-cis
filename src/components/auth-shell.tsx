@@ -60,6 +60,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between overflow-hidden p-12 beacon-band text-white lg:flex xl:p-16">
+        <span aria-hidden="true" className="beacon-beam" />
         <Lighthouse />
         <div className="relative">
           <Wordmark onNavy />
@@ -67,7 +68,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
         <div className="relative space-y-10">
           <div className="space-y-3">
-            <p className="max-w-lg text-4xl leading-[1.05] font-bold tracking-tight text-balance text-white">
+            <p className="max-w-lg font-display text-4xl leading-[1.05] font-bold tracking-tight text-balance text-white">
               Every internship week, in one place.
             </p>
             <p className="max-w-md text-base text-white/80">

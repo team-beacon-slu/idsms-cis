@@ -76,7 +76,7 @@ export default async function WorkPlanPage(props: {
           </CardHeader>
           <CardContent className="space-y-4">
             {latest.status === "RETURNED" && reviewComments && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                 <p className="font-medium">Reviewer feedback</p>
                 <p className="mt-0.5">{reviewComments}</p>
               </div>

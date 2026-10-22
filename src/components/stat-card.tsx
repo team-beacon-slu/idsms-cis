@@ -8,7 +8,7 @@ export type StatTone = "brand" | "green" | "sky" | "amber" | "rose";
 // on a 74%+ white glass so it always clears 4.5:1.
 const TONE: Record<StatTone, { tile: string; ink: string }> = {
   brand: { tile: "from-brand-100/80", ink: "text-brand-600" },
-  green: { tile: "from-[#d7ece1]/90", ink: "text-[#2f6b4f]" },
+  green: { tile: "from-mint-100/90", ink: "text-beacon" },
   sky: { tile: "from-sky-100/90", ink: "text-sky-700" },
   amber: { tile: "from-amber-100/90", ink: "text-amber-700" },
   rose: { tile: "from-rose-100/90", ink: "text-rose-700" },
@@ -38,7 +38,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl glass bg-gradient-to-br to-white/60 p-4 transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 sm:p-5",
+        "relative overflow-hidden rounded-2xl glass bg-gradient-to-br to-white/60 p-4 transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 sm:p-5 dark:to-white/0",
         t.tile,
         className
       )}
@@ -49,7 +49,7 @@ export function StatCard({
         )}
         {label}
       </p>
-      <p className="mt-1.5 text-2xl font-semibold tracking-tight text-brand-900 tabular-nums sm:text-3xl">
+      <p className="mt-1.5 font-display text-2xl font-semibold tracking-tight text-brand-900 tabular-nums sm:text-3xl">
         {value}
       </p>
       {hint && <p className="mt-1 text-xs text-foreground/65">{hint}</p>}

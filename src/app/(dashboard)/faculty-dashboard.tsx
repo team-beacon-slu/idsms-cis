@@ -5,6 +5,7 @@ import { requestsAwaitingReviewByStudent } from "@/lib/services/attentionService
 import { getDeductionTally } from "@/lib/services/deductionService";
 import { getComplianceRows, summarize } from "@/lib/services/complianceService";
 import { ComplianceTable } from "@/components/compliance-table";
+import { InternCharts } from "@/components/intern-charts";
 import { StatCard, StatStrip } from "@/components/stat-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,6 +107,8 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
           )}
         </CardContent>
       </Card>
+
+      <InternCharts rows={rows} />
 
       <Card>
         <CardHeader>

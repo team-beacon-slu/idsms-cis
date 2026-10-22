@@ -48,7 +48,7 @@ export default function RequestResetPasswordPage() {
         </CardHeader>
         <CardContent>
           {submitted ? (
-            <div className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-500/20 dark:bg-green-500/10 dark:text-green-400">
+            <div className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
               <MailCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <span>
                 If an account with that email exists, a reset link has been sent. Check your inbox.

@@ -25,12 +25,24 @@ import {
   UserCircle,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark, BrandTile } from "@/components/brand-mark";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "./notification-bell";
+
+// The desktop sidebar folds to an icon rail; its state is a cookie so the server renders
+// the right width and nothing jumps on load. Inside the aside, these variants hide text
+// while the rail is folded (the phone drawer has no such group, so it always shows it).
+// The dashboard layout reads the same cookie name.
+const SIDEBAR_COOKIE = "sidebar";
+const RAIL_HIDE = "group-data-[collapsed=true]/side:sr-only";
+const RAIL_CENTER =
+  "group-data-[collapsed=true]/side:justify-center group-data-[collapsed=true]/side:px-0";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 type NavGroup = { label?: string; items: NavItem[] };
@@ -121,17 +133,24 @@ function NavLinks({
   groups,
   pathname,
   onNavigate,
+  rail,
+  id,
 }: {
   groups: NavGroup[];
   pathname: string;
   onNavigate?: () => void;
+  /** Folded to icons: each link keeps its name as a tooltip. */
+  rail?: boolean;
+  id?: string;
 }) {
   return (
-    <nav aria-label="Main" className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pt-2">
+    <nav id={id} aria-label="Main" className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pt-2">
       {groups.map((group, i) => (
         <div key={group.label ?? i} className="flex flex-col gap-0.5">
           {group.label && (
-            <p className="px-2.5 pb-1 text-xs text-sidebar-foreground/60">{group.label}</p>
+            <p className={cn("px-2.5 pb-1 text-xs text-sidebar-foreground/60", RAIL_HIDE)}>
+              {group.label}
+            </p>
           )}
           {group.items.map(({ href, label, icon: Icon }) => {
             const active = isActive(pathname, href);
@@ -141,8 +160,10 @@ function NavLinks({
                 href={href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
+                title={rail ? label : undefined}
                 className={cn(
                   rowClass,
+                  RAIL_CENTER,
                   active && "btn-glow font-medium text-white hover:bg-transparent hover:text-white"
                 )}
               >
@@ -151,7 +172,7 @@ function NavLinks({
                   strokeWidth={active ? 2 : 1.6}
                   aria-hidden="true"
                 />
-                {label}
+                <span className={RAIL_HIDE}>{label}</span>
               </Link>
             );
           })}
@@ -166,11 +187,16 @@ function AccountRow({
   role,
   pathname,
   onNavigate,
+  rail,
+  onToggleRail,
 }: {
   userLabel?: string;
   role: Role;
   pathname: string;
   onNavigate?: () => void;
+  rail?: boolean;
+  /** Desktop only: folds or unfolds the sidebar. */
+  onToggleRail?: () => void;
 }) {
   const profileActive = isActive(pathname, "/profile");
   return (
@@ -179,14 +205,16 @@ function AccountRow({
         href="/profile"
         onClick={onNavigate}
         aria-current={profileActive ? "page" : undefined}
+        title="Profile & preferences"
         className={cn(
           rowClass,
+          RAIL_CENTER,
           "h-auto py-1.5",
           profileActive && "bg-sidebar-accent text-sidebar-foreground"
         )}
       >
         <UserCircle className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
-        <span className="min-w-0">
+        <span className={cn("min-w-0", RAIL_HIDE)}>
           <span className="block truncate font-medium text-sidebar-foreground">
             {userLabel ?? "Profile"}
           </span>
@@ -195,14 +223,36 @@ function AccountRow({
           </span>
         </span>
       </Link>
+      <ThemeToggle
+        className={cn(rowClass, RAIL_CENTER, "cursor-pointer")}
+        labelClassName={RAIL_HIDE}
+      />
       <button
         type="button"
-        className={cn(rowClass, "cursor-pointer")}
+        title={rail ? "Sign out" : undefined}
+        className={cn(rowClass, RAIL_CENTER, "cursor-pointer")}
         onClick={() => signOut({ callbackUrl: "/login" })}
       >
         <LogOut className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
-        Sign out
+        <span className={RAIL_HIDE}>Sign out</span>
       </button>
+      {onToggleRail && (
+        <button
+          type="button"
+          onClick={onToggleRail}
+          aria-expanded={!rail}
+          aria-controls="sidebar-nav"
+          title={rail ? "Expand sidebar" : undefined}
+          className={cn(rowClass, RAIL_CENTER, "cursor-pointer")}
+        >
+          {rail ? (
+            <PanelLeftOpen className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+          )}
+          <span className={RAIL_HIDE}>{rail ? "Expand sidebar" : "Collapse sidebar"}</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -213,8 +263,8 @@ function Brand({ compact = false }: { compact?: boolean }) {
       href="/"
       className="flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-ring"
     >
-      {compact ? <BrandTile className="size-8" /> : <BrandMark className="size-9" />}
-      <span className="min-w-0 leading-tight">
+      {compact ? <BrandTile className="size-8" /> : <BrandMark className="size-9 shrink-0" />}
+      <span className={cn("min-w-0 leading-tight", RAIL_HIDE)}>
         <span className="block text-[15px] font-bold tracking-tight text-brand-900">IDSMS-CIS</span>
         <span className="block truncate text-xs text-sidebar-foreground/65">SAMCIS · SLU</span>
       </span>
@@ -222,26 +272,50 @@ function Brand({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function DashboardNav({ role, userLabel }: { role: Role; userLabel?: string }) {
+export function DashboardNav({
+  role,
+  userLabel,
+  initialCollapsed = false,
+}: {
+  role: Role;
+  userLabel?: string;
+  initialCollapsed?: boolean;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [rail, setRail] = useState(initialCollapsed);
   const groups = getNavGroups(role);
   const close = () => setMobileOpen(false);
+  const toggleRail = () => {
+    const next = !rail;
+    setRail(next);
+    document.cookie = `${SIDEBAR_COOKIE}=${next ? "collapsed" : "open"}; path=/; max-age=31536000; samesite=lax`;
+  };
 
   return (
     <>
-      {/* Desktop: the sidebar sits on the page ground, divided by one hairline. */}
-      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:w-60 md:flex-col md:border-r md:border-white/60 md:bg-white/55 md:backdrop-blur-xl">
-        <div className="flex h-16 items-center gap-2 px-5">
+      {/* Desktop: the sidebar sits on the page ground, divided by one hairline. The
+          layout's main column reads data-collapsed to match its padding. */}
+      <aside
+        data-collapsed={rail}
+        className="group/side hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:w-60 md:flex-col md:border-r md:border-white/60 md:bg-white/55 md:backdrop-blur-xl md:transition-[width] md:duration-200 md:data-[collapsed=true]:w-[72px] dark:md:border-white/8 dark:md:bg-card/55"
+      >
+        <div className="flex h-16 items-center gap-2 px-5 group-data-[collapsed=true]/side:h-auto group-data-[collapsed=true]/side:flex-col group-data-[collapsed=true]/side:px-0 group-data-[collapsed=true]/side:py-3">
           <Brand />
-          <NotificationBell className="ml-auto" />
+          <NotificationBell className="ml-auto group-data-[collapsed=true]/side:ml-0" />
         </div>
-        <NavLinks groups={groups} pathname={pathname} />
-        <AccountRow userLabel={userLabel} role={role} pathname={pathname} />
+        <NavLinks id="sidebar-nav" groups={groups} pathname={pathname} rail={rail} />
+        <AccountRow
+          userLabel={userLabel}
+          role={role}
+          pathname={pathname}
+          rail={rail}
+          onToggleRail={toggleRail}
+        />
       </aside>
 
       {/* Phone: a 48px bar with the product, the bell and the menu. */}
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-white/60 bg-white/75 px-4 backdrop-blur-xl md:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-white/60 bg-white/75 px-4 backdrop-blur-xl md:hidden dark:border-white/8 dark:bg-card/75">
         <Brand compact />
         <NotificationBell className="ml-auto" />
         <button

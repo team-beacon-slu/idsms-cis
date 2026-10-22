@@ -104,22 +104,17 @@ export default async function WeeklyReportReviewPage(props: {
               </div>
             )}
             {view.sentiment && (
-              <div className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-500/20 dark:bg-slate-500/10">
-                <Sparkles
-                  className="mt-0.5 size-4 shrink-0 text-slate-600 dark:text-slate-300"
-                  aria-hidden="true"
-                />
+              <div className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-slate-600" aria-hidden="true" />
                 <div className="space-y-0.5">
-                  <p className="font-medium text-slate-900 dark:text-slate-200">
+                  <p className="font-medium text-slate-900">
                     Sentiment advisory —{" "}
                     {SENTIMENT_LABEL[view.sentiment.label] ?? view.sentiment.label}
                   </p>
                   {view.sentiment.reasoning && (
-                    <p className="text-slate-700/90 dark:text-slate-300/80">
-                      {view.sentiment.reasoning}
-                    </p>
+                    <p className="text-slate-700/90">{view.sentiment.reasoning}</p>
                   )}
-                  <p className="text-slate-700/90 dark:text-slate-300/80">
+                  <p className="text-slate-700/90">
                     Confidence {(view.sentiment.confidence * 100).toFixed(0)}%. AI-assisted,
                     advisory only — it never decides the outcome of this review.
                   </p>

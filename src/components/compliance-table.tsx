@@ -102,7 +102,7 @@ export function ComplianceTable({
                     {row.recentWeeks.length > 0 && <MiniTrack kinds={row.recentWeeks} />}
                     <StatusBadge status={row.dueWeekState} />
                     {row.awaitingReview > 0 && (
-                      <span className="text-xs font-medium text-brand-700 dark:text-amber-400">
+                      <span className="text-xs font-medium text-brand-700">
                         {row.awaitingReview} to review
                       </span>
                     )}
