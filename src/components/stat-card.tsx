@@ -44,7 +44,7 @@ export function StatStrip({
   return (
     <Card
       className={cn(
-        "grid grid-cols-2 divide-border overflow-hidden sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none sm:divide-x [&>*]:rounded-none [&>*]:border-0",
+        "grid grid-cols-2 divide-border overflow-hidden sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none sm:divide-x [&>*]:rounded-none [&>*]:border-0 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2",
         className
       )}
     >

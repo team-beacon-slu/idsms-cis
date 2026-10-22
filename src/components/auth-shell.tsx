@@ -33,7 +33,7 @@ function Wordmark() {
 // right. No ornament: the logo and the words carry it.
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
+    <div className="grid min-h-dvh lg:grid-cols-2">
       <div className="hidden flex-col justify-between border-r bg-sidebar p-12 lg:flex">
         <Wordmark />
 
@@ -60,7 +60,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <p className="text-sm text-muted-foreground">Saint Louis University · SAMCIS</p>
       </div>
 
-      <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-8">
+      <div className="flex min-h-dvh items-center justify-center bg-background p-4 sm:p-8">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex justify-center lg:hidden">
             <Wordmark />

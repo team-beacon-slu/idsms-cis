@@ -12,7 +12,7 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
-      <body className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground antialiased">
+      <body className="flex min-h-dvh items-center justify-center bg-background px-4 text-foreground antialiased">
         <div role="alert" className="max-w-sm space-y-3 text-center">
           <h1 className="text-lg font-semibold">IDSMS-CIS couldn&apos;t load</h1>
           <p className="text-sm text-muted-foreground">

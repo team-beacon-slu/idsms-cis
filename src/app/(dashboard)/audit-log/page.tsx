@@ -30,6 +30,15 @@ const stampFmt = new Intl.DateTimeFormat("en-PH", {
 const FILTER_KEYS = ["action", "entityType", "email", "from", "to"] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
+// LOGIN_SUCCESS -> Login success: the codes stay in the export, people read words.
+function humanizeAction(action: string): string {
+  const words = action
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\bdsar\b/, "DSAR");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function detailText(detail: unknown): string {
   if (detail === null || detail === undefined) return "";
   const text = typeof detail === "string" ? detail : JSON.stringify(detail);
@@ -72,8 +81,8 @@ export default async function AuditLogPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-foreground text-2xl font-semibold tracking-tight">Audit log</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Audit log</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Append-only record of security and administrative events. Times are Manila time.
           </p>
         </div>
@@ -123,7 +132,7 @@ export default async function AuditLogPage({
         </Button>
       </form>
       {!parsed.success && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-sm text-destructive">
           Those filters were not valid, so they were ignored.
         </p>
       )}
@@ -135,7 +144,7 @@ export default async function AuditLogPage({
           description="Try widening the date range or clearing a filter."
         />
       ) : (
-        <div className="border-border overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
             <caption className="sr-only">Audit log entries, newest first</caption>
             <TableHeader>
@@ -156,11 +165,21 @@ export default async function AuditLogPage({
                     {stampFmt.format(r.timestamp)}
                   </TableCell>
                   <TableCell>{r.email ?? "—"}</TableCell>
-                  <TableCell className="text-foreground font-medium">{r.action}</TableCell>
+                  <TableCell className="font-medium whitespace-nowrap text-foreground">
+                    {humanizeAction(r.action)}
+                  </TableCell>
                   <TableCell>{r.entityType}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.entityId ?? "—"}</TableCell>
+                  <TableCell
+                    className="font-mono text-xs whitespace-nowrap"
+                    title={r.entityId ?? undefined}
+                  >
+                    {r.entityId ? `${r.entityId.slice(0, 8)}…` : "—"}
+                  </TableCell>
                   <TableCell>{r.ipAddress ?? "—"}</TableCell>
-                  <TableCell className="max-w-xs font-mono text-xs wrap-break-word">
+                  <TableCell
+                    className="max-w-xs truncate font-mono text-xs"
+                    title={detailText(r.detail) || undefined}
+                  >
                     {detailText(r.detail) || "—"}
                   </TableCell>
                 </TableRow>

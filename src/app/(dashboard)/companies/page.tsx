@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatStrip } from "@/components/stat-card";
 import { cn } from "@/lib/utils";
 
 function VerificationPill({ isVerified }: { isVerified: boolean }) {
@@ -59,10 +59,10 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <StatStrip>
         <StatCard label="Registered companies" value={companies.length} icon={Building2} />
         <StatCard label="Verified" value={verifiedCount} icon={ShieldCheck} />
-      </div>
+      </StatStrip>
 
       <form className="flex gap-2">
         <div className="relative w-full max-w-sm">
@@ -75,7 +75,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
             name="search"
             placeholder="Search by name..."
             defaultValue={searchParams.search}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent py-1 pr-3 pl-9 text-sm shadow-xs transition-colors duration-200 placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden"
+            className="flex h-9 w-full rounded-md border border-input bg-card py-1 pr-3 pl-9 text-sm transition-colors duration-200 placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden"
           />
         </div>
         <Button type="submit" variant="outline" className="cursor-pointer">
@@ -83,7 +83,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
         </Button>
       </form>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <Table>
           <TableCaption className="sr-only">Registered companies</TableCaption>
           <TableHeader>
@@ -114,9 +114,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
               <TableRow>
                 <TableCell colSpan={3} className="py-14 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                      <Building2 className="size-5" aria-hidden="true" />
-                    </div>
+                    <Building2 className="size-5 text-muted-foreground" aria-hidden="true" />
                     <p className="text-sm font-medium text-foreground">No companies found</p>
                     <p className="text-sm text-muted-foreground">
                       Register the first host company to get started.

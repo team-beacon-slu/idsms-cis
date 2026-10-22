@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
-import { CalendarClock, ListChecks } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { getWorkPlanHistory } from "@/lib/services/workPlanService";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { Role } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkPlanSubmitForm } from "./work-plan-submit-form";
 import { WorkPlanReviewActions } from "./work-plan-review-actions";
@@ -51,18 +52,10 @@ export default async function WorkPlanPage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
-          <ListChecks className="size-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Work Plan</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Submit planned deployment tasks for coordinator review. A returned plan can be revised
-            and resubmitted.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Work plan"
+        description="Planned deployment tasks, reviewed by the coordinator. A returned plan can be revised and resubmitted."
+      />
 
       {canSubmitNew && <WorkPlanSubmitForm studentProfileId={params.studentProfileId} />}
 

@@ -85,7 +85,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
 
           {isStaff && (
             <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-4">
-              <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="mb-3 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                 <Lock className="size-3.5" aria-hidden="true" />
                 Staff
               </div>
@@ -102,7 +102,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
               <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
               <CardTitle className="flex items-center gap-2">
                 MOA records
-                <span className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   <ShieldCheck className="size-3" aria-hidden="true" />
                   Staff only
                 </span>
@@ -116,7 +116,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto rounded-lg border border-border">
+            <div className="overflow-x-auto rounded-lg border border-border bg-card">
               <Table>
                 <TableCaption className="sr-only">MOA records for {company.name}</TableCaption>
                 <TableHeader>

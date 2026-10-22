@@ -7,6 +7,7 @@ import { toDateKey } from "@/lib/utils/reportDeadline";
 import { formatHrsMins } from "@/lib/utils/timeMath";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { EditRequestButton, RequestForm, type RequestFormValues } from "./request-form";
 import { RequestReviewActions } from "./request-review-actions";
 
@@ -62,15 +63,10 @@ export default async function LeaveRequestsPage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Leave &amp; Time Requests
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Leave, overtime and undertime requests, reviewed by the faculty adviser. Approved overtime
-          is credited to rendered hours.
-        </p>
-      </div>
+      <PageHeader
+        title="Leave & time requests"
+        description="Leave, overtime and undertime, reviewed by the faculty adviser. Approved overtime is credited to rendered hours."
+      />
 
       {isOwner && (
         <Card>

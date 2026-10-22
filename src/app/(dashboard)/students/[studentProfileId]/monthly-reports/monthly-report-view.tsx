@@ -95,7 +95,7 @@ export function MonthlyReportView({
     return (
       <div
         data-testid="monthly-report-view"
-        className="text-muted-foreground flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center text-sm"
+        className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground"
       >
         <CircleDashed className="size-5" aria-hidden="true" />
         <p>No weekly reports yet — monthly reports roll up approved weekly reports.</p>
@@ -113,20 +113,19 @@ export function MonthlyReportView({
           <div key={month.calendarMonth} className="space-y-3 rounded-lg border p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-foreground text-sm font-semibold">
+                <p className="text-sm font-semibold text-foreground">
                   {monthLabel(month.calendarMonth)}
                 </p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   {month.weeklyReports.length} weekly report
                   {month.weeklyReports.length === 1 ? "" : "s"} ·{" "}
                   {Math.round(monthHours * 100) / 100} approved hours
                 </p>
               </div>
               {month.submitted ? (
-                <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
-                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+                  <CheckCircle2 className="size-4 text-chart-5" aria-hidden="true" />
                   Submitted
-                  <StatusBadge status={month.submitted.status} />
                   <ReportPdfActions
                     endpoint={`/api/monthly-reports/${month.submitted.id}/pdf`}
                     status={month.submitted.status as "GENERATED" | "FAILED" | "PENDING_DRAFT"}
@@ -165,7 +164,7 @@ export function MonthlyReportView({
                     {shortDate(report.weekStart)} – {shortDate(report.weekEnd)}
                   </span>
                   <span className="flex items-center gap-3">
-                    <span className="text-muted-foreground text-xs">{report.totalHours} hrs</span>
+                    <span className="text-xs text-muted-foreground">{report.totalHours} hrs</span>
                     <StatusBadge status={report.status} />
                   </span>
                 </li>

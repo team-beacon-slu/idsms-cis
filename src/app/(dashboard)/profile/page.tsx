@@ -12,8 +12,8 @@ function humanizeRole(role: string) {
   return role
     .toLowerCase()
     .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+    .join(" ")
+    .replace(/^./, (c) => c.toUpperCase());
 }
 
 export default async function ProfilePage() {
@@ -51,7 +51,7 @@ export default async function ProfilePage() {
         </CardHeader>
         <CardContent className="divide-y divide-border">
           <div className="flex items-center gap-3 py-3 first:pt-0">
-            <div className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
+            <div className="shrink-0 text-muted-foreground">
               <Mail className="size-4" aria-hidden="true" />
             </div>
             <div className="min-w-0">
@@ -61,7 +61,7 @@ export default async function ProfilePage() {
           </div>
 
           <div className="flex items-center gap-3 py-3">
-            <div className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
+            <div className="shrink-0 text-muted-foreground">
               <ShieldCheck className="size-4" aria-hidden="true" />
             </div>
             <div className="min-w-0">
@@ -74,7 +74,7 @@ export default async function ProfilePage() {
 
           {profile?.studentProfile && (
             <div className="flex items-center gap-3 py-3">
-              <div className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
+              <div className="shrink-0 text-muted-foreground">
                 <IdCard className="size-4" aria-hidden="true" />
               </div>
               <div className="min-w-0">

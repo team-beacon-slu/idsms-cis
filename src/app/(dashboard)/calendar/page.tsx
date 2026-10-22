@@ -114,7 +114,9 @@ export default async function CalendarPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">This semester</CardTitle>
-          <CardDescription>Color-coded by event type — see the legend below.</CardDescription>
+          <CardDescription>
+            Each kind of event has its own colour; the key sits above the month.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <UnifiedCalendarView events={events} role={user.role} />
