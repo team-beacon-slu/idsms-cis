@@ -338,7 +338,8 @@ const ENDORSEMENT_SPIKE_THRESHOLD = 3;
 // student's COMPLETION event) to skip recomputing each projection.
 export async function detectEndorsementLetterSpikes(
   coordinatorId: string,
-  events?: CalendarEvent[]
+  events?: CalendarEvent[],
+  now: Date = new Date()
 ): Promise<{ weekStart: Date; expectedCount: number }[]> {
   // The schema has no Department model — this system serves a single
   // department (SLU SAMCIS) — so there is no per-coordinator filter to
@@ -358,7 +359,8 @@ export async function detectEndorsementLetterSpikes(
 
   const buckets = new Map<number, { weekStart: Date; expectedCount: number }>();
   for (const completionDate of completionDates) {
-    if (!completionDate) continue;
+    // A finished intern's projection is "now"; only upcoming completions need letters.
+    if (!completionDate || completionDate <= now) continue;
 
     const weekStart = getManilaWeekStart(completionDate);
     const key = weekStart.getTime();

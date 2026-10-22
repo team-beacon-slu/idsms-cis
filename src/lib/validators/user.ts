@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { Program, Role } from "@prisma/client";
 
+// Staff only: a student needs a profile and checklist rows, which only the class-list
+// import creates (bulkImportStudents).
 export const createUserSchema = z.object({
   email: z.email(),
-  role: z.enum(Role),
+  role: z.enum([Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]),
 });
 
 // Role reassignment isn't exposed here — it has no dedicated service-layer

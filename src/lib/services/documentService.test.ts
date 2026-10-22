@@ -435,6 +435,23 @@ describe("generateEndorsementLetterPdf", () => {
       expect.any(Buffer)
     );
   });
+
+  it("a failed regeneration keeps the earlier letter downloadable (never marks it FAILED)", async () => {
+    gate.mockResolvedValue(true);
+    loadLetter.mockResolvedValue({});
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({
+      id: "doc-el",
+      referenceCode: "EL-20261011-ABCD1234",
+      status: DocumentStatus.GENERATED,
+    } as never);
+    render.mockRejectedValue(new Error("Navigation timeout"));
+
+    const result = await generateEndorsementLetterPdf("p-1", "coord-1", { sleep: noSleep });
+
+    expect(result.status).toBe(DocumentStatus.FAILED);
+    // No reset to PENDING_DRAFT before rendering, and no FAILED after it.
+    expect(prismaMock.generatedDocument.update).not.toHaveBeenCalled();
+  });
 });
 
 describe("generateEndorsementReferenceCode", () => {

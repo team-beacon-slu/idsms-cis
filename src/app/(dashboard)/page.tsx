@@ -24,7 +24,12 @@ import { weeklyHistory } from "@/lib/services/complianceService";
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 
 const fmtDate = (d: Date) =>
-  d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  d.toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  });
 
 export default async function DashboardHomePage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

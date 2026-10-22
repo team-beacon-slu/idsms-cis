@@ -108,6 +108,10 @@ export function handleApiError(error: unknown): NextResponse {
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
   // findUniqueOrThrow on an unknown id.
+  // A unique constraint (e.g. an email already in use) is the caller's conflict, not a crash.
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    return NextResponse.json({ error: "That record already exists" }, { status: 409 });
+  }
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

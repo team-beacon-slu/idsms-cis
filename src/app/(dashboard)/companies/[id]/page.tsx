@@ -134,8 +134,12 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                       <TableCell>
                         <StatusBadge status={moa.status} />
                       </TableCell>
-                      <TableCell>{new Date(moa.validFrom).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(moa.validTo).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {new Date(moa.validFrom).toLocaleDateString("en-PH", { timeZone: "UTC" })}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(moa.validTo).toLocaleDateString("en-PH", { timeZone: "UTC" })}
+                      </TableCell>
                       <TableCell>{moa.programsCovered.join(", ")}</TableCell>
                       <TableCell>
                         <MoaStatusActions

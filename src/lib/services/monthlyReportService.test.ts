@@ -74,6 +74,34 @@ const week = (monday: string, status: WeeklyReportStatus = WeeklyReportStatus.AP
 };
 
 describe("checkMonthlyAggregationEligibility", () => {
+  // Oct 7 2026, 09:00 Manila: October is still under way.
+  const midOctober = new Date("2026-10-07T01:00:00Z");
+  const octoberWeeks = [week("2026-09-28"), week("2026-10-05")];
+
+  it("returns false for the current month while the intern still owes hours", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue(octoberWeeks as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      renderedHours: 80,
+      requiredHours: 486,
+    } as never);
+
+    await expect(
+      checkMonthlyAggregationEligibility("profile-1", "2026-10", midOctober)
+    ).resolves.toBe(false);
+  });
+
+  it("allows the current month once the intern has finished their hours", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue(octoberWeeks as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      renderedHours: 486,
+      requiredHours: 486,
+    } as never);
+
+    await expect(
+      checkMonthlyAggregationEligibility("profile-1", "2026-10", midOctober)
+    ).resolves.toBe(true);
+  });
+
   it("returns false when no weekly reports overlap the calendar month", async () => {
     prismaMock.weeklyReport.findMany.mockResolvedValue([week("2026-06-01")] as never);
 

@@ -175,6 +175,16 @@ describe("detectEndorsementLetterSpikes", () => {
   function studentIds(...ids: string[]) {
     prismaMock.studentProfile.findMany.mockResolvedValue(ids.map((id) => ({ id })) as never);
   }
+  // The fixtures below are March 2026 completions, so "now" sits before them.
+  beforeEach(() => jest.useFakeTimers({ now: new Date("2026-01-01T00:00:00Z") }));
+  afterEach(() => jest.useRealTimers());
+
+  it("does not count interns who have already finished (projection = now)", async () => {
+    studentIds("s-1", "s-2", "s-3");
+    mockedComputeProjectedCompletionDate.mockResolvedValue(new Date("2026-01-01T00:00:00Z"));
+
+    await expect(detectEndorsementLetterSpikes("coord-1")).resolves.toEqual([]);
+  });
 
   it("returns an empty array when there are no active students", async () => {
     studentIds();

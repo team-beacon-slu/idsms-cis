@@ -119,6 +119,9 @@ export async function renderAndStoreDocument(args: {
   actingUserId: string;
   detail?: Record<string, string>;
   sleep?: Sleep;
+  /** Regenerating a letter or cover that is already GENERATED: on failure the row keeps
+   *  pointing at the earlier PDF (still in storage) instead of hiding it behind FAILED. */
+  keepGeneratedOnFailure?: boolean;
 }): Promise<DocumentStatus> {
   const { documentId, path, actingUserId, detail: auditDetail = {} } = args;
   try {
@@ -131,7 +134,7 @@ export async function renderAndStoreDocument(args: {
     );
   } catch (error) {
     console.error("Report PDF generation failed", { documentId, ...auditDetail, error });
-    await markFailed(documentId);
+    if (!args.keepGeneratedOnFailure) await markFailed(documentId);
     await bestEffort("audit", documentId, () =>
       logEvent({
         userId: actingUserId,
@@ -323,9 +326,10 @@ export async function generateEndorsementLetterPdf(
   const now = new Date();
   const existing = await prisma.generatedDocument.findFirst({
     where: { studentProfileId, documentType: DocumentType.ENDORSEMENT_LETTER },
-    select: { id: true, referenceCode: true },
+    select: { id: true, referenceCode: true, status: true },
   });
   const code = existing?.referenceCode ?? generateEndorsementReferenceCode(now);
+  const regenerating = existing?.status === DocumentStatus.GENERATED;
   // Loaded (and FR-DG-01-validated) before the row is touched, so an
   // incomplete profile is a 400 that leaves no half-updated row behind —
   // and, being permanent, it's never retried.
@@ -333,10 +337,12 @@ export async function generateEndorsementLetterPdf(
 
   let documentId: string;
   if (existing) {
-    await prisma.generatedDocument.update({
-      where: { id: existing.id },
-      data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
-    });
+    if (!regenerating) {
+      await prisma.generatedDocument.update({
+        where: { id: existing.id },
+        data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
+      });
+    }
     documentId = existing.id;
   } else {
     const created = await prisma.generatedDocument.create({
@@ -353,6 +359,7 @@ export async function generateEndorsementLetterPdf(
   const status = await renderAndStoreDocument({
     documentId,
     path: `endorsement/${studentProfileId}.pdf`,
+    keepGeneratedOnFailure: regenerating,
     buildHtml: () => renderEndorsementLetterHtml(data),
     actingUserId,
     detail: { studentProfileId, referenceCode: code },
@@ -502,16 +509,19 @@ export async function generateFinalCoverPdf(
   const now = new Date();
   const existing = await prisma.generatedDocument.findFirst({
     where: { studentProfileId, documentType: DocumentType.FINAL_REPORT_COVER },
-    select: { id: true, referenceCode: true },
+    select: { id: true, referenceCode: true, status: true },
   });
   const code = existing?.referenceCode ?? generateFinalCoverReferenceCode(now);
+  const regenerating = existing?.status === DocumentStatus.GENERATED;
 
   let documentId: string;
   if (existing) {
-    await prisma.generatedDocument.update({
-      where: { id: existing.id },
-      data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
-    });
+    if (!regenerating) {
+      await prisma.generatedDocument.update({
+        where: { id: existing.id },
+        data: { referenceCode: code, status: DocumentStatus.PENDING_DRAFT },
+      });
+    }
     documentId = existing.id;
   } else {
     const created = await prisma.generatedDocument.create({
@@ -528,6 +538,7 @@ export async function generateFinalCoverPdf(
   const status = await renderAndStoreDocument({
     documentId,
     path: `final-cover/${studentProfileId}.pdf`,
+    keepGeneratedOnFailure: regenerating,
     buildHtml: () =>
       renderFinalCoverHtml({
         referenceCode: code,

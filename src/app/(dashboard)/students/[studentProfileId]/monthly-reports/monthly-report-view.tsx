@@ -152,8 +152,8 @@ export function MonthlyReportView({
 
             {!month.submitted && !month.eligible && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Not yet eligible — every weekly report overlapping this month must be Approved or
-                Regarded by your faculty adviser.
+                Not yet eligible. The month must be over (unless your hours are complete) and every
+                weekly report in it approved or regarded by your faculty adviser.
               </p>
             )}
 

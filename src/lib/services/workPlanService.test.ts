@@ -66,21 +66,46 @@ describe("submitWorkPlan", () => {
     }) =>
       Promise.resolve(args.where.status === WorkPlanStatus.APPROVED ? approved : latest)) as never);
 
-  it.each([
-    ["right after the approval", approved],
-    ["after an approved plan and a returned one", { id: "wp-2", status: WorkPlanStatus.RETURNED }],
-  ])("keeps the approved schedule when resubmitting %s", async (_, latest) => {
-    latestIs(latest);
+  it("does not copy the schedule at submission (a pending change may still be decided)", async () => {
+    latestIs(approved);
     prismaMock.workPlan.create.mockResolvedValue({ id: "wp-3" } as never);
 
     await submitWorkPlan("profile-1", { plannedTasks: ["new task"] }, adminUser);
 
-    expect(prismaMock.workPlan.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        scheduleConfig: approved.scheduleConfig,
-        scheduleChangeHistory: approved.scheduleChangeHistory,
-      }),
-    });
+    const data = prismaMock.workPlan.create.mock.calls[0][0].data;
+    expect(data.scheduleConfig).toBeUndefined();
+    expect(data).not.toHaveProperty("scheduleChangeHistory");
+  });
+
+  it("carries the schedule current at approval, including a change decided after submission", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      id: "wp-3",
+      studentProfileId: "profile-1",
+      status: WorkPlanStatus.SUBMITTED,
+      scheduleConfig: null,
+    } as never);
+    const decided = {
+      ...approved,
+      scheduleConfig: { daysOfWeek: [1, 2, 3, 4], hoursPerDay: 10 },
+      scheduleChangeHistory: [{ action: "REQUESTED" }, { action: "APPROVED" }],
+    };
+    prismaMock.workPlan.findFirst.mockResolvedValue(decided as never);
+    prismaMock.workPlan.update.mockResolvedValue({ id: "wp-3" } as never);
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({ id: "letter" } as never);
+
+    await reviewWorkPlan("wp-3", "APPROVE", undefined, adminUser);
+
+    expect(prismaMock.workPlan.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { not: "wp-3" } }) })
+    );
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scheduleConfig: decided.scheduleConfig,
+          scheduleChangeHistory: decided.scheduleChangeHistory,
+        }),
+      })
+    );
   });
 
   it("lets an explicit schedule in the submission win", async () => {

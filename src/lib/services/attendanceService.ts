@@ -696,6 +696,7 @@ export async function validateScheduleChangeFaculty(
   // `logScheduleChangeHistory` (which already accepts a transaction client)
   // is what closes that window once B15 implements the actual write.
   return prisma.$transaction(async (tx) => {
+    await lockWorkPlan(tx, workPlanId);
     const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
     const history = (workPlan.scheduleChangeHistory ??
       []) as unknown as ScheduleChangeHistoryEntry[];
@@ -752,6 +753,7 @@ export async function approveScheduleChangeCoordinator(
   // atomic unit so two concurrent coordinator reviews of the same request
   // can't both pass the state gate before either has written its outcome.
   const nextStatus = await prisma.$transaction(async (tx) => {
+    await lockWorkPlan(tx, workPlanId);
     const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
     const history = (workPlan.scheduleChangeHistory ??
       []) as unknown as ScheduleChangeHistoryEntry[];
@@ -774,19 +776,20 @@ export async function approveScheduleChangeCoordinator(
       tx
     );
 
+    // In the same transaction as the decision: if applying fails, the approval rolls
+    // back too, instead of leaving an APPROVED request that never took effect.
+    if (resultStatus === "APPROVED") await applyScheduleChange(tx, workPlanId);
+
     return resultStatus;
   });
 
-  // Applying the schedule change is a separate, already-transactional step
-  // of its own (`applyScheduleChangeProspectively` below) — run after this
-  // transaction commits, not nested inside it, same "commit the decision,
-  // then act on it" split `reviewWeeklyReport_Approve` uses for its own
-  // post-approval side effect.
-  if (nextStatus === "APPROVED") {
-    await applyScheduleChangeProspectively(workPlanId);
-  }
-
   return { workPlanId, status: nextStatus };
+}
+
+// Row lock for the schedule-change state checks: a second, simultaneous review waits
+// and then sees the first one's outcome instead of also passing the check.
+async function lockWorkPlan(tx: Prisma.TransactionClient, workPlanId: string) {
+  await tx.$queryRaw`SELECT id FROM work_plans WHERE id = ${workPlanId}::uuid FOR UPDATE`;
 }
 
 // FR-AT-10 — Owner: JayPing23 (Danielle)
@@ -818,50 +821,54 @@ export class MissingScheduleChangeRequestError extends Error {
 export async function applyScheduleChangeProspectively(
   workPlanId: string
 ): Promise<{ workPlanId: string; effectiveFrom: Date }> {
-  const effectiveFrom = await prisma.$transaction(async (tx) => {
-    const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
-    const history = (workPlan.scheduleChangeHistory ??
-      []) as unknown as ScheduleChangeHistoryEntry[];
-
-    const requestEntry = [...history].reverse().find(
-      (
-        entry
-      ): entry is ScheduleChangeHistoryEntry & {
-        newScheduleConfig: ConfigureWorkScheduleInput;
-      } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
-    );
-
-    if (!requestEntry) {
-      throw new MissingScheduleChangeRequestError();
-    }
-
-    const now = new Date();
-
-    await tx.workPlan.update({
-      where: { id: workPlanId },
-      data: {
-        scheduleConfig: requestEntry.newScheduleConfig as unknown as Prisma.InputJsonValue,
-      },
-    });
-
-    await logScheduleChangeHistory(
-      workPlanId,
-      {
-        timestamp: now.toISOString(),
-        approverId: null,
-        action: "SCHEDULE_APPLIED",
-        status: "APPLIED",
-      },
-      tx
-    );
-
-    return now;
-  });
+  const effectiveFrom = await prisma.$transaction((tx) => applyScheduleChange(tx, workPlanId));
 
   const studentProfileId = await getWorkPlanStudentProfileId(workPlanId);
   await computeProjectedCompletionDate(studentProfileId);
 
   return { workPlanId, effectiveFrom };
+}
+
+async function applyScheduleChange(
+  tx: Prisma.TransactionClient,
+  workPlanId: string
+): Promise<Date> {
+  const workPlan = await tx.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });
+  const history = (workPlan.scheduleChangeHistory ?? []) as unknown as ScheduleChangeHistoryEntry[];
+
+  const requestEntry = [...history].reverse().find(
+    (
+      entry
+    ): entry is ScheduleChangeHistoryEntry & {
+      newScheduleConfig: ConfigureWorkScheduleInput;
+    } => "newScheduleConfig" in entry && entry.newScheduleConfig != null
+  );
+
+  if (!requestEntry) {
+    throw new MissingScheduleChangeRequestError();
+  }
+
+  const now = new Date();
+
+  await tx.workPlan.update({
+    where: { id: workPlanId },
+    data: {
+      scheduleConfig: requestEntry.newScheduleConfig as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  await logScheduleChangeHistory(
+    workPlanId,
+    {
+      timestamp: now.toISOString(),
+      approverId: null,
+      action: "SCHEDULE_APPLIED",
+      status: "APPLIED",
+    },
+    tx
+  );
+
+  return now;
 }
 
 export interface ScheduleChangeHistoryEntry {

@@ -1,3 +1,4 @@
+import { formatInstant } from "@/lib/documents/html";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
@@ -187,7 +188,7 @@ export default async function WeeklyReportsPage(props: {
                     <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <Hash className="size-3.5" aria-hidden="true" />
                       <span className="font-mono text-foreground">{submission.referenceCode}</span>·
-                      submitted {new Date(submission.timestamp).toLocaleString()}
+                      submitted {formatInstant(new Date(submission.timestamp))}
                       {submission.reasonForDelay && (
                         <> · delay reason: {submission.reasonForDelay}</>
                       )}

@@ -67,10 +67,19 @@ export async function issueConductRecord(
     return record;
   });
 
-  // After commit.
-  if (hoursDeducted > 0) await computeTotalHoursRendered(studentProfileId);
+  // After commit. The record is saved: a failed refresh must not report an error, or
+  // the adviser retries and the intern is deducted twice. The next recompute catches up.
+  if (hoursDeducted > 0) await refreshRenderedHours(studentProfileId);
   await notifyConductRecordIssued(studentProfileId, category.label, data.reason);
   return created;
+}
+
+async function refreshRenderedHours(studentProfileId: string) {
+  try {
+    await computeTotalHoursRendered(studentProfileId);
+  } catch (error) {
+    console.error("[conduct] rendered-hours refresh failed", error);
+  }
 }
 
 export async function revokeConductRecord(
@@ -104,7 +113,7 @@ export async function revokeConductRecord(
       tx
     );
   });
-  if (Number(record.hoursDeducted) > 0) await computeTotalHoursRendered(record.studentProfileId);
+  if (Number(record.hoursDeducted) > 0) await refreshRenderedHours(record.studentProfileId);
 }
 
 export async function listConductRecords(studentProfileId: string) {

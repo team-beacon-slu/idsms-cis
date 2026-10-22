@@ -342,7 +342,6 @@ describe("verifyCredentials", () => {
   );
 
   it.each([
-    ["unknown email", null],
     ["inactive account", baseUser({ isActive: false })],
     ["locked account", baseUser({ lockedUntil: new Date(Date.now() + 60_000) })],
   ])("pre-read rejection (%s) never opens a transaction or runs bcrypt", async (_n, row) => {
@@ -352,6 +351,16 @@ describe("verifyCredentials", () => {
 
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
     expect(mockedVerifyPassword).not.toHaveBeenCalled();
+  });
+
+  it("an unknown email still costs one bcrypt check, so timing can't reveal it", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    await verifyCredentials("nobody@example.com", "whatever");
+
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(mockedVerifyPassword).toHaveBeenCalledTimes(1);
+    expect(mockedVerifyPassword.mock.calls[0][1]).toMatch(/^\$2[aby]\$12\$/);
   });
 
   it("does not increment the failure counter for a WRONG password when the hash changed mid-flight", async () => {
