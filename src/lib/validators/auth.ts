@@ -1,7 +1,10 @@
 import { z } from "zod";
 
+// Accept what people type (spaces, capitals), store and compare one form: lowercase.
+export const emailSchema = z.string().trim().toLowerCase().pipe(z.email());
+
 export const loginSchema = z.object({
-  email: z.email(),
+  email: emailSchema,
   password: z.string().min(1, "Password is required"),
 });
 
@@ -24,7 +27,7 @@ export const changePasswordSchema = z
   });
 
 export const requestPasswordResetSchema = z.object({
-  email: z.email(),
+  email: emailSchema,
 });
 
 export const completePasswordResetSchema = z

@@ -11,6 +11,7 @@ import { loginSchema } from "@/lib/validators/auth";
 import { safeInternalPath } from "@/lib/utils/safeInternalPath";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthShell } from "@/components/auth-shell";
@@ -98,20 +99,19 @@ function LoginForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock
-                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  className="pl-9"
-                  {...register("password")}
-                  {...errorProps("password", errors.password?.message)}
-                />
-              </div>
+              <PasswordInput
+                id="password"
+                autoComplete="current-password"
+                className="pl-9"
+                icon={
+                  <Lock
+                    className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                }
+                {...register("password")}
+                {...errorProps("password", errors.password?.message)}
+              />
               <FieldError id="password-error" message={errors.password?.message} />
             </div>
             {error && (

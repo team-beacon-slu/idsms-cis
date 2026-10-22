@@ -10,7 +10,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { passwordSchema } from "@/lib/validators/auth";
 import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthShell } from "@/components/auth-shell";
@@ -73,9 +73,9 @@ export default function ConfirmResetPasswordPage() {
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
               <Label htmlFor="newPassword">New password</Label>
-              <Input
+              <PasswordInput
                 id="newPassword"
-                type="password"
+                autoComplete="new-password"
                 {...register("newPassword")}
                 {...errorProps("newPassword", errors.newPassword?.message)}
               />
@@ -83,9 +83,9 @@ export default function ConfirmResetPasswordPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm password</Label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
+                autoComplete="new-password"
                 {...register("confirmPassword")}
                 {...errorProps("confirmPassword", errors.confirmPassword?.message)}
               />
