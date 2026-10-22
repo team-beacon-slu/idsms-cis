@@ -2,7 +2,11 @@ import { notFound, redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getWeeklyReport, isAwaitingReview } from "@/lib/services/weeklyReportService";
+import {
+  getConductDeductions,
+  getWeeklyReport,
+  isAwaitingReview,
+} from "@/lib/services/weeklyReportService";
 import { WeeklyReportForm } from "../../weekly-report-form";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,6 +138,10 @@ export default async function WeeklyReportReviewPage(props: {
             totals={{
               totalHours: Number(report!.totalHours),
               runningTotal: Number(report!.runningTotal),
+              conductDeductions: await getConductDeductions(
+                report!.studentProfileId,
+                report!.weekEnd
+              ),
               remainingHours: Number(report!.remainingHours),
             }}
             entries={[...report!.dailyEntries]

@@ -1,7 +1,7 @@
 import { DeviationType, ValidationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendanceService";
-import { getConfirmedSubmission } from "@/lib/services/weeklyReportService";
+import { getConductDeductions, getConfirmedSubmission } from "@/lib/services/weeklyReportService";
 import { entryCreditedHours } from "@/lib/utils/creditedHours";
 import { displayNameFromEmail } from "@/lib/utils/displayName";
 import { getWeeklyReportDueDate, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";
@@ -116,6 +116,7 @@ export async function loadWeeklyReportDocumentData(
 
   const totalHours = Number(report.totalHours);
   const runningTotal = Number(report.runningTotal);
+  const conductDeductions = await getConductDeductions(report.studentProfileId, report.weekEnd);
 
   return {
     weeklyReportId: report.id,
@@ -154,6 +155,7 @@ export async function loadWeeklyReportDocumentData(
     totals: {
       totalHours,
       runningTotal,
+      conductDeductions,
       remainingHours: Number(report.remainingHours),
       beginning: Math.round((runningTotal - totalHours) * 100) / 100,
       ending: runningTotal,

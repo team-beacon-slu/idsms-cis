@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUserPage } from "@/lib/auth/session";
+import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
 import { DashboardNav } from "./dashboard-nav";
+import { PrivacyConsentDialog } from "./privacy-consent-dialog";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUserPage();
@@ -12,13 +14,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   // Students are shown by name when their profile has one; staff accounts only have an email.
-  const profile =
+  const [profile, consent] = await Promise.all([
     user.role === Role.STUDENT_INTERN
-      ? await prisma.studentProfile.findUnique({
+      ? prisma.studentProfile.findUnique({
           where: { userId: user.id },
           select: { fullName: true },
         })
-      : null;
+      : null,
+    prisma.user.findUnique({ where: { id: user.id }, select: { privacyConsentVersion: true } }),
+  ]);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -31,6 +35,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {children}
         </div>
       </main>
+      {consent?.privacyConsentVersion !== PRIVACY_NOTICE_VERSION && <PrivacyConsentDialog />}
     </div>
   );
 }

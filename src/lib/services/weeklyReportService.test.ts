@@ -306,6 +306,7 @@ describe("weekly hour totals (FR-WR-02)", () => {
     await expect(calculateRunningTotalAndRemaining("profile-1", "wr-1")).resolves.toEqual({
       runningTotal: 16,
       remainingHours: 84,
+      conductDeductions: 0,
     });
   });
 
@@ -321,7 +322,7 @@ describe("weekly hour totals (FR-WR-02)", () => {
 
     const result = await calculateRunningTotalAndRemaining("profile-1", "wr-1");
 
-    expect(result).toEqual({ runningTotal: 56, remainingHours: 430 });
+    expect(result).toEqual({ runningTotal: 56, remainingHours: 430, conductDeductions: 0 });
     expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -329,6 +330,33 @@ describe("weekly hour totals (FR-WR-02)", () => {
         }),
       })
     );
+  });
+});
+
+describe("conduct deductions beside the running total", () => {
+  it("keeps the running total as hours worked and takes deductions off remaining", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      weekStart: new Date("2026-10-12T00:00:00Z"),
+      weekEnd: new Date("2026-10-18T00:00:00Z"),
+      dailyEntries: [{ actualHours: 8 }],
+    } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 100 } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.conductRecord.aggregate.mockResolvedValue({ _sum: { hoursDeducted: 4 } } as never);
+
+    await expect(calculateRunningTotalAndRemaining("profile-1", "wr-1")).resolves.toEqual({
+      runningTotal: 8,
+      conductDeductions: 4,
+      remainingHours: 96,
+    });
+    expect(prismaMock.conductRecord.aggregate).toHaveBeenCalledWith({
+      where: {
+        studentProfileId: "profile-1",
+        revokedAt: null,
+        date: { lte: new Date("2026-10-18T00:00:00Z") },
+      },
+      _sum: { hoursDeducted: true },
+    });
   });
 });
 
