@@ -136,12 +136,16 @@ export default async function DashboardHomePage(props: {
     : [];
 
   const percent = requiredHours > 0 ? Math.min(100, (confirmedHours / requiredHours) * 100) : 0;
+  // Peak-end rule: the internship's last moment is marked, and points at the one step left.
+  const hoursComplete = requiredHours > 0 && confirmedHours >= requiredHours;
   const finding = !studentProfile
     ? "Your student profile is not set up yet. Ask your coordinator."
-    : `${confirmedHours} of ${requiredHours} hours confirmed · ` +
-      (projectedCompletion
-        ? `on schedule to finish ${fmtDate(projectedCompletion)}`
-        : "set your work schedule to see your finish date");
+    : hoursComplete
+      ? `All ${requiredHours} required hours confirmed. Well done: what's left is your final report.`
+      : `${confirmedHours} of ${requiredHours} hours confirmed · ` +
+        (projectedCompletion
+          ? `on schedule to finish ${fmtDate(projectedCompletion)}`
+          : "set your work schedule to see your finish date");
 
   // Submission streak: weeks in a row, most recent first, whose report went in (lateness not counted; this week excluded).
   const past = track.filter((w) => !w.isCurrent && w.kind !== "ahead").reverse();
@@ -169,7 +173,11 @@ export default async function DashboardHomePage(props: {
         description={finding}
         actions={
           <Button asChild variant="secondary" size="lg" className="shadow-sm">
-            <Link href="/weekly-reports">This week&apos;s report</Link>
+            {hoursComplete ? (
+              <Link href="/final-report">Submit final report</Link>
+            ) : (
+              <Link href="/weekly-reports">This week&apos;s report</Link>
+            )}
           </Button>
         }
       />

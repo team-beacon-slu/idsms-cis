@@ -7,6 +7,7 @@ import { listClassGroups } from "@/lib/services/classGroupService";
 import { listSemesters } from "@/lib/services/semesterService";
 import { BulkImportForm } from "./import-form";
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Bulk import students" };
 
@@ -30,13 +31,11 @@ export default async function BulkImportPage() {
           <ArrowLeft className="size-4" aria-hidden="true" />
           Back to users
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-          Bulk import students
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Upload the official SLU class list to create student accounts in one pass.
-        </p>
       </div>
+      <PageHeader
+        title="Bulk import students"
+        description="Upload the official SLU class list to create student accounts in one pass."
+      />
       <BulkImportForm
         classGroups={groups.map((g) => ({ id: g.id, label: `${g.name} (${g.program})` }))}
         semesters={openSemesters.map((s) => ({

@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Audit log" };
 
@@ -82,23 +83,21 @@ export default async function AuditLogPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Audit log</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Append-only record of security and administrative events. Times are Manila time.
-          </p>
-        </div>
-        <Button asChild variant="outline" className="cursor-pointer">
-          <a
-            href={"/api/audit-logs/export" + (exportQuery ? "?" + exportQuery : "")}
-            className="gap-2"
-          >
-            <Download className="size-4" aria-hidden="true" />
-            Export to Excel
-          </a>
-        </Button>
-      </div>
+      <PageHeader
+        title="Audit log"
+        description="Append-only record of security and administrative events. Times are Manila time."
+        actions={
+          <Button asChild variant="outline" className="cursor-pointer">
+            <a
+              href={"/api/audit-logs/export" + (exportQuery ? "?" + exportQuery : "")}
+              className="gap-2"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Export to Excel
+            </a>
+          </Button>
+        }
+      />
 
       <form
         method="get"

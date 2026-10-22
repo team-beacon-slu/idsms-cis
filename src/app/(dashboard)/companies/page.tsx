@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import { MergeDuplicates } from "./merge-duplicates";
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Companies" };
 
@@ -54,20 +55,18 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Companies</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Host companies registered for student internships.
-          </p>
-        </div>
-        <Button asChild className="cursor-pointer">
-          <Link href="/companies/new" className="gap-2">
-            <Plus className="size-4" aria-hidden="true" />
-            Register company
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Companies"
+        description="Host companies registered for student internships."
+        actions={
+          <Button asChild className="cursor-pointer">
+            <Link href="/companies/new" className="gap-2">
+              <Plus className="size-4" aria-hidden="true" />
+              Register company
+            </Link>
+          </Button>
+        }
+      />
 
       <StatStrip>
         <StatCard label="Registered companies" value={companies.length} icon={Building2} />

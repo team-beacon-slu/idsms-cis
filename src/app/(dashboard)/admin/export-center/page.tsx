@@ -29,6 +29,7 @@ import { DSAR_REMINDER_DAYS } from "@/lib/services/scheduledNotifications";
 import { DataRequestActions } from "./data-request-actions";
 import { ExportCard } from "./export-card";
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Export center" };
 
@@ -87,12 +88,10 @@ export default async function ExportCenterPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Export center</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Download system data as Excel workbooks. Times are Manila time.
-        </p>
-      </div>
+      <PageHeader
+        title="Export center"
+        description="Download system data as Excel workbooks. Times are Manila time."
+      />
 
       <div
         role="note"
