@@ -10,6 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { EditRequestButton, RequestForm, type RequestFormValues } from "./request-form";
 import { RequestReviewActions } from "./request-review-actions";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Leave & time requests" };
 
 // Workstream L1 — "Leave & Time Requests" tab. The intern files and edits
 // requests; the assigned adviser, coordinator or Super Admin reviews them.

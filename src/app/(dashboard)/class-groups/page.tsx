@@ -11,6 +11,9 @@ import {
   NewClassGroupForm,
   RemoveAdviserButton,
 } from "./class-group-forms";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Class groups" };
 
 const MANAGERS: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 

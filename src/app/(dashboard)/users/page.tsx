@@ -22,6 +22,9 @@ import { cn } from "@/lib/utils";
 import { UserRowActions } from "./user-row-actions";
 import { CreateStaffForm } from "./create-staff-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Users" };
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 

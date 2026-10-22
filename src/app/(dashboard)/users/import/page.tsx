@@ -6,6 +6,9 @@ import { requireUserPage } from "@/lib/auth/session";
 import { listClassGroups } from "@/lib/services/classGroupService";
 import { listSemesters } from "@/lib/services/semesterService";
 import { BulkImportForm } from "./import-form";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Bulk import students" };
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 

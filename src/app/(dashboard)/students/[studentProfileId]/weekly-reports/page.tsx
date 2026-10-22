@@ -24,6 +24,9 @@ import { ClipboardCheck, Hash, MessageSquareWarning } from "lucide-react";
 import { WeeklyReportForm } from "./weekly-report-form";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Weekly reports" };
 
 // facultyAction is stored as "<ACTION> by <user id>"; the id means nothing to the intern.
 const FACULTY_ACTION_TEXT: Record<string, string> = {

@@ -20,6 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Audit log" };
 
 const stampFmt = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium",

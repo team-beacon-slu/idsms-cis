@@ -21,7 +21,8 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "IDSMS-CIS",
+  // Every page names itself first, so tabs and history are told apart: "Weekly reports · IDSMS-CIS".
+  title: { template: "%s · IDSMS-CIS", default: "IDSMS-CIS" },
   description: "Internship document submission and monitoring for SAMCIS, Saint Louis University",
 };
 

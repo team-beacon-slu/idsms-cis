@@ -358,6 +358,13 @@
   }
 }
 
+/* Phones: the sticky 56px header must not cover a focused field or an #anchor target (WCAG 2.4.11). */
+@media (max-width: 767px) {
+  html {
+    scroll-padding-top: 4.5rem;
+  }
+}
+
 /* Honour reduced motion: keep every state change, drop the travel. */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { Role } from "@prisma/client";
 import {
   LayoutDashboard,
+  LifeBuoy,
   Users,
   UsersRound,
   Building2,
@@ -60,6 +61,8 @@ const REFERENCE: NavGroup = {
   items: [
     { href: "/companies", label: "Companies", icon: Building2 },
     { href: "/calendar", label: "Calendar", icon: Calendar },
+    // Same place on every page (WCAG 3.2.6 consistent help).
+    { href: "/help", label: "Help", icon: LifeBuoy },
   ],
 };
 

@@ -10,6 +10,9 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkPlanSubmitForm } from "./work-plan-submit-form";
 import { WorkPlanReviewActions } from "./work-plan-review-actions";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Work plan" };
 
 const REVIEW_ROLES: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 

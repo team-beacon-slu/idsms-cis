@@ -9,6 +9,9 @@ import { listWeeklyReportsForStudent } from "@/lib/services/weeklyReportService"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { MonthlyReportView, type MonthRollup } from "./monthly-report-view";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Monthly reports" };
 
 // "YYYY-MM" keys of every calendar month a week touches — a week straddling
 // a month boundary counts toward both, matching the overlap rule in

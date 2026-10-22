@@ -15,6 +15,9 @@ import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanServ
 import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Calendar" };
 
 function formatWeek(weekStart: Date) {
   return weekStart.toLocaleDateString("en-PH", {

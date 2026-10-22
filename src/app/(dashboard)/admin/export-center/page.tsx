@@ -28,6 +28,9 @@ const RETENTION_TYPE_LABELS = {
 import { DSAR_REMINDER_DAYS } from "@/lib/services/scheduledNotifications";
 import { DataRequestActions } from "./data-request-actions";
 import { ExportCard } from "./export-card";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Export center" };
 
 // Status is always spelled out in the badge text; colour only reinforces it.
 function dueStatus(dueAt: Date, now: Date): { label: string; className: string } {

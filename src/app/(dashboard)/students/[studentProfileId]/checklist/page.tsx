@@ -21,6 +21,9 @@ import { getEndorsementLetterDocument } from "@/lib/services/documentService";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { EndorsementLetterActions } from "./endorsement-letter-actions";
 import { StartBeforeMoa } from "./start-before-moa";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Checklist" };
 
 export default async function ChecklistPage(props: {
   params: Promise<{ studentProfileId: string }>;

@@ -17,6 +17,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import { MergeDuplicates } from "./merge-duplicates";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Companies" };
 
 function VerificationPill({ isVerified }: { isVerified: boolean }) {
   return (
