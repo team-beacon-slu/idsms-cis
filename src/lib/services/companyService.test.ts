@@ -1,8 +1,14 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { MoaStatus, Role } from "@prisma/client";
 import {
+  CompanyStateError,
   InvalidMoaTransitionError,
   createCompany,
+  findSimilarCompanies,
+  joinCompany,
+  listDuplicateCompanyGroups,
+  mergeCompanies,
+  normalizeCompanyName,
   createMoaRecord,
   getCompany,
   getExpiringMoaRecords,
@@ -274,5 +280,91 @@ describe("getExpiringMoaRecords", () => {
         }),
       })
     );
+  });
+});
+
+describe("company duplicates (FR-MOA-02)", () => {
+  it("normalizes case, punctuation and company suffixes", () => {
+    expect(normalizeCompanyName("Accenture Inc.")).toBe("accenture");
+    expect(normalizeCompanyName("ACCENTURE PH")).toBe("accenture");
+    expect(normalizeCompanyName("The Acme Co., Ltd")).toBe("acme");
+  });
+
+  it("suggests companies whose names match after normalizing", async () => {
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: "c1", name: "Accenture Inc.", address: "Taguig" },
+      { id: "c2", name: "Acme Corp", address: "Baguio" },
+      { id: "c3", name: "Accenture Philippines", address: "Makati" },
+    ] as never);
+    const result = await findSimilarCompanies("accenture ph");
+    expect(result.map((c) => c.id)).toEqual(["c1", "c3"]);
+  });
+
+  it("does not search on one or two letters", async () => {
+    await expect(findSimilarCompanies("Ac")).resolves.toEqual([]);
+    expect(prismaMock.company.findMany).not.toHaveBeenCalled();
+  });
+
+  it("groups duplicates and leaves unique names out", async () => {
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: "c1", name: "Accenture Inc." },
+      { id: "c2", name: "Acme" },
+      { id: "c3", name: "ACCENTURE PH" },
+    ] as never);
+    const groups = await listDuplicateCompanyGroups();
+    expect(groups.map((g) => g.map((c) => c.id))).toEqual([["c1", "c3"]]);
+  });
+
+  it("joins a student to an existing company and logs it", async () => {
+    prismaMock.company.findUnique.mockResolvedValue({ deletedAt: null } as never);
+    prismaMock.studentProfile.update.mockResolvedValue({ id: "profile-1" } as never);
+    await joinCompany("c1", "Web Intern", "student-1");
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { userId: "student-1" },
+      data: { companyId: "c1", positionTitle: "Web Intern" },
+      select: { id: true },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "COMPANY_JOINED" }) })
+    );
+  });
+
+  it("refuses to join a merged-away company", async () => {
+    prismaMock.company.findUnique.mockResolvedValue({ deletedAt: new Date() } as never);
+    await expect(joinCompany("c1", undefined, "student-1")).rejects.toThrow(CompanyStateError);
+  });
+
+  it("merges: moves interns and MOAs, soft-deletes the others, logs once", async () => {
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: "keep", name: "Accenture Inc." },
+      { id: "dup", name: "ACCENTURE PH" },
+    ] as never);
+    await mergeCompanies("keep", ["dup", "keep"], "coord-1");
+    expect(prismaMock.studentProfile.updateMany).toHaveBeenCalledWith({
+      where: { companyId: { in: ["dup"] } },
+      data: { companyId: "keep" },
+    });
+    expect(prismaMock.moaRecord.updateMany).toHaveBeenCalledWith({
+      where: { companyId: { in: ["dup"] } },
+      data: { companyId: "keep" },
+    });
+    expect(prismaMock.company.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["dup"] } },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "COMPANY_MERGED",
+          detail: { merged: ["ACCENTURE PH"] },
+        }),
+      })
+    );
+  });
+
+  it("refuses a merge when a company is already gone", async () => {
+    prismaMock.company.findMany.mockResolvedValue([{ id: "keep", name: "A" }] as never);
+    await expect(mergeCompanies("keep", ["dup"], "coord-1")).rejects.toThrow(CompanyStateError);
+    expect(prismaMock.studentProfile.updateMany).not.toHaveBeenCalled();
   });
 });

@@ -89,6 +89,151 @@ export async function createCompany(
   });
 }
 
+export class CompanyStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CompanyStateError";
+  }
+}
+
+// Words that don't tell two companies apart: "Accenture Inc." = "ACCENTURE PH".
+const NAME_NOISE = new Set([
+  "the",
+  "inc",
+  "incorporated",
+  "corp",
+  "corporation",
+  "co",
+  "company",
+  "ltd",
+  "limited",
+  "llc",
+  "opc",
+  "ph",
+  "phil",
+  "phils",
+  "philippines",
+]);
+
+export function normalizeCompanyName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((word) => word && !NAME_NOISE.has(word))
+    .join(" ");
+}
+
+const isSimilar = (a: string, b: string) =>
+  a === b || (Math.min(a.length, b.length) >= 4 && (a.includes(b) || b.includes(a)));
+
+// FR-MOA-02: offered while an intern types, so they join the existing company instead of adding a copy.
+// shortcut: scans every company in memory, fine for a department's few hundred; move to pg_trgm if it grows.
+export async function findSimilarCompanies(name: string) {
+  const target = normalizeCompanyName(name);
+  if (target.length < 3) return [];
+  const companies = await prisma.company.findMany({
+    where: { deletedAt: null },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, address: true },
+  });
+  return companies.filter((c) => isSimilar(target, normalizeCompanyName(c.name))).slice(0, 5);
+}
+
+// A student links their own profile to a company someone else already registered.
+export async function joinCompany(
+  companyId: string,
+  positionTitle: string | undefined,
+  studentUserId: string,
+  ipAddress?: string | null
+): Promise<void> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { deletedAt: true },
+  });
+  if (!company || company.deletedAt) throw new CompanyStateError("That company no longer exists");
+  await prisma.$transaction(async (tx) => {
+    const profile = await tx.studentProfile.update({
+      where: { userId: studentUserId },
+      data: { companyId, positionTitle },
+      select: { id: true },
+    });
+    await logEvent(
+      {
+        userId: studentUserId,
+        action: "COMPANY_JOINED",
+        entityType: "Company",
+        entityId: companyId,
+        ipAddress,
+        detail: { studentProfileId: profile.id },
+      },
+      tx
+    );
+  });
+}
+
+// Groups of two or more companies whose names normalize the same, for the coordinator to merge.
+export async function listDuplicateCompanyGroups() {
+  const companies = await prisma.company.findMany({
+    where: { deletedAt: null },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      address: true,
+      isVerified: true,
+      _count: { select: { students: true, moaRecords: true } },
+    },
+  });
+  const groups = new Map<string, typeof companies>();
+  for (const c of companies) {
+    const key = normalizeCompanyName(c.name);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  return [...groups.values()].filter((group) => group.length > 1);
+}
+
+// Moves every intern and MOA onto `keepId`, then soft-deletes the others. Nothing is destroyed.
+export async function mergeCompanies(
+  keepId: string,
+  mergeIds: string[],
+  actingUserId: string,
+  ipAddress?: string | null
+): Promise<void> {
+  const ids = [...new Set(mergeIds)].filter((id) => id !== keepId);
+  if (ids.length === 0) throw new CompanyStateError("Choose at least one other company to merge");
+  await prisma.$transaction(async (tx) => {
+    const found = await tx.company.findMany({
+      where: { id: { in: [keepId, ...ids] }, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (found.length !== ids.length + 1) {
+      throw new CompanyStateError("One of those companies no longer exists");
+    }
+    await tx.studentProfile.updateMany({
+      where: { companyId: { in: ids } },
+      data: { companyId: keepId },
+    });
+    await tx.moaRecord.updateMany({
+      where: { companyId: { in: ids } },
+      data: { companyId: keepId },
+    });
+    await tx.company.updateMany({ where: { id: { in: ids } }, data: { deletedAt: new Date() } });
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "COMPANY_MERGED",
+        entityType: "Company",
+        entityId: keepId,
+        ipAddress,
+        detail: { merged: found.filter((c) => c.id !== keepId).map((c) => c.name) },
+      },
+      tx
+    );
+  });
+}
+
 export interface UpdateCompanyInput {
   name?: string;
   address?: string;

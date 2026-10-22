@@ -14,7 +14,7 @@ import {
 } from "@/lib/documents/errors";
 import { EndorsementDataIncompleteError } from "@/lib/documents/endorsementLetterData";
 import { ChecklistGateError } from "@/lib/services/checklistService";
-import { InvalidMoaTransitionError } from "@/lib/services/companyService";
+import { CompanyStateError, InvalidMoaTransitionError } from "@/lib/services/companyService";
 import { WorkPlanPendingError, WorkPlanStateError } from "@/lib/services/workPlanService";
 import {
   HolidayNotFoundError,
@@ -96,6 +96,7 @@ export function handleApiError(error: unknown): NextResponse {
   if (
     error instanceof SemesterStateError ||
     error instanceof ClassGroupStateError ||
+    error instanceof CompanyStateError ||
     error instanceof FinalReportStateError ||
     error instanceof DataRequestStateError ||
     error instanceof RetentionStateError ||
