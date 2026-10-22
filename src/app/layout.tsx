@@ -1,24 +1,21 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { DM_Sans } from "next/font/google";
 import { connection } from "next/server";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "./providers";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+// The taste sheet's face, self-hosted by next/font (the CSP allows font-src 'self' only).
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "IDSMS-CIS",
-  description: "Internship Deployment & Supervision Management System",
+  description: "Internship document submission and monitoring for SAMCIS, Saint Louis University",
 };
 
 export default async function RootLayout({
@@ -31,8 +28,8 @@ export default async function RootLayout({
   // sign-in pages) would carry no nonce and the CSP would block its scripts.
   await connection();
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" className={dmSans.variable}>
+      <body className="font-sans antialiased">
         <Providers>{children}</Providers>
         <Toaster />
       </body>

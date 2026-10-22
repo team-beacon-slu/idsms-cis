@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MiniTrack } from "@/components/internship-track";
 import { Users } from "lucide-react";
 import { CHECKLIST_REQUIRED } from "@/lib/utils/checklist";
 import { StatusBadge } from "@/components/status-badge";
@@ -35,7 +36,7 @@ export function ComplianceTable({
       role="region"
       aria-label="Student compliance"
       tabIndex={0}
-      className="border-border focus-visible:ring-ring overflow-x-auto rounded-lg border focus-visible:ring-2 focus-visible:outline-hidden"
+      className="overflow-x-auto rounded-lg border border-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
     >
       <Table>
         <TableCaption className="sr-only">
@@ -60,15 +61,15 @@ export function ComplianceTable({
             return (
               <TableRow key={row.studentProfileId}>
                 <TableCell>
-                  <p className="text-foreground font-medium">{name}</p>
-                  <p className="text-muted-foreground text-xs">
+                  <p className="font-medium text-foreground">{name}</p>
+                  <p className="text-xs text-muted-foreground">
                     {row.fullName ? `${row.studentNumber} · ${row.email}` : row.email}
                   </p>
                 </TableCell>
                 {showProgram && <TableCell>{row.program}</TableCell>}
                 <TableCell>
                   <div className="min-w-32">
-                    <p className="text-foreground text-xs">
+                    <p className="text-xs text-foreground">
                       {row.confirmedHours} / {row.requiredHours}
                     </p>
                     <div
@@ -78,10 +79,10 @@ export function ComplianceTable({
                       aria-valuemax={100}
                       aria-label={`Hours progress for ${name}`}
                       aria-valuetext={`${row.confirmedHours} of ${row.requiredHours} hours, ${row.hoursPercent}%`}
-                      className="bg-muted mt-1 h-1.5 overflow-hidden rounded-full"
+                      className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
                     >
                       <div
-                        className="bg-primary h-full rounded-full"
+                        className="h-full rounded-full bg-primary"
                         style={{ width: `${row.hoursPercent}%` }}
                       />
                     </div>
@@ -98,10 +99,11 @@ export function ComplianceTable({
                   </TableCell>
                 )}
                 <TableCell>
-                  <div className="flex flex-col items-start gap-1">
+                  <div className="flex flex-col items-start gap-1.5">
+                    {row.recentWeeks.length > 0 && <MiniTrack kinds={row.recentWeeks} />}
                     <StatusBadge status={row.dueWeekState} />
                     {row.awaitingReview > 0 && (
-                      <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                      <span className="text-xs font-medium text-brand-700 dark:text-amber-400">
                         {row.awaitingReview} to review
                       </span>
                     )}
@@ -139,10 +141,10 @@ export function ComplianceTable({
             <TableRow>
               <TableCell colSpan={columnCount} className="py-14 text-center">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-full">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                     <Users className="size-5" aria-hidden="true" />
                   </div>
-                  <p className="text-foreground text-sm font-medium">No students yet</p>
+                  <p className="text-sm font-medium text-foreground">No students yet</p>
                 </div>
               </TableCell>
             </TableRow>

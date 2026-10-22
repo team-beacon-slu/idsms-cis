@@ -10,13 +10,17 @@ export function StatCard({
   icon: Icon,
   hint,
   className,
+  action = false,
 }: {
   label: string;
   value: string | number;
   icon?: LucideIcon;
   hint?: string;
   className?: string;
+  /** A queue that needs doing: the figure takes the brand navy while it is above zero. */
+  action?: boolean;
 }) {
+  const calling = action && Number(value) > 0;
   return (
     <Card className={className}>
       <CardContent className="p-5">
@@ -24,7 +28,12 @@ export function StatCard({
           {Icon && <Icon className="size-3.5 shrink-0" strokeWidth={1.6} aria-hidden="true" />}
           {label}
         </p>
-        <p className="mt-1.5 text-2xl font-medium tracking-tight text-foreground tabular-nums">
+        <p
+          className={cn(
+            "mt-1.5 text-2xl font-medium tracking-tight tabular-nums",
+            calling ? "font-semibold text-brand-600" : "text-foreground"
+          )}
+        >
           {value}
         </p>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}

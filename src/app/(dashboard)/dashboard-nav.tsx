@@ -28,7 +28,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BrandMark } from "@/components/brand-mark";
+import { BrandMark, BrandTile } from "@/components/brand-mark";
 import { NotificationBell } from "./notification-bell";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
@@ -142,10 +142,14 @@ function NavLinks({
                 className={cn(
                   rowClass,
                   active &&
-                    "bg-sidebar-accent font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+                    "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent"
                 )}
               >
-                <Icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+                <Icon
+                  className={cn("size-4 shrink-0", active && "text-brand-600")}
+                  strokeWidth={active ? 2 : 1.6}
+                  aria-hidden="true"
+                />
                 {label}
               </Link>
             );
@@ -202,18 +206,16 @@ function AccountRow({
   );
 }
 
-function Brand() {
+function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <Link
       href="/"
       className="flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-ring"
     >
-      <BrandMark className="size-7" />
+      {compact ? <BrandTile className="size-8" /> : <BrandMark className="size-9" />}
       <span className="min-w-0 leading-tight">
-        <span className="block text-sm font-semibold text-sidebar-foreground">IDSMS-CIS</span>
-        <span className="block truncate text-xs text-sidebar-foreground/60">
-          Internship monitoring
-        </span>
+        <span className="block text-[15px] font-bold tracking-tight text-brand-900">IDSMS-CIS</span>
+        <span className="block truncate text-xs text-sidebar-foreground/65">SAMCIS · SLU</span>
       </span>
     </Link>
   );
@@ -238,8 +240,8 @@ export function DashboardNav({ role, userLabel }: { role: Role; userLabel?: stri
       </aside>
 
       {/* Phone: a 48px bar with the product, the bell and the menu. */}
-      <header className="sticky top-0 z-40 flex h-12 items-center gap-1 border-b border-sidebar-border bg-sidebar px-4 md:hidden">
-        <Brand />
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-sidebar-border bg-sidebar px-4 md:hidden">
+        <Brand compact />
         <NotificationBell className="ml-auto" />
         <button
           type="button"
@@ -259,8 +261,8 @@ export function DashboardNav({ role, userLabel }: { role: Role; userLabel?: stri
           aria-modal="true"
           aria-label="Navigation"
         >
-          <div className="flex h-12 items-center border-b border-sidebar-border px-4">
-            <Brand />
+          <div className="flex h-14 items-center border-b border-sidebar-border px-4">
+            <Brand compact />
             <button
               type="button"
               onClick={close}

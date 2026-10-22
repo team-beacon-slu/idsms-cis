@@ -146,7 +146,12 @@ export async function CoordinatorDashboard({
                 icon={Gauge}
                 hint="of required hours"
               />
-              <StatCard label="Needs attention" value={p.needsAttention} icon={TriangleAlert} />
+              <StatCard
+                label="Needs attention"
+                value={p.needsAttention}
+                icon={TriangleAlert}
+                action
+              />
             </StatStrip>
           </section>
         ))}

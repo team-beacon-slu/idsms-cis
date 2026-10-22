@@ -46,6 +46,19 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
+  /* Accent ladder (taste skill, app-screens): the logo navy at full strength only on
+     small marks (the primary button, the data, the active nav icon); its pale tints carry
+     the areas (active nav row, tracks, badges). */
+  --color-brand-50: #f0f4f9;
+  --color-brand-100: #dfe8f2;
+  --color-brand-200: #bed0e5;
+  --color-brand-300: #8fb0d3;
+  --color-brand-600: #1f4e79;
+  --color-brand-700: #1a426a;
+  --color-brand-900: #123153;
+  --color-beacon: #2f6b4f;
+  --font-sans: var(--font-dm-sans), Inter, system-ui, sans-serif;
+
   /* Status pairs (pale ground, dark ink of the same hue): one name per meaning. */
   --color-notice: #fffbeb;
   --color-notice-foreground: #92400e;
@@ -81,42 +94,43 @@
 
 @layer base {
   :root {
-    /* Achromatic ledger (taste skill, app-screens): no colour in the chrome. A blue-grey
-       "ledger" ground, white cards, ink text, a near-black primary action, and one data
-       hue for the main figure on a screen and for focus: the logo navy #1f4e79 (the brand
-       hue the taste sheet allows at 3:1+ on white). Status keeps pale pairs. */
-    --background: 216 23% 96%;
-    --foreground: 0 0% 4%;
+    /* Accent ladder on the BEACON navy #1f4e79: a ground one step toward the navy's
+       palest tint so the page and the tints read as one family, white cards, ink text,
+       the navy as the primary action and the one data hue, the logo green #2f6b4f as
+       "done". Every text tier holds 4.5:1 on the ground. */
+    --background: 216 45% 97%;
+    --foreground: 215 28% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 4%;
+    --card-foreground: 215 28% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 4%;
-    --primary: 0 0% 8%;
+    --popover-foreground: 215 28% 9%;
+    --primary: 209 59% 30%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 13% 91%;
-    --secondary-foreground: 0 0% 4%;
-    --muted: 220 13% 93%;
-    --muted-foreground: 0 0% 40%;
-    --accent: 220 13% 93%;
-    --accent-foreground: 0 0% 4%;
+    --secondary: 213 45% 96%;
+    --secondary-foreground: 211 64% 20%;
+    --muted: 214 33% 94%;
+    --muted-foreground: 218 9% 40%;
+    --accent: 213 45% 96%;
+    --accent-foreground: 211 64% 20%;
     --destructive: 358 69% 46%;
-    --border: 0 0% 90%;
-    --input: 0 0% 83%;
+    --border: 215 28% 90%;
+    --input: 215 20% 82%;
     --ring: 209 59% 30%;
     --chart-1: 209 59% 30%;
-    --chart-2: 0 0% 54%;
-    --chart-3: 0 0% 8%;
+    --chart-2: 214 42% 69%;
+    --chart-3: 215 28% 9%;
     --chart-4: 358 69% 46%;
     --chart-5: 152 39% 30%;
     --radius: 0.5rem;
-    /* The sidebar sits on the page ground; the active item is a neutral grey pill. */
-    --sidebar: 216 23% 96%;
-    --sidebar-foreground: 0 0% 4%;
-    --sidebar-primary: 0 0% 8%;
+    /* The sidebar sits on the page ground; the active row is the navy's palest tint
+       with its dark ink, and the active icon takes the full navy. */
+    --sidebar: 216 45% 97%;
+    --sidebar-foreground: 215 28% 9%;
+    --sidebar-primary: 209 59% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 13% 89%;
-    --sidebar-accent-foreground: 0 0% 4%;
-    --sidebar-border: 0 0% 90%;
+    --sidebar-accent: 212 43% 91%;
+    --sidebar-accent-foreground: 211 64% 20%;
+    --sidebar-border: 215 28% 90%;
     --sidebar-ring: 209 59% 30%;
   }
   .dark {

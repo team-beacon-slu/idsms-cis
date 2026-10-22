@@ -1,4 +1,5 @@
 import { Role, type Prisma, type Program, type WeeklyReportStatus } from "@prisma/client";
+import { buildInternshipTrack, type TrackKind } from "@/lib/utils/internshipTrack";
 
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/services/userService";
@@ -20,6 +21,8 @@ export type ComplianceScope =
   | { kind: "faculty"; facultyId: string }
   | { kind: "department"; semesterId: string; program?: Program };
 
+const RECENT_WEEKS = 8;
+
 export interface ComplianceRow {
   studentProfileId: string;
   studentNumber: string;
@@ -38,6 +41,7 @@ export interface ComplianceRow {
   dueWeekState: ReportState; // state of that week's report
   awaitingReview: number; // reports of any week waiting on faculty
   status: ComplianceStatus;
+  recentWeeks: TrackKind[]; // last 8 weeks up to this one, oldest first (the roster's mini track)
 }
 
 // Spreadsheet shape shared by the F compliance export and the G admin
@@ -206,6 +210,14 @@ export async function getComplianceRows(
       status = "NEEDS_ATTENTION";
     else status = "ON_TRACK";
 
+    const recentWeeks = buildInternshipTrack({
+      reports: s.weeklyReports.map((r) => ({ weekStart: r.weekStart, state: reportState(r) })),
+      projectedFinish: null,
+      now,
+    })
+      .slice(-RECENT_WEEKS)
+      .map((w) => w.kind);
+
     return {
       studentProfileId: s.id,
       studentNumber: s.studentNumber,
@@ -224,6 +236,7 @@ export async function getComplianceRows(
       dueWeekState,
       awaitingReview,
       status,
+      recentWeeks,
     };
   });
 }
