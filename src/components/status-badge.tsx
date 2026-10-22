@@ -4,21 +4,21 @@ type StatusTone = "green" | "amber" | "red" | "blue" | "slate";
 
 const TONE_CLASSES: Record<StatusTone, string> = {
   green:
-    "bg-green-50 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20",
+    "bg-[#e6f2ec] text-[#1f4a37] border-[#b9d8c8] dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20",
   amber:
     "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
   red: "bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-  // Blue is the one data hue, so "blue" states (archived, locked, on track) read as neutral.
-  blue: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20",
+  // The brand navy's tints: submitted and in progress, on its way to a decision.
+  blue: "bg-brand-50 text-brand-900 border-brand-200 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20",
   slate:
     "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20",
 };
 
 const DOT_CLASSES: Record<StatusTone, string> = {
-  green: "bg-green-500",
+  green: "bg-beacon",
   amber: "bg-amber-500",
   red: "bg-red-500",
-  blue: "bg-slate-400",
+  blue: "bg-brand-600",
   slate: "bg-slate-400",
 };
 
@@ -36,14 +36,14 @@ const STATUS_TONE: Record<string, StatusTone> = {
   COMPLETED: "green",
   ON_TRACK: "blue",
 
-  PENDING: "amber",
-  PENDING_DRAFT: "amber",
-  DRAFTING: "amber",
-  SUBMITTED: "amber",
-  FOR_HTE_REVIEW: "amber",
-  FOR_UNIVERSITY_REVIEW: "amber",
+  PENDING: "blue",
+  SUBMITTED: "blue",
+  FOR_HTE_REVIEW: "blue",
+  FOR_UNIVERSITY_REVIEW: "blue",
+  PENDING_DRAFT: "slate",
+  DRAFTING: "slate",
+  DRAFT: "slate",
   EXPIRING: "amber",
-  DRAFT: "amber",
 
   RETURNED: "red",
   REJECTED: "red",
@@ -52,8 +52,8 @@ const STATUS_TONE: Record<string, StatusTone> = {
   DISREGARDED: "red",
   NEEDS_ATTENTION: "red",
 
-  ARCHIVED: "blue",
-  LOCKED: "blue",
+  ARCHIVED: "slate",
+  LOCKED: "slate",
   LINKED: "blue",
 };
 

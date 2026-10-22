@@ -19,7 +19,10 @@ import { PageHeader } from "@/components/page-header";
 import { FacultyDashboard } from "./faculty-dashboard";
 import { CoordinatorDashboard } from "./coordinator-dashboard";
 import { StudentDashboardTables } from "./student-dashboard";
-import { weeklyHistory } from "@/lib/services/complianceService";
+import { reportState, weeklyHistory } from "@/lib/services/complianceService";
+import { buildInternshipTrack } from "@/lib/utils/internshipTrack";
+import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
+import { InternshipTrack } from "@/components/internship-track";
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 
@@ -80,15 +83,24 @@ export default async function DashboardHomePage(props: {
     : [null, null];
   const coverUnlocked = finalThreshold !== null && confirmedHours >= finalThreshold;
   const attention = studentProfile ? await getAttentionItems(studentProfile.id) : null;
-  const reportHistory = studentProfile
-    ? weeklyHistory(
-        await prisma.weeklyReport.findMany({
-          where: { studentProfileId: studentProfile.id },
-          select: { id: true, weekStart: true, weekEnd: true, status: true, revisionHistory: true },
-          orderBy: { weekStart: "desc" },
-        })
-      )
+  const reports = studentProfile
+    ? await prisma.weeklyReport.findMany({
+        where: { studentProfileId: studentProfile.id },
+        select: { id: true, weekStart: true, weekEnd: true, status: true, revisionHistory: true },
+        orderBy: { weekStart: "desc" },
+      })
     : [];
+  const reportHistory = weeklyHistory(reports);
+  const track = buildInternshipTrack({
+    reports: reports.map((r) => ({ weekStart: r.weekStart, state: reportState(r) })),
+    projectedFinish: projectedCompletion,
+  });
+  // The next report to file: this week's, unless it is already in.
+  const thisWeek = track.find((w) => w.isCurrent);
+  const nextDue =
+    thisWeek && thisWeek.kind === "open"
+      ? getWeeklyReportDueDate(new Date(thisWeek.weekStart.getTime() + 6 * 24 * 60 * 60 * 1000))
+      : null;
   const attentionRows = attention
     ? [
         {
@@ -139,24 +151,29 @@ export default async function DashboardHomePage(props: {
         <Card className="lg:col-span-2">
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">Confirmed hours</p>
-            <p className="mt-1 text-3xl font-medium tracking-tight tabular-nums">
+            <p className="mt-1 text-4xl font-semibold tracking-tight text-brand-900 tabular-nums">
               {confirmedHours}
               <span className="text-lg text-muted-foreground"> / {requiredHours} hrs</span>
             </p>
             <div
-              className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
+              className="mt-4 h-2 overflow-hidden rounded-full bg-brand-50"
               role="progressbar"
               aria-label="Confirmed hours"
               aria-valuemin={0}
               aria-valuemax={requiredHours}
               aria-valuenow={confirmedHours}
             >
-              <div className="h-full rounded-full bg-chart-1" style={{ width: `${percent}%` }} />
+              <div className="h-full rounded-full bg-brand-600" style={{ width: `${percent}%` }} />
             </div>
-            <div className="mt-2 flex justify-between text-xs text-muted-foreground tabular-nums">
-              <span>0</span>
-              <span>{requiredHours} hrs</span>
-            </div>
+            {studentProfile && (
+              <div className="mt-6 border-t pt-5">
+                <p className="mb-3 text-sm font-medium text-foreground">Your weeks</p>
+                <InternshipTrack
+                  weeks={track}
+                  finishLabel={projectedCompletion ? fmtDate(projectedCompletion) : null}
+                />
+              </div>
+            )}
             <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
               <div>
                 <dt className="text-muted-foreground">Pending review</dt>
@@ -187,6 +204,22 @@ export default async function DashboardHomePage(props: {
             <CardTitle className="text-base">Waiting on you</CardTitle>
           </CardHeader>
           <CardContent>
+            {nextDue && (
+              <Link
+                href="/weekly-reports"
+                className="-mx-2 mb-3 block rounded-md bg-brand-50 px-3 py-3 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <span className="block text-sm text-brand-900">This week&apos;s report is due</span>
+                <span className="mt-0.5 block text-xl font-semibold tracking-tight text-brand-900">
+                  {nextDue.toLocaleDateString("en-PH", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    timeZone: "UTC",
+                  })}
+                </span>
+              </Link>
+            )}
             {attentionRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing is waiting on you right now.</p>
             ) : (

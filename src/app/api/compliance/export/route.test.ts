@@ -40,6 +40,7 @@ const row = (over: Partial<ComplianceRow> = {}): ComplianceRow => ({
   dueWeekState: "APPROVED",
   awaitingReview: 0,
   status: "ON_TRACK",
+  recentWeeks: [],
   ...over,
 });
 

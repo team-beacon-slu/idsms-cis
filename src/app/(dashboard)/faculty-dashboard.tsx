@@ -70,7 +70,7 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
       <StatStrip>
         <StatCard label="Interns" value={summary.total} icon={Users} />
         <StatCard label="Submitted this week" value={summary.submittedThisWeek} icon={Send} />
-        <StatCard label="Waiting for your review" value={waiting} icon={ClipboardCheck} />
+        <StatCard label="Waiting for your review" value={waiting} icon={ClipboardCheck} action />
         <StatCard label="Not yet submitted" value={summary.notYetSubmitted} icon={UserX} />
       </StatStrip>
 

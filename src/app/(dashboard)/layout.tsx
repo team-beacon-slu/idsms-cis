@@ -31,7 +31,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <DashboardNav role={user.role} userLabel={profile?.fullName || user.email} />
       </div>
       <main className="md:pl-60 print:pl-0">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-8 print:max-w-none print:p-0">
+        {/* Fluid: the canvas follows the window, capped only on very wide screens. */}
+        <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8 xl:px-12 print:max-w-none print:p-0">
           {children}
         </div>
       </main>

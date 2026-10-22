@@ -98,7 +98,7 @@ export function StudentDashboardTables({
                 <TableRow>
                   <TableHead>Week</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Reference</TableHead>
+                  <TableHead className="hidden sm:table-cell">Reference</TableHead>
                   <TableHead>
                     <span className="sr-only">Open</span>
                   </TableHead>
@@ -107,13 +107,16 @@ export function StudentDashboardTables({
               <TableBody>
                 {history.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="font-medium whitespace-nowrap text-foreground">
-                      {row.week}
+                    <TableCell className="font-medium text-foreground">
+                      <span className="whitespace-nowrap">{row.week}</span>
+                      <span className="block text-xs font-normal text-muted-foreground sm:hidden">
+                        {row.referenceCode ?? "Not submitted"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={row.state} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {row.referenceCode ?? "Not submitted"}
                     </TableCell>
                     <TableCell>
