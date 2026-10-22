@@ -160,7 +160,7 @@ it("shows the approved count over the 9 required items, even with no checklist r
   (requireUserApi as jest.Mock).mockResolvedValue({ id: "c-1", role: "DEPARTMENT_COORDINATOR" });
   (resolveComplianceScope as jest.Mock).mockResolvedValue({ kind: "department", semesterId: "s1" });
   (getComplianceRows as jest.Mock).mockResolvedValue([
-    row({ checklistApproved: 0, checklistTotal: 0 }),
+    row({ checklistApproved: 0, checklistTotal: 9 }),
   ]);
 
   const [first] = await readSheet(await GET(request()));

@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { getEndorsementLetterDocument } from "@/lib/services/documentService";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { EndorsementLetterActions } from "./endorsement-letter-actions";
+import { StartBeforeMoa } from "./start-before-moa";
 
 export default async function ChecklistPage(props: {
   params: Promise<{ studentProfileId: string }>;
@@ -52,8 +53,8 @@ export default async function ChecklistPage(props: {
         title="Checklist"
         description={
           isOwner
-            ? "Nine pre-deployment requirements, submitted in Google Classroom. Your adviser updates each status here."
-            : "Nine pre-deployment requirements; all must be approved before the endorsement letter."
+            ? `Pre-deployment requirements, submitted in Google Classroom. Your adviser updates each status here; ${progress.total} are required.`
+            : `Pre-deployment requirements; the ${progress.total} required ones must be approved before the endorsement letter.`
         }
       />
 
@@ -77,7 +78,7 @@ export default async function ChecklistPage(props: {
               <CardDescription>
                 {progress.gateSatisfied
                   ? "Issued by the department once all requirements are approved."
-                  : "Available once all 9 requirements are approved."}
+                  : `Available once all ${progress.total} required items are approved.`}
               </CardDescription>
             </div>
             <EndorsementLetterActions
@@ -88,6 +89,13 @@ export default async function ChecklistPage(props: {
           </div>
         </CardHeader>
       </Card>
+
+      <StartBeforeMoa
+        studentProfileId={params.studentProfileId}
+        allowed={progress.startBeforeMoa.allowed}
+        reason={progress.startBeforeMoa.reason}
+        canEdit={canReview}
+      />
 
       <Card>
         <CardHeader className="gap-3">
@@ -132,6 +140,11 @@ export default async function ChecklistPage(props: {
                   <TableRow key={item.id} className="transition-colors">
                     <TableCell className="font-medium text-foreground">
                       {requirementLabel(item.requirementType)}
+                      {!item.required && (
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                          optional
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={item.status} />

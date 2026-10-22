@@ -8,9 +8,13 @@ import {
 } from "@prisma/client";
 import {
   ChecklistGateError,
+  DEFAULT_REQUIRED_CHECKLIST,
+  checklistRequirements,
   getChecklistProgress,
   isEndorsementGateSatisfied,
   reviewChecklistItem,
+  setRequiredChecklistTypes,
+  setStartBeforeMoa,
 } from "@/lib/services/checklistService";
 import { ForbiddenError } from "@/lib/services/userService";
 
@@ -37,64 +41,181 @@ beforeEach(() => {
   resetPrismaMock();
 });
 
-describe("isEndorsementGateSatisfied", () => {
-  it("is true only when all 9 items exist and are APPROVED", async () => {
-    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(
-      Array.from({ length: 9 }, () => ({ status: ChecklistStatus.APPROVED })) as never
-    );
+const NINE = DEFAULT_REQUIRED_CHECKLIST;
+const local = { company: { isForeign: false }, classGroup: { classType: "Regular" } };
+function profile(over: Record<string, unknown> = {}) {
+  prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+    startBeforeMoaAllowed: false,
+    startBeforeMoaReason: null,
+    ...local,
+    ...over,
+  } as never);
+}
+const rows = (
+  types: ChecklistRequirementType[],
+  status: ChecklistStatus = ChecklistStatus.APPROVED
+) => types.map((requirementType, i) => baseItem({ id: `item-${i}`, requirementType, status }));
 
+describe("checklistRequirements", () => {
+  const ctx = { isForeignCompany: false, classType: "Regular", startBeforeMoaAllowed: false };
+
+  it("hides the conditional items when they don't apply", () => {
+    const { applicable, gate } = checklistRequirements(NINE, ctx);
+    expect(applicable.has(ChecklistRequirementType.PROOF_OF_CORPORATE_LEGITIMACY)).toBe(false);
+    expect(applicable.has(ChecklistRequirementType.INTERNSHIP_AGREEMENT)).toBe(false);
+    expect(gate.size).toBe(9);
+  });
+
+  it("applies proof to foreign-owned companies and the agreement to irregular students", () => {
+    const { applicable } = checklistRequirements(NINE, {
+      ...ctx,
+      isForeignCompany: true,
+      classType: "Irregular",
+    });
+    expect(applicable.has(ChecklistRequirementType.PROOF_OF_CORPORATE_LEGITIMACY)).toBe(true);
+    expect(applicable.has(ChecklistRequirementType.INTERNSHIP_AGREEMENT)).toBe(true);
+  });
+
+  it("takes the MOA out of the gate when the intern may start before MOA approval", () => {
+    const { applicable, gate } = checklistRequirements(NINE, {
+      ...ctx,
+      startBeforeMoaAllowed: true,
+    });
+    expect(applicable.has(ChecklistRequirementType.MOA)).toBe(true);
+    expect(gate.has(ChecklistRequirementType.MOA)).toBe(false);
+  });
+
+  it("gates only what the Super Admin marked required", () => {
+    const { gate } = checklistRequirements([ChecklistRequirementType.MEDICAL_CERTIFICATE], ctx);
+    expect([...gate]).toEqual([ChecklistRequirementType.MEDICAL_CERTIFICATE]);
+  });
+});
+
+describe("isEndorsementGateSatisfied", () => {
+  it("is true when every required item is approved (default: the original nine)", async () => {
+    profile();
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(rows(NINE) as never);
     expect(await isEndorsementGateSatisfied("profile-1")).toBe(true);
   });
 
-  it("is false when fewer than 9 items exist", async () => {
-    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([
-      { status: ChecklistStatus.APPROVED },
-    ] as never);
-
+  it("is false when a required item has no row yet", async () => {
+    profile();
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(rows(NINE.slice(1)) as never);
     expect(await isEndorsementGateSatisfied("profile-1")).toBe(false);
   });
 
-  it("is false when any of the 9 items is not APPROVED", async () => {
-    const items: { status: ChecklistStatus }[] = Array.from({ length: 9 }, () => ({
-      status: ChecklistStatus.APPROVED,
-    }));
-    items[0] = { status: ChecklistStatus.PENDING };
+  it("is false when a required item is not approved", async () => {
+    profile();
+    const items = rows(NINE);
+    items[0] = { ...items[0], status: ChecklistStatus.PENDING };
     prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(items as never);
-
     expect(await isEndorsementGateSatisfied("profile-1")).toBe(false);
+  });
+
+  it("ignores the MOA for an intern allowed to start before MOA approval", async () => {
+    profile({ startBeforeMoaAllowed: true });
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(
+      rows(NINE.filter((t) => t !== ChecklistRequirementType.MOA)) as never
+    );
+    expect(await isEndorsementGateSatisfied("profile-1")).toBe(true);
+  });
+
+  it("uses the Super Admin's list when one is saved", async () => {
+    profile();
+    prismaMock.systemConfig.findUnique.mockResolvedValue({
+      configValue: [ChecklistRequirementType.MEDICAL_CERTIFICATE],
+    } as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(
+      rows([ChecklistRequirementType.MEDICAL_CERTIFICATE]) as never
+    );
+    expect(await isEndorsementGateSatisfied("profile-1")).toBe(true);
   });
 });
 
 describe("getChecklistProgress", () => {
-  it("computes approvedCount, percentage, and gateSatisfied", async () => {
-    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(
-      Array.from({ length: 9 }, (_, i) => ({
-        status: i < 3 ? ChecklistStatus.APPROVED : ChecklistStatus.PENDING,
-      })) as never
+  it("counts required items and marks the rest optional", async () => {
+    profile();
+    prismaMock.systemConfig.findUnique.mockResolvedValue({
+      configValue: NINE.filter((t) => t !== ChecklistRequirementType.COMPANY_REPLY_FORM),
+    } as never);
+    const items = rows(NINE, ChecklistStatus.PENDING).map((r, i) =>
+      i < 3 ? { ...r, status: ChecklistStatus.APPROVED } : r
     );
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(items as never);
 
     const progress = await getChecklistProgress("profile-1");
 
-    expect(progress).toMatchObject({
-      approvedCount: 3,
-      total: 9,
-      percentage: 33,
-      gateSatisfied: false,
-    });
+    expect(progress).toMatchObject({ total: 8, gateSatisfied: false });
+    expect(
+      progress.items.find((i) => i.requirementType === ChecklistRequirementType.COMPANY_REPLY_FORM)
+        ?.required
+    ).toBe(false);
   });
 
-  it("reports 0 of the 9 requirements when a student has no items yet", async () => {
-    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([]);
-
+  it("hides items that don't apply and still counts required ones with no rows", async () => {
+    profile();
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(
+      rows([ChecklistRequirementType.PROOF_OF_CORPORATE_LEGITIMACY]) as never
+    );
     const progress = await getChecklistProgress("profile-1");
+    expect(progress.items).toEqual([]);
+    expect(progress).toMatchObject({ approvedCount: 0, total: 9, percentage: 0 });
+  });
+});
 
-    // All 9 are required whether or not their rows exist yet, matching "9 not yet approved".
-    expect(progress).toMatchObject({
-      approvedCount: 0,
-      total: 9,
-      percentage: 0,
-      gateSatisfied: false,
+describe("settings", () => {
+  it("saves the required list and audits it", async () => {
+    await setRequiredChecklistTypes(
+      [
+        ChecklistRequirementType.MOA,
+        ChecklistRequirementType.MOA,
+        ChecklistRequirementType.WORK_PLAN,
+      ],
+      "admin-1"
+    );
+    expect(prismaMock.systemConfig.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ configValue: ["MOA", "WORK_PLAN"] }),
+      })
+    );
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "CHECKLIST_REQUIRED_ITEMS_UPDATED" }),
+      })
+    );
+  });
+
+  it("rejects an unknown item", async () => {
+    await expect(setRequiredChecklistTypes(["NOT_A_THING"], "admin-1")).rejects.toThrow();
+  });
+
+  it("requires a reason to allow starting before MOA approval, and logs who did it", async () => {
+    await expect(
+      setStartBeforeMoa("profile-1", { allowed: true, reason: "" }, staffUser)
+    ).rejects.toThrow();
+    await setStartBeforeMoa(
+      "profile-1",
+      { allowed: true, reason: "MOA signed by the HTE, awaiting notarization" },
+      staffUser
+    );
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: expect.objectContaining({
+        startBeforeMoaAllowed: true,
+        startBeforeMoaBy: "coordinator-1",
+      }),
     });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "START_BEFORE_MOA_ALLOWED" }),
+      })
+    );
+  });
+
+  it("does not let a student change it", async () => {
+    await expect(
+      setStartBeforeMoa("profile-1", { allowed: false }, { id: "s-1", role: Role.STUDENT_INTERN })
+    ).rejects.toThrow(ForbiddenError);
   });
 });
 

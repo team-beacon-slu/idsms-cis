@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CompanyVerifyToggle } from "./company-verify-toggle";
+import { CompanyForeignToggle } from "./company-foreign-toggle";
 import { MoaStatusActions } from "./moa-status-actions";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
@@ -67,6 +68,11 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
           <CardTitle className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight">{company.name}</h1>
             <VerificationPill isVerified={company.isVerified} />
+            {company.isForeign && (
+              <span className="inline-flex items-center rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-900">
+                Foreign-owned
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -91,7 +97,10 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                 <Lock className="size-3.5" aria-hidden="true" />
                 Staff
               </div>
-              <CompanyVerifyToggle companyId={company.id} isVerified={company.isVerified} />
+              <div className="flex flex-wrap gap-2">
+                <CompanyVerifyToggle companyId={company.id} isVerified={company.isVerified} />
+                <CompanyForeignToggle companyId={company.id} isForeign={company.isForeign} />
+              </div>
             </div>
           )}
         </CardContent>

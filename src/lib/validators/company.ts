@@ -23,6 +23,7 @@ export const updateCompanySchema = z.object({
   workModality: z.enum(WorkModality).optional(),
   supervisorName: z.string().min(1).optional(),
   supervisorContact: z.string().min(1).optional(),
+  isForeign: z.boolean().optional(),
   isVerified: z.boolean().optional(),
 });
 

@@ -22,6 +22,10 @@ import { UserRowActions } from "./user-row-actions";
 import { CreateStaffForm } from "./create-staff-form";
 import { NotificationSettingsForm } from "./notification-settings-form";
 import { RequiredHoursForm } from "./required-hours-form";
+import { ChecklistSettingsForm } from "./checklist-settings-form";
+import { ChecklistRequirementType } from "@prisma/client";
+import { getRequiredChecklistTypes } from "@/lib/services/checklistService";
+import { requirementLabel } from "@/app/(dashboard)/student-dashboard";
 import { AiSettingsForm } from "./ai-settings-form";
 import { getAiSettings } from "@/lib/ai/settings";
 import { DeductionSettingsForm } from "./deduction-settings-form";
@@ -175,6 +179,27 @@ export default async function UsersPage(props: {
           </CardHeader>
           <CardContent>
             <AiSettingsForm settings={aiSettings} />
+          </CardContent>
+        </Card>
+      )}
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Checklist requirements</CardTitle>
+            <CardDescription>
+              Which pre-deployment items must be approved before an endorsement letter. Unticked
+              items stay on interns&apos; checklists as optional.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChecklistSettingsForm
+              items={Object.values(ChecklistRequirementType).map((type) => ({
+                type,
+                label: requirementLabel(type),
+              }))}
+              initial={await getRequiredChecklistTypes()}
+            />
           </CardContent>
         </Card>
       )}
