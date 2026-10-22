@@ -61,7 +61,7 @@ export function ChecklistSettingsForm({
             <span>
               <span className="font-medium text-foreground">{label}</span>
               {NOTE[type] && (
-                <span className="block text-xs text-muted-foreground">{NOTE[type]}</span>
+                <span className="block text-[13px] text-muted-foreground">{NOTE[type]}</span>
               )}
             </span>
           </label>

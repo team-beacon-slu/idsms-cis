@@ -71,7 +71,9 @@ function LoginForm() {
     <AuthShell>
       <Card>
         <CardHeader>
-          <CardTitle>Sign in</CardTitle>
+          <CardTitle>
+            <h1 className="text-xl font-bold tracking-tight text-brand-900">Sign in</h1>
+          </CardTitle>
           <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
         </CardHeader>
         <CardContent>

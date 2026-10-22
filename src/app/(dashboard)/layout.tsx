@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ]);
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="app-backdrop min-h-dvh bg-fixed">
       {/* print:hidden — the weekly report preview is printed to PDF from the browser */}
       <div className="print:hidden">
         <DashboardNav role={user.role} userLabel={profile?.fullName || user.email} />

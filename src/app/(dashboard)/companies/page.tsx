@@ -145,6 +145,11 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
                     <p className="text-sm text-muted-foreground">
                       Register the first host company to get started.
                     </p>
+                    {!searchParams.search && (
+                      <Button asChild size="sm" className="mt-2 cursor-pointer">
+                        <Link href="/companies/new">Register the first company</Link>
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

@@ -59,7 +59,7 @@ export function NotificationSettingsForm({
           inputMode="numeric"
           aria-describedby="reminder-hours-help"
         />
-        <p id="reminder-hours-help" className="text-xs text-muted-foreground">
+        <p id="reminder-hours-help" className="text-[13px] text-muted-foreground">
           Up to 3 values, comma-separated (16–168), e.g. 48, 24. The daily job runs at 8 AM, so the
           last chance before the Tuesday 11:59 PM deadline is about 16 hours out.
         </p>
@@ -74,7 +74,7 @@ export function NotificationSettingsForm({
           value={moaDays}
           onChange={(e) => setMoaDays(e.target.value)}
         />
-        <p className="text-xs text-muted-foreground">1–180 days ahead</p>
+        <p className="text-[13px] text-muted-foreground">1–180 days ahead</p>
       </div>
       <Button
         type="submit"

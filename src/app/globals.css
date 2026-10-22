@@ -92,6 +92,54 @@
   text-wrap: balance;
 }
 
+/* Beacon Glow (Jay, 22 Oct 2026: "add colours, morphism, engaging, users first").
+   Frosted surfaces over a soft coloured backdrop. Every glass surface stays at least
+   72% white, so body text keeps 4.5:1 or better whatever sits behind it. */
+@utility glass {
+  background-color: rgb(255 255 255 / 0.72);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgb(255 255 255 / 0.7);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    0 1px 3px rgb(18 49 83 / 0.06);
+}
+@utility glass-strong {
+  background-color: rgb(255 255 255 / 0.86);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgb(255 255 255 / 0.75);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 18px 48px -18px rgb(18 49 83 / 0.28);
+}
+/* The beacon's light: navy hero bands with a soft beam. */
+@utility beacon-band {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(95 191 143 / 0.35) 0%, transparent 45%),
+    radial-gradient(90% 120% at 0% 100%, rgb(143 176 211 / 0.35) 0%, transparent 50%),
+    linear-gradient(135deg, #123153 0%, #1f4e79 55%, #24597f 100%);
+  color: #fff;
+}
+@utility btn-glow {
+  background-image: linear-gradient(180deg, #2a5f8f 0%, #1f4e79 55%, #1a426a 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 1px 2px rgb(18 49 83 / 0.08);
+}
+
+@layer base {
+  /* A fixed, quiet field of the brand's light behind every screen. */
+  .app-backdrop {
+    background:
+      radial-gradient(60rem 42rem at 6% -8%, rgb(120 160 205 / 0.6), transparent 62%),
+      radial-gradient(52rem 38rem at 102% 6%, rgb(95 191 143 / 0.38), transparent 62%),
+      radial-gradient(48rem 34rem at 40% 60%, rgb(186 214 240 / 0.45), transparent 65%),
+      radial-gradient(62rem 42rem at 78% 112%, rgb(143 176 211 / 0.6), transparent 62%),
+      hsl(var(--background));
+  }
+}
+
 @layer base {
   :root {
     /* Accent ladder on the BEACON navy #1f4e79: a ground one step toward the navy's
