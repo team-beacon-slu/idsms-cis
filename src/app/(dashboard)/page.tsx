@@ -137,7 +137,7 @@ export default async function DashboardHomePage(props: {
         ? `on schedule to finish ${fmtDate(projectedCompletion)}`
         : "set your work schedule to see your finish date");
 
-  // Honest streak: weeks in a row, most recent first, whose report went in (this week excluded).
+  // Submission streak: weeks in a row, most recent first, whose report went in (lateness not counted; this week excluded).
   const past = track.filter((w) => !w.isCurrent && w.kind !== "ahead").reverse();
   const streakEnd = past.findIndex((w) => !["confirmed", "review", "returned"].includes(w.kind));
   const streak = streakEnd === -1 ? past.length : streakEnd;
@@ -268,7 +268,7 @@ export default async function DashboardHomePage(props: {
         </Link>
 
         <div className="flex flex-col justify-between rounded-3xl border border-[#b9d8c8] bg-[#d7ece1] p-5 text-[#173b2b] md:col-span-3 xl:col-span-2">
-          <span className="text-sm font-medium">On-time streak</span>
+          <span className="text-sm font-medium">Submission streak</span>
           <span>
             <span className="block text-4xl font-bold tracking-tight tabular-nums">{streak}</span>
             <span className="mt-1 block text-sm text-[#173b2b]/80">
