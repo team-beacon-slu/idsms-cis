@@ -9,6 +9,8 @@ alter table student_profiles add column if not exists start_before_moa_allowed b
 alter table student_profiles add column if not exists start_before_moa_reason text;
 alter table student_profiles add column if not exists start_before_moa_by uuid references users(id);
 alter table student_profiles add column if not exists start_before_moa_at timestamptz;
+-- FK index, same policy as 012.
+create index if not exists student_profiles_start_before_moa_by_idx on student_profiles (start_before_moa_by);
 
 -- Run 2: give every existing intern a row for the two new items (new imports get them already).
 insert into pre_deployment_checklist_items (id, student_profile_id, requirement_type, updated_at)
