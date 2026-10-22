@@ -10,7 +10,7 @@ const KIND: Record<TrackKind, { label: string; cell: string }> = {
   returned: { label: "Returned", cell: "bg-danger-soft border border-red-300" },
   missing: { label: "Not submitted", cell: "bg-[#c4242a]" },
   open: { label: "Open", cell: "bg-card border border-brand-300" },
-  ahead: { label: "Ahead", cell: "bg-brand-50" },
+  ahead: { label: "Ahead", cell: "bg-brand-100/80" },
 };
 
 const fmt = (d: Date) =>

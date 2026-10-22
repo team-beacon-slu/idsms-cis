@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Program, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { Users as UsersIcon, UserCheck, UserX, Upload } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { listUsers } from "@/lib/services/userService";
@@ -17,22 +17,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatCard, StatStrip } from "@/components/stat-card";
+import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { UserRowActions } from "./user-row-actions";
 import { CreateStaffForm } from "./create-staff-form";
-import { NotificationSettingsForm } from "./notification-settings-form";
-import { RequiredHoursForm } from "./required-hours-form";
-import { ChecklistSettingsForm } from "./checklist-settings-form";
-import { ChecklistRequirementType } from "@prisma/client";
-import { getRequiredChecklistTypes } from "@/lib/services/checklistService";
-import { requirementLabel } from "@/app/(dashboard)/student-dashboard";
-import { AiSettingsForm } from "./ai-settings-form";
-import { getAiSettings } from "@/lib/ai/settings";
-import { DeductionSettingsForm } from "./deduction-settings-form";
-import { getDeductionMatrix, getDefaultConductHours } from "@/lib/services/deductionService";
-import { getRequiredHoursConfig } from "@/lib/services/attendanceService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getNotificationSettings } from "@/lib/services/scheduledNotifications";
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 
@@ -84,21 +73,11 @@ export default async function UsersPage(props: {
   }
 
   const isSuperAdmin = currentUser.role === Role.SUPER_ADMIN;
-  const [{ total }, { total: activeTotal }, listed, notificationSettings, requiredHours] =
-    await Promise.all([
-      listUsers({ pageSize: 1 }),
-      listUsers({ isActive: true, pageSize: 1 }),
-      listUsers({ search: q, role, page, pageSize: PAGE_SIZE }),
-      isSuperAdmin ? getNotificationSettings() : Promise.resolve(null),
-      isSuperAdmin
-        ? Promise.all(
-            Object.values(Program).map(async (program) => ({
-              program,
-              hours: await getRequiredHoursConfig(program),
-            }))
-          )
-        : Promise.resolve(null),
-    ]);
+  const [{ total }, { total: activeTotal }, listed] = await Promise.all([
+    listUsers({ pageSize: 1 }),
+    listUsers({ isActive: true, pageSize: 1 }),
+    listUsers({ search: q, role, page, pageSize: PAGE_SIZE }),
+  ]);
   const inactiveTotal = total - activeTotal;
   const { users, total: matching } = listed;
   const from = matching === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -111,128 +90,27 @@ export default async function UsersPage(props: {
     const query = params.toString();
     return `/users${query ? `?${query}` : ""}`;
   };
-  const aiSettings = isSuperAdmin ? await getAiSettings() : null;
-  const deductionSettings = isSuperAdmin
-    ? { matrix: await getDeductionMatrix(), defaultHours: await getDefaultConductHours() }
-    : null;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Users</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage accounts, roles, and access across the department.
-          </p>
-        </div>
-        <Button asChild className="cursor-pointer">
-          <Link href="/users/import" className="gap-2">
-            <Upload className="size-4" aria-hidden="true" />
-            Bulk import students
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Users"
+        description="Accounts, roles and access across the department."
+        actions={
+          <Button asChild className="cursor-pointer">
+            <Link href="/users/import" className="gap-2">
+              <Upload className="size-4" aria-hidden="true" />
+              Bulk import students
+            </Link>
+          </Button>
+        }
+      />
 
       <StatStrip>
         <StatCard label="Total users" value={total} icon={UsersIcon} />
         <StatCard label="Active" value={activeTotal} icon={UserCheck} />
         <StatCard label="Deactivated" value={inactiveTotal} icon={UserX} />
       </StatStrip>
-
-      {isSuperAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>New staff account</CardTitle>
-            <CardDescription>
-              Faculty advisers, coordinators and admins. Students are added by importing the class
-              list.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CreateStaffForm />
-          </CardContent>
-        </Card>
-      )}
-
-      {notificationSettings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Notification settings</CardTitle>
-            <CardDescription>
-              Deadline reminders and MOA expiry warnings sent by the daily job.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <NotificationSettingsForm initial={notificationSettings} />
-          </CardContent>
-        </Card>
-      )}
-
-      {aiSettings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>AI advisories</CardTitle>
-            <CardDescription>
-              Advisory-only similarity and sentiment signals on weekly reports (PRD Module 9). Off
-              until the adviser approves the privacy basis and the golden-set evaluation passes.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AiSettingsForm settings={aiSettings} />
-          </CardContent>
-        </Card>
-      )}
-
-      {isSuperAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Checklist requirements</CardTitle>
-            <CardDescription>
-              Which pre-deployment items must be approved before an endorsement letter. Unticked
-              items stay on interns&apos; checklists as optional.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChecklistSettingsForm
-              items={Object.values(ChecklistRequirementType).map((type) => ({
-                type,
-                label: requirementLabel(type),
-              }))}
-              initial={await getRequiredChecklistTypes()}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {requiredHours && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Required internship hours</CardTitle>
-            <CardDescription>
-              Hours each program must complete. Sets the default for students imported after you
-              save. Existing students keep their current required hours.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RequiredHoursForm initial={requiredHours} />
-          </CardContent>
-        </Card>
-      )}
-
-      {deductionSettings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Deductions</CardTitle>
-            <CardDescription>
-              SLU&apos;s deduction matrix and the hours a conduct record deducts. The faculty revise
-              the matrix; changes apply to every intern&apos;s tally right away.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DeductionSettingsForm {...deductionSettings} />
-          </CardContent>
-        </Card>
-      )}
 
       <section aria-label="Accounts" className="space-y-3">
         <form method="get" role="search" className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -341,6 +219,21 @@ export default async function UsersPage(props: {
           </nav>
         )}
       </section>
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>New staff account</CardTitle>
+            <CardDescription>
+              Faculty advisers, coordinators and admins. Students are added by importing the class
+              list.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CreateStaffForm />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

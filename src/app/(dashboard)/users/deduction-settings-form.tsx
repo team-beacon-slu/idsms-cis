@@ -74,7 +74,7 @@ export function DeductionSettingsForm({
           onChange={(e) => setHours(e.target.value)}
           className="w-32"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           0 means conduct records don&apos;t reduce rendered hours.
         </p>
       </div>
@@ -84,12 +84,12 @@ export function DeductionSettingsForm({
           id="deduction-matrix"
           rows={16}
           spellCheck={false}
-          className="font-mono text-xs"
+          className="font-mono text-[13px]"
           value={json}
           disabled={pending}
           onChange={(e) => setJson(e.target.value)}
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           Each category: key, label, mode (TOTAL_AT_COUNT or PER_INCIDENT), source (MANUAL or
           AUTOMATIC), tiers [{"{"} count, adviser, wwr {"}"}], optional extraIfNoValidReason.
         </p>

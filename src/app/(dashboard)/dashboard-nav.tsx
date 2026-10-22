@@ -21,6 +21,7 @@ import {
   BookOpenCheck,
   ScrollText,
   Download,
+  Settings,
   UserCircle,
   LogOut,
   Menu,
@@ -101,6 +102,7 @@ export function getNavGroups(role: Role): NavGroup[] {
       items: [
         { href: "/audit-log", label: "Audit log", icon: ScrollText },
         { href: "/admin/export-center", label: "Export center", icon: Download },
+        { href: "/settings", label: "Settings", icon: Settings },
       ],
     });
   }
@@ -113,7 +115,7 @@ function isActive(pathname: string, href: string) {
 }
 
 const rowClass =
-  "flex h-11 items-center gap-2.5 rounded-md px-2.5 text-sm md:h-8 text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring";
+  "flex h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm md:h-9 text-sidebar-foreground/80 transition-colors hover:bg-brand-50 hover:text-brand-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring";
 
 function NavLinks({
   groups,
@@ -141,12 +143,11 @@ function NavLinks({
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   rowClass,
-                  active &&
-                    "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent"
+                  active && "btn-glow font-medium text-white hover:bg-transparent hover:text-white"
                 )}
               >
                 <Icon
-                  className={cn("size-4 shrink-0", active && "text-brand-600")}
+                  className={cn("size-4 shrink-0", active && "text-white")}
                   strokeWidth={active ? 2 : 1.6}
                   aria-hidden="true"
                 />
@@ -230,7 +231,7 @@ export function DashboardNav({ role, userLabel }: { role: Role; userLabel?: stri
   return (
     <>
       {/* Desktop: the sidebar sits on the page ground, divided by one hairline. */}
-      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:w-60 md:flex-col md:border-r md:border-sidebar-border md:bg-sidebar">
+      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:flex md:w-60 md:flex-col md:border-r md:border-white/60 md:bg-white/55 md:backdrop-blur-xl">
         <div className="flex h-16 items-center gap-2 px-5">
           <Brand />
           <NotificationBell className="ml-auto" />
@@ -240,7 +241,7 @@ export function DashboardNav({ role, userLabel }: { role: Role; userLabel?: stri
       </aside>
 
       {/* Phone: a 48px bar with the product, the bell and the menu. */}
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-sidebar-border bg-sidebar px-4 md:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-white/60 bg-white/75 px-4 backdrop-blur-xl md:hidden">
         <Brand compact />
         <NotificationBell className="ml-auto" />
         <button

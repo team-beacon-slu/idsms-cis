@@ -20,9 +20,10 @@ import { FacultyDashboard } from "./faculty-dashboard";
 import { CoordinatorDashboard } from "./coordinator-dashboard";
 import { StudentDashboardTables } from "./student-dashboard";
 import { reportState, weeklyHistory } from "@/lib/services/complianceService";
-import { buildInternshipTrack } from "@/lib/utils/internshipTrack";
+import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
-import { InternshipTrack } from "@/components/internship-track";
+import { InternshipTrack, MiniTrack } from "@/components/internship-track";
+import { BeaconRing } from "@/components/beacon-ring";
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 
@@ -44,6 +45,7 @@ export default async function DashboardHomePage(props: {
     return (
       <div className="space-y-6">
         <PageHeader
+          hero
           title="Department overview"
           description="Every intern this semester: hours, requirements and weekly reports."
         />
@@ -55,6 +57,7 @@ export default async function DashboardHomePage(props: {
     return (
       <div className="space-y-6">
         <PageHeader
+          hero
           title="Advising overview"
           description="Your class groups: what is waiting for your review, then each intern."
         />
@@ -134,92 +137,159 @@ export default async function DashboardHomePage(props: {
         ? `on schedule to finish ${fmtDate(projectedCompletion)}`
         : "set your work schedule to see your finish date");
 
+  // Honest streak: weeks in a row, most recent first, whose report went in (this week excluded).
+  const past = track.filter((w) => !w.isCurrent && w.kind !== "ahead").reverse();
+  const streakEnd = past.findIndex((w) => !["confirmed", "review", "returned"].includes(w.kind));
+  const streak = streakEnd === -1 ? past.length : streakEnd;
+  const daysLeft = nextDue ? daysUntil(nextDue) : null;
+  const recentKinds = track
+    .filter((w) => w.kind !== "ahead")
+    .slice(-8)
+    .map((w) => w.kind);
+  const fmtDue = (d: Date) =>
+    d.toLocaleDateString("en-PH", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
+        hero
         title="My internship"
         description={finding}
         actions={
-          <Button asChild>
+          <Button asChild variant="secondary" size="lg" className="shadow-sm">
             <Link href="/weekly-reports">This week&apos;s report</Link>
           </Button>
         }
       />
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-        {/* The screen's question, "am I on track?", gets the biggest block and the one hue. */}
-        <Card className="lg:col-span-2">
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">Confirmed hours</p>
-            <p className="mt-1 text-4xl font-semibold tracking-tight text-brand-900 tabular-nums">
-              {confirmedHours}
-              <span className="text-lg text-muted-foreground"> / {requiredHours} hrs</span>
-            </p>
-            <div
-              className="mt-4 h-2 overflow-hidden rounded-full bg-brand-50"
-              role="progressbar"
-              aria-label="Confirmed hours"
-              aria-valuemin={0}
-              aria-valuemax={requiredHours}
-              aria-valuenow={confirmedHours}
-            >
-              <div className="h-full rounded-full bg-brand-600" style={{ width: `${percent}%` }} />
+      {/* Bento: the biggest tile answers "am I on track?"; colour blocks carry one figure each. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12">
+        <section
+          aria-labelledby="hours-title"
+          className="relative flex flex-col gap-5 overflow-hidden rounded-3xl p-6 beacon-band md:col-span-6 xl:col-span-4 xl:row-span-2"
+        >
+          <h2 id="hours-title" className="text-sm font-medium text-white/80">
+            Confirmed hours
+          </h2>
+          <div className="flex items-center gap-5">
+            <BeaconRing value={confirmedHours} max={requiredHours} />
+            <div>
+              <p className="text-[40px] leading-none font-bold tracking-tight text-white tabular-nums">
+                {confirmedHours}
+              </p>
+              <p className="mt-1 text-sm text-white/80">of {requiredHours} hrs</p>
+              <p className="mt-3 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-sm font-semibold text-white tabular-nums">
+                {Math.round(percent)}% there
+              </p>
             </div>
-            {studentProfile && (
-              <div className="mt-6 border-t pt-5">
-                <p className="mb-3 text-sm font-medium text-foreground">Your weeks</p>
-                <InternshipTrack
-                  weeks={track}
-                  finishLabel={projectedCompletion ? fmtDate(projectedCompletion) : null}
-                />
-              </div>
+          </div>
+          <dl className="mt-auto grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-2xl bg-white/10 px-3 py-2.5">
+              <dt className="text-white/70">Pending review</dt>
+              <dd className="mt-0.5 font-semibold text-white tabular-nums">
+                {pendingHours > 0 ? `+${pendingHours} hrs` : "—"}
+              </dd>
+            </div>
+            <div className="rounded-2xl bg-white/10 px-3 py-2.5">
+              <dt className="text-white/70">Projected finish</dt>
+              <dd className="mt-0.5 font-semibold text-white">
+                {projectedCompletion ? fmtDate(projectedCompletion) : "—"}
+              </dd>
+            </div>
+            <div className="rounded-2xl bg-white/10 px-3 py-2.5">
+              <dt className="text-white/70">Host company</dt>
+              <dd className="mt-0.5 font-semibold text-white">
+                {studentProfile?.companyId ? "Assigned" : "Not yet"}
+              </dd>
+            </div>
+            <div className="rounded-2xl bg-white/10 px-3 py-2.5">
+              <dt className="text-white/70">Program</dt>
+              <dd className="mt-0.5 font-semibold text-white">{studentProfile?.program ?? "—"}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <Card className="md:col-span-6 xl:col-span-8">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold text-brand-900">Your weeks</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Every week of your internship, coloured by where its report stands.
+            </p>
+            {studentProfile ? (
+              <InternshipTrack
+                weeks={track}
+                finishLabel={projectedCompletion ? fmtDate(projectedCompletion) : null}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Your profile isn&apos;t set up yet.</p>
             )}
-            <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-              <div>
-                <dt className="text-muted-foreground">Pending review</dt>
-                <dd className="mt-0.5 tabular-nums">
-                  {pendingHours > 0 ? `+${pendingHours} hrs` : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Projected finish</dt>
-                <dd className="mt-0.5">
-                  {projectedCompletion ? fmtDate(projectedCompletion) : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Host company</dt>
-                <dd className="mt-0.5">{studentProfile?.companyId ? "Assigned" : "Not yet"}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Program</dt>
-                <dd className="mt-0.5">{studentProfile?.program ?? "—"}</dd>
-              </div>
-            </dl>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Waiting on you</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {nextDue && (
-              <Link
-                href="/weekly-reports"
-                className="-mx-2 mb-3 block rounded-md bg-brand-50 px-3 py-3 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-ring"
-              >
-                <span className="block text-sm text-brand-900">This week&apos;s report is due</span>
-                <span className="mt-0.5 block text-xl font-semibold tracking-tight text-brand-900">
-                  {nextDue.toLocaleDateString("en-PH", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    timeZone: "UTC",
-                  })}
+        <Link
+          href="/weekly-reports"
+          className="group flex flex-col justify-between rounded-3xl border border-sky-200/80 bg-sky-100 p-5 text-sky-950 transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-ring motion-reduce:hover:translate-y-0 md:col-span-3 xl:col-span-3"
+        >
+          <span className="text-sm font-medium">Next deadline</span>
+          <span>
+            <span className="block text-2xl font-bold tracking-tight">
+              {nextDue ? fmtDue(nextDue) : "All caught up"}
+            </span>
+            <span className="mt-1 block text-sm text-sky-900/80">
+              {nextDue ? "This week's report" : "This week's report is in"}
+            </span>
+          </span>
+          {daysLeft !== null && (
+            <span className="block">
+              <span className="flex justify-between text-xs font-medium text-sky-900/80">
+                <span>
+                  {daysLeft === 0
+                    ? "Due today"
+                    : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`}
                 </span>
-              </Link>
-            )}
+                <span>Tue deadline</span>
+              </span>
+              <span
+                className="mt-1.5 block h-2 overflow-hidden rounded-full bg-sky-200/80"
+                aria-hidden="true"
+              >
+                <span
+                  className="block h-full rounded-full bg-sky-700"
+                  style={{ width: `${Math.round(((7 - Math.min(daysLeft, 7)) / 7) * 100)}%` }}
+                />
+              </span>
+            </span>
+          )}
+        </Link>
+
+        <div className="flex flex-col justify-between rounded-3xl border border-[#b9d8c8] bg-[#d7ece1] p-5 text-[#173b2b] md:col-span-3 xl:col-span-2">
+          <span className="text-sm font-medium">On-time streak</span>
+          <span>
+            <span className="block text-4xl font-bold tracking-tight tabular-nums">{streak}</span>
+            <span className="mt-1 block text-sm text-[#173b2b]/80">
+              {streak === 1 ? "week in a row" : "weeks in a row"}
+            </span>
+          </span>
+          {recentKinds.length > 0 && (
+            <span className="block">
+              <span className="mb-1.5 block text-xs font-medium text-[#173b2b]/80">
+                Last {recentKinds.length} weeks
+              </span>
+              <MiniTrack kinds={recentKinds} />
+            </span>
+          )}
+        </div>
+
+        <Card className="flex flex-col md:col-span-6 xl:col-span-3">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg text-brand-900">Waiting on you</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col">
             {attentionRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing is waiting on you right now.</p>
             ) : (
@@ -228,9 +298,11 @@ export default async function DashboardHomePage(props: {
                   <li key={row.label}>
                     <Link
                       href={row.href}
-                      className="flex min-h-11 items-center gap-3 rounded-md px-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+                      className="flex min-h-11 items-center gap-3 rounded-lg px-2 text-sm hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-ring"
                     >
-                      <span className="w-6 text-right font-medium tabular-nums">{row.count}</span>
+                      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-amber-100 text-xs font-bold text-amber-800 tabular-nums">
+                        {row.count}
+                      </span>
                       <span className="flex-1">{row.label}</span>
                       <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
                     </Link>
@@ -238,30 +310,37 @@ export default async function DashboardHomePage(props: {
                 ))}
               </ul>
             )}
-            {studentProfile && finalThreshold !== null && (
-              <div className="mt-4 border-t pt-4">
-                <p className="text-sm font-medium">Final report cover</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {coverUnlocked
-                    ? "Unlocked: generate the cover page for your final report."
-                    : `Unlocks at ${finalThreshold} confirmed hours.`}
-                </p>
-                {coverUnlocked && (
-                  <div className="mt-3">
-                    <ReportPdfActions
-                      endpoint={`/api/students/${studentProfile.id}/final-cover`}
-                      status={finalCover?.status ?? null}
-                      canGenerate={coverUnlocked}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
-      </div>
 
-      <StudentDashboardTables requirements={progress?.items ?? []} history={reportHistory} />
+        <StudentDashboardTables
+          requirements={progress?.items ?? []}
+          history={reportHistory}
+          aside={
+            studentProfile && finalThreshold !== null ? (
+              <Card>
+                <CardContent className="p-5">
+                  <p className="text-sm font-semibold text-brand-900">Final report cover</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {coverUnlocked
+                      ? "Unlocked: generate the cover page for your final report."
+                      : `Unlocks at ${finalThreshold} confirmed hours.`}
+                  </p>
+                  {coverUnlocked && (
+                    <div className="mt-3">
+                      <ReportPdfActions
+                        endpoint={`/api/students/${studentProfile.id}/final-cover`}
+                        status={finalCover?.status ?? null}
+                        canGenerate={coverUnlocked}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null
+          }
+        />
+      </div>
     </div>
   );
 }

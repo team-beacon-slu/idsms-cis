@@ -195,27 +195,31 @@ export function ConductCard({
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
               <th className="py-2 pr-3 font-medium">Category</th>
-              <th className="py-2 pr-3 font-medium">Count</th>
-              <th className="py-2 pr-3 font-medium">Adviser</th>
-              <th className="py-2 font-medium">WWR</th>
+              <th className="py-2 pr-3 text-right font-medium">Count</th>
+              <th className="py-2 pr-3 text-right font-medium">Adviser</th>
+              <th className="py-2 text-right font-medium">WWR</th>
             </tr>
           </thead>
           <tbody>
             {data.tally.rows.map((r) => (
               <tr key={r.key} className="border-b last:border-0">
                 <td className="py-2 pr-3">{r.label}</td>
-                <td className="py-2 pr-3">{r.count}</td>
-                <td className="py-2 pr-3">{r.adviser ? `−${r.adviser}` : "0"}</td>
-                <td className="py-2">{r.wwr ? `−${r.wwr}` : "0"}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{r.count}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">
+                  {r.adviser ? `−${r.adviser}` : "0"}
+                </td>
+                <td className="py-2 text-right tabular-nums">{r.wwr ? `−${r.wwr}` : "0"}</td>
               </tr>
             ))}
             <tr className="font-semibold">
               <td className="py-2 pr-3">Total deductions</td>
               <td />
-              <td className="py-2 pr-3">
+              <td className="py-2 pr-3 text-right tabular-nums">
                 {data.tally.totals.adviser ? `−${data.tally.totals.adviser}` : "0"}
               </td>
-              <td className="py-2">{data.tally.totals.wwr ? `−${data.tally.totals.wwr}` : "0"}</td>
+              <td className="py-2 text-right tabular-nums">
+                {data.tally.totals.wwr ? `−${data.tally.totals.wwr}` : "0"}
+              </td>
             </tr>
           </tbody>
         </table>

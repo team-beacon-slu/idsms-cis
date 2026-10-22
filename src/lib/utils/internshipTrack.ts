@@ -55,3 +55,9 @@ function kindFor(
   if (week > current) return "ahead";
   return pastDue ? "missing" : "open";
 }
+
+// Days from today (Manila calendar) to a UTC-midnight due date; never negative.
+export function daysUntil(dueDate: Date, now: Date = new Date()): number {
+  const manilaToday = Math.floor((now.getTime() + 8 * 60 * 60 * 1000) / DAY_MS) * DAY_MS;
+  return Math.max(0, Math.round((dueDate.getTime() - manilaToday) / DAY_MS));
+}
