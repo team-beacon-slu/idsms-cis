@@ -57,3 +57,10 @@ export const updateMoaStatusSchema = z.object({
 export const listCompaniesQuerySchema = z.object({
   search: z.string().optional(),
 });
+
+export const joinCompanySchema = z.object({ positionTitle: z.string().trim().min(1).optional() });
+
+export const mergeCompaniesSchema = z.object({
+  keepId: z.uuid(),
+  mergeIds: z.array(z.uuid()).min(1).max(20),
+});

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Search, Building2, ShieldCheck, Plus } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { listCompanies } from "@/lib/services/companyService";
+import { listCompanies, listDuplicateCompanyGroups } from "@/lib/services/companyService";
 import {
   Table,
   TableBody,
@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { StatCard, StatStrip } from "@/components/stat-card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { MergeDuplicates } from "./merge-duplicates";
 
 function VerificationPill({ isVerified }: { isVerified: boolean }) {
   return (
@@ -38,8 +40,12 @@ function VerificationPill({ isVerified }: { isVerified: boolean }) {
 // so every role can browse this list.
 export default async function CompaniesPage(props: { searchParams: Promise<{ search?: string }> }) {
   const searchParams = await props.searchParams;
-  await requireUserPage();
-  const companies = await listCompanies({ search: searchParams.search });
+  const user = await requireUserPage();
+  const canMerge = user.role === "DEPARTMENT_COORDINATOR" || user.role === "SUPER_ADMIN";
+  const [companies, duplicates] = await Promise.all([
+    listCompanies({ search: searchParams.search }),
+    canMerge ? listDuplicateCompanyGroups() : [],
+  ]);
   const verifiedCount = companies.filter((c) => c.isVerified).length;
 
   return (
@@ -63,6 +69,23 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
         <StatCard label="Registered companies" value={companies.length} icon={Building2} />
         <StatCard label="Verified" value={verifiedCount} icon={ShieldCheck} />
       </StatStrip>
+
+      {duplicates.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Possible duplicates</CardTitle>
+            <CardDescription>
+              Interns registered these separately. Merging moves their interns and MOAs onto the one
+              you keep and hides the rest; nothing is deleted.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {duplicates.map((group) => (
+              <MergeDuplicates key={group[0].id} group={group} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <form className="flex gap-2">
         <div className="relative w-full max-w-sm">
