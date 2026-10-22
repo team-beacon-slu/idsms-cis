@@ -34,7 +34,8 @@ function getCalendarMonthRange(calendarMonth: string): { monthStart: Date; month
 // eligible would let `submitMonthlyReport` create an empty report.
 export async function checkMonthlyAggregationEligibility(
   studentProfileId: string,
-  calendarMonth: string // "YYYY-MM"
+  calendarMonth: string, // "YYYY-MM"
+  now: Date = new Date()
 ): Promise<boolean> {
   const { monthStart, monthEnd } = getCalendarMonthRange(calendarMonth);
 
@@ -61,8 +62,21 @@ export async function checkMonthlyAggregationEligibility(
       report.status === WeeklyReportStatus.APPROVED || report.status === WeeklyReportStatus.REGARDED
   );
   const weekStarts = reports.map((r) => r.weekStart);
-  return allApproved && missingWeeksInRange(weekStarts, monthStart, monthEnd).length === 0;
+  if (!allApproved || missingWeeksInRange(weekStarts, monthStart, monthEnd).length > 0)
+    return false;
+
+  // The gap check only reaches the latest report, so a month still under way looked
+  // complete. It must be over in Manila, unless the intern has finished their hours.
+  const manilaMonth = toDateKey(new Date(now.getTime() + MANILA_OFFSET_MS)).slice(0, 7);
+  if (manilaMonth > calendarMonth) return true;
+  const profile = await prisma.studentProfile.findUnique({
+    where: { id: studentProfileId },
+    select: { renderedHours: true, requiredHours: true },
+  });
+  return profile !== null && Number(profile.renderedHours) >= profile.requiredHours;
 }
+
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 // Weeks with no report between the student's first and last report weeks that
 // overlap [from, to], as YYYY-MM-DD Mondays. Same rule as the automatic

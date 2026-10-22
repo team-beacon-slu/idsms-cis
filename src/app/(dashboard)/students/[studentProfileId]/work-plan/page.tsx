@@ -1,3 +1,4 @@
+import { formatInstant } from "@/lib/documents/html";
 import { redirect } from "next/navigation";
 import { CalendarClock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
@@ -67,7 +68,7 @@ export default async function WorkPlanPage(props: {
                 <CardTitle>Latest work plan</CardTitle>
                 <CardDescription className="mt-1 flex items-center gap-1.5">
                   <CalendarClock className="size-3.5" aria-hidden="true" />
-                  {new Date(latest.createdAt).toLocaleString()}
+                  {formatInstant(new Date(latest.createdAt))}
                 </CardDescription>
               </div>
               <StatusBadge status={latest.status} />
@@ -120,7 +121,7 @@ export default async function WorkPlanPage(props: {
                   className="flex items-center justify-between gap-3 py-2.5 text-sm"
                 >
                   <span className="text-muted-foreground">
-                    {new Date(plan.createdAt).toLocaleString()}
+                    {formatInstant(new Date(plan.createdAt))}
                   </span>
                   <StatusBadge status={plan.status} />
                 </li>

@@ -175,10 +175,11 @@ export default async function AttendancePage(props: {
                 <p className="text-sm text-muted-foreground">Projected completion</p>
                 <p className="text-xl font-semibold text-foreground">
                   {projectedCompletionDate
-                    ? projectedCompletionDate.toLocaleDateString(undefined, {
+                    ? projectedCompletionDate.toLocaleDateString("en-PH", {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
+                        timeZone: "Asia/Manila",
                       })
                     : "—"}
                 </p>
@@ -249,6 +250,17 @@ export default async function AttendancePage(props: {
             currentSchedule={currentSchedule}
             pendingChange={pendingChange}
             canEdit={isOwner}
+            review={
+              workPlan &&
+              pendingChange?.status === "PENDING_FACULTY" &&
+              user.role === "FACULTY_ADVISER"
+                ? { workPlanId: workPlan.id, stage: "faculty" }
+                : workPlan &&
+                    pendingChange?.status === "PENDING_COORDINATOR" &&
+                    (user.role === "DEPARTMENT_COORDINATOR" || user.role === "SUPER_ADMIN")
+                  ? { workPlanId: workPlan.id, stage: "coordinator" }
+                  : null
+            }
           />
         </CardContent>
       </Card>
@@ -324,7 +336,7 @@ export default async function AttendancePage(props: {
                   {deviationReports.map((report) => (
                     <TableRow key={report.id}>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {new Date(report.date).toLocaleDateString()}
+                        {new Date(report.date).toLocaleDateString("en-PH", { timeZone: "UTC" })}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal">

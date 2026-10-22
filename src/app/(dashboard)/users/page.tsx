@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { StatCard, StatStrip } from "@/components/stat-card";
 import { cn } from "@/lib/utils";
 import { UserRowActions } from "./user-row-actions";
+import { CreateStaffForm } from "./create-staff-form";
 import { NotificationSettingsForm } from "./notification-settings-form";
 import { RequiredHoursForm } from "./required-hours-form";
 import { AiSettingsForm } from "./ai-settings-form";
@@ -133,6 +134,21 @@ export default async function UsersPage(props: {
         <StatCard label="Active" value={activeTotal} icon={UserCheck} />
         <StatCard label="Deactivated" value={inactiveTotal} icon={UserX} />
       </StatStrip>
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>New staff account</CardTitle>
+            <CardDescription>
+              Faculty advisers, coordinators and admins. Students are added by importing the class
+              list.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CreateStaffForm />
+          </CardContent>
+        </Card>
+      )}
 
       {notificationSettings && (
         <Card>

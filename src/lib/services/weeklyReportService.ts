@@ -747,8 +747,11 @@ export class WeeklyReportNotAwaitingReviewError extends Error {
 }
 
 // Every faculty review action applies only to a submitted report that is
-// still awaiting review; read inside the action's transaction.
+// still awaiting review; read inside the action's transaction. The row lock makes a
+// second, simultaneous review wait and then see the first one's status, instead of
+// both passing the check (a Disregard could otherwise delete a just-approved week).
 async function assertAwaitingReview(tx: Prisma.TransactionClient, weeklyReportId: string) {
+  await tx.$queryRaw`SELECT id FROM weekly_reports WHERE id = ${weeklyReportId}::uuid FOR UPDATE`;
   const report = await tx.weeklyReport.findUniqueOrThrow({
     where: { id: weeklyReportId },
     select: { status: true, revisionHistory: true },

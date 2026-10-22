@@ -60,6 +60,9 @@ export type VerifyCredentialsResult =
 // The failure counter uses an atomic increment and the lock decision uses the
 // value the database returns, so a burst of concurrent failed attempts can't
 // race past the threshold via a lost update.
+// bcrypt hash (cost 12, as hashPassword) of a random string nobody knows.
+const TIMING_DUMMY_HASH = "$2b$12$VDqK0XVzqtWrnyk.YMPj3OvYU.urBdV4zgVWMJ3JUeXDOlkBGLY9W";
+
 export async function verifyCredentials(
   email: string,
   password: string,
@@ -68,6 +71,8 @@ export async function verifyCredentials(
   const pre = await prisma.user.findUnique({ where: { email } });
 
   if (!pre || pre.deletedAt) {
+    // Same bcrypt cost as a real account, so response time doesn't reveal which emails exist.
+    await verifyPassword(password, TIMING_DUMMY_HASH);
     await logEvent({
       userId: null,
       action: "LOGIN_FAILED",
@@ -567,6 +572,10 @@ export async function bulkImportStudents(
     const { rowNumber, row } = inputRows[index];
 
     try {
+      // bcrypt (~0.3 s) before the transaction opens: inside it, a slow link could hit the
+      // 5 s interactive-transaction timeout and skip a valid student.
+      const plaintextPassword = generateDefaultPassword(row.studentNumber);
+      const hashedPassword = await hashPassword(plaintextPassword);
       const outcome = await prisma.$transaction(async (tx) => {
         const existingEmail = await tx.user.findUnique({ where: { email: row.email } });
         if (existingEmail) {
@@ -579,9 +588,6 @@ export async function bulkImportStudents(
         if (existingStudentNumber) {
           return { status: "skipped" as const, reason: "Student number already exists" };
         }
-
-        const plaintextPassword = generateDefaultPassword(row.studentNumber);
-        const hashedPassword = await hashPassword(plaintextPassword);
 
         const user = await tx.user.create({
           data: {

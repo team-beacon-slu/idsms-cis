@@ -53,25 +53,14 @@ export async function submitWorkPlan(
       throw new WorkPlanPendingError();
     }
 
-    // Schedules are read from the latest APPROVED plan, so a resubmission without
-    // its own schedule carries the current one forward; otherwise approving it
-    // would drop the schedule and its change history.
-    const approved =
-      input.scheduleConfig === undefined
-        ? await tx.workPlan.findFirst({
-            where: { studentProfileId, status: WorkPlanStatus.APPROVED },
-            orderBy: { createdAt: "desc" },
-          })
-        : null;
-
+    // A resubmission without its own schedule takes the current one when it is
+    // approved (reviewWorkPlan), not now: a schedule change decided in between would
+    // otherwise be lost and its stale "pending" entry would block new requests.
     const workPlan = await tx.workPlan.create({
       data: {
         studentProfileId,
         plannedTasks: input.plannedTasks,
-        scheduleConfig: input.scheduleConfig ?? approved?.scheduleConfig ?? undefined,
-        ...(approved && {
-          scheduleChangeHistory: approved.scheduleChangeHistory as Prisma.InputJsonValue,
-        }),
+        scheduleConfig: input.scheduleConfig ?? undefined,
       },
     });
 
@@ -111,9 +100,26 @@ export async function reviewWorkPlan(
   }
 
   return prisma.$transaction(async (tx) => {
+    // Schedules are read from the latest APPROVED plan, so approving a plan without
+    // its own schedule carries the current schedule and its change history forward.
+    const carried =
+      action === "APPROVE" && workPlan.scheduleConfig == null
+        ? await tx.workPlan.findFirst({
+            where: {
+              studentProfileId: workPlan.studentProfileId,
+              status: WorkPlanStatus.APPROVED,
+              id: { not: workPlanId },
+            },
+            orderBy: { createdAt: "desc" },
+          })
+        : null;
     const updated = await tx.workPlan.update({
       where: { id: workPlanId, status: WorkPlanStatus.SUBMITTED },
       data: {
+        ...(carried?.scheduleConfig != null && {
+          scheduleConfig: carried.scheduleConfig as Prisma.InputJsonValue,
+          scheduleChangeHistory: carried.scheduleChangeHistory as Prisma.InputJsonValue,
+        }),
         status: action === "APPROVE" ? WorkPlanStatus.APPROVED : WorkPlanStatus.RETURNED,
         coordinatorId: actingUser.id,
         approvalMetadata: { reviewedAt: new Date().toISOString(), comments: comments ?? null },
