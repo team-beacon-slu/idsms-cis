@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import {
   buildAttendanceDocumentPath,
@@ -76,7 +77,7 @@ export async function PATCH(
     }
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await requestScheduleChange(params.studentProfileId, body, user, ipAddress);
-    await notifyScheduleChange(params.studentProfileId, "REQUESTED");
+    waitUntil(notifyScheduleChange(params.studentProfileId, "REQUESTED"));
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);

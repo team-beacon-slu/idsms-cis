@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { formatCalendarDate } from "@/lib/documents/html";
 import { requireUserPage } from "@/lib/auth/session";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -74,8 +75,8 @@ export default async function WeeklyReportReviewPage(props: {
           </div>
           <CardDescription>
             {student?.fullName ?? student?.studentNumber ?? "Student"} · Week of{" "}
-            {new Date(report!.weekStart).toLocaleDateString("en-PH", { timeZone: "UTC" })} –{" "}
-            {new Date(report!.weekEnd).toLocaleDateString("en-PH", { timeZone: "UTC" })}
+            {formatCalendarDate(new Date(report!.weekStart))} –{" "}
+            {formatCalendarDate(new Date(report!.weekEnd))}
           </CardDescription>
           <p className="text-xs text-muted-foreground">
             Supervisor-signed copies are submitted on Google Classroom, not in IDSMS.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import {
   getWeeklyReport,
@@ -43,7 +44,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
 
     // FR-WR-07 / FR-NT-01 #4: in-app + email to the intern and their advisers.
-    await sendReportStatusEmail(params.id, action);
+    waitUntil(sendReportStatusEmail(params.id, action));
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);

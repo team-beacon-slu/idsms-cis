@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import {
   getWorkPlanStudentProfileId,
@@ -23,9 +24,11 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const { action } = scheduleChangeReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await validateScheduleChangeFaculty(params.id, user.id, action, ipAddress);
-    await notifyScheduleChange(
-      studentProfileId,
-      result.status === "PENDING_COORDINATOR" ? "PENDING_COORDINATOR" : "REJECTED"
+    waitUntil(
+      notifyScheduleChange(
+        studentProfileId,
+        result.status === "PENDING_COORDINATOR" ? "PENDING_COORDINATOR" : "REJECTED"
+      )
     );
     return NextResponse.json(result);
   } catch (error) {

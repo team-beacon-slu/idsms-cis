@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle } from "lucide-react";
@@ -17,15 +17,17 @@ export function ScheduleChangeReview({
   stage: "faculty" | "coordinator";
 }) {
   const router = useRouter();
-  const [isPending, setIsPending] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, startRefresh] = useTransition();
+  const isPending = isSaving || isRefreshing;
 
   async function review(action: "APPROVE" | "REJECT") {
-    setIsPending(true);
+    setIsSaving(true);
     const res = await sendJson(`/api/work-plans/${workPlanId}/schedule-change/${stage}-review`, {
       method: "PATCH",
       body: { action },
     });
-    setIsPending(false);
+    setIsSaving(false);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -37,7 +39,8 @@ export function ScheduleChangeReview({
           ? "Approved. It now goes to the department coordinator."
           : "Schedule change approved. It applies from today."
     );
-    router.refresh();
+    // Keep the buttons busy until the refreshed status arrives, so nobody clicks twice.
+    startRefresh(() => router.refresh());
   }
 
   return (

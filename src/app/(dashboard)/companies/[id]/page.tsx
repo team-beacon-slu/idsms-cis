@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { formatCalendarDate } from "@/lib/documents/html";
+import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import Link from "next/link";
 import { Role } from "@prisma/client";
 import { MapPin, Briefcase, User, Phone, ShieldCheck, Plus, Lock } from "lucide-react";
@@ -63,7 +65,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
       <Card>
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center gap-2">
-            {company.name}
+            <h1 className="text-xl font-semibold tracking-tight">{company.name}</h1>
             <VerificationPill isVerified={company.isVerified} />
           </CardTitle>
         </CardHeader>
@@ -74,7 +76,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
           </div>
           <div className="flex items-center gap-2 text-sm text-foreground">
             <Briefcase className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>Modality: {company.workModality}</span>
+            <span>Modality: {WORK_MODALITY_LABEL[company.workModality]}</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-foreground">
             <User className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -134,12 +136,8 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                       <TableCell>
                         <StatusBadge status={moa.status} />
                       </TableCell>
-                      <TableCell>
-                        {new Date(moa.validFrom).toLocaleDateString("en-PH", { timeZone: "UTC" })}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(moa.validTo).toLocaleDateString("en-PH", { timeZone: "UTC" })}
-                      </TableCell>
+                      <TableCell>{formatCalendarDate(new Date(moa.validFrom))}</TableCell>
+                      <TableCell>{formatCalendarDate(new Date(moa.validTo))}</TableCell>
                       <TableCell>{moa.programsCovered.join(", ")}</TableCell>
                       <TableCell>
                         <MoaStatusActions

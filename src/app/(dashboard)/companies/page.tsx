@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StatCard, StatStrip } from "@/components/stat-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import { MergeDuplicates } from "./merge-duplicates";
 
 function VerificationPill({ isVerified }: { isVerified: boolean }) {
@@ -127,7 +128,9 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
                     {company.name}
                   </Link>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{company.workModality}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {WORK_MODALITY_LABEL[company.workModality]}
+                </TableCell>
                 <TableCell>
                   <VerificationPill isVerified={company.isVerified} />
                 </TableCell>
