@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 This guide describes every screen a student sees. The left menu (a slide-out menu on phones) shows, in order: **Dashboard, Companies, Calendar, Checklist, Work Plan, Attendance, Weekly Reports, Monthly Reports, Profile**, plus the notification bell and **Sign out**.
 
@@ -55,7 +55,7 @@ Shows your weekly report deadlines (red), Philippine holidays (gray), approved d
 ## 7. Attendance (`/attendance`)
 
 - **Hours rendered** (confirmed), **hours remaining** and **projected completion**. If you have submitted weeks still under review you will see "+N hrs pending faculty review".
-- **Deployment Schedule:** once your work plan is approved, set your **working days** and **hours per day**. Later changes go through **Schedule change requested**: give a reason; your adviser validates it and the coordinator approves it. A change only affects future days.
+- **Deployment Schedule:** once your work plan is approved, set your **working days** and **hours per day**. Later changes go through **Schedule change requested**: give a reason; your adviser validates it and the coordinator approves it; you get a notification with the result. A change only affects future days.
 - **Holidays:** Philippine holidays are pre-loaded; mark which ones apply to your company.
 - **Report a Deviation:** report an absence, overtime or undertime for a date, with a reason. Today an optional proof file (PDF up to 5 MB, JPG/PNG up to 2 MB) can be attached. L1 proposes replacing deviation proof uploads with status-only requests (proof in Google Classroom); pending confirmation (Q19). Today students can still upload a proof file.
 - **Deviation report history:** all your reports and their validation status.
@@ -112,3 +112,9 @@ The bell shows unread notifications: report submitted, report returned (with the
 - If a week is returned, fix only what the note asks and resubmit quickly so your hours count.
 - Keep your legal name correct on the Profile page before your adviser generates your endorsement letter.
 - Never upload signed or medical documents to IDSMS; use Google Classroom.
+
+## Privacy notice and company registration
+
+- The first time you open IDSMS you'll see the **Data privacy notice**. Choose **I agree** to continue; **I disagree** signs you out (talk to your coordinator). If the notice changes, you'll be asked again.
+- When you register your company, IDSMS lists companies already registered under a similar name. If yours is there, choose **This is my company** instead of adding a copy.
+- On each weekly report, **Running total (worked)** is the hours you've worked; **Conduct deductions** are shown separately, and **Remaining** takes them into account.

@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 IDSMS processes students' personal data, so it must comply with the **Data Privacy Act of 2012 (RA 10173)**, its implementing rules and SLU's data privacy policy. This document lists the measures in place, in plain language. Technical details are in [08. Technical design](08-technical-design.md).
 
@@ -47,6 +47,7 @@ During development the database and files are on Supabase (cloud) and the app on
 ## 4. Access control
 
 - **Four roles** with a role check on every page and every server action.
+- **Privacy notice:** every user agrees to the data privacy notice (RA 10173) before using IDSMS; the agreement time and notice version are stored, and agreements and refusals are audit-logged (FR-CK-05, NFR-DP-03).
 - **Record-level checks:** students see only their own records; faculty advisers only students in their assigned class groups for that semester; crafted requests for other students are refused (FR-UM-09).
 - **Default-deny database security (RLS):** every table has Row Level Security enabled with no policies, so the Supabase public key, if ever leaked, could read nothing (migration 002, NFR-SEC-11). Real authorisation is enforced by the application.
 - **Private file storage:** files are never public; the app checks access, then issues a link valid for 5 minutes (NFR-SEC-03).

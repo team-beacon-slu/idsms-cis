@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 The coordinator oversees the whole department. The left menu shows: **Dashboard, Users, Semesters, Companies, Calendar, Profile**, plus the notification bell and **Sign out**. The coordinator can open every student's pages (checklist, work plan, attendance, weekly and monthly reports) from the dashboard or the Users list.
 
@@ -24,7 +24,7 @@ The coordinator oversees the whole department. The left menu shows: **Dashboard,
 
 The coordinator can view all semesters (name, academic year, dates, number of students, active or archived). Creating, activating and archiving are Super Admin actions.
 
-**Planned (L1):** a "Week 1 starts" date per semester, used to number weekly reports (who sets it is open question Q8).
+A **"Week 1 starts"** date is set per semester on the Semesters page and numbers the weekly reports.
 
 ## 4. Companies and MOAs (`/companies`)
 
@@ -41,9 +41,14 @@ The coordinator can view all semesters (name, academic year, dates, number of st
 
 Open a student's latest work plan, then **Approve** or **Return** with feedback. An approved plan is locked and lets the student set their schedule; it also satisfies the checklist's Work Plan item. Faculty advisers cannot approve work plans; the coordinator and Super Admin can.
 
+## 5a. Class groups and companies
+
+- **Class groups** (`/class-groups`): create one per section (name, program, class type, dates), rename or delete it (only while it has no interns), and assign faculty advisers for a semester. Advisers see only the interns in groups they're assigned to, so set these up before importing a class list.
+- **Duplicate companies** (`/companies`): interns are offered matching companies while registering, but copies can still appear. A **Possible duplicates** card lists them; choose the one to keep and **Merge** moves its interns and MOAs onto it and hides the rest (audit-logged; nothing is deleted).
+
 ## 6. Schedule changes and deviations (`/students/{id}/attendance`)
 
-- **Schedule change:** after the faculty adviser validates a student's request, the coordinator gives **final approval** (or rejects it). Approved changes apply from then on; past approved hours never change.
+- **Schedule change:** after the faculty adviser validates a student's request, you get a notification and give **final approval** (or reject it) with the buttons on the student's Attendance page. Approved changes apply from then on; past approved hours never change.
 - **Deviation reports:** the coordinator can validate or reject them, like the adviser.
 
 ## 7. Checklist and endorsement letters
@@ -60,15 +65,15 @@ Coordinators receive MOA expiry warnings. Email copies arrive once SLU provides 
 
 ## 10. Coming later
 
-| Feature                                                                                                                           | Status                                 |
-| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| SLU credited-hours rules, Leave & Time Requests, SLU weekly report layout                                                         | **In progress** (L1)                   |
-| Choose required checklist items; new items; per-student endorsement override (adviser or coordinator, with reason)                | **Planned** (Checklist & MOA settings) |
-| Class group & staff management screens (faculty or Super Admin can create class groups, assign faculty and create staff accounts) | **Planned** (after L1; Q20)            |
-| Conduct records and the SLU deduction matrix; "Excused" exceptions                                                                | **Planned** (L2)                       |
-| Final Technical Report review (approve or return), HTE evaluation, certificates                                                   | **Planned** (H)                        |
-| Department events (orientation, medical exam, psych assessment) on students' calendars                                            | Backlog                                |
-| Monitoring log of supervisor checks and OJT visitations                                                                           | Backlog (Q13)                          |
+| Feature                                                                                                            | Status                                 |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| SLU credited-hours rules, Leave & Time Requests, SLU weekly report layout                                          | **In progress** (L1)                   |
+| Choose required checklist items; new items; per-student endorsement override (adviser or coordinator, with reason) | **Planned** (Checklist & MOA settings) |
+| Class group screens: create, rename, delete class groups; assign advisers per semester                             | **Built**                              |
+| Conduct records and the SLU deduction matrix; "Excused" exceptions                                                 | **Built** (L2)                         |
+| Final Technical Report review (approve or return), HTE evaluation, certificates                                    | **Built** (H)                          |
+| Department events (orientation, medical exam, psych assessment) on students' calendars                             | Backlog                                |
+| Monitoring log of supervisor checks and OJT visitations                                                            | Backlog (Q13)                          |
 
 ## 11. Tips
 

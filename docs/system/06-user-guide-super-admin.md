@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 The Super Admin has every coordinator capability (see the [coordinator guide](05-user-guide-coordinator.md)) plus system settings and the privacy tools. The left menu shows: **Dashboard, Users, Semesters, Audit log, Export Center, Companies, Calendar, Profile**, plus the notification bell and **Sign out**.
 
@@ -26,7 +26,7 @@ The department dashboard (see the coordinator guide): summary cards, program car
 - **Required internship hours** per program. Defaults: **BSIT 600, BMMA 500, BSCS 240** (BSCS is open question Q5). A change applies to students imported afterwards; it does not rewrite existing students' required hours.
 - **Notification settings:** reminder hours before the weekly report deadline (1 to 3 values, each 16 to 168 hours; default 48 and 24) and the MOA expiry warning window (1 to 180 days; default 30).
 
-Creating individual staff accounts is available today only through the API (`POST /api/users`, Super Admin only); there is no form for it on the Users page. Class groups and faculty-to-class-group assignments also have no screen; today they are set up directly in the database by the project team. **Planned:** class group & staff management screens, where a faculty member or the Super Admin can create class groups, assign faculty and create staff accounts (after L1; Q20).
+Create a single faculty, coordinator or Super Admin account with **New staff account** on the Users page; the temporary password is shown once. Students are created only by the class-list import. Class groups and adviser assignments are managed on the **Class groups** page (also available to the coordinator).
 
 ## 3. Semesters (`/semesters`)
 
@@ -75,11 +75,11 @@ Companies, MOAs, checklist review, work plan approval, schedule-change final app
 
 ## 7. Coming later
 
-| Feature                                                                                                                                                 | Status                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Choose which checklist items are required (dashboards show "x/required")                                                                                | **Planned** (Checklist & MOA settings)  |
-| Class group & staff management screens (create class groups, assign faculty, create staff accounts)                                                     | **Planned** (after L1; Q20)             |
-| Edit the SLU deduction matrix (categories, tiers, ADVISER and WWR points, total-at-count or per-incident) and the default hours per demerit (default 0) | **Planned** (L2)                        |
-| "Week 1 starts" date per semester                                                                                                                       | **In progress** (L1); who sets it is Q8 |
-| AI similarity threshold (0.60 to 0.85) with golden-set evaluation shown before each change                                                              | **Planned** (D, optional)               |
-| Move hosting to the SAMCIS lab computer; backups, monitoring, operations runbook                                                                        | **Planned** (Phase 5)                   |
+| Feature                                                                                                                                                 | Status                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Choose which checklist items are required (dashboards show "x/required")                                                                                | **Planned** (Checklist & MOA settings) |
+| Class group & staff management screens (create, rename, delete class groups; assign advisers; create staff accounts)                                    | **Built**                              |
+| Edit the SLU deduction matrix (categories, tiers, ADVISER and WWR points, total-at-count or per-incident) and the default hours per demerit (default 0) | **Built** (L2)                         |
+| "Week 1 starts" date per semester (Semesters page)                                                                                                      | **Built** (L1)                         |
+| AI similarity threshold (0.60 to 0.85) with golden-set evaluation shown before each change                                                              | **Built** (D; off until enabled)       |
+| Move hosting to the SAMCIS lab computer; backups, monitoring, operations runbook                                                                        | **Planned** (Phase 5)                  |

@@ -2,11 +2,11 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 12 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 A faculty adviser sees only the students in the class groups they are assigned to for a semester. The left menu shows: **Dashboard, Companies, Calendar, My Students, Profile**, plus the notification bell and **Sign out**. Student pages (checklist, work plan, attendance, weekly and monthly reports) open from the dashboard or **My Students**.
 
-Class groups and class group assignments (which adviser handles which class group in which semester) have no screen yet; today they are set up directly in the database by the project team. **Planned:** class group & staff management screens, where a faculty member or the Super Admin can create class groups, assign faculty and create staff accounts (after L1, alongside Checklist & MOA settings; whether faculty may do this is Q20).
+Class groups and class group assignments (which adviser handles which class group in which semester) are managed by the coordinator or Super Admin on the **Class groups** page. When an intern requests a schedule change, you get a notification; validate or reject it on the intern's **Attendance** page.
 
 ## 1. Dashboard (`/`)
 
@@ -87,11 +87,11 @@ Deadlines for all your students, holidays, approved deviations and projected com
 
 You are notified when one of your students submits a weekly report. Email copies arrive once SLU provides a sending domain (Q15).
 
-## 10. Coming later (Planned)
+## 10. Conduct, AI hints and what's still coming
 
-- **Conduct and deductions (Workstream L2):** record written warnings, demerits, major violations and suspensions for your own students; see automatic counts of late or missing reports and unsupported undertime/absences; mark individual items **Excused** (HTE-attested documentation or circumstances beyond the intern's control) with a reason. IDSMS shows the ADVISER and WWR point tally; it does not compute the final grade (Q11).
+- **Conduct and deductions (L2, built):** record written warnings, demerits, major violations and suspensions for your own students; automatic counts of late or missing reports and unsupported undertime/absences appear with them; mark an item **Excused** with a reason. Deducted hours show as their own figure on the weekly report.
+- **AI hints (built, off until the Super Admin enables them):** advisory only, shown on the review page above a confidence threshold (Q16).
 - **Monitoring log** of supervisor checks and OJT visitations (backlog, Q13).
-- **AI hints** on the review page (optional, advisory only, Q16).
 
 ## 11. Tips
 
