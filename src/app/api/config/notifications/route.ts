@@ -4,7 +4,7 @@ import { requireRole, requireUserApi } from "@/lib/auth/session";
 import {
   getNotificationSettings,
   setNotificationSettings,
-} from "@/lib/services/scheduledNotifications";
+} from "@/lib/services/notifications/scheduledNotifications";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-NT-02: reminder intervals. Staff can read; only the Super Admin changes them.

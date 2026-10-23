@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { generateReportPdfPreview, getWeeklyReport } from "@/lib/services/weeklyReportService";
+import {
+  generateReportPdfPreview,
+  getWeeklyReport,
+} from "@/lib/services/reports/weeklyReportService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-09: student self-only preview before final submission.

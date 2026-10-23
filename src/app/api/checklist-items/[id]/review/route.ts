@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { reviewChecklistItemSchema } from "@/lib/validators/checklist";
-import { reviewChecklistItem } from "@/lib/services/checklistService";
+import { reviewChecklistItem } from "@/lib/services/predeployment/checklistService";
 import { requireUserApi } from "@/lib/auth/session";
-import { notifyChecklistReviewed } from "@/lib/services/notificationEvents";
+import { notifyChecklistReviewed } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Staff-only and ownership-scoped, both enforced inside reviewChecklistItem

@@ -3,7 +3,7 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/complianceService", () => ({
+jest.mock("@/lib/services/dashboards/complianceService", () => ({
   resolveComplianceScope: jest.fn(),
   getWeeklySummaryRows: jest.fn(),
 }));
@@ -12,7 +12,10 @@ jest.mock("@supabase/supabase-js", () => ({ createClient: jest.fn(() => ({ stora
 import { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
 import { requireUserApi } from "@/lib/auth/session";
-import { getWeeklySummaryRows, resolveComplianceScope } from "@/lib/services/complianceService";
+import {
+  getWeeklySummaryRows,
+  resolveComplianceScope,
+} from "@/lib/services/dashboards/complianceService";
 import { GET } from "@/app/api/compliance/weekly-summary/route";
 
 type SummaryRow = Awaited<ReturnType<typeof getWeeklySummaryRows>>[number];

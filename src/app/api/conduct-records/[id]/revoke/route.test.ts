@@ -3,14 +3,14 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/conductService", () => ({
-  ...jest.requireActual("@/lib/services/conductService"),
+jest.mock("@/lib/services/conduct/conductService", () => ({
+  ...jest.requireActual("@/lib/services/conduct/conductService"),
   revokeConductRecord: jest.fn(),
 }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { ConductStateError, revokeConductRecord } from "@/lib/services/conductService";
+import { ConductStateError, revokeConductRecord } from "@/lib/services/conduct/conductService";
 import { POST } from "@/app/api/conduct-records/[id]/revoke/route";
 
 const call = (body: unknown) =>

@@ -1,8 +1,12 @@
 /** @jest-environment node */
 jest.mock("@/lib/auth/session", () => ({ requireUserApi: jest.fn(), requireRole: jest.fn() }));
-jest.mock("@/lib/services/userService", () => ({ verifyCredentials: jest.fn() }));
-jest.mock("@/lib/services/notificationEvents", () => ({ notifyEndorsementReady: jest.fn() }));
-jest.mock("@/lib/services/documentService", () => ({ generateBulkEndorsementLetters: jest.fn() }));
+jest.mock("@/lib/services/accounts/userService", () => ({ verifyCredentials: jest.fn() }));
+jest.mock("@/lib/services/notifications/notificationEvents", () => ({
+  notifyEndorsementReady: jest.fn(),
+}));
+jest.mock("@/lib/services/reports/documentService", () => ({
+  generateBulkEndorsementLetters: jest.fn(),
+}));
 jest.mock("@/lib/prisma", () => ({
   prisma: { facultyClassGroup: { findMany: jest.fn() }, studentProfile: { count: jest.fn() } },
 }));
@@ -12,8 +16,8 @@ jest.mock("@/lib/utils/apiError", () => ({
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { verifyCredentials } from "@/lib/services/userService";
-import { generateBulkEndorsementLetters } from "@/lib/services/documentService";
+import { verifyCredentials } from "@/lib/services/accounts/userService";
+import { generateBulkEndorsementLetters } from "@/lib/services/reports/documentService";
 import { prisma } from "@/lib/prisma";
 import { POST } from "@/app/api/class-groups/[classGroupId]/endorsement-letters/route";
 

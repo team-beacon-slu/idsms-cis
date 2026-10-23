@@ -10,7 +10,7 @@
 // Prints each student whose rendered hours change (for the PR / adviser).
 import "dotenv/config"; // Prisma 7 no longer loads .env itself
 import { prisma } from "@/lib/prisma";
-import { recomputeCreditedHours } from "@/lib/services/weeklyReportService";
+import { recomputeCreditedHours } from "@/lib/services/reports/weeklyReportService";
 
 async function main() {
   const apply = process.argv.includes("--apply");

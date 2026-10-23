@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { setRequiredChecklistTypes } from "@/lib/services/checklistService";
+import { setRequiredChecklistTypes } from "@/lib/services/predeployment/checklistService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Super Admin chooses which checklist items gate the endorsement letter.

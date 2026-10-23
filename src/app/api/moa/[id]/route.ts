@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { updateMoaStatusSchema } from "@/lib/validators/company";
-import { updateMoaRecordStatus } from "@/lib/services/companyService";
+import { updateMoaRecordStatus } from "@/lib/services/predeployment/companyService";
 import { prisma } from "@/lib/prisma";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";

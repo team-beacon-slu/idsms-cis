@@ -1,5 +1,5 @@
 import { requireUserPage } from "@/lib/auth/session";
-import { listNotifications } from "@/lib/services/inbox";
+import { listNotifications } from "@/lib/services/notifications/inbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { NotificationList, type InboxItem } from "./notification-list";
 import type { Metadata } from "next";

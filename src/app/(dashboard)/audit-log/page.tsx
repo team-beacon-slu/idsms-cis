@@ -7,7 +7,7 @@ import {
   AUDIT_PAGE_SIZE,
   auditLogFilterSchema,
   queryAuditLogs,
-} from "@/lib/services/auditLogQuery";
+} from "@/lib/services/accounts/auditLogQuery";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

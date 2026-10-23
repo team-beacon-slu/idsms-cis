@@ -1,7 +1,7 @@
 /** @jest-environment node */
-jest.mock("@/lib/services/userService", () => ({ verifyCredentials: jest.fn() }));
+jest.mock("@/lib/services/accounts/userService", () => ({ verifyCredentials: jest.fn() }));
 
-import { verifyCredentials } from "@/lib/services/userService";
+import { verifyCredentials } from "@/lib/services/accounts/userService";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
 
 const user = { email: "f@x" };

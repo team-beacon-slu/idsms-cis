@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarX2 } from "lucide-react";
-import type { CalendarEvent, CalendarEventType } from "@/lib/services/calendarService";
+import type { CalendarEvent, CalendarEventType } from "@/lib/services/calendar/calendarService";
 import { cn } from "@/lib/utils";
 
 // FR-CAL-01–04 — Owner: gu457 (Ulrich)

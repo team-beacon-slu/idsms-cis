@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { getFinalReportState, saveFinalReportDraft } from "@/lib/services/finalReportService";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import {
+  getFinalReportState,
+  saveFinalReportDraft,
+} from "@/lib/services/reports/finalReportService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream H: the intern's final report (gate + content); the intern saves drafts.

@@ -3,8 +3,8 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/auditLogQuery", () => ({
-  ...jest.requireActual("@/lib/services/auditLogQuery"),
+jest.mock("@/lib/services/accounts/auditLogQuery", () => ({
+  ...jest.requireActual("@/lib/services/accounts/auditLogQuery"),
   queryAuditLogs: jest.fn(),
 }));
 jest.mock("@supabase/supabase-js", () => ({ createClient: jest.fn(() => ({ storage: {} })) }));
@@ -13,7 +13,7 @@ import { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
 import { requireUserApi } from "@/lib/auth/session";
 import { UnauthorizedError } from "@/lib/auth/errors";
-import { queryAuditLogs } from "@/lib/services/auditLogQuery";
+import { queryAuditLogs } from "@/lib/services/accounts/auditLogQuery";
 import { GET } from "@/app/api/audit-logs/export/route";
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

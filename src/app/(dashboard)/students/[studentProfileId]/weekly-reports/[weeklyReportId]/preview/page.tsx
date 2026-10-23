@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
 import { renderWeeklyReportHtml } from "@/lib/documents/weeklyReportTemplate";
 import { PrintButton } from "./print-button";

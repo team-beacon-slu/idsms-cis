@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { CONDUCT_STAFF_ROLES, revokeConductRecord } from "@/lib/services/conductService";
+import { CONDUCT_STAFF_ROLES, revokeConductRecord } from "@/lib/services/conduct/conductService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L2: revoke a conduct record with a reason (never deleted).

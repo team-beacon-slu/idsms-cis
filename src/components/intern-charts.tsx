@@ -3,7 +3,7 @@ import {
   summarize,
   type ComplianceRow,
   type ComplianceStatus,
-} from "@/lib/services/complianceService";
+} from "@/lib/services/dashboards/complianceService";
 import {
   HOURS_BUCKETS,
   STATUS_ORDER,

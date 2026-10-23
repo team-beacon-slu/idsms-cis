@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { classifySentiment, embedTexts } from "@/lib/services/aiService";
+import { classifySentiment, embedTexts } from "@/lib/services/ai/aiService";
 import { getAiSettings } from "@/lib/ai/settings";
-import { getLatestSubmission } from "@/lib/services/weeklyReportService";
+import { getLatestSubmission } from "@/lib/services/reports/weeklyReportService";
 
 // FR-AI-01/02/03/05. Advisory only (FR-AI-06): this function may write the
 // cached AI columns and embeddings — never status, hours, or review fields.

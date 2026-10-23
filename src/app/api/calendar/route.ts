@@ -7,7 +7,7 @@ import {
   getCoordinatorCalendarView,
   getFacultyCalendarView,
   getUnifiedCalendarEvents,
-} from "@/lib/services/calendarService";
+} from "@/lib/services/calendar/calendarService";
 import { requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

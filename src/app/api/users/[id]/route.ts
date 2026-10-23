@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { updateUserSchema } from "@/lib/validators/user";
-import { getUserProfile, setUserActive, ForbiddenError } from "@/lib/services/userService";
+import { getUserProfile, setUserActive, ForbiddenError } from "@/lib/services/accounts/userService";
 import { requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

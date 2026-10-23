@@ -1,11 +1,11 @@
 /** @jest-environment node */
 jest.mock("@/lib/auth/session", () => ({ requireUserApi: jest.fn() }));
-jest.mock("@/lib/services/userService", () => {
+jest.mock("@/lib/services/accounts/userService", () => {
   class ForbiddenError extends Error {}
   return { ForbiddenError, assertCanAccessStudent: jest.fn() };
 });
-jest.mock("@/lib/services/weeklyReportService", () => ({ getWeeklyReport: jest.fn() }));
-jest.mock("@/lib/services/documentService", () => {
+jest.mock("@/lib/services/reports/weeklyReportService", () => ({ getWeeklyReport: jest.fn() }));
+jest.mock("@/lib/services/reports/documentService", () => {
   class DocumentNotReadyError extends Error {}
   return {
     DocumentNotReadyError,
@@ -24,13 +24,13 @@ jest.mock("@/lib/utils/apiError", () => ({
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
+import { getWeeklyReport } from "@/lib/services/reports/weeklyReportService";
 import {
   generateWeeklyReportPdf,
   getGeneratedDocumentDownloadUrl,
   getWeeklyReportDocument,
-} from "@/lib/services/documentService";
+} from "@/lib/services/reports/documentService";
 import { GET, POST } from "@/app/api/weekly-reports/[id]/pdf/route";
 
 const params = { params: Promise.resolve({ id: "wr-1" }) };

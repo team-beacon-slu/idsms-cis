@@ -8,8 +8,8 @@ import {
   getDailyReportEntryWeeklyReportId,
   getWeeklyReport,
   removeDailyEntry,
-} from "@/lib/services/weeklyReportService";
-import { ForbiddenError } from "@/lib/services/userService";
+} from "@/lib/services/reports/weeklyReportService";
+import { ForbiddenError } from "@/lib/services/accounts/userService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

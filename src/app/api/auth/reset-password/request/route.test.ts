@@ -1,15 +1,17 @@
 /** @jest-environment node */
 jest.mock("@vercel/functions", () => ({ waitUntil: jest.fn() }));
-jest.mock("@/lib/services/userService", () => ({
-  ...jest.requireActual("@/lib/services/userService"), // apiError needs its error classes
+jest.mock("@/lib/services/accounts/userService", () => ({
+  ...jest.requireActual("@/lib/services/accounts/userService"), // apiError needs its error classes
   requestPasswordReset: jest.fn(),
 }));
-jest.mock("@/lib/services/notificationEvents", () => ({ notifyPasswordReset: jest.fn() }));
+jest.mock("@/lib/services/notifications/notificationEvents", () => ({
+  notifyPasswordReset: jest.fn(),
+}));
 
 import { NextRequest } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { requestPasswordReset } from "@/lib/services/userService";
-import { notifyPasswordReset } from "@/lib/services/notificationEvents";
+import { requestPasswordReset } from "@/lib/services/accounts/userService";
+import { notifyPasswordReset } from "@/lib/services/notifications/notificationEvents";
 import { POST } from "@/app/api/auth/reset-password/request/route";
 
 const post = (body: unknown = { email: "student@slu.edu.ph" }) =>

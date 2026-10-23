@@ -5,7 +5,7 @@ import {
   auditLogFilterSchema,
   queryAuditLogs,
   type AuditLogRow,
-} from "@/lib/services/auditLogQuery";
+} from "@/lib/services/accounts/auditLogQuery";
 import {
   buildWorkbook,
   formatManilaDateTime,

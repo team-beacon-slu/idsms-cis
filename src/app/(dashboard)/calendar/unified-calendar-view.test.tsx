@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UnifiedCalendarView } from "./unified-calendar-view";
-import type { CalendarEvent } from "@/lib/services/calendarService";
+import type { CalendarEvent } from "@/lib/services/calendar/calendarService";
 const event = (
   date: string,
   label = "Report due",

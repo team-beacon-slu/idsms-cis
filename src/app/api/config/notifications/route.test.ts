@@ -3,7 +3,7 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/scheduledNotifications", () => ({
+jest.mock("@/lib/services/notifications/scheduledNotifications", () => ({
   getNotificationSettings: jest
     .fn()
     .mockResolvedValue({ deadlineReminderHours: [48, 24], moaWarningDays: 30 }),
@@ -15,7 +15,7 @@ jest.mock("@supabase/supabase-js", () => ({ createClient: jest.fn(() => ({ stora
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { setNotificationSettings } from "@/lib/services/scheduledNotifications";
+import { setNotificationSettings } from "@/lib/services/notifications/scheduledNotifications";
 import { GET, PATCH } from "@/app/api/config/notifications/route";
 
 const patch = (body: unknown) =>

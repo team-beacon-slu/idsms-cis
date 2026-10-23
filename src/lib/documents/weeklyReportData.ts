@@ -1,7 +1,10 @@
 import { DeviationType, ValidationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getHolidayCalendarForStudent } from "@/lib/services/attendanceService";
-import { getConductDeductions, getConfirmedSubmission } from "@/lib/services/weeklyReportService";
+import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
+import {
+  getConductDeductions,
+  getConfirmedSubmission,
+} from "@/lib/services/reports/weeklyReportService";
 import { entryCreditedHours } from "@/lib/utils/creditedHours";
 import { displayNameFromEmail } from "@/lib/utils/displayName";
 import { getWeeklyReportDueDate, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";

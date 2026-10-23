@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { setStartBeforeMoa } from "@/lib/services/checklistService";
+import { setStartBeforeMoa } from "@/lib/services/predeployment/checklistService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Staff only (checked in the service, with record access for faculty advisers).

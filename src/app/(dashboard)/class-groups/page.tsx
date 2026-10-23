@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { Program, Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
-import { listAdviserOptions, listClassGroups } from "@/lib/services/classGroupService";
-import { listSemesters } from "@/lib/services/semesterService";
+import { listAdviserOptions, listClassGroups } from "@/lib/services/academic/classGroupService";
+import { listSemesters } from "@/lib/services/academic/semesterService";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {

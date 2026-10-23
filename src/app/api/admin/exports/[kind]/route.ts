@@ -4,8 +4,8 @@ import { z } from "zod";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
 import { ComplianceNotFoundError } from "@/lib/errors/compliance";
-import { buildAdminExport, isExportKind } from "@/lib/services/adminExportService";
-import { logEvent } from "@/lib/services/auditService";
+import { buildAdminExport, isExportKind } from "@/lib/services/privacy/adminExportService";
+import { logEvent } from "@/lib/services/accounts/auditService";
 import { buildWorkbook, toSheetRows, xlsxResponse } from "@/lib/utils/excelExport";
 import { handleApiError } from "@/lib/utils/apiError";
 

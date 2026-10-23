@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { Search, Building2, ShieldCheck, Plus } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { listCompanies, listDuplicateCompanyGroups } from "@/lib/services/companyService";
+import {
+  listCompanies,
+  listDuplicateCompanyGroups,
+} from "@/lib/services/predeployment/companyService";
 import {
   Table,
   TableBody,

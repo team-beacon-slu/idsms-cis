@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { createUserSchema } from "@/lib/validators/user";
-import { createUser, listUsers } from "@/lib/services/userService";
+import { createUser, listUsers } from "@/lib/services/accounts/userService";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
-import { notifyAccountCreated } from "@/lib/services/notificationEvents";
+import { notifyAccountCreated } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function GET(req: NextRequest) {

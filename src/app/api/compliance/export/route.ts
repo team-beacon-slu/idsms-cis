@@ -7,7 +7,7 @@ import {
   resolveComplianceScope,
   COMPLIANCE_COLUMNS,
   toComplianceSheetRow,
-} from "@/lib/services/complianceService";
+} from "@/lib/services/dashboards/complianceService";
 import { buildWorkbook, toSheetRows, xlsxResponse } from "@/lib/utils/excelExport";
 import { handleApiError } from "@/lib/utils/apiError";
 

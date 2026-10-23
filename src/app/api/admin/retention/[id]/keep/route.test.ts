@@ -3,12 +3,12 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/retentionService", () => ({ keepRetentionFlag: jest.fn() }));
+jest.mock("@/lib/services/privacy/retentionService", () => ({ keepRetentionFlag: jest.fn() }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
 import { ComplianceNotFoundError, RetentionStateError } from "@/lib/errors/compliance";
-import { keepRetentionFlag } from "@/lib/services/retentionService";
+import { keepRetentionFlag } from "@/lib/services/privacy/retentionService";
 import { POST } from "@/app/api/admin/retention/[id]/keep/route";
 
 const ID = "11111111-1111-4111-8111-111111111111";

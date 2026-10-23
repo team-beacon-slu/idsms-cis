@@ -2,9 +2,13 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { ShieldCheck } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { EXPORT_KINDS, EXPORT_LABELS, isExportKind } from "@/lib/services/adminExportService";
-import { queryAuditLogs } from "@/lib/services/auditLogQuery";
-import { listSemesters } from "@/lib/services/semesterService";
+import {
+  EXPORT_KINDS,
+  EXPORT_LABELS,
+  isExportKind,
+} from "@/lib/services/privacy/adminExportService";
+import { queryAuditLogs } from "@/lib/services/accounts/auditLogQuery";
+import { listSemesters } from "@/lib/services/academic/semesterService";
 import { EmptyState } from "@/components/empty-state";
 import {
   Table,
@@ -15,9 +19,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { listDataRequests } from "@/lib/services/dataRequestService";
+import { listDataRequests } from "@/lib/services/privacy/dataRequestService";
 import { formatManilaDate, manilaDayDiff } from "@/lib/utils/excelExport";
-import { listPendingRetentionFlags } from "@/lib/services/retentionService";
+import { listPendingRetentionFlags } from "@/lib/services/privacy/retentionService";
 import { RetentionActions } from "./retention-actions";
 
 const RETENTION_TYPE_LABELS = {
@@ -25,7 +29,7 @@ const RETENTION_TYPE_LABELS = {
   DEVIATION_PROOF: "Deviation proof",
   GENERATED_DOCUMENT: "Generated PDF",
 } as const;
-import { DSAR_REMINDER_DAYS } from "@/lib/services/scheduledNotifications";
+import { DSAR_REMINDER_DAYS } from "@/lib/services/notifications/scheduledNotifications";
 import { DataRequestActions } from "./data-request-actions";
 import { ExportCard } from "./export-card";
 import type { Metadata } from "next";

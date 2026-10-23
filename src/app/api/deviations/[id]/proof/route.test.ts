@@ -3,18 +3,18 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/attendanceService", () => ({
-  ...jest.requireActual("@/lib/services/attendanceService"),
+jest.mock("@/lib/services/attendance/attendanceService", () => ({
+  ...jest.requireActual("@/lib/services/attendance/attendanceService"),
   getDeviationReport: jest.fn(),
 }));
-jest.mock("@/lib/services/userService", () => ({
-  ...jest.requireActual("@/lib/services/userService"),
+jest.mock("@/lib/services/accounts/userService", () => ({
+  ...jest.requireActual("@/lib/services/accounts/userService"),
   assertCanAccessStudent: jest.fn(),
 }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { getDeviationReport } from "@/lib/services/attendanceService";
+import { getDeviationReport } from "@/lib/services/attendance/attendanceService";
 import { GET } from "@/app/api/deviations/[id]/proof/route";
 
 const call = (proofUrl: string) => {

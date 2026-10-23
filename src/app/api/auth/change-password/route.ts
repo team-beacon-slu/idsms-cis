@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { changePasswordSchema } from "@/lib/validators/auth";
-import { changePassword } from "@/lib/services/userService";
+import { changePassword } from "@/lib/services/accounts/userService";
 import { requireUserApi, getCurrentSessionToken } from "@/lib/auth/session";
 import { UnauthorizedError } from "@/lib/auth/errors";
 import { handleApiError } from "@/lib/utils/apiError";

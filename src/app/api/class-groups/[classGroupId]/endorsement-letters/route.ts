@@ -4,8 +4,8 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
-import { generateBulkEndorsementLetters } from "@/lib/services/documentService";
-import { notifyEndorsementReady } from "@/lib/services/notificationEvents";
+import { generateBulkEndorsementLetters } from "@/lib/services/reports/documentService";
+import { notifyEndorsementReady } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";

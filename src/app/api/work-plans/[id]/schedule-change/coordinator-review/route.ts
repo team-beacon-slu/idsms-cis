@@ -4,12 +4,12 @@ import { Role } from "@prisma/client";
 import {
   approveScheduleChangeCoordinator,
   getWorkPlanStudentProfileId,
-} from "@/lib/services/attendanceService";
+} from "@/lib/services/attendance/attendanceService";
 import { scheduleChangeReviewSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
-import { notifyScheduleChange } from "@/lib/services/notificationEvents";
+import { notifyScheduleChange } from "@/lib/services/notifications/notificationEvents";
 
 // FR-AT-09 step 2: Department Coordinator/Admin only. `assertCanAccessStudent`
 // always passes for these two roles (see userService.ts) — kept here anyway

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { reviewTimeRequest } from "@/lib/services/timeRequestService";
+import { reviewTimeRequest } from "@/lib/services/attendance/timeRequestService";
 import { timeRequestReviewSchema } from "@/lib/validators/timeRequest";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";

@@ -1,4 +1,4 @@
-import type { ReportState } from "@/lib/services/complianceService";
+import type { ReportState } from "@/lib/services/dashboards/complianceService";
 import { getWeeklyReportDueInstant, getWeekStartMonday } from "@/lib/utils/reportDeadline";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

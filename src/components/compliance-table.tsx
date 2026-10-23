@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ComplianceRow } from "@/lib/services/complianceService";
+import type { ComplianceRow } from "@/lib/services/dashboards/complianceService";
 
 const linkClass =
   "inline-block cursor-pointer py-1 text-xs font-medium text-primary transition-colors duration-200 hover:text-primary/80 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { updateCompanySchema } from "@/lib/validators/company";
-import { getCompany, setCompanyVerified, updateCompany } from "@/lib/services/companyService";
+import {
+  getCompany,
+  setCompanyVerified,
+  updateCompany,
+} from "@/lib/services/predeployment/companyService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

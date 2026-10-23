@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { markDataRequestFulfilled } from "@/lib/services/dataRequestService";
-import { notify } from "@/lib/services/notify";
+import { markDataRequestFulfilled } from "@/lib/services/privacy/dataRequestService";
+import { notify } from "@/lib/services/notifications/notify";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";

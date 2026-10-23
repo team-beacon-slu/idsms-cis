@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { CheckCircle2, Clock3, RotateCcw } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { getChecklistProgress } from "@/lib/services/checklistService";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { getChecklistProgress } from "@/lib/services/predeployment/checklistService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -15,9 +15,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatCard, StatStrip } from "@/components/stat-card";
-import { requirementLabel } from "@/app/(dashboard)/student-dashboard";
+import { requirementLabel } from "@/lib/utils/requirementLabel";
 import { StatusBadge } from "@/components/status-badge";
-import { getEndorsementLetterDocument } from "@/lib/services/documentService";
+import { getEndorsementLetterDocument } from "@/lib/services/reports/documentService";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { EndorsementLetterActions } from "./endorsement-letter-actions";
 import { StartBeforeMoa } from "./start-before-moa";

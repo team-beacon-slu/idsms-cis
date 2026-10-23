@@ -4,9 +4,9 @@ jest.mock("@/lib/auth/session", () => ({
   requireUserApi: jest.fn(),
 }));
 jest.mock("@/lib/auth/confirmPassword", () => ({ confirmPassword: jest.fn() }));
-jest.mock("@/lib/services/auditService", () => ({ logEvent: jest.fn() }));
-jest.mock("@/lib/services/adminExportService", () => ({
-  ...jest.requireActual("@/lib/services/adminExportService"),
+jest.mock("@/lib/services/accounts/auditService", () => ({ logEvent: jest.fn() }));
+jest.mock("@/lib/services/privacy/adminExportService", () => ({
+  ...jest.requireActual("@/lib/services/privacy/adminExportService"),
   buildAdminExport: jest.fn(),
 }));
 jest.mock("@supabase/supabase-js", () => ({ createClient: jest.fn(() => ({ storage: {} })) }));
@@ -15,8 +15,8 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { requireUserApi } from "@/lib/auth/session";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
-import { logEvent } from "@/lib/services/auditService";
-import { buildAdminExport } from "@/lib/services/adminExportService";
+import { logEvent } from "@/lib/services/accounts/auditService";
+import { buildAdminExport } from "@/lib/services/privacy/adminExportService";
 import { POST } from "@/app/api/admin/exports/[kind]/route";
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

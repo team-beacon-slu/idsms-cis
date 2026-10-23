@@ -9,7 +9,7 @@ import {
   ALLOWED_MOA_TRANSITIONS,
   getCompany,
   listMoaRecordsForCompany,
-} from "@/lib/services/companyService";
+} from "@/lib/services/predeployment/companyService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";

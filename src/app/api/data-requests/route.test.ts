@@ -3,17 +3,19 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/dataRequestService", () => ({ createDataRequest: jest.fn() }));
-jest.mock("@/lib/services/notificationRecipients", () => ({ getSuperAdminIds: jest.fn() }));
-jest.mock("@/lib/services/notify", () => ({ notify: jest.fn() }));
+jest.mock("@/lib/services/privacy/dataRequestService", () => ({ createDataRequest: jest.fn() }));
+jest.mock("@/lib/services/notifications/notificationRecipients", () => ({
+  getSuperAdminIds: jest.fn(),
+}));
+jest.mock("@/lib/services/notifications/notify", () => ({ notify: jest.fn() }));
 
 import { NextRequest } from "next/server";
 import { UnauthorizedError } from "@/lib/auth/errors";
 import { requireUserApi } from "@/lib/auth/session";
 import { DataRequestStateError } from "@/lib/errors/compliance";
-import { createDataRequest } from "@/lib/services/dataRequestService";
-import { getSuperAdminIds } from "@/lib/services/notificationRecipients";
-import { notify } from "@/lib/services/notify";
+import { createDataRequest } from "@/lib/services/privacy/dataRequestService";
+import { getSuperAdminIds } from "@/lib/services/notifications/notificationRecipients";
+import { notify } from "@/lib/services/notifications/notify";
 import { POST } from "@/app/api/data-requests/route";
 
 const student = { id: "u-1", email: "s@slu.edu.ph", role: "STUDENT_INTERN" };

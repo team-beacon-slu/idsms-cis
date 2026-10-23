@@ -7,9 +7,9 @@ import {
   getConductDeductions,
   getWeeklyReport,
   isAwaitingReview,
-} from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/weeklyReportService";
 import { WeeklyReportForm } from "../../weekly-report-form";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { ClipboardList, Copy, Sparkles } from "lucide-react";

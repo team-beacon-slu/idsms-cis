@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { keepRetentionFlag } from "@/lib/services/retentionService";
+import { keepRetentionFlag } from "@/lib/services/privacy/retentionService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";

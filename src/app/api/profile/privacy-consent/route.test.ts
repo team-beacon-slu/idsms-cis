@@ -3,12 +3,12 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/auditService", () => ({ logEvent: jest.fn() }));
+jest.mock("@/lib/services/accounts/auditService", () => ({ logEvent: jest.fn() }));
 
 import { NextRequest } from "next/server";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { requireUserApi } from "@/lib/auth/session";
-import { logEvent } from "@/lib/services/auditService";
+import { logEvent } from "@/lib/services/accounts/auditService";
 import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
 import { POST } from "@/app/api/profile/privacy-consent/route";
 

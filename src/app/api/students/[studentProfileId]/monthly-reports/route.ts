@@ -4,10 +4,10 @@ import {
   checkMonthlyAggregationEligibility,
   listMonthlyReportsForStudent,
   submitMonthlyReport,
-} from "@/lib/services/monthlyReportService";
+} from "@/lib/services/reports/monthlyReportService";
 import { monthlyReportSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-08: student self-only, gated by checkMonthlyAggregationEligibility.

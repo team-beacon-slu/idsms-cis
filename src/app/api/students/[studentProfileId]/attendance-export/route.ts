@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { exportAttendanceLogCsv } from "@/lib/services/attendanceService";
+import { exportAttendanceLogCsv } from "@/lib/services/attendance/attendanceService";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function GET(

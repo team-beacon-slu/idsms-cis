@@ -6,8 +6,8 @@ import { requireUserPage } from "@/lib/auth/session";
 import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
 import { displayName } from "@/lib/utils/displayName";
 import { SiteFooter } from "@/components/site-footer";
-import { DashboardNav } from "./dashboard-nav";
-import { PrivacyConsentDialog } from "./privacy-consent-dialog";
+import { DashboardNav } from "./_components/dashboard-nav";
+import { PrivacyConsentDialog } from "./_components/privacy-consent-dialog";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUserPage();

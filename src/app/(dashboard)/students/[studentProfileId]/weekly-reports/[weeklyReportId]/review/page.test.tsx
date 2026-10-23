@@ -8,19 +8,19 @@ jest.mock("next/navigation", () => ({
   }),
 }));
 jest.mock("@/lib/auth/session", () => ({ requireUserPage: jest.fn() }));
-jest.mock("@/lib/services/userService", () => ({
-  ...jest.requireActual("@/lib/services/userService"),
+jest.mock("@/lib/services/accounts/userService", () => ({
+  ...jest.requireActual("@/lib/services/accounts/userService"),
   assertCanAccessStudent: jest.fn(),
 }));
-jest.mock("@/lib/services/weeklyReportService", () => ({
-  ...jest.requireActual("@/lib/services/weeklyReportService"),
+jest.mock("@/lib/services/reports/weeklyReportService", () => ({
+  ...jest.requireActual("@/lib/services/reports/weeklyReportService"),
   getWeeklyReport: jest.fn(),
 }));
 jest.mock("@/lib/ai/settings", () => ({ getAiSettings: jest.fn() }));
 
 import { notFound } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
-import { getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { getWeeklyReport } from "@/lib/services/reports/weeklyReportService";
 import WeeklyReportReviewPage from "./page";
 
 beforeEach(() => {

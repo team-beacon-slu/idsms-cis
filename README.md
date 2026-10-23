@@ -94,10 +94,13 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
 
 ```text
 /src
-  /app                    # Next.js App Router pages, layouts, and API routes
-  /components             # Reusable UI components (shadcn/ui, custom)
+  /app                    # Next.js App Router: (auth), (legal), (dashboard) pages and /api routes
+    /(dashboard)/_components  # The signed-in shell: menu, account menu, bell, role dashboards
+  /components             # UI shared across route groups (shadcn/ui primitives in /ui)
   /lib
-    /services             # Core business logic (report, checklist, ai, etc.)
+    /services             # Business logic, one folder per domain: accounts, academic,
+                          # predeployment, attendance, reports, conduct, calendar,
+                          # notifications, dashboards, privacy, ai
     /utils                # Helper functions and formatters
     /validators           # Zod schemas for input validation
   /types                  # TypeScript type definitions

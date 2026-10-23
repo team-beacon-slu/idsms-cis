@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDeviationReport, isStoragePath } from "@/lib/services/attendanceService";
+import { getDeviationReport, isStoragePath } from "@/lib/services/attendance/attendanceService";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { CHECKLIST_BUCKET, getSignedUrl } from "@/lib/storage";
 import { handleApiError } from "@/lib/utils/apiError";
 

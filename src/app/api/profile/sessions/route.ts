@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { signOutOtherSessions } from "@/lib/services/userService";
+import { signOutOtherSessions } from "@/lib/services/accounts/userService";
 import { requireUserApi, getCurrentSessionToken } from "@/lib/auth/session";
 import { UnauthorizedError } from "@/lib/auth/errors";
 import { handleApiError } from "@/lib/utils/apiError";

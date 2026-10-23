@@ -3,15 +3,15 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/finalReportService", () => ({
-  ...jest.requireActual("@/lib/services/finalReportService"),
+jest.mock("@/lib/services/reports/finalReportService", () => ({
+  ...jest.requireActual("@/lib/services/reports/finalReportService"),
   reviewFinalReport: jest.fn(),
 }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
 import { FinalReportStateError } from "@/lib/documents/errors";
-import { reviewFinalReport } from "@/lib/services/finalReportService";
+import { reviewFinalReport } from "@/lib/services/reports/finalReportService";
 import { POST } from "@/app/api/final-reports/[id]/review/route";
 
 const call = () =>

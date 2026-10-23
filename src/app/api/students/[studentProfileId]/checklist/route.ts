@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChecklistProgress } from "@/lib/services/checklistService";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { getChecklistProgress } from "@/lib/services/predeployment/checklistService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

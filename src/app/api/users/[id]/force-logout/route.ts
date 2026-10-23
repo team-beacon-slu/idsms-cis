@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { forceLogout } from "@/lib/services/userService";
+import { forceLogout } from "@/lib/services/accounts/userService";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

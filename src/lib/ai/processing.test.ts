@@ -1,12 +1,12 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 
-jest.mock("@/lib/services/aiService", () => ({
+jest.mock("@/lib/services/ai/aiService", () => ({
   embedTexts: jest.fn(),
   classifySentiment: jest.fn(),
 }));
 jest.mock("@/lib/ai/settings", () => ({ getAiSettings: jest.fn() }));
 
-import { classifySentiment, embedTexts } from "@/lib/services/aiService";
+import { classifySentiment, embedTexts } from "@/lib/services/ai/aiService";
 import { getAiSettings } from "@/lib/ai/settings";
 import { processWeeklyReportAi } from "@/lib/ai/processing";
 

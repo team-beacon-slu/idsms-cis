@@ -5,7 +5,7 @@ import {
   buildAttendanceDocumentPath,
   configureWorkSchedule,
   requestScheduleChange,
-} from "@/lib/services/attendanceService";
+} from "@/lib/services/attendance/attendanceService";
 import { CHECKLIST_BUCKET, uploadFile, validateUpload } from "@/lib/storage";
 import {
   scheduleChangeRequestSchema,
@@ -13,9 +13,9 @@ import {
   scheduleConfigSchema,
 } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
-import { notifyScheduleChange } from "@/lib/services/notificationEvents";
+import { notifyScheduleChange } from "@/lib/services/notifications/notificationEvents";
 
 // FR-AT-01: initial schedule config, student self-only.
 export async function POST(

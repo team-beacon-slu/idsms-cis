@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { reviewWorkPlanSchema } from "@/lib/validators/workPlan";
-import { reviewWorkPlan } from "@/lib/services/workPlanService";
+import { reviewWorkPlan } from "@/lib/services/predeployment/workPlanService";
 import { requireUserApi } from "@/lib/auth/session";
-import { notifyWorkPlanReviewed } from "@/lib/services/notificationEvents";
+import { notifyWorkPlanReviewed } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WP-02: Coordinator/Admin only, enforced inside reviewWorkPlan itself

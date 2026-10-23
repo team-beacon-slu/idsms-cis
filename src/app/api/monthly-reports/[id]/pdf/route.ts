@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { DocumentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import {
   generateMonthlyReportPdf,
   getGeneratedDocumentDownloadUrl,
-} from "@/lib/services/documentService";
+} from "@/lib/services/reports/documentService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";
