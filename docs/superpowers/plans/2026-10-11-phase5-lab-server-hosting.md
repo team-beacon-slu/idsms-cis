@@ -73,7 +73,7 @@ Each stage ends with a check that must pass before the next one starts.
   - SSH only from the LAN, if Linux.
   - Disk encryption if the PC can leave the room.
 - Install Docker and the compose plugin, clone the repo, and create `.env.production` from `.env.example`. The secrets (`NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`, MinIO keys, `CRON_SECRET`, tunnel token, Resend/Gemini keys) are new values, never the dev ones.
-- `docker compose up -d`, then apply the Prisma schema and `prisma/migrations_manual/001`, `002`, `005`, `006` (003/004 are Supabase-bucket SQL, replaced by `minio-init`).
+- `docker compose up -d`, then apply the Prisma schema and every file in `prisma/migrations_manual/` in number order, except 003/004 (Supabase-bucket SQL, replaced by `minio-init`). That is 001, 002, 005 through the highest number (015 as of 2026-10-23).
 - **Check:** `/api/health` reports green over the tunnel URL; login works from a phone on mobile data (proves off-campus reach).
 
 ### Stage 3: Migrate data from Supabase (½ day + rehearsal)
