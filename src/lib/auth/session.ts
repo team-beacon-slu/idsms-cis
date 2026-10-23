@@ -1,3 +1,4 @@
+import * as React from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -19,10 +20,17 @@ export async function getCurrentSessionToken(): Promise<string | null> {
   return (await cookies()).get(getSessionCookieName())?.value ?? null;
 }
 
-export async function getCurrentUser() {
+// shortcut: Next's bundled React 19 has cache(); Jest loads the installed react@18, which
+// does not, so tests run uncached. Drop the fallback once package.json moves to React 19.
+const cache: <T extends (...args: never[]) => unknown>(fn: T) => T =
+  (React as { cache?: <T>(fn: T) => T }).cache ?? ((fn) => fn);
+
+// cache(): the layout and the page both ask for the user while rendering one request;
+// without it each call re-reads the session from the database.
+export const getCurrentUser = cache(async () => {
   const session = await getServerSession(authOptions);
   return session?.user ?? null;
-}
+});
 
 // For Server Components / layouts. Middleware only checks session-cookie
 // *presence* (Edge runtime can't validate a database session), so this is
