@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import {
   getWeeklyReport,
@@ -6,18 +7,19 @@ import {
   reviewWeeklyReport_Disregard,
   reviewWeeklyReport_Regard,
   reviewWeeklyReport_Return,
-} from "@/lib/services/weeklyReportService";
-import { sendReportStatusEmail } from "@/lib/services/notificationService";
+} from "@/lib/services/reports/weeklyReportService";
+import { sendReportStatusEmail } from "@/lib/services/notifications/notificationService";
 import { weeklyReportReviewSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-06: Faculty only, and only for a student they're assigned to
 // (assertCanAccessStudent's FACULTY_ADVISER branch checks
 // FacultyClassGroup — same rule Phase 2's checklist review route uses).
 // Dispatches on `action`.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.FACULTY_ADVISER]);
@@ -41,7 +43,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       result = await reviewWeeklyReport_Disregard(params.id, user.id, ipAddress);
     }
 
-    await sendReportStatusEmail(params.id, action);
+    // FR-WR-07 / FR-NT-01 #4: in-app + email to the intern and their advisers.
+    waitUntil(sendReportStatusEmail(params.id, action));
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error);

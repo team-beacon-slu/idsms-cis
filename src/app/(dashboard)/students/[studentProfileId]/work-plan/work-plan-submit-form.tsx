@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,16 +29,14 @@ export function WorkPlanSubmitForm({ studentProfileId }: { studentProfileId: str
     }
 
     setIsSubmitting(true);
-    const res = await fetch(`/api/students/${studentProfileId}/work-plans`, {
+    const res = await sendJson(`/api/students/${studentProfileId}/work-plans`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plannedTasks }),
+      body: { plannedTasks },
     });
     setIsSubmitting(false);
 
     if (!res.ok) {
-      const body = await res.json();
-      toast.error(body.error ?? "Failed to submit work plan");
+      toast.error(res.error);
       return;
     }
 

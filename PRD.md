@@ -183,15 +183,15 @@ _Prioritization: **Must** throughout — this module is the security/RBAC founda
 
 _Prioritization: Must, except two UX/notification enhancements (Should) — the MOA record itself is one of the 9 compliance-gating documents, but autocomplete and proactive expiry alerts are conveniences layered on top of it, not the gate itself._
 
-| ID            | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Priority |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| FR-MOA-01     | Students and faculty must be able to register host company profiles including: company name, full address, work modality (On-site / Work-from-Home / Hybrid), supervisor/HR contact info, student position title.                                                                                                                                                                                                                                                                                                                                                                                    | Must     |
-| **FR-MOA-02** | **(deferred)** Company name entry must support autocomplete and duplicate detection. _(Team decision during Phase 2: shipped as a plain text input with zod validation only — no duplicate-name warning, no autocomplete. `GET /api/companies?search=` already exists and could back an on-blur duplicate check cheaply; wiring it up was deprioritized behind this phase's Must requirements, which center on FR-CK-04's compliance gate.)_                                                                                                                                                         | Should   |
-| FR-MOA-03     | MOA records must be uploadable as PDF files or Google Drive links, with system-captured metadata: validity period, academic programs covered.                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Must     |
-| FR-MOA-04     | MOA lifecycle stages must be tracked: Drafting → Pending → For HTE Review → For University Review → Approved/Active → Expiring/Expired → Archived.                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Must     |
-| **FR-MOA-05** | **(deferred)** System must automatically identify MOAs approaching expiration and send email and in-app alerts to the internship coordinator. _(`companyService.getExpiringMoaRecords(daysAhead)` exists as the read primitive a scheduled job would call — the plan explicitly deferred it to Phase 4, per its own comment: "Read primitive for a future Phase 4 cron job." No cron job, email, or in-app alert was wired up this phase.)_                                                                                                                                                          | Should   |
-| **FR-MOA-06** | Government-issued business permits must be uploadable and verifiable by faculty or coordinators before the student is activated for internship. _(Implemented as two cooperating pieces rather than one dedicated Company field: the actual upload + Approve/Return review is Checklist Item 7 — `GOVERNMENT_COMPANY_PERMIT` — via Module 3's generic pre-deployment checklist machinery; `Company.isVerified` is a separate, coarser staff-only flag confirming the host company itself, as an organization, is cleared to host interns at all. Both gate different things and both were shipped.)_ | Must     |
-| FR-MOA-07     | MOA record access must be restricted to authorized Faculty Advisers and Department Coordinators only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Must     |
+| ID            | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Priority |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| FR-MOA-01     | Students and faculty must be able to register host company profiles including: company name, full address, work modality (On-site / Work-from-Home / Hybrid), supervisor/HR contact info, student position title.                                                                                                                                                                                                                                                                                                                                                                                                                              | Must     |
+| **FR-MOA-02** | **(deferred)** Company name entry must support autocomplete and duplicate detection. _(Team decision during Phase 2: shipped as a plain text input with zod validation only — no duplicate-name warning, no autocomplete. `GET /api/companies?search=` already exists and could back an on-blur duplicate check cheaply; wiring it up was deprioritized behind this phase's Must requirements, which center on FR-CK-04's compliance gate.)_                                                                                                                                                                                                   | Should   |
+| FR-MOA-03     | MOA records must be uploadable as PDF files or Google Drive links, with system-captured metadata: validity period, academic programs covered.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Must     |
+| FR-MOA-04     | MOA lifecycle stages must be tracked: Drafting → Pending → For HTE Review → For University Review → Approved/Active → Expiring/Expired → Archived.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Must     |
+| **FR-MOA-05** | **(deferred)** System must automatically identify MOAs approaching expiration and send email and in-app alerts to the internship coordinator. _(`companyService.getExpiringMoaRecords(daysAhead)` exists as the read primitive a scheduled job would call — the plan explicitly deferred it to Phase 4, per its own comment: "Read primitive for a future Phase 4 cron job." No cron job, email, or in-app alert was wired up this phase.)_                                                                                                                                                                                                    | Should   |
+| **FR-MOA-06** | Government-issued business permits must be uploadable and verifiable by faculty or coordinators before the student is activated for internship. _(Implemented as two cooperating pieces rather than one dedicated Company field: the status-tracked Approve/Return review (no file stored in IDSMS; see Decision D7) is Checklist Item 7 — `GOVERNMENT_COMPANY_PERMIT` — via Module 3's generic pre-deployment checklist machinery; `Company.isVerified` is a separate, coarser staff-only flag confirming the host company itself, as an organization, is cleared to host interns at all. Both gate different things and both were shipped.)_ | Must     |
+| FR-MOA-07     | MOA record access must be restricted to authorized Faculty Advisers and Department Coordinators only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Must     |
 
 #### Module 3 — Pre-Deployment Checklist
 
@@ -206,6 +206,8 @@ The following nine documents must be tracked per student:
 7. Government-Issued Company Permits
 8. Work Plan (approved)
 9. Memorandum of Agreement (MOA)
+
+Decision D7 (2026-10-12): checklist items are status-tracked only; documents are submitted in Google Classroom and staff record the status in IDSMS.
 
 _Prioritization: Must throughout — this module is the compliance gate itself (MoSCoW "Must Have" criterion: regulatory requirement + core user job)._
 
@@ -632,11 +634,28 @@ To ensure systematic delivery, mitigate risks, and accommodate the 8-person caps
 
 ---
 
-### Phase 4: AI Integration, Document Generation & Notifications
+### Phase 4: Feature Completion — Documents, Report Flow, Notifications, Dashboards, Compliance, AI
 
-**Objective:** Integrate intelligence layers, automate PDF generation, and establish the notification backbone.  
-**Duration:** 2 Weeks  
+> **Re-scoped 2026-10-11 (PM decision):** Phase 4 now completes **every remaining feature**,
+> including the dashboard, Export Center, DSAR, retention and archiving items formerly listed under
+> Phase 5, plus Module 7 (Final Technical Report). Phase 5 is reserved for hosting on the
+> dedicated lab server, optimization, hardening and UAT. Execution order (PDF generation first, AI
+> last) and the per-workstream implementation plans are in
+> `docs/archive/plans/2026-10-11-phase4-roadmap.md`.
+
+**Objective:** Deliver all remaining product functionality so the system is feature-complete before hosting migration.  
+**Duration:** ≈3 Weeks  
 **Key Tasks:**
+
+- Build Puppeteer server-side PDF generation for Weekly/Monthly Reports first (reference codes, FR-DG-07 retry), then Endorsement Letters (individual + bulk) and Final Cover Pages.
+- Close the adviser's weekly-report gaps: confirmed vs. pending hours, per-day attendance status and time in/out. (Signed copies go to Google Classroom only — never uploaded to IDSMS, decision D2, 2026-10-11.)
+- Finalize role-specific dashboards (Student, Faculty, Coordinator, Super Admin) with KPI cards and Excel export; semester archiving (FR-DB-01..08).
+- Implement the Super Admin Export Center with re-authentication, the DSAR workflow (NFR-DP-07), and the quarterly file-retention flagging job (NFR-DP-08); verify append-only `audit_logs` RLS.
+- Implement Module 7 Final Technical Report (FR-FT-01..03) if time allows (Should).
+- Implement the notification backbone (in-app + Resend email, 12 triggers, single daily cron).
+- **Last:** AI similarity and sentiment (below), shipped disabled until the golden set passes.
+
+Original Phase 4 task list (retained; all items are covered by the workstreams above):
 
 - Implement server-side similarity detection using **Gemini `text-embedding-004`** + `pgvector` (FR-AI-01, FR-AI-02).
 - **New:** Assemble the 30+ pair golden set with the Faculty Adviser and run the precision/recall evaluation before enabling the feature (NFR-AI-01, NFR-AI-02).
@@ -650,20 +669,25 @@ To ensure systematic delivery, mitigate risks, and accommodate the 8-person caps
 
 ---
 
-### Phase 5: Dashboards, Archiving, UAT & Hardening
+### Phase 5: Lab Server Hosting, Optimization, Hardening & UAT
 
-**Objective:** Polish role-specific dashboards, ensure compliance, and prepare for final deployment.  
-**Duration:** 2 Weeks  
+> **Re-scoped 2026-10-11 (PM decision):** the system moves off Vercel + managed Supabase onto a
+> **dedicated computer in the lab** that hosts the database, file storage and the website. The
+> former Phase 5 feature items (dashboards, Export Center, DSAR, retention) moved to Phase 4.
+> Phase 5 adds no product features. Plan: `docs/plans/phase5-lab-server-hosting.md`.
+
+**Objective:** Run the feature-complete system reliably on the lab server, reachable by off-campus interns, then validate it with users.  
+**Duration:** ≈2 Weeks  
 **Key Tasks:**
 
-- Finalize role-specific dashboards (Student, Faculty, Coordinator, Super Admin) with real-time KPI cards and export functions.
-- Implement Super Admin Export Center with MFA confirmation and DSAR workflow (NFR-DP-07).
-- Verify append-only RLS on `audit_logs` and implement quarterly file retention/cleanup job (NFR-DP-08).
+- Adapt the self-hosting stack (PR #50: Docker, Postgres + pgvector, MinIO, Caddy) to the lab PC. Expose the site securely to off-campus users via an outbound tunnel or an IT-provided static IP. Use pull-based deploys and a scheduled cron container.
+- Migrate data and files from Supabase (rehearsed, count-verified), cut over, and keep a 2-week rollback window.
 - Conduct Performance Testing (p95 TTFB ≤ 800ms) and Test Coverage validation (≥ 70% services, ≥ 90% critical logic).
+- Harden the server: secrets rotation, append-only `audit_logs` re-verified on the new database, UPS/auto-restart, nightly off-site backups with a tested restore, uptime monitoring.
 - Execute User Acceptance Testing (UAT) scenarios with selected interns, faculty, and coordinators.
 
-**Deliverables:** Fully polished dashboards, verified security/compliance measures, and UAT sign-off.  
-**Acceptance Criteria:** All UAT task scenarios pass. Audit logs cannot be updated or deleted by any user or service role. System meets all defined NFR thresholds.
+**Deliverables:** Lab-hosted production system, operations runbook (`OPERATIONS.md`), backup/restore evidence, performance and coverage reports, and UAT sign-off.  
+**Acceptance Criteria:** All UAT task scenarios pass. The site is reachable off campus over HTTPS. Audit logs cannot be updated or deleted by any user or service role. A backup restore has been tested. The system meets all defined NFR thresholds.
 
 ---
 

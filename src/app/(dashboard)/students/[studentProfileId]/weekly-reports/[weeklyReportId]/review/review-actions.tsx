@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -37,16 +38,14 @@ export function WeeklyReportReviewActions({ weeklyReportId }: { weeklyReportId: 
     }
 
     setIsPending(true);
-    const res = await fetch(`/api/weekly-reports/${weeklyReportId}/review`, {
+    const res = await sendJson(`/api/weekly-reports/${weeklyReportId}/review`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, notes: notes.trim() || undefined }),
+      body: { action, notes: notes.trim() || undefined },
     });
     setIsPending(false);
 
     if (!res.ok) {
-      const body = await res.json();
-      toast.error(body.error ?? "Review failed");
+      toast.error(res.error);
       return;
     }
     toast.success(`Report ${ACTION_PAST_TENSE[action]}`);
@@ -82,9 +81,9 @@ export function WeeklyReportReviewActions({ weeklyReportId }: { weeklyReportId: 
               className={cn(
                 "cursor-pointer transition-colors duration-200",
                 action === "RETURN" &&
-                  "border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10",
+                  "border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10",
                 action === "DISREGARD" &&
-                  "border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-500/30 dark:text-slate-300 dark:hover:bg-slate-500/10"
+                  "border-slate-300 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-500/10"
               )}
             >
               <Icon className="size-3.5" aria-hidden="true" />

@@ -10,7 +10,18 @@ const config: Config = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
-  testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/", "<rootDir>/cypress/"],
+  testPathIgnorePatterns: [
+    "<rootDir>/.next/",
+    "<rootDir>/.claude/",
+    "<rootDir>/node_modules/",
+    "<rootDir>/cypress/",
+  ],
+  // Build output contains package.json files that collide in the module map.
+  modulePathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/.claude/"],
+  // Every core as a worker saturated the machine: a worker could miss Jest's
+  // shutdown deadline ("failed to exit gracefully"; no open handles found), and the
+  // run took twice as long. Half the cores is faster and quiet.
+  maxWorkers: "50%",
   // NFR-MNT-04: >=70% line coverage for service modules, >=90% for critical logic
   // (hour computation, checklist gating, RBAC). Phase 1 is the first module with
   // real logic behind it, so its critical files get a threshold now; everything
@@ -18,8 +29,13 @@ const config: Config = {
   // would just be noise.
   coverageThreshold: {
     global: {},
-    "./src/lib/services/userService.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
-    "./src/lib/services/auditService.ts": {
+    "./src/lib/services/accounts/userService.ts": {
+      statements: 90,
+      branches: 90,
+      functions: 90,
+      lines: 90,
+    },
+    "./src/lib/services/accounts/auditService.ts": {
       statements: 90,
       branches: 90,
       functions: 90,
@@ -36,20 +52,20 @@ const config: Config = {
     // submit-lock/letter-queuing get the same 90% bar as Phase 1's
     // RBAC/session-security modules. companyService is mostly CRUD plus one
     // transition table, lower inherent risk, so it gets Phase 1's 70% bar.
-    "./src/lib/services/checklistService.ts": {
+    "./src/lib/services/predeployment/checklistService.ts": {
       statements: 90,
       branches: 90,
       functions: 90,
       lines: 90,
     },
-    "./src/lib/services/workPlanService.ts": {
+    "./src/lib/services/predeployment/workPlanService.ts": {
       statements: 90,
       branches: 90,
       functions: 90,
       lines: 90,
     },
     "./src/lib/storage.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
-    "./src/lib/services/companyService.ts": {
+    "./src/lib/services/predeployment/companyService.ts": {
       statements: 70,
       branches: 70,
       functions: 70,
@@ -57,25 +73,25 @@ const config: Config = {
     },
     // Phase 3 stub services: coverage on framework-exercise (RBAC, validation wiring,
     // smoke-test surface) only, not stub-body logic (TODO by design).
-    "./src/lib/services/attendanceService.ts": {
+    "./src/lib/services/attendance/attendanceService.ts": {
       statements: 40,
       branches: 30,
       functions: 40,
       lines: 40,
     },
-    "./src/lib/services/weeklyReportService.ts": {
+    "./src/lib/services/reports/weeklyReportService.ts": {
       statements: 40,
       branches: 30,
       functions: 40,
       lines: 40,
     },
-    "./src/lib/services/monthlyReportService.ts": {
+    "./src/lib/services/reports/monthlyReportService.ts": {
       statements: 50,
       branches: 30,
       functions: 50,
       lines: 50,
     },
-    "./src/lib/services/calendarService.ts": {
+    "./src/lib/services/calendar/calendarService.ts": {
       statements: 40,
       branches: 30,
       functions: 40,

@@ -4,14 +4,18 @@ import {
   checkMonthlyAggregationEligibility,
   listMonthlyReportsForStudent,
   submitMonthlyReport,
-} from "@/lib/services/monthlyReportService";
+} from "@/lib/services/reports/monthlyReportService";
 import { monthlyReportSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-08: student self-only, gated by checkMonthlyAggregationEligibility.
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);
@@ -24,7 +28,10 @@ export async function POST(req: NextRequest, { params }: { params: { studentProf
     );
     if (!eligible) {
       return NextResponse.json(
-        { error: "Not all weekly reports for this month are Approved or Regarded yet" },
+        {
+          error:
+            "Every week in this month needs a weekly report that is Approved or Regarded. Check for a week you haven't started.",
+        },
         { status: 400 }
       );
     }
@@ -42,7 +49,11 @@ export async function POST(req: NextRequest, { params }: { params: { studentProf
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);

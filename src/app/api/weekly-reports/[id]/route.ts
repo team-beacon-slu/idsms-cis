@@ -6,13 +6,14 @@ import {
   getDailyReportEntryWeeklyReportId,
   getWeeklyReport,
   saveDailyAccomplishment,
-} from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/weeklyReportService";
 import { dailyEntrySchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     const report = await getWeeklyReport(params.id);
@@ -33,7 +34,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // would be spoofable. Recomputes and returns live totals (FR-WR-02) after
 // every save so the client form can show an up-to-date running total
 // without a page reload.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);
@@ -44,7 +46,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await assertCanAccessStudent(user, report.studentProfileId);
 
     const body = await req.json();
-    const { dailyReportEntryId, hours, accomplishments } = dailyEntrySchema.parse(body);
+    const {
+      dailyReportEntryId,
+      hours,
+      accomplishments,
+      toolsUsed,
+      attendanceStatus,
+      timeIn,
+      timeOut,
+      timeIn2,
+      timeOut2,
+    } = dailyEntrySchema.parse(body);
 
     const entryWeeklyReportId = await getDailyReportEntryWeeklyReportId(dailyReportEntryId);
     if (entryWeeklyReportId !== params.id) {
@@ -55,15 +67,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       dailyReportEntryId,
       hours,
       accomplishments,
-      user.id
+      user.id,
+      toolsUsed,
+      {
+        attendanceStatus,
+        timeIn: timeIn ?? null,
+        timeOut: timeOut ?? null,
+        timeIn2: timeIn2 ?? null,
+        timeOut2: timeOut2 ?? null,
+      }
     );
     const totalHours = await calculateWeeklyTotalHours(params.id);
-    const { runningTotal, remainingHours } = await calculateRunningTotalAndRemaining(
-      report.studentProfileId,
-      params.id
-    );
+    const { runningTotal, remainingHours, conductDeductions } =
+      await calculateRunningTotalAndRemaining(report.studentProfileId, params.id);
 
-    return NextResponse.json({ entry, totalHours, runningTotal, remainingHours });
+    return NextResponse.json({
+      entry,
+      totalHours,
+      runningTotal,
+      conductDeductions,
+      remainingHours,
+    });
   } catch (error) {
     return handleApiError(error);
   }

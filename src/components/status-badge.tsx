@@ -3,21 +3,19 @@ import { cn } from "@/lib/utils";
 type StatusTone = "green" | "amber" | "red" | "blue" | "slate";
 
 const TONE_CLASSES: Record<StatusTone, string> = {
-  green:
-    "bg-green-50 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20",
-  amber:
-    "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
-  red: "bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-  blue: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
-  slate:
-    "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20",
+  green: "bg-mint-50 text-mint-900 border-mint-200",
+  amber: "bg-amber-50 text-amber-700 border-amber-200",
+  red: "bg-red-50 text-red-700 border-red-200",
+  // The brand navy's tints: submitted and in progress, on its way to a decision.
+  blue: "bg-brand-50 text-brand-900 border-brand-200",
+  slate: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
 const DOT_CLASSES: Record<StatusTone, string> = {
-  green: "bg-green-500",
+  green: "bg-beacon",
   amber: "bg-amber-500",
   red: "bg-red-500",
-  blue: "bg-blue-500",
+  blue: "bg-brand-600",
   slate: "bg-slate-400",
 };
 
@@ -27,17 +25,21 @@ const DOT_CLASSES: Record<StatusTone, string> = {
 const STATUS_TONE: Record<string, StatusTone> = {
   APPROVED: "green",
   APPROVED_ACTIVE: "green",
+  ACTIVE: "green",
   VALIDATED: "green",
   GENERATED: "green",
   SENT: "green",
   REGARDED: "green",
+  COMPLETED: "green",
+  ON_TRACK: "blue",
 
-  PENDING: "amber",
-  PENDING_DRAFT: "amber",
-  DRAFTING: "amber",
-  SUBMITTED: "amber",
-  FOR_HTE_REVIEW: "amber",
-  FOR_UNIVERSITY_REVIEW: "amber",
+  PENDING: "blue",
+  SUBMITTED: "blue",
+  FOR_HTE_REVIEW: "blue",
+  FOR_UNIVERSITY_REVIEW: "blue",
+  PENDING_DRAFT: "slate",
+  DRAFTING: "slate",
+  DRAFT: "slate",
   EXPIRING: "amber",
 
   RETURNED: "red",
@@ -45,18 +47,17 @@ const STATUS_TONE: Record<string, StatusTone> = {
   EXPIRED: "red",
   FAILED: "red",
   DISREGARDED: "red",
+  NEEDS_ATTENTION: "red",
 
-  ARCHIVED: "blue",
-  LOCKED: "blue",
+  ARCHIVED: "slate",
+  LOCKED: "slate",
   LINKED: "blue",
 };
 
+// Sentence case: "NOT_STARTED" reads "Not started".
 function humanize(status: string) {
-  return status
-    .toLowerCase()
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  const words = status.toLowerCase().replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
@@ -65,7 +66,7 @@ export function StatusBadge({ status, className }: { status: string; className?:
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex flex-none items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap",
         TONE_CLASSES[tone],
         className
       )}

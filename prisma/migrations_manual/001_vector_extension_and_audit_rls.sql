@@ -13,6 +13,8 @@ CREATE EXTENSION IF NOT EXISTS vector;
 ALTER TABLE daily_report_entries
   ADD COLUMN IF NOT EXISTS embedding_vector vector(768); -- Gemini text-embedding-004 dimension
 
+-- NOTE: the app's `postgres` role bypasses RLS, so these policies alone do not
+-- enforce append-only; the triggers in 007_compliance.sql do. Kept as defense in depth.
 -- 2. Append-only RLS on audit_logs (NFR-SEC-10). Must block UPDATE and DELETE for
 --    every role, including the service role — audit_logs is meant to be tamper-proof
 --    even from the app's own privileged connection.

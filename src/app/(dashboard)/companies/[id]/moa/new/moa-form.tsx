@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Link2, Upload } from "lucide-react";
+import { OFFLINE_MESSAGE } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,9 +13,7 @@ const PROGRAMS = ["BSIT", "BSCS", "BMMA"] as const;
 
 export function MoaForm({ companyId }: { companyId: string }) {
   const router = useRouter();
-  const [sourceType, setSourceType] = useState<"link" | "file">("link");
   const [documentUrl, setDocumentUrl] = useState("");
-  const [file, setFile] = useState<File | null>(null);
   const [validFrom, setValidFrom] = useState("");
   const [validTo, setValidTo] = useState("");
   const [programsCovered, setProgramsCovered] = useState<string[]>([]);
@@ -35,30 +33,19 @@ export function MoaForm({ companyId }: { companyId: string }) {
     }
 
     setIsSubmitting(true);
-    let res: Response;
-
-    if (sourceType === "file") {
-      if (!file) {
-        toast.error("Choose a file first");
-        setIsSubmitting(false);
-        return;
-      }
-      const formData = new FormData();
-      formData.set("file", file);
-      formData.set("validFrom", validFrom);
-      formData.set("validTo", validTo);
-      programsCovered.forEach((p) => formData.append("programsCovered", p));
-      res = await fetch(`/api/companies/${companyId}/moa`, { method: "POST", body: formData });
-    } else {
-      res = await fetch(`/api/companies/${companyId}/moa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentUrl, validFrom, validTo, programsCovered }),
-      });
-    }
+    // The wet-signed MOA stays with the department; IDSMS keeps its status, dates and a Drive link.
+    const res: Response | null = await fetch(`/api/companies/${companyId}/moa`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentUrl, validFrom, validTo, programsCovered }),
+    }).catch(() => null);
 
     setIsSubmitting(false);
 
+    if (!res) {
+      toast.error(OFFLINE_MESSAGE);
+      return;
+    }
     if (!res.ok) {
       toast.error("Failed to create MOA record");
       return;
@@ -72,56 +59,23 @@ export function MoaForm({ companyId }: { companyId: string }) {
     <Card className="max-w-lg">
       <CardHeader>
         <CardTitle>Add MOA record</CardTitle>
-        <CardDescription>Upload a PDF or link a Google Drive document (FR-MOA-03).</CardDescription>
+        <CardDescription>
+          Link the MOA in Google Drive and record its validity. The signed copy stays with the
+          department.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={onSubmit}>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={sourceType === "link" ? "default" : "outline"}
-              size="sm"
-              className="cursor-pointer gap-1.5"
-              onClick={() => setSourceType("link")}
-            >
-              <Link2 className="size-3.5" aria-hidden="true" />
-              Link
-            </Button>
-            <Button
-              type="button"
-              variant={sourceType === "file" ? "default" : "outline"}
-              size="sm"
-              className="cursor-pointer gap-1.5"
-              onClick={() => setSourceType("file")}
-            >
-              <Upload className="size-3.5" aria-hidden="true" />
-              Upload file
-            </Button>
+          <div className="space-y-2">
+            <Label htmlFor="documentUrl">Google Drive link</Label>
+            <Input
+              id="documentUrl"
+              type="url"
+              value={documentUrl}
+              onChange={(e) => setDocumentUrl(e.target.value)}
+              required
+            />
           </div>
-
-          {sourceType === "link" ? (
-            <div className="space-y-2">
-              <Label htmlFor="documentUrl">Google Drive link</Label>
-              <Input
-                id="documentUrl"
-                type="url"
-                value={documentUrl}
-                onChange={(e) => setDocumentUrl(e.target.value)}
-                required
-              />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor="file">MOA PDF</Label>
-              <Input
-                id="file"
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                required
-              />
-            </div>
-          )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">

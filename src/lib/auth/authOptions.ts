@@ -5,7 +5,7 @@ import type { RequestInternal } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { decode as defaultDecode, encode as defaultEncode } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { verifyCredentials } from "@/lib/services/userService";
+import { verifyCredentials } from "@/lib/services/accounts/userService";
 
 const SESSION_MAX_AGE_SECONDS = 30 * 60; // FR-UM-06 idle timeout
 const SESSION_UPDATE_AGE_SECONDS = 5 * 60;

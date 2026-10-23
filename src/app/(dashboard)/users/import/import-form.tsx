@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
+import { OFFLINE_MESSAGE } from "@/lib/utils/sendJson";
 import { UploadCloud, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -24,9 +25,23 @@ interface RowError {
   issues: unknown;
 }
 
-export function BulkImportForm() {
-  const [classGroupId, setClassGroupId] = useState("");
-  const [semesterId, setSemesterId] = useState("");
+type Option = { id: string; label: string };
+
+const selectClass =
+  "h-9 w-full cursor-pointer rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden";
+
+// Pickers, not ID fields: the coordinator had to paste raw UUIDs before.
+export function BulkImportForm({
+  classGroups,
+  semesters,
+  defaultSemesterId,
+}: {
+  classGroups: Option[];
+  semesters: Option[];
+  defaultSemesterId?: string;
+}) {
+  const [classGroupId, setClassGroupId] = useState(classGroups[0]?.id ?? "");
+  const [semesterId, setSemesterId] = useState(defaultSemesterId ?? semesters[0]?.id ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<(BulkImportResult & { rowErrors: RowError[] }) | null>(null);
@@ -44,11 +59,18 @@ export function BulkImportForm() {
     formData.set("classGroupId", classGroupId);
     formData.set("semesterId", semesterId);
 
-    const res = await fetch("/api/users/bulk-import", { method: "POST", body: formData });
+    const res = await fetch("/api/users/bulk-import", { method: "POST", body: formData }).catch(
+      () => null
+    );
     setIsSubmitting(false);
 
+    if (!res) {
+      toast.error(OFFLINE_MESSAGE);
+      return;
+    }
     if (!res.ok) {
-      toast.error("Import failed");
+      const failure = await res.json().catch(() => ({}));
+      toast.error(failure.error ?? "Import failed");
       return;
     }
 
@@ -86,22 +108,46 @@ export function BulkImportForm() {
           <form className="space-y-5" onSubmit={onSubmit}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="classGroupId">Class group ID</Label>
-                <Input
-                  id="classGroupId"
-                  value={classGroupId}
-                  onChange={(e) => setClassGroupId(e.target.value)}
-                  required
-                />
+                <Label htmlFor="classGroupId">Class group</Label>
+                {classGroups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No class groups yet.{" "}
+                    <Link href="/class-groups" className="font-medium text-foreground underline">
+                      Create one first
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <select
+                    id="classGroupId"
+                    value={classGroupId}
+                    onChange={(e) => setClassGroupId(e.target.value)}
+                    required
+                    className={selectClass}
+                  >
+                    {classGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="semesterId">Semester ID</Label>
-                <Input
+                <Label htmlFor="semesterId">Semester</Label>
+                <select
                   id="semesterId"
                   value={semesterId}
                   onChange={(e) => setSemesterId(e.target.value)}
                   required
-                />
+                  className={selectClass}
+                >
+                  {semesters.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -131,7 +177,8 @@ export function BulkImportForm() {
                   </>
                 )}
               </label>
-              <Input
+              {/* A plain input: the shared Input's w-full beat sr-only and overflowed phones. */}
+              <input
                 id="file"
                 type="file"
                 accept=".csv,.xlsx,.xls"

@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import { bulkImportRequestSchema, bulkImportRowSchema } from "@/lib/validators/user";
-import { bulkImportStudents, BulkImportInputRow } from "@/lib/services/userService";
+import { bulkImportStudents, BulkImportInputRow } from "@/lib/services/accounts/userService";
 import { parseImportFile } from "@/lib/utils/fileImport";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
+import { notifyAccountsCreatedByEmail } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
+
+// A class list is a few hundred rows; anything far larger is a mistake, and
+// parsing it would hold the whole workbook in memory.
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +21,9 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
+    }
+    if (file.size > MAX_IMPORT_BYTES) {
+      return NextResponse.json({ error: "File exceeds the 2MB limit" }, { status: 413 });
     }
 
     const { classGroupId, semesterId } = bulkImportRequestSchema.parse({
@@ -44,6 +53,14 @@ export async function POST(req: NextRequest) {
       semesterId,
       user.id,
       ipAddress
+    );
+    // FR-NT-01 #1 for each created student (passwords never leave this response).
+    // A class list means dozens of sequential emails — send them after the
+    // response so the import can't time out on email latency.
+    waitUntil(
+      notifyAccountsCreatedByEmail(
+        result.results.filter((r) => r.status === "created").map((r) => r.email)
+      )
     );
 
     return NextResponse.json({

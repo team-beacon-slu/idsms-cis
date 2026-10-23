@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   computeProjectedCompletionDate,
   computeTotalHoursRendered,
-} from "@/lib/services/attendanceService";
+} from "@/lib/services/attendance/attendanceService";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);

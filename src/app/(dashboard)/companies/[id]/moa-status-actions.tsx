@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoaStatus } from "@prisma/client";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,16 +23,11 @@ export function MoaStatusActions({
 
   async function advance(status: MoaStatus) {
     setIsPending(true);
-    const res = await fetch(`/api/moa/${moaId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    const res = await sendJson(`/api/moa/${moaId}`, { method: "PATCH", body: { status } });
     setIsPending(false);
 
     if (!res.ok) {
-      const body = await res.json();
-      toast.error(body.error ?? "Status update failed");
+      toast.error(res.error);
       return;
     }
     toast.success(`MOA moved to ${status}`);

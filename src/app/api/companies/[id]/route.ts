@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { updateCompanySchema } from "@/lib/validators/company";
-import { getCompany, setCompanyVerified, updateCompany } from "@/lib/services/companyService";
+import {
+  getCompany,
+  setCompanyVerified,
+  updateCompany,
+} from "@/lib/services/predeployment/companyService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireUserApi();
     const company = await getCompany(params.id);
@@ -21,7 +26,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // FR-MOA-06: edit/verify is staff-only.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, STAFF_ROLES);

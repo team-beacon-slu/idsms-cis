@@ -6,30 +6,30 @@
 
 ## 🚀 Key Features
 
-- **Compliance Gating**: Blocks active deployment until all 9 pre-deployment documents are approved.
+- **Compliance Gating**: Blocks the endorsement letter until every required pre-deployment item is approved (tracked by status; the files stay in Google Classroom).
 - **Automated Tracking**: Real-time hour computation, deviation report validation, and projected completion dates.
 - **Unified Calendar**: Role-specific views for deadlines, holidays, and OJT milestones.
-- **AI-Assisted Reviews**: Server-side text similarity detection (Gemini `text-embedding-004` + pgvector) and sentiment analysis to support faculty judgment.
+- **AI-Assisted Reviews**: Optional similarity and sentiment hints for faculty (Gemini embeddings + pgvector), advisory only and switched off until approved.
 - **Document Generation**: Server-side Puppeteer rendering for traceable PDFs (Endorsement Letters, Weekly/Monthly Reports).
 - **Role-Based Dashboards**: Tailored views for Student Interns, Faculty Advisers, Department Coordinators, and Super Admins.
-- **Data Privacy**: Fully compliant with RA 10173, featuring append-only audit logs and scoped, time-limited file access.
+- **Data Privacy**: Built for RA 10173: privacy notice and terms agreement, append-only audit log, "Request my data", file retention review, and scoped, time-limited file access.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer              | Technology                                                   |
-| :----------------- | :----------------------------------------------------------- |
-| **Framework**      | Next.js 14 (App Router)                                      |
-| **Language**       | TypeScript                                                   |
-| **Styling**        | Tailwind CSS                                                 |
-| **Database**       | PostgreSQL 15 via Supabase (with `pgvector` extension)       |
-| **ORM**            | Prisma                                                       |
-| **Authentication** | NextAuth.js v4.24.x                                          |
-| **AI Services**    | Google Gemini API (`text-embedding-004`, `gemini-2.5-flash`) |
-| **Document Gen**   | Puppeteer (`@sparticuz/chromium`)                            |
-| **Email**          | Resend + React Email                                         |
-| **Deployment**     | Vercel + GitHub Actions                                      |
+| Layer              | Technology                                                 |
+| :----------------- | :--------------------------------------------------------- |
+| **Framework**      | Next.js 16 (App Router)                                    |
+| **Language**       | TypeScript                                                 |
+| **Styling**        | Tailwind CSS 4, shadcn/ui, light and dark themes           |
+| **Database**       | PostgreSQL 15 via Supabase (with `pgvector` extension)     |
+| **ORM**            | Prisma 7                                                   |
+| **Authentication** | NextAuth.js v4.24.x                                        |
+| **AI Services**    | Google Gemini API (models set by env vars; off by default) |
+| **Document Gen**   | Puppeteer (`@sparticuz/chromium`)                          |
+| **Email**          | Resend + React Email                                       |
+| **Deployment**     | Vercel + Supabase today; SAMCIS lab computer in Phase 5    |
 
 ---
 
@@ -41,9 +41,9 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
 
 - Node.js 24+ (required — `@sparticuz/chromium` and `lint-staged` don't support Node 20)
 - npm
-- A Supabase project with the `vector` extension enabled (not yet provisioned — see PRD Phase 0)
-- Google Gemini API Key
-- Resend API Key
+- A Supabase project with the `vector` extension enabled
+- Google Gemini API key (optional; only for the AI hints)
+- Resend API key (optional; only for email)
 
 ### Installation
 
@@ -74,19 +74,13 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
    npx prisma generate
    npx prisma db push
 
-   # THEN run these by hand in the Supabase SQL editor, in order — each
-   # touches something Prisma can't express (a Postgres extension, RLS, or
-   # Storage buckets), and 001/002 specifically ALTER tables that db push is
-   # what creates, so all three must run AFTER it:
-   #   prisma/migrations_manual/001_vector_extension_and_audit_rls.sql
-   #     enables pgvector and locks down audit_logs (append-only)
-   #   prisma/migrations_manual/002_default_deny_rls.sql
-   #     enables RLS (no policies) on every other table
-   #   prisma/migrations_manual/003_storage_buckets.sql
-   #     provisions the checklist-documents and moa-documents Storage buckets
+   # THEN run EVERY file in prisma/migrations_manual/ by hand in the Supabase
+   # SQL editor, in number order (001, 002, … up to the highest), AFTER db push.
+   # Each touches something Prisma can't express (pgvector, RLS, Storage
+   # buckets, indexes, constraints) and many ALTER tables db push creates.
    ```
 
-   Also requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` as of Phase 2 (file uploads for MOA records and checklist items go through Supabase Storage) — see `.env.example`.
+   Also requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` as of Phase 2 (file uploads for MOA records and deviation proofs go through Supabase Storage) — see `.env.example`.
 
 5. **Run the development server**
    ```bash
@@ -100,15 +94,28 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
 
 ```text
 /src
-  /app                    # Next.js App Router pages, layouts, and API routes
-  /components             # Reusable UI components (shadcn/ui, custom)
+  /app                    # Next.js App Router: (auth), (legal), (dashboard) pages and /api routes
+    /(dashboard)/_components  # The signed-in shell: menu, account menu, bell, role dashboards
+  /components             # UI shared across route groups (shadcn/ui primitives in /ui)
   /lib
-    /services             # Core business logic (report, checklist, ai, etc.)
+    /services             # Business logic, one folder per domain: accounts, academic,
+                          # predeployment, attendance, reports, conduct, calendar,
+                          # notifications, dashboards, privacy, ai
     /utils                # Helper functions and formatters
     /validators           # Zod schemas for input validation
   /types                  # TypeScript type definitions
-  middleware.ts           # NextAuth.js RBAC and route protection
+  /testUtils              # Shared Jest helpers (Prisma mock)
+  proxy.ts                # Route protection and the CSP nonce (Next 16's middleware)
+/prisma                   # schema.prisma and migrations_manual/ (hand-run SQL)
+/docs                     # All documentation; start at docs/README.md
+/scripts                  # One-off scripts (AI golden-set evaluation)
 ```
+
+---
+
+## 📚 Documentation
+
+Everything is catalogued in [`docs/README.md`](docs/README.md): how the system works ([`docs/system/`](docs/system/README.md)), the open [questions for our adviser](docs/ADVISER_QUESTIONS.md), active plans and the archive of finished ones.
 
 ---
 
@@ -132,7 +139,7 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
 
 ## ⚖️ Compliance & Ethics
 
-- **Data Privacy**: This system adheres to the Philippine Data Privacy Act of 2012 (RA 10173). Personal and health-related documents are encrypted at rest and accessible only on a strict need-to-know basis.
+- **Data Privacy**: This system adheres to the Philippine Data Privacy Act of 2012 (RA 10173). Health records and signed documents are not stored in IDSMS (they stay in Google Classroom); the files it does keep are private, encrypted at rest by the storage provider, and opened only through short-lived, access-checked links.
 - **AI Ethics**: All AI-generated similarity and sentiment flags are strictly **advisory**. They do not automate grading, approval, or rejection decisions, preserving faculty authority and student fairness.
 
 ---

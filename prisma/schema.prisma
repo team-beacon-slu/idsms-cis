@@ -9,10 +9,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Connection URLs live in prisma.config.ts (CLI) and src/lib/prisma.ts (app) since Prisma 7.
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ── Enums ────────────────────────────────────────────────────────────────
@@ -57,6 +56,8 @@ enum ChecklistRequirementType {
   GOVERNMENT_COMPANY_PERMIT
   WORK_PLAN
   MOA
+  PROOF_OF_CORPORATE_LEGITIMACY // foreign-owned host companies only
+  INTERNSHIP_AGREEMENT // irregular students only
 }
 
 enum ChecklistStatus {
@@ -75,6 +76,17 @@ enum DeviationType {
   ABSENCE
   OVERTIME
   UNDERTIME
+}
+
+enum RequestKind {
+  ANTICIPATED
+  EMERGENCY
+}
+
+enum ProofType {
+  MEDICAL_CERTIFICATE
+  PROOF_OF_LEAVE
+  WRITTEN_NOTICE
 }
 
 enum ValidationStatus {
@@ -102,6 +114,7 @@ enum DocumentType {
   WEEKLY_REPORT
   MONTHLY_REPORT
   FINAL_REPORT_COVER
+  FINAL_TECHNICAL_REPORT
 }
 
 enum DocumentStatus {
@@ -157,33 +170,41 @@ model Session {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("sessions")
 }
 
 // ── Core domain tables ──────────────────────────────────────────────────
 
 model User {
-  id             String    @id @default(uuid()) @db.Uuid
-  email          String    @unique
-  hashedPassword String    @map("hashed_password")
-  role           Role
-  isActive       Boolean   @default(true) @map("is_active")
-  mustResetPassword Boolean @default(true) @map("must_reset_password")
-  failedLoginAttempts Int  @default(0) @map("failed_login_attempts")
-  lockedUntil    DateTime? @map("locked_until")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
+  id                    String    @id @default(uuid()) @db.Uuid
+  email                 String    @unique
+  hashedPassword        String    @map("hashed_password")
+  role                  Role
+  isActive              Boolean   @default(true) @map("is_active")
+  mustResetPassword     Boolean   @default(true) @map("must_reset_password")
+  failedLoginAttempts   Int       @default(0) @map("failed_login_attempts")
+  lockedUntil           DateTime? @map("locked_until")
+  // FR-CK-05: null until the user agrees to the privacy notice; a new version asks again.
+  privacyConsentAt      DateTime? @map("privacy_consent_at") @db.Timestamptz
+  privacyConsentVersion String?   @map("privacy_consent_version")
+  // Display name for staff (students' legal name lives on student_profiles.full_name).
+  fullName              String?   @map("full_name")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
 
-  accounts         Account[]
-  sessions         Session[]
-  studentProfile   StudentProfile?
-  facultyGroups    FacultyClassGroup[]
-  auditLogs        AuditLog[]
-  notifications    Notification[]
-  passwordResetTokens PasswordResetToken[]
+  accounts               Account[]
+  sessions               Session[]
+  studentProfile         StudentProfile?
+  facultyGroups          FacultyClassGroup[]
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  passwordResetTokens    PasswordResetToken[]
   reviewedChecklistItems PreDeploymentChecklistItem[] @relation("ChecklistReviewer")
   coordinatedWorkPlans   WorkPlan[]                   @relation("WorkPlanCoordinator")
+  dataRequests           DataRequest[]                @relation("DataRequestRequester")
+  fulfilledDataRequests  DataRequest[]                @relation("DataRequestFulfiller")
 
   @@map("users")
 }
@@ -204,40 +225,52 @@ model PasswordResetToken {
 }
 
 model StudentProfile {
-  id                   String    @id @default(uuid()) @db.Uuid
-  userId               String    @unique @map("user_id") @db.Uuid
-  studentNumber        String    @unique @map("student_number")
-  program              Program
-  classGroupId         String    @map("class_group_id") @db.Uuid
-  semesterId           String    @map("semester_id") @db.Uuid
-  companyId            String?   @map("company_id") @db.Uuid
-  requiredHours        Int       @map("required_hours")
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @unique @map("user_id") @db.Uuid
+  studentNumber         String    @unique @map("student_number")
+  program               Program
+  classGroupId          String    @map("class_group_id") @db.Uuid
+  semesterId            String    @map("semester_id") @db.Uuid
+  companyId             String?   @map("company_id") @db.Uuid
+  requiredHours         Int       @map("required_hours")
   renderedHours         Decimal   @default(0) @map("rendered_hours") @db.Decimal(6, 2)
   internshipFaceType    String?   @map("internship_face_type")
   internshipStartDate   DateTime? @map("internship_start_date")
   // Per-deployment, not per-company (a company has no single "position title") —
   // FR-MOA-01 bundles this into "company registration" but it belongs here.
-  positionTitle        String?   @map("position_title")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-  deletedAt            DateTime? @map("deleted_at")
+  positionTitle         String?   @map("position_title")
+  // FR-DG-01 endorsement letter needs the student's legal name; the users
+  // table only holds an email. Nullable — set from the profile page.
+  fullName              String?   @map("full_name")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  // Checklist & MOA settings: the adviser may let an intern start before the MOA is approved.
+  startBeforeMoaAllowed Boolean   @default(false) @map("start_before_moa_allowed")
+  startBeforeMoaReason  String?   @map("start_before_moa_reason")
+  startBeforeMoaBy      String?   @map("start_before_moa_by") @db.Uuid
+  startBeforeMoaAt      DateTime? @map("start_before_moa_at") @db.Timestamptz
+  deletedAt             DateTime? @map("deleted_at")
 
   user       User       @relation(fields: [userId], references: [id])
   classGroup ClassGroup @relation(fields: [classGroupId], references: [id])
   semester   Semester   @relation(fields: [semesterId], references: [id])
   company    Company?   @relation(fields: [companyId], references: [id])
 
-  checklistItems    PreDeploymentChecklistItem[]
-  workPlans         WorkPlan[]
-  deviationReports  DeviationReport[]
-  weeklyReports     WeeklyReport[]
-  generatedDocuments GeneratedDocument[]
-  holidayOverrides  HolidayCalendarEntry[]
+  checklistItems       PreDeploymentChecklistItem[]
+  workPlans            WorkPlan[]
+  deviationReports     DeviationReport[]
+  conductRecords       ConductRecord[]
+  deductionExceptions  DeductionException[]
+  finalTechnicalReport FinalTechnicalReport?
+  weeklyReports        WeeklyReport[]
+  generatedDocuments   GeneratedDocument[]
+  holidayOverrides     HolidayCalendarEntry[]
 
   // classGroupId/semesterId are pre-existing Phase 0 gaps (Postgres never
   // auto-indexes FK columns) left alone here; companyId and classGroupId are
   // fixed because Phase 2's own new queries (MOA-approval checklist sync,
   // the Faculty roster page) filter on them directly.
+  @@index([startBeforeMoaBy], map: "student_profiles_start_before_moa_by_idx")
   @@index([companyId])
   @@index([classGroupId])
   @@map("student_profiles")
@@ -252,8 +285,8 @@ model ClassGroup {
   classType String    @map("class_type")
   deletedAt DateTime? @map("deleted_at")
 
-  students        StudentProfile[]
-  facultyGroups   FacultyClassGroup[]
+  students      StudentProfile[]
+  facultyGroups FacultyClassGroup[]
 
   @@map("class_groups")
 }
@@ -281,6 +314,8 @@ model Semester {
   academicYear String    @map("academic_year")
   isActive     Boolean   @default(false) @map("is_active")
   archivedAt   DateTime? @map("archived_at")
+  // Faculty-defined start of Week 1 for the term (weekly report numbering).
+  weekOneStart DateTime? @map("week_one_start")
 
   students       StudentProfile[]
   facultyGroups  FacultyClassGroup[]
@@ -290,14 +325,16 @@ model Semester {
 }
 
 model Company {
-  id                String    @id @default(uuid()) @db.Uuid
-  name              String
-  address           String
-  workModality      WorkModality @map("work_modality")
-  supervisorName    String    @map("supervisor_name")
-  supervisorContact String    @map("supervisor_contact")
-  isVerified        Boolean   @default(false) @map("is_verified")
-  deletedAt         DateTime? @map("deleted_at")
+  id                 String       @id @default(uuid()) @db.Uuid
+  name               String
+  address            String
+  workModality       WorkModality @map("work_modality")
+  supervisorName     String       @map("supervisor_name")
+  supervisorContact  String       @map("supervisor_contact")
+  supervisorPosition String?      @map("supervisor_position") // FR-DG-01
+  isVerified         Boolean      @default(false) @map("is_verified")
+  isForeign          Boolean      @default(false) @map("is_foreign") // proof of corporate legitimacy applies
+  deletedAt          DateTime?    @map("deleted_at")
 
   students   StudentProfile[]
   moaRecords MoaRecord[]
@@ -306,18 +343,18 @@ model Company {
 }
 
 model MoaRecord {
-  id               String    @id @default(uuid()) @db.Uuid
-  companyId        String    @map("company_id") @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
   // Exactly one of documentUrl/documentPath is set — enforced in the
   // validator (Zod .refine()), not a DB constraint, matching this project's
   // style of business rules living in the service/validator layer.
-  documentUrl      String?   @map("document_url") // external Google Drive link (FR-MOA-03)
-  documentPath     String?   @map("document_path") // internal Supabase Storage object path
-  status           MoaStatus @default(DRAFTING)
-  validFrom        DateTime  @map("valid_from")
-  validTo          DateTime  @map("valid_to")
-  programsCovered  Program[] @map("programs_covered")
-  archivedAt       DateTime? @map("archived_at")
+  documentUrl     String?   @map("document_url") // external Google Drive link (FR-MOA-03)
+  documentPath    String?   @map("document_path") // internal Supabase Storage object path
+  status          MoaStatus @default(DRAFTING)
+  validFrom       DateTime  @map("valid_from")
+  validTo         DateTime  @map("valid_to")
+  programsCovered Program[] @map("programs_covered")
+  archivedAt      DateTime? @map("archived_at")
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -326,19 +363,19 @@ model MoaRecord {
 }
 
 model PreDeploymentChecklistItem {
-  id              String                    @id @default(uuid()) @db.Uuid
+  id               String                   @id @default(uuid()) @db.Uuid
   studentProfileId String                   @map("student_profile_id") @db.Uuid
-  requirementType ChecklistRequirementType  @map("requirement_type")
-  status          ChecklistStatus           @default(PENDING)
+  requirementType  ChecklistRequirementType @map("requirement_type")
+  status           ChecklistStatus          @default(PENDING)
   // Holds a Storage object path (resolved to a signed URL at read time), not
   // a fetchable URL — renamed from fileUrl since nothing wrote it before now.
-  filePath        String?                   @map("file_path")
-  reviewerId      String?                   @map("reviewer_id") @db.Uuid
-  reviewDate      DateTime?                 @map("review_date")
-  comments        String?
-  archivedAt      DateTime?                 @map("archived_at")
-  createdAt       DateTime                  @default(now()) @map("created_at")
-  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  filePath         String?                  @map("file_path")
+  reviewerId       String?                  @map("reviewer_id") @db.Uuid
+  reviewDate       DateTime?                @map("review_date")
+  comments         String?
+  archivedAt       DateTime?                @map("archived_at")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
   reviewer       User?          @relation("ChecklistReviewer", fields: [reviewerId], references: [id])
@@ -349,16 +386,16 @@ model PreDeploymentChecklistItem {
 }
 
 model WorkPlan {
-  id                   String         @id @default(uuid()) @db.Uuid
-  studentProfileId     String         @map("student_profile_id") @db.Uuid
-  status               WorkPlanStatus @default(SUBMITTED)
-  plannedTasks         Json           @map("planned_tasks")
-  scheduleConfig       Json?          @map("schedule_config")
-  scheduleChangeHistory Json          @default("[]") @map("schedule_change_history")
-  approvalMetadata     Json?          @map("approval_metadata")
-  coordinatorId        String?        @map("coordinator_id") @db.Uuid
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
+  id                    String         @id @default(uuid()) @db.Uuid
+  studentProfileId      String         @map("student_profile_id") @db.Uuid
+  status                WorkPlanStatus @default(SUBMITTED)
+  plannedTasks          Json           @map("planned_tasks")
+  scheduleConfig        Json?          @map("schedule_config")
+  scheduleChangeHistory Json           @default("[]") @map("schedule_change_history")
+  approvalMetadata      Json?          @map("approval_metadata")
+  coordinatorId         String?        @map("coordinator_id") @db.Uuid
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
   coordinator    User?          @relation("WorkPlanCoordinator", fields: [coordinatorId], references: [id])
@@ -369,23 +406,24 @@ model WorkPlan {
 }
 
 model WeeklyReport {
-  id               String              @id @default(uuid()) @db.Uuid
-  studentProfileId String              @map("student_profile_id") @db.Uuid
-  weekStart        DateTime            @map("week_start")
-  weekEnd          DateTime            @map("week_end")
-  totalHours       Decimal             @default(0) @map("total_hours") @db.Decimal(5, 2)
-  runningTotal     Decimal             @default(0) @map("running_total") @db.Decimal(6, 2)
-  remainingHours   Decimal             @default(0) @map("remaining_hours") @db.Decimal(6, 2)
-  status           WeeklyReportStatus  @default(PENDING)
-  facultyAction    String?             @map("faculty_action")
-  revisionHistory  Json                @default("[]") @map("revision_history")
-  similarityScore  Decimal?            @map("similarity_score") @db.Decimal(4, 3)
-  similarityFlag   Boolean             @default(false) @map("similarity_flag")
-  sentimentLabel   SentimentLabel?     @map("sentiment_label")
-  sentimentConfidence Decimal?         @map("sentiment_confidence") @db.Decimal(4, 3)
-  aiProcessedAt    DateTime?           @map("ai_processed_at")
+  id                  String             @id @default(uuid()) @db.Uuid
+  studentProfileId    String             @map("student_profile_id") @db.Uuid
+  weekStart           DateTime           @map("week_start")
+  weekEnd             DateTime           @map("week_end")
+  totalHours          Decimal            @default(0) @map("total_hours") @db.Decimal(5, 2)
+  runningTotal        Decimal            @default(0) @map("running_total") @db.Decimal(6, 2)
+  remainingHours      Decimal            @default(0) @map("remaining_hours") @db.Decimal(6, 2)
+  status              WeeklyReportStatus @default(PENDING)
+  facultyAction       String?            @map("faculty_action")
+  revisionHistory     Json               @default("[]") @map("revision_history")
+  similarityScore     Decimal?           @map("similarity_score") @db.Decimal(4, 3)
+  similarityFlag      Boolean            @default(false) @map("similarity_flag")
+  sentimentLabel      SentimentLabel?    @map("sentiment_label")
+  sentimentConfidence Decimal?           @map("sentiment_confidence") @db.Decimal(4, 3)
+  sentimentReasoning  String?            @map("sentiment_reasoning") @db.Text // FR-AI-03 brief reasoning
+  aiProcessedAt       DateTime?          @map("ai_processed_at")
 
-  studentProfile StudentProfile        @relation(fields: [studentProfileId], references: [id])
+  studentProfile StudentProfile     @relation(fields: [studentProfileId], references: [id])
   dailyEntries   DailyReportEntry[]
 
   @@unique([studentProfileId, weekStart])
@@ -401,28 +439,121 @@ model DailyReportEntry {
   actualHours      Decimal? @map("actual_hours") @db.Decimal(4, 2)
   accomplishments  String?  @db.Text
   toolsUsed        String?  @map("tools_used")
+  // Phase 4 (adviser request): optional wall-clock times, "HH:MM" Manila.
+  timeIn           String?  @map("time_in")
+  timeOut          String?  @map("time_out")
+  // Workstream L1: optional second ("afternoon") range, and the SLU-credited
+  // hours computed at save time (null on legacy rows; read via entryCreditedHours).
+  timeIn2          String?  @map("time_in_2")
+  timeOut2         String?  @map("time_out_2")
+  creditedHours    Decimal? @map("credited_hours") @db.Decimal(4, 2)
   // embeddingVector: pgvector column, added via raw SQL migration (see
   // prisma/migrations_manual/) — Prisma has no native `vector` type, so this
   // field is queried through $queryRaw in aiService.ts, not through the client.
 
   weeklyReport WeeklyReport @relation(fields: [weeklyReportId], references: [id])
 
+  @@index([weeklyReportId])
   @@map("daily_report_entries")
 }
 
 model DeviationReport {
-  id                String            @id @default(uuid()) @db.Uuid
-  studentProfileId  String            @map("student_profile_id") @db.Uuid
-  date              DateTime
-  deviationType     DeviationType     @map("deviation_type")
-  reason            String
-  proofUrl          String?           @map("proof_url")
-  validationStatus  ValidationStatus  @default(PENDING) @map("validation_status")
-  facultyId         String?           @map("faculty_id") @db.Uuid
+  id               String           @id @default(uuid()) @db.Uuid
+  studentProfileId String           @map("student_profile_id") @db.Uuid
+  date             DateTime
+  deviationType    DeviationType    @map("deviation_type")
+  reason           String
+  proofUrl         String?          @map("proof_url")
+  validationStatus ValidationStatus @default(PENDING) @map("validation_status")
+  facultyId        String?          @map("faculty_id") @db.Uuid
+  // Workstream L1: the deviation is now a leave / OT / UT request.
+  requestKind      RequestKind?     @map("request_kind")
+  endDate          DateTime?        @map("end_date")
+  startTime        String?          @map("start_time")
+  endTime          String?          @map("end_time")
+  requestedMinutes Int?             @map("requested_minutes")
+  proofType        ProofType?       @map("proof_type")
+  reviewNote       String?          @map("review_note")
+  submittedAt      DateTime?        @map("submitted_at") @db.Timestamptz(3)
+  updatedAt        DateTime?        @map("updated_at") @db.Timestamptz(3)
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
 
+  @@index([studentProfileId, validationStatus])
   @@map("deviation_reports")
+}
+
+enum FinalReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RETURNED
+}
+
+// Workstream H (PRD Module 7): one Final Technical Report per intern.
+// sections / attachments are JSON so SLU's outline can change without a migration.
+model FinalTechnicalReport {
+  id               String            @id @default(uuid()) @db.Uuid
+  studentProfileId String            @unique @map("student_profile_id") @db.Uuid
+  status           FinalReportStatus @default(DRAFT)
+  sections         Json              @default("{}")
+  supervisorScore  Decimal?          @map("supervisor_score") @db.Decimal(5, 2)
+  supervisorScale  Int?              @map("supervisor_scale")
+  peerScore        Decimal?          @map("peer_score") @db.Decimal(5, 2)
+  peerScale        Int?              @map("peer_scale")
+  attachments      Json              @default("{}") // { key: { attached, confirmed } }
+  reviewNote       String?           @map("review_note")
+  submittedAt      DateTime?         @map("submitted_at") @db.Timestamptz(3)
+  reviewedAt       DateTime?         @map("reviewed_at") @db.Timestamptz(3)
+  reviewedById     String?           @map("reviewed_by_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@map("final_technical_reports")
+}
+
+// Workstream L2: a warning, demerit, violation or suspension issued by staff.
+// Never deleted, only revoked with a reason.
+model ConductRecord {
+  id               String    @id @default(uuid()) @db.Uuid
+  studentProfileId String    @map("student_profile_id") @db.Uuid
+  categoryKey      String    @map("category_key")
+  weight           Int       @default(1) // a "First and Final" warning counts 2
+  date             DateTime
+  reason           String
+  hoursDeducted    Decimal   @default(0) @map("hours_deducted") @db.Decimal(4, 2)
+  issuedById       String    @map("issued_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedById      String?   @map("revoked_by_id") @db.Uuid
+  revokeReason     String?   @map("revoke_reason")
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@index([studentProfileId])
+  @@map("conduct_records")
+}
+
+// Workstream L2: staff excuse an automatic deduction item (late/missing WWR,
+// unsupported UT/absence). Never deleted, only withdrawn.
+model DeductionException {
+  id               String    @id @default(uuid()) @db.Uuid
+  studentProfileId String    @map("student_profile_id") @db.Uuid
+  itemType         String    @map("item_type") // LATE_WWR | MISSING_WWR | UNSUPPORTED_UT
+  itemKey          String    @map("item_key") // weeklyReportId, week start or YYYY-MM-DD
+  reasonCode       String    @map("reason_code") // HTE_ATTESTED_DOCUMENTATION | BEYOND_INTERN_CONTROL
+  note             String
+  createdById      String    @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  withdrawnAt      DateTime? @map("withdrawn_at") @db.Timestamptz(3)
+  withdrawnById    String?   @map("withdrawn_by_id") @db.Uuid
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@index([studentProfileId])
+  @@map("deduction_exceptions")
 }
 
 model GeneratedDocument {
@@ -451,14 +582,18 @@ model Notification {
   status      NotificationStatus  @default(PENDING)
   payload     Json?
   sentAt      DateTime?           @map("sent_at")
+  readAt      DateTime?           @map("read_at") @db.Timestamptz(3) // IN_APP only; null = unread
 
   user User @relation(fields: [userId], references: [id])
 
+  // Unread badge + inbox. The IN_APP dedupe unique index is partial and on a
+  // JSON expression, so it lives only in migrations_manual/006.
+  @@index([userId, channel, readAt])
   @@map("notifications")
 }
 
-// Append-only: enforced at the DB level via RLS (NFR-SEC-10), applied through the
-// raw SQL migration, not through Prisma — Prisma has no way to express "no UPDATE/DELETE".
+// Append-only: enforced by triggers in migrations_manual/007 (the app's postgres role bypasses RLS); RLS policies from 001 remain as defense in depth.
+// Applied through raw SQL, not through Prisma — Prisma has no way to express "no UPDATE/DELETE".
 model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
   userId     String?  @map("user_id") @db.Uuid
@@ -471,7 +606,60 @@ model AuditLog {
 
   user User? @relation(fields: [userId], references: [id])
 
+  @@index([userId])
   @@map("audit_logs")
+}
+
+enum DataRequestStatus {
+  OPEN
+  FULFILLED
+}
+
+enum RetentionStatus {
+  PENDING
+  KEPT
+  DELETED
+}
+
+enum RetentionSource {
+  CHECKLIST
+  DEVIATION_PROOF
+  GENERATED_DOCUMENT
+}
+
+model DataRequest {
+  id          String            @id @default(uuid()) @db.Uuid
+  userId      String            @map("user_id") @db.Uuid
+  status      DataRequestStatus @default(OPEN)
+  requestedAt DateTime          @default(now()) @map("requested_at") @db.Timestamptz(3)
+  dueAt       DateTime          @map("due_at") @db.Timestamptz(3)
+  fulfilledAt DateTime?         @map("fulfilled_at") @db.Timestamptz(3)
+  fulfilledBy String?           @map("fulfilled_by") @db.Uuid
+
+  user      User  @relation("DataRequestRequester", fields: [userId], references: [id])
+  fulfiller User? @relation("DataRequestFulfiller", fields: [fulfilledBy], references: [id])
+
+  @@index([status, dueAt])
+  @@index([userId])
+  @@map("data_requests")
+}
+
+model RetentionFlag {
+  id               String          @id @default(uuid()) @db.Uuid
+  bucket           String
+  objectPath       String          @map("object_path")
+  sourceType       RetentionSource @map("source_type")
+  sourceId         String          @map("source_id") @db.Uuid
+  studentProfileId String          @map("student_profile_id") @db.Uuid
+  semesterEndDate  DateTime        @map("semester_end_date")
+  flaggedAt        DateTime        @default(now()) @map("flagged_at") @db.Timestamptz(3)
+  status           RetentionStatus @default(PENDING)
+  reviewedAt       DateTime?       @map("reviewed_at") @db.Timestamptz(3)
+  reviewedBy       String?         @map("reviewed_by") @db.Uuid
+
+  @@unique([sourceType, sourceId])
+  @@index([status])
+  @@map("retention_flags")
 }
 
 model HolidayCalendarEntry {

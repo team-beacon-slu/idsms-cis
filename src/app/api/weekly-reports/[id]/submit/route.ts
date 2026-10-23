@@ -3,15 +3,19 @@ import { Role } from "@prisma/client";
 import {
   generateReportReferenceCode,
   getWeeklyReport,
+  recordWeeklyReportSubmission,
   validateLateSubmissionReason,
-} from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/weeklyReportService";
 import { weeklyReportSubmitSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
+import { notifyReportSubmitted } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
-// FR-WR-05 + FR-WR-10: student self-only.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+// FR-WR-05 + FR-WR-10: student self-only. The late-reason gate runs first so
+// no reference code is issued for a submission that will be rejected.
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);
@@ -23,8 +27,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { reasonForDelay } = weeklyReportSubmitSchema.parse(await req.json());
     await validateLateSubmissionReason(params.id, reasonForDelay);
-    const result = await generateReportReferenceCode(params.id);
-    return NextResponse.json(result, { status: 201 });
+    const { referenceCode, timestamp } = await generateReportReferenceCode(params.id);
+    const ipAddress = req.headers.get("x-forwarded-for");
+    const submission = await recordWeeklyReportSubmission(
+      params.id,
+      { referenceCode, timestamp, reasonForDelay },
+      user,
+      ipAddress
+    );
+    // FR-NT-01 #3 — never throws, so it can't fail the submission.
+    await notifyReportSubmitted({
+      studentUserId: user.id,
+      studentProfileId: report.studentProfileId,
+      referenceCode,
+      late: submission.late,
+    });
+    return NextResponse.json({ referenceCode, timestamp, late: submission.late }, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

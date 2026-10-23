@@ -1,0 +1,811 @@
+import { Program, Role, WeeklyReportStatus } from "@prisma/client";
+import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
+import {
+  applyScheduleChangeProspectively,
+  approveScheduleChangeCoordinator,
+  computeProjectedCompletionDate,
+  computeTotalHoursRendered,
+  configureWorkSchedule,
+  exportAttendanceLogCsv,
+  getHolidayCalendarForStudent,
+  getRequiredHoursConfig,
+  getWorkPlanStudentProfileId,
+  HolidayNotFoundError,
+  InvalidScheduleChangeCoordinatorStateError,
+  ScheduleAlreadyConfiguredError,
+  ScheduleChangePendingError,
+  ScheduleNotConfiguredError,
+  WorkPlanNotApprovedError,
+  InvalidScheduleChangeStateError,
+  listDeviationReportsForStudent,
+  logScheduleChangeHistory,
+  markHolidayApplicable,
+  MissingScheduleChangeRequestError,
+  requestScheduleChange,
+  setRequiredHoursConfig,
+  validateScheduleChangeFaculty,
+  getHoursSummary,
+  getFinalReportThreshold,
+} from "@/lib/services/attendance/attendanceService";
+import { ForbiddenError } from "@/lib/services/accounts/userService";
+
+const studentUser = { id: "student-1", role: Role.STUDENT_INTERN };
+
+beforeEach(() => {
+  resetPrismaMock();
+  prismaMock.studentProfile.findUnique.mockResolvedValue({
+    userId: "student-1",
+    classGroupId: "cg-1",
+    semesterId: "sem-1",
+  } as never);
+});
+
+describe("attendanceService — reachable and wired correctly", () => {
+  it("listDeviationReportsForStudent calls prisma with the right filter", async () => {
+    prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+    await listDeviationReportsForStudent("profile-1");
+    expect(prismaMock.deviationReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { studentProfileId: "profile-1" } })
+    );
+  });
+
+  it("getWorkPlanStudentProfileId calls prisma with the right id", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+    } as never);
+    await expect(getWorkPlanStudentProfileId("wp-1")).resolves.toBe("profile-1");
+    expect(prismaMock.workPlan.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "wp-1" } })
+    );
+  });
+});
+
+describe("setRequiredHoursConfig", () => {
+  it.each([Program.BSIT, Program.BSCS, Program.BMMA])(
+    "upserts %s and audits without changing enrolled students",
+    async (program) => {
+      prismaMock.systemConfig.upsert.mockResolvedValue({ id: "config-1" } as never);
+      await expect(setRequiredHoursConfig(program, 720, "admin-1", "127.0.0.1")).resolves.toEqual({
+        program,
+        hours: 720,
+      });
+      expect(prismaMock.systemConfig.upsert).toHaveBeenCalledWith({
+        where: { configKey: `required_hours:${program}` },
+        create: { configKey: `required_hours:${program}`, configValue: 720, updatedBy: "admin-1" },
+        update: { configValue: 720, updatedBy: "admin-1" },
+        select: { id: true },
+      });
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: "admin-1",
+            entityId: "config-1",
+            ipAddress: "127.0.0.1",
+            detail: { program, hours: 720 },
+          }),
+        })
+      );
+      expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+      expect(prismaMock.studentProfile.updateMany).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid hours %p before writing", async (hours) => {
+    await expect(setRequiredHoursConfig(Program.BSIT, hours, "admin-1")).rejects.toThrow();
+    expect(prismaMock.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown programs before writing", async () => {
+    await expect(setRequiredHoursConfig("UNKNOWN" as Program, 600, "admin-1")).rejects.toThrow();
+    expect(prismaMock.systemConfig.upsert).not.toHaveBeenCalled();
+  });
+
+  it("propagates write failure without a successful audit", async () => {
+    prismaMock.systemConfig.upsert.mockRejectedValue(new Error("Write failed"));
+    await expect(setRequiredHoursConfig(Program.BSIT, 600, "admin-1")).rejects.toThrow(
+      "Write failed"
+    );
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("getRequiredHoursConfig", () => {
+  it.each([
+    [Program.BSIT, 600],
+    [Program.BSCS, 240],
+    [Program.BMMA, 500],
+  ])("uses the documented %s default only when unset", async (program, hours) => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    await expect(getRequiredHoursConfig(program as Program)).resolves.toBe(hours);
+  });
+
+  it("reads a numeric administrator override from the program key", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: 720 } as never);
+    await expect(getRequiredHoursConfig(Program.BSIT)).resolves.toBe(720);
+    expect(prismaMock.systemConfig.findUnique).toHaveBeenCalledWith({
+      where: { configKey: "required_hours:BSIT" },
+      select: { configValue: true },
+    });
+  });
+
+  it.each([null, "600", {}, 0, -1, 1.5])(
+    "rejects malformed configured values: %p",
+    async (value) => {
+      prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: value } as never);
+      await expect(getRequiredHoursConfig(Program.BSIT)).rejects.toThrow(
+        "Invalid required-hours configuration"
+      );
+    }
+  );
+
+  it("propagates a read failure instead of treating it as an unset configuration", async () => {
+    prismaMock.systemConfig.findUnique.mockRejectedValue(new Error("Database unavailable"));
+    await expect(getRequiredHoursConfig(Program.BSIT)).rejects.toThrow("Database unavailable");
+  });
+});
+
+describe("configureWorkSchedule", () => {
+  const input = { daysOfWeek: [3, 1, 1, 2], hoursPerDay: 8 };
+
+  it("throws WorkPlanNotApprovedError when there is no APPROVED work plan", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+    await expect(configureWorkSchedule("profile-1", input, studentUser)).rejects.toThrow(
+      WorkPlanNotApprovedError
+    );
+  });
+
+  it("rejects overwriting an existing schedule (changes go through a request)", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1], hoursPerDay: 4 },
+    } as never);
+    await expect(configureWorkSchedule("profile-1", input, studentUser)).rejects.toThrow(
+      ScheduleAlreadyConfiguredError
+    );
+    expect(prismaMock.workPlan.update).not.toHaveBeenCalled();
+  });
+
+  it("writes a de-duplicated, sorted schedule and audit-logs it", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({ id: "wp-1", scheduleConfig: null } as never);
+
+    const result = await configureWorkSchedule("profile-1", input, studentUser);
+
+    expect(result.scheduleConfig).toEqual({ daysOfWeek: [1, 2, 3], hoursPerDay: 8 });
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: { scheduleConfig: { daysOfWeek: [1, 2, 3], hoursPerDay: 8 } },
+    });
+    expect(Object.keys(result.scheduleConfig)).toEqual(["daysOfWeek", "hoursPerDay"]);
+  });
+
+  it("persists the shift times when given", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({ id: "wp-1", scheduleConfig: null } as never);
+
+    await configureWorkSchedule(
+      "profile-1",
+      { daysOfWeek: [1], hoursPerDay: 8, startTime: "08:00", endTime: "17:00", breakMinutes: 60 },
+      studentUser
+    );
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: {
+        scheduleConfig: {
+          daysOfWeek: [1],
+          hoursPerDay: 8,
+          startTime: "08:00",
+          endTime: "17:00",
+          breakMinutes: 60,
+        },
+      },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "SCHEDULE_CONFIGURED", entityId: "wp-1" }),
+      })
+    );
+  });
+
+  it("refuses another student's profile", async () => {
+    await expect(
+      configureWorkSchedule("profile-1", input, { id: "student-2", role: Role.STUDENT_INTERN })
+    ).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe("holiday calendar (FR-AT-02)", () => {
+  const holidayDate = new Date("2026-11-01T00:00:00Z");
+
+  it("marks a system holiday not applicable when the student has an opt-out row for its date", async () => {
+    prismaMock.studentProfile.findUnique.mockResolvedValue({ semesterId: "sem-1" } as never);
+    prismaMock.holidayCalendarEntry.findMany
+      .mockResolvedValueOnce([
+        { id: "h-1", date: holidayDate, name: "All Saints' Day" },
+        { id: "h-2", date: new Date("2026-11-30T00:00:00Z"), name: "Bonifacio Day" },
+      ] as never)
+      .mockResolvedValueOnce([{ date: holidayDate }] as never);
+
+    const holidays = await getHolidayCalendarForStudent("profile-1");
+
+    expect(holidays).toEqual([
+      { id: "h-1", date: holidayDate, name: "All Saints' Day", applicable: false },
+      expect.objectContaining({ id: "h-2", applicable: true }),
+    ]);
+  });
+
+  it("returns an empty list for an unknown student", async () => {
+    prismaMock.studentProfile.findUnique.mockResolvedValue(null);
+    await expect(getHolidayCalendarForStudent("missing")).resolves.toEqual([]);
+  });
+
+  it("creates an opt-out row when marking a holiday not applicable", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ semesterId: "sem-1" } as never);
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue({
+      id: "h-1",
+      date: holidayDate,
+      name: "All Saints' Day",
+      holidayType: "NATIONAL",
+    } as never);
+
+    await markHolidayApplicable("profile-1", "h-1", false, studentUser);
+
+    expect(prismaMock.holidayCalendarEntry.deleteMany).toHaveBeenCalledWith({
+      where: { studentProfileId: "profile-1", date: holidayDate },
+    });
+    expect(prismaMock.holidayCalendarEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        date: holidayDate,
+        studentProfileId: "profile-1",
+        semesterId: null,
+      }),
+    });
+  });
+
+  it("only clears the opt-out when marking a holiday applicable again", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ semesterId: "sem-1" } as never);
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue({
+      id: "h-1",
+      date: holidayDate,
+    } as never);
+
+    await markHolidayApplicable("profile-1", "h-1", true, studentUser);
+
+    expect(prismaMock.holidayCalendarEntry.deleteMany).toHaveBeenCalled();
+    expect(prismaMock.holidayCalendarEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a holiday outside the student's semester", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ semesterId: "sem-1" } as never);
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
+    await expect(markHolidayApplicable("profile-1", "h-x", false, studentUser)).rejects.toThrow(
+      HolidayNotFoundError
+    );
+  });
+});
+
+describe("exportAttendanceLogCsv", () => {
+  it("emits one row per daily entry and escapes risky values", async () => {
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      {
+        reportDate: new Date("2026-10-05T00:00:00Z"),
+        scheduledHours: 8,
+        actualHours: 7.5,
+        attendanceStatus: "PRESENT",
+      },
+      {
+        reportDate: new Date("2026-10-06T00:00:00Z"),
+        scheduledHours: 8,
+        actualHours: null,
+        attendanceStatus: "=HYPERLINK(1)",
+      },
+    ] as never);
+
+    const csv = await exportAttendanceLogCsv("profile-1");
+
+    expect(csv.split("\n")).toEqual([
+      "date,scheduledHours,actualHours,creditedHours,status",
+      "2026-10-05,8,7.5,7.5,PRESENT",
+      "2026-10-06,8,,,'=HYPERLINK(1)",
+      "",
+    ]);
+  });
+
+  it("adds a credited-hours column capped by SLU rules", async () => {
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      {
+        reportDate: new Date("2026-10-05T00:00:00Z"),
+        scheduledHours: 8,
+        actualHours: 9,
+        creditedHours: null,
+        attendanceStatus: "PRESENT",
+      },
+    ] as never);
+
+    const csv = await exportAttendanceLogCsv("profile-1");
+
+    expect(csv.split("\n")[1]).toBe("2026-10-05,8,9,8,PRESENT");
+  });
+});
+
+describe("requestScheduleChange", () => {
+  const input = { reason: "New shift", newScheduleConfig: { daysOfWeek: [2, 1], hoursPerDay: 6 } };
+
+  it("appends a PENDING_FACULTY entry carrying the new schedule", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 },
+      scheduleChangeHistory: [],
+    } as never);
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({ scheduleChangeHistory: [] } as never);
+
+    const result = await requestScheduleChange("profile-1", input, studentUser);
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "PENDING_FACULTY" });
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: {
+        scheduleChangeHistory: [
+          expect.objectContaining({
+            action: "REQUESTED",
+            status: "PENDING_FACULTY",
+            reason: "New shift",
+            newScheduleConfig: { daysOfWeek: [1, 2], hoursPerDay: 6 },
+          }),
+        ],
+      },
+    });
+  });
+
+  it("keeps the shift times on the requested schedule", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },
+      scheduleChangeHistory: [],
+    } as never);
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({ scheduleChangeHistory: [] } as never);
+
+    await requestScheduleChange(
+      "profile-1",
+      {
+        reason: "New shift",
+        newScheduleConfig: {
+          daysOfWeek: [1],
+          hoursPerDay: 8,
+          startTime: "09:00",
+          endTime: "18:00",
+          breakMinutes: 60,
+        },
+      },
+      studentUser
+    );
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: {
+        scheduleChangeHistory: [
+          expect.objectContaining({
+            newScheduleConfig: {
+              daysOfWeek: [1],
+              hoursPerDay: 8,
+              startTime: "09:00",
+              endTime: "18:00",
+              breakMinutes: 60,
+            },
+          }),
+        ],
+      },
+    });
+  });
+
+  it("rejects a second request while one is still pending", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },
+      scheduleChangeHistory: [{ status: "PENDING_COORDINATOR" }],
+    } as never);
+    await expect(requestScheduleChange("profile-1", input, studentUser)).rejects.toThrow(
+      ScheduleChangePendingError
+    );
+  });
+
+  it("requires an initial schedule to exist first", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: null,
+      scheduleChangeHistory: [],
+    } as never);
+    await expect(requestScheduleChange("profile-1", input, studentUser)).rejects.toThrow(
+      ScheduleNotConfiguredError
+    );
+  });
+});
+
+describe("logScheduleChangeHistory", () => {
+  it("appends to the existing history rather than replacing it", async () => {
+    const existing = { timestamp: "t0", approverId: null, action: "REQUESTED" };
+    const entry = { timestamp: "t1", approverId: "faculty-1", action: "FACULTY_APPROVED" };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [existing],
+    } as never);
+
+    await logScheduleChangeHistory("wp-1", entry);
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith({
+      where: { id: "wp-1" },
+      data: { scheduleChangeHistory: [existing, entry] },
+    });
+  });
+});
+
+describe("validateScheduleChangeFaculty", () => {
+  it("throws InvalidScheduleChangeStateError when the request isn't PENDING_FACULTY", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [],
+    } as never);
+
+    await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeStateError
+    );
+  });
+
+  it("throws when the last logged status is something other than PENDING_FACULTY", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_COORDINATOR" }],
+    } as never);
+
+    await expect(validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeStateError
+    );
+  });
+
+  // `logScheduleChangeHistory` (bottom of this file) is B15 — a separate,
+  // still-stubbed issue owned by Kenneth — so it's a no-op here. This test
+  // only verifies validateScheduleChangeFaculty's own state-gate and return
+  // value, not that the history entry actually lands in the DB.
+  it("on APPROVE, advances to PENDING_COORDINATOR", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_FACULTY" }],
+    } as never);
+
+    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "APPROVE");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "PENDING_COORDINATOR" });
+  });
+
+  it("on REJECT, terminates the request as REJECTED", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_FACULTY" }],
+    } as never);
+
+    const result = await validateScheduleChangeFaculty("wp-1", "faculty-1", "REJECT");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "REJECTED" });
+  });
+});
+
+describe("computeTotalHoursRendered", () => {
+  it("sums actualHours across APPROVED/REGARDED weekly reports and persists it", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 8 }, { actualHours: 4.5 }] },
+      { dailyEntries: [{ actualHours: 7.25 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    const result = await computeTotalHoursRendered("profile-1");
+
+    expect(result).toBe(19.75);
+    expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          studentProfileId: "profile-1",
+          status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+        },
+      })
+    );
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: { renderedHours: 19.75 },
+    });
+    // Deliberately no audit-log assertion: this contract never says "Log via
+    // logEvent" and the function runs on every GET read, so it must not
+    // write to auditLog (see the comment above computeTotalHoursRendered).
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("sums credited hours: stored values, and legacy rows capped at scheduled", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      {
+        dailyEntries: [
+          { actualHours: 9, scheduledHours: 8, creditedHours: null, attendanceStatus: "PRESENT" },
+          { actualHours: 9.5, scheduledHours: 8, creditedHours: 7.5, attendanceStatus: "PRESENT" },
+        ],
+      },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(15.5);
+  });
+
+  it("subtracts active conduct-record hours, never below 0", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 8, scheduledHours: 8, creditedHours: 8 }] },
+    ] as never);
+    prismaMock.conductRecord.aggregate.mockResolvedValue({ _sum: { hoursDeducted: 3 } } as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(5);
+    expect(prismaMock.conductRecord.aggregate).toHaveBeenCalledWith({
+      where: { studentProfileId: "profile-1", revokedAt: null },
+      _sum: { hoursDeducted: true },
+    });
+
+    prismaMock.conductRecord.aggregate.mockResolvedValue({ _sum: { hoursDeducted: 20 } } as never);
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(0);
+  });
+
+  it("treats a null actualHours (unrecorded day) as 0", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: null }, { actualHours: 3 }] },
+    ] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(3);
+  });
+
+  it("resolves 0 when the student has no APPROVED/REGARDED weekly reports yet", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.update.mockResolvedValue({} as never);
+
+    await expect(computeTotalHoursRendered("profile-1")).resolves.toBe(0);
+  });
+});
+
+describe("computeProjectedCompletionDate", () => {
+  it("returns null when the student has no APPROVED work plan yet", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+
+    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
+  });
+
+  it("returns null when the approved work plan has no schedule configured", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({ scheduleConfig: null } as never);
+
+    await expect(computeProjectedCompletionDate("profile-1")).resolves.toBeNull();
+  });
+
+  it("returns today when required hours are already met", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 },
+    } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      { dailyEntries: [{ actualHours: 600 }] },
+    ] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 500 } as never);
+
+    const result = await computeProjectedCompletionDate("profile-1");
+
+    expect(result).toBeInstanceOf(Date);
+  });
+
+  it("projects forward using Manila-local weekdays, not raw UTC", async () => {
+    // 2026-09-10T20:00:00Z = 2026-09-11T04:00 Manila-local, a Friday.
+    // Plain getUTCDay() on the raw UTC instant would read Thursday instead —
+    // exactly the off-by-one this test guards against.
+    jest.useFakeTimers().setSystemTime(new Date("2026-09-10T20:00:00Z"));
+
+    try {
+      prismaMock.workPlan.findFirst.mockResolvedValue({
+        // Only Monday(1)/Wednesday(3) are working days.
+        scheduleConfig: { daysOfWeek: [1, 3], hoursPerDay: 8 },
+      } as never);
+      prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+      prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+        requiredHours: 16,
+      } as never);
+
+      const result = await computeProjectedCompletionDate("profile-1");
+
+      // 16 required hours / 8 per day = 2 working days needed. From a
+      // Manila Friday, the next two Mon/Wed working days are the following
+      // Monday and Wednesday — 2026-09-16 Manila-local.
+      expect(result).toEqual(new Date("2026-09-15T20:00:00.000Z"));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("does not itself persist renderedHours (no double-write alongside computeTotalHoursRendered)", async () => {
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      scheduleConfig: { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 },
+    } as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 40 } as never);
+
+    await computeProjectedCompletionDate("profile-1");
+
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyScheduleChangeProspectively", () => {
+  it("throws MissingScheduleChangeRequestError when no request entry is found", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_COORDINATOR" }],
+    } as never);
+
+    await expect(applyScheduleChangeProspectively("wp-1")).rejects.toThrow(
+      MissingScheduleChangeRequestError
+    );
+  });
+
+  it("applies the requested schedule config and returns an effective date", async () => {
+    const newScheduleConfig = { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+      scheduleChangeHistory: [
+        { status: "PENDING_FACULTY", newScheduleConfig },
+        { status: "PENDING_COORDINATOR" },
+        { status: "APPROVED" },
+      ],
+    } as never);
+
+    const result = await applyScheduleChangeProspectively("wp-1");
+
+    expect(result.workPlanId).toBe("wp-1");
+    expect(result.effectiveFrom).toBeInstanceOf(Date);
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wp-1" },
+        data: { scheduleConfig: newScheduleConfig },
+      })
+    );
+  });
+
+  it("picks the most recent history entry carrying a newScheduleConfig", async () => {
+    const olderConfig = { daysOfWeek: [1], hoursPerDay: 4 };
+    const latestConfig = { daysOfWeek: [1, 2], hoursPerDay: 6 };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+      scheduleChangeHistory: [
+        { status: "PENDING_FACULTY", newScheduleConfig: olderConfig },
+        { status: "APPLIED" },
+        { status: "PENDING_FACULTY", newScheduleConfig: latestConfig },
+        { status: "APPROVED" },
+      ],
+    } as never);
+
+    await applyScheduleChangeProspectively("wp-1");
+
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { scheduleConfig: latestConfig } })
+    );
+  });
+});
+
+describe("approveScheduleChangeCoordinator", () => {
+  it("throws InvalidScheduleChangeCoordinatorStateError when the request isn't PENDING_COORDINATOR", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_FACULTY" }],
+    } as never);
+
+    await expect(approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeCoordinatorStateError
+    );
+  });
+
+  it("throws when there is no schedule-change history at all", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [],
+    } as never);
+
+    await expect(approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE")).rejects.toThrow(
+      InvalidScheduleChangeCoordinatorStateError
+    );
+  });
+
+  it("on REJECT, terminates the request as REJECTED without applying the change", async () => {
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      scheduleChangeHistory: [{ status: "PENDING_COORDINATOR" }],
+    } as never);
+
+    const result = await approveScheduleChangeCoordinator("wp-1", "coord-1", "REJECT");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "REJECTED" });
+    // The only write is the history append — the active schedule is untouched.
+    expect(prismaMock.workPlan.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ scheduleConfig: expect.anything() }),
+      })
+    );
+  });
+
+  it("on APPROVE, advances to APPROVED and applies the schedule change prospectively", async () => {
+    const newScheduleConfig = { daysOfWeek: [1, 2, 3], hoursPerDay: 8 };
+    prismaMock.workPlan.findUniqueOrThrow.mockResolvedValue({
+      studentProfileId: "profile-1",
+      scheduleChangeHistory: [
+        { status: "PENDING_FACULTY", newScheduleConfig },
+        { status: "PENDING_COORDINATOR" },
+      ],
+    } as never);
+
+    const result = await approveScheduleChangeCoordinator("wp-1", "coord-1", "APPROVE");
+
+    expect(result).toEqual({ workPlanId: "wp-1", status: "APPROVED" });
+    expect(prismaMock.workPlan.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { scheduleConfig: newScheduleConfig } })
+    );
+  });
+});
+describe("getHoursSummary", () => {
+  it("pending hours are reported separately and never counted as confirmed", async () => {
+    // calculateRenderedHours: APPROVED/REGARDED reports only
+    prismaMock.weeklyReport.findMany
+      .mockResolvedValueOnce([{ dailyEntries: [{ actualHours: 40 }] }] as never)
+      // reports awaiting review: one submitted (counts), one draft (doesn't)
+      .mockResolvedValueOnce([
+        {
+          status: "PENDING",
+          revisionHistory: [{ type: "SUBMITTED", timestamp: "t" }],
+          dailyEntries: [{ actualHours: 8 }, { actualHours: 8 }],
+        },
+        { status: "PENDING", revisionHistory: [], dailyEntries: [{ actualHours: 8 }] },
+      ] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+
+    await expect(getHoursSummary("profile-1")).resolves.toEqual({
+      requiredHours: 600,
+      confirmedHours: 40,
+      pendingHours: 16,
+      remainingHours: 560,
+      remainingIfPendingApproved: 544,
+    });
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("pending hours use credited hours too", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValueOnce([] as never).mockResolvedValueOnce([
+      {
+        status: "PENDING",
+        revisionHistory: [{ type: "SUBMITTED", timestamp: "t" }],
+        dailyEntries: [{ actualHours: 10, scheduledHours: 8, creditedHours: null }],
+      },
+    ] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+
+    await expect(getHoursSummary("profile-1")).resolves.toEqual(
+      expect.objectContaining({ pendingHours: 8 })
+    );
+  });
+
+  it("never reports negative remaining hours", async () => {
+    prismaMock.weeklyReport.findMany
+      .mockResolvedValueOnce([{ dailyEntries: [{ actualHours: 610 }] }] as never)
+      .mockResolvedValueOnce([] as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+
+    const summary = await getHoursSummary("profile-1");
+    expect(summary.remainingHours).toBe(0);
+    expect(summary.remainingIfPendingApproved).toBe(0);
+  });
+});
+describe("getFinalReportThreshold", () => {
+  it("defaults to 500 for BSIT and 5/6 of required hours otherwise", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    await expect(getFinalReportThreshold(Program.BSIT, 600)).resolves.toBe(500);
+    await expect(getFinalReportThreshold(Program.BSCS, 240)).resolves.toBe(200);
+  });
+
+  it("uses the configured value when set", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: 450 } as never);
+    await expect(getFinalReportThreshold(Program.BSIT, 600)).resolves.toBe(450);
+  });
+});
+
+describe("getFinalReportThreshold never exceeds the student's required hours", () => {
+  it("caps the BSIT default and a configured override at requiredHours", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    await expect(getFinalReportThreshold(Program.BSIT, 486)).resolves.toBe(486);
+    prismaMock.systemConfig.findUnique.mockResolvedValue({ configValue: 700 } as never);
+    await expect(getFinalReportThreshold(Program.BSIT, 600)).resolves.toBe(600);
+  });
+});

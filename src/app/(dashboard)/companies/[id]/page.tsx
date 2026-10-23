@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { formatCalendarDate } from "@/lib/documents/html";
+import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import Link from "next/link";
 import { Role } from "@prisma/client";
 import { MapPin, Briefcase, User, Phone, ShieldCheck, Plus, Lock } from "lucide-react";
@@ -7,7 +9,7 @@ import {
   ALLOWED_MOA_TRANSITIONS,
   getCompany,
   listMoaRecordsForCompany,
-} from "@/lib/services/companyService";
+} from "@/lib/services/predeployment/companyService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -22,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CompanyVerifyToggle } from "./company-verify-toggle";
+import { CompanyForeignToggle } from "./company-foreign-toggle";
 import { MoaStatusActions } from "./moa-status-actions";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
@@ -32,8 +35,8 @@ function VerificationPill({ isVerified }: { isVerified: boolean }) {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-medium",
         isVerified
-          ? "border-green-200 bg-green-50 text-green-700 dark:border-green-500/20 dark:bg-green-500/10 dark:text-green-400"
-          : "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300"
+          ? "border-green-200 bg-green-50 text-green-700"
+          : "border-slate-200 bg-slate-100 text-slate-700"
       )}
     >
       <span
@@ -45,7 +48,8 @@ function VerificationPill({ isVerified }: { isVerified: boolean }) {
   );
 }
 
-export default async function CompanyDetailPage({ params }: { params: { id: string } }) {
+export default async function CompanyDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUserPage();
   const company = await getCompany(params.id);
   if (!company) {
@@ -62,8 +66,13 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       <Card>
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center gap-2">
-            {company.name}
+            <h1 className="text-xl font-semibold tracking-tight">{company.name}</h1>
             <VerificationPill isVerified={company.isVerified} />
+            {company.isForeign && (
+              <span className="inline-flex items-center rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-900">
+                Foreign-owned
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -73,7 +82,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
           </div>
           <div className="flex items-center gap-2 text-sm text-foreground">
             <Briefcase className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>Modality: {company.workModality}</span>
+            <span>Modality: {WORK_MODALITY_LABEL[company.workModality]}</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-foreground">
             <User className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -84,11 +93,14 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
 
           {isStaff && (
             <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-4">
-              <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="mb-3 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                 <Lock className="size-3.5" aria-hidden="true" />
                 Staff
               </div>
-              <CompanyVerifyToggle companyId={company.id} isVerified={company.isVerified} />
+              <div className="flex flex-wrap gap-2">
+                <CompanyVerifyToggle companyId={company.id} isVerified={company.isVerified} />
+                <CompanyForeignToggle companyId={company.id} isForeign={company.isForeign} />
+              </div>
             </div>
           )}
         </CardContent>
@@ -101,7 +113,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
               <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
               <CardTitle className="flex items-center gap-2">
                 MOA records
-                <span className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   <ShieldCheck className="size-3" aria-hidden="true" />
                   Staff only
                 </span>
@@ -115,7 +127,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto rounded-lg border border-border">
+            <div className="overflow-x-auto rounded-lg border border-border bg-card">
               <Table>
                 <TableCaption className="sr-only">MOA records for {company.name}</TableCaption>
                 <TableHeader>
@@ -133,8 +145,8 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                       <TableCell>
                         <StatusBadge status={moa.status} />
                       </TableCell>
-                      <TableCell>{new Date(moa.validFrom).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(moa.validTo).toLocaleDateString()}</TableCell>
+                      <TableCell>{formatCalendarDate(new Date(moa.validFrom))}</TableCell>
+                      <TableCell>{formatCalendarDate(new Date(moa.validTo))}</TableCell>
                       <TableCell>{moa.programsCovered.join(", ")}</TableCell>
                       <TableCell>
                         <MoaStatusActions

@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { ClipboardCheck, CheckCircle2, Clock3, RotateCcw } from "lucide-react";
+import { CheckCircle2, Clock3, RotateCcw } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { getChecklistProgress } from "@/lib/services/checklistService";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { getChecklistProgress } from "@/lib/services/predeployment/checklistService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import {
   Table,
   TableBody,
@@ -13,11 +14,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatStrip } from "@/components/stat-card";
+import { requirementLabel } from "@/lib/utils/requirementLabel";
 import { StatusBadge } from "@/components/status-badge";
+import { getEndorsementLetterDocument } from "@/lib/services/reports/documentService";
 import { ChecklistItemRow } from "./checklist-item-row";
+import { EndorsementLetterActions } from "./endorsement-letter-actions";
+import { StartBeforeMoa } from "./start-before-moa";
+import type { Metadata } from "next";
 
-export default async function ChecklistPage({ params }: { params: { studentProfileId: string } }) {
+export const metadata: Metadata = { title: "Checklist" };
+
+export default async function ChecklistPage(props: {
+  params: Promise<{ studentProfileId: string }>;
+}) {
+  const params = await props.params;
   const user = await requireUserPage();
 
   try {
@@ -29,7 +40,10 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
     throw error;
   }
 
-  const progress = await getChecklistProgress(params.studentProfileId);
+  const [progress, letter] = await Promise.all([
+    getChecklistProgress(params.studentProfileId),
+    getEndorsementLetterDocument(params.studentProfileId),
+  ]);
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
 
@@ -38,31 +52,53 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
-          <ClipboardCheck className="size-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Pre-Deployment Checklist
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            All 9 requirements must be Approved before the endorsement letter can be released.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Checklist"
+        description={
+          isOwner
+            ? `Pre-deployment requirements, submitted in Google Classroom. Your adviser updates each status here; ${progress.total} are required.`
+            : `Pre-deployment requirements; the ${progress.total} required ones must be approved before the endorsement letter.`
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatStrip>
         <StatCard
           label="Approved"
           value={`${progress.approvedCount} / ${progress.total}`}
           icon={CheckCircle2}
-          tone="green"
+
           hint={`${progress.percentage}% complete`}
         />
-        <StatCard label="Pending" value={pendingCount} icon={Clock3} tone="amber" />
-        <StatCard label="Returned" value={returnedCount} icon={RotateCcw} tone="red" />
-      </div>
+        <StatCard label="Pending" value={pendingCount} icon={Clock3} />
+        <StatCard label="Returned" value={returnedCount} icon={RotateCcw} />
+      </StatStrip>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Endorsement letter</CardTitle>
+              <CardDescription>
+                {progress.gateSatisfied
+                  ? "Issued by the department once all requirements are approved."
+                  : `Available once all ${progress.total} required items are approved.`}
+              </CardDescription>
+            </div>
+            <EndorsementLetterActions
+              studentProfileId={params.studentProfileId}
+              status={letter?.status ?? null}
+              canGenerate={canReview && progress.gateSatisfied}
+            />
+          </div>
+        </CardHeader>
+      </Card>
+
+      <StartBeforeMoa
+        studentProfileId={params.studentProfileId}
+        allowed={progress.startBeforeMoa.allowed}
+        reason={progress.startBeforeMoa.reason}
+        canEdit={canReview}
+      />
 
       <Card>
         <CardHeader className="gap-3">
@@ -72,10 +108,9 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
               <CardDescription>
                 {progress.gateSatisfied
                   ? "All requirements approved — endorsement letter is unblocked."
-                  : "Upload the required document for each item, then wait for review."}
+                  : `${progress.approvedCount} of ${progress.total} approved.`}
               </CardDescription>
             </div>
-            <StatusBadge status={progress.gateSatisfied ? "APPROVED" : "PENDING"} />
           </div>
           <div
             className="h-2 w-full overflow-hidden rounded-full bg-muted"
@@ -107,29 +142,40 @@ export default async function ChecklistPage({ params }: { params: { studentProfi
                 {progress.items.map((item) => (
                   <TableRow key={item.id} className="transition-colors">
                     <TableCell className="font-medium text-foreground">
-                      {item.requirementType.replaceAll("_", " ")}
+                      {requirementLabel(item.requirementType)}
+                      {!item.required && (
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                          optional
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={item.status} />
                     </TableCell>
-                    <TableCell
-                      className="max-w-[16rem] truncate text-muted-foreground"
-                      title={item.comments ?? undefined}
-                    >
-                      {item.comments ?? "—"}
+                    <TableCell className="max-w-[16rem] wrap-break-word text-muted-foreground">
+                      {item.comments
+                        ? item.status === "RETURNED"
+                          ? `Adviser's note: ${item.comments}`
+                          : item.comments
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <ChecklistItemRow
                         itemId={item.id}
-                        requirementType={item.requirementType}
                         status={item.status}
-                        hasFile={Boolean(item.filePath)}
-                        canUpload={isOwner}
                         canReview={canReview}
                       />
                     </TableCell>
                   </TableRow>
                 ))}
+                {progress.items.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                      No requirements are tracked for this intern yet. The coordinator adds them
+                      when the intern is imported.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

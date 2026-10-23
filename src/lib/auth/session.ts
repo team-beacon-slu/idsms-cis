@@ -15,8 +15,8 @@ function getSessionCookieName(): string {
 // The database-session cookie value IS the sessionToken (see authOptions.ts's
 // jwt.encode override) — reading it directly is how a Route Handler identifies
 // "this request's own session" versus every other active session for the user.
-export function getCurrentSessionToken(): string | null {
-  return cookies().get(getSessionCookieName())?.value ?? null;
+export async function getCurrentSessionToken(): Promise<string | null> {
+  return (await cookies()).get(getSessionCookieName())?.value ?? null;
 }
 
 export async function getCurrentUser() {
@@ -40,13 +40,17 @@ export async function requireUserPage() {
 
 // For Route Handlers — a redirect isn't appropriate here, so callers get a
 // typed user or a thrown error they translate into a 401/403 response.
-export async function requireUserApi() {
+export async function requireUserApi(opts: { allowPendingPasswordChange?: boolean } = {}) {
   const user = await getCurrentUser();
   if (!user) {
     throw new UnauthorizedError();
   }
   if (!user.isActive) {
     throw new UnauthorizedError("Account is inactive");
+  }
+  // FR-UM-04: the layout redirect only guards pages; the API must refuse a temporary password too.
+  if (user.mustResetPassword && !opts.allowPendingPasswordChange) {
+    throw new UnauthorizedError("Change your temporary password first");
   }
   return user;
 }

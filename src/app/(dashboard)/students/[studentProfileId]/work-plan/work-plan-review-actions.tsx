@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { sendJson } from "@/lib/utils/sendJson";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,16 +14,14 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
 
   async function review(action: "APPROVE" | "RETURN") {
     setIsPending(true);
-    const res = await fetch(`/api/work-plans/${workPlanId}/review`, {
+    const res = await sendJson(`/api/work-plans/${workPlanId}/review`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: { action },
     });
     setIsPending(false);
 
     if (!res.ok) {
-      const body = await res.json();
-      toast.error(body.error ?? "Review failed");
+      toast.error(res.error);
       return;
     }
     toast.success(action === "APPROVE" ? "Work plan approved" : "Work plan returned");
@@ -47,7 +46,7 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
         onClick={() => review("RETURN")}
         className={cn(
           "cursor-pointer gap-1.5 border-red-200 text-red-700 transition-colors duration-200 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed",
-          "dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+          "dark:border-red-500/30 dark:hover:bg-red-500/10"
         )}
       >
         <RotateCcw className="size-3.5" aria-hidden="true" />

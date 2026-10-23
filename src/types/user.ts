@@ -9,6 +9,11 @@ export interface SafeUser {
   mustResetPassword: boolean;
   lockedUntil: Date | null;
   createdAt: Date;
+  // Display name (staff set it; students' legal name is on their profile).
+  fullName: string | null;
+  // listUsers: the name to show, student legal name first, then fullName.
+  name?: string | null;
+  studentNumber?: string | null;
 }
 
 export interface BulkImportRowResult {

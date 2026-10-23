@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { FieldError, errorProps } from "@/components/field-error";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { passwordSchema } from "@/lib/validators/auth";
+import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthShell } from "@/components/auth-shell";
@@ -39,20 +41,20 @@ export default function ConfirmResetPasswordPage() {
     setError(null);
     setIsSubmitting(true);
 
-    const res = await fetch("/api/auth/reset-password/confirm", {
+    const res = await sendJson("/api/auth/reset-password/confirm", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: params.token, ...data }),
+      body: { token: params.token, ...data },
     });
 
     setIsSubmitting(false);
 
     if (!res.ok) {
-      const body = await res.json();
       setError(
-        body.error === "INVALID_OR_EXPIRED_TOKEN"
+        res.body.error === "INVALID_OR_EXPIRED_TOKEN"
           ? "This reset link is invalid or has expired. Request a new one."
-          : "Something went wrong. Please try again."
+          : res.status === 0
+            ? OFFLINE_MESSAGE
+            : "Something went wrong. Please try again."
       );
       return;
     }
@@ -71,17 +73,23 @@ export default function ConfirmResetPasswordPage() {
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
               <Label htmlFor="newPassword">New password</Label>
-              <Input id="newPassword" type="password" {...register("newPassword")} />
-              {errors.newPassword && (
-                <p className="text-sm text-destructive">{errors.newPassword.message}</p>
-              )}
+              <PasswordInput
+                id="newPassword"
+                autoComplete="new-password"
+                {...register("newPassword")}
+                {...errorProps("newPassword", errors.newPassword?.message)}
+              />
+              <FieldError id="newPassword-error" message={errors.newPassword?.message} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm password</Label>
-              <Input id="confirmPassword" type="password" {...register("confirmPassword")} />
-              {errors.confirmPassword && (
-                <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-              )}
+              <PasswordInput
+                id="confirmPassword"
+                autoComplete="new-password"
+                {...register("confirmPassword")}
+                {...errorProps("confirmPassword", errors.confirmPassword?.message)}
+              />
+              <FieldError id="confirmPassword-error" message={errors.confirmPassword?.message} />
             </div>
             {error && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

@@ -1,8 +1,12 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { Role } from "@prisma/client";
 import { createMoaRecordSchema } from "@/lib/validators/company";
-import { createMoaRecord, listMoaRecordsForCompany } from "@/lib/services/companyService";
+import {
+  createMoaRecord,
+  listMoaRecordsForCompany,
+} from "@/lib/services/predeployment/companyService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 import { MOA_BUCKET, uploadFile } from "@/lib/storage";
@@ -17,7 +21,8 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   "image/png": "png",
 };
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, STAFF_ROLES);
@@ -32,7 +37,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // (a Google Drive link, FR-MOA-03) — the assembled object is what actually
 // gets validated, so createMoaRecordSchema's "exactly one of
 // documentUrl/documentPath" refine applies uniformly either way.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, STAFF_ROLES);
@@ -50,6 +56,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // The record's id is needed to build the Storage path before the
       // record exists — generated here, passed through to createMoaRecord,
       // which uses it as the row's own primary key.
+      // The id becomes part of the storage path: check it before anything is stored.
+      z.uuid().parse(params.id);
       const moaId = randomUUID();
       const extension = EXTENSION_BY_MIME[file.type] ?? "bin";
       const path = `${params.id}/${moaId}.${extension}`;

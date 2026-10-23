@@ -1,14 +1,17 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import { FieldError, errorProps } from "@/components/field-error";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import { AlertCircle, Loader2, Lock, Mail } from "lucide-react";
 import { loginSchema } from "@/lib/validators/auth";
+import { safeInternalPath } from "@/lib/utils/safeInternalPath";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthShell } from "@/components/auth-shell";
@@ -32,7 +35,8 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  // Only same-site paths, so a crafted link can't send a signed-in user to another site.
+  const callbackUrl = safeInternalPath(searchParams.get("callbackUrl")) ?? "/";
 
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,7 +72,9 @@ function LoginForm() {
     <AuthShell>
       <Card>
         <CardHeader>
-          <CardTitle>Sign in</CardTitle>
+          <CardTitle>
+            <h1 className="text-xl font-bold tracking-tight text-brand-900">Sign in</h1>
+          </CardTitle>
           <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -77,7 +83,7 @@ function LoginForm() {
               <Label htmlFor="email">Email</Label>
               <div className="relative">
                 <Mail
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <Input
@@ -86,28 +92,27 @@ function LoginForm() {
                   autoComplete="email"
                   className="pl-9"
                   {...register("email")}
+                  {...errorProps("email", errors.email?.message)}
                 />
               </div>
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              <FieldError id="email-error" message={errors.email?.message} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  className="pl-9"
-                  {...register("password")}
-                />
-              </div>
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password.message}</p>
-              )}
+              <PasswordInput
+                id="password"
+                autoComplete="current-password"
+                className="pl-9"
+                icon={
+                  <Lock
+                    className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                }
+                {...register("password")}
+                {...errorProps("password", errors.password?.message)}
+              />
+              <FieldError id="password-error" message={errors.password?.message} />
             </div>
             {error && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -130,6 +135,15 @@ function LoginForm() {
           </p>
         </CardContent>
       </Card>
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+          Privacy notice
+        </Link>
+        {" · "}
+        <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
+          Terms of use
+        </Link>
+      </p>
     </AuthShell>
   );
 }

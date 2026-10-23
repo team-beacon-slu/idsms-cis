@@ -3,14 +3,18 @@ import { Role } from "@prisma/client";
 import {
   generateWeeklyReportForm,
   listWeeklyReportsForStudent,
-} from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/weeklyReportService";
 import { weeklyReportGenerateSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-01: manual "generate this week" fallback, student self-only.
-export async function POST(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.STUDENT_INTERN]);
@@ -23,7 +27,11 @@ export async function POST(req: NextRequest, { params }: { params: { studentProf
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: { studentProfileId: string } }) {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ studentProfileId: string }> }
+) {
+  const params = await props.params;
   try {
     const user = await requireUserApi();
     await assertCanAccessStudent(user, params.studentProfileId);

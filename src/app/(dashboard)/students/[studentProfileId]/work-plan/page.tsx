@@ -1,13 +1,18 @@
+import { formatInstant } from "@/lib/documents/html";
 import { redirect } from "next/navigation";
-import { CalendarClock, ListChecks } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { getWorkPlanHistory } from "@/lib/services/workPlanService";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { getWorkPlanHistory } from "@/lib/services/predeployment/workPlanService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Role } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkPlanSubmitForm } from "./work-plan-submit-form";
 import { WorkPlanReviewActions } from "./work-plan-review-actions";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Work plan" };
 
 const REVIEW_ROLES: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
@@ -23,7 +28,10 @@ function isTaskList(value: unknown): value is { description: string }[] {
   );
 }
 
-export default async function WorkPlanPage({ params }: { params: { studentProfileId: string } }) {
+export default async function WorkPlanPage(props: {
+  params: Promise<{ studentProfileId: string }>;
+}) {
+  const params = await props.params;
   const user = await requireUserPage();
 
   try {
@@ -48,18 +56,10 @@ export default async function WorkPlanPage({ params }: { params: { studentProfil
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
-          <ListChecks className="size-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Work Plan</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Submit planned deployment tasks for coordinator review. A returned plan can be revised
-            and resubmitted.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Work plan"
+        description="Planned deployment tasks, reviewed by the coordinator. A returned plan can be revised and resubmitted."
+      />
 
       {canSubmitNew && <WorkPlanSubmitForm studentProfileId={params.studentProfileId} />}
 
@@ -71,7 +71,7 @@ export default async function WorkPlanPage({ params }: { params: { studentProfil
                 <CardTitle>Latest work plan</CardTitle>
                 <CardDescription className="mt-1 flex items-center gap-1.5">
                   <CalendarClock className="size-3.5" aria-hidden="true" />
-                  {new Date(latest.createdAt).toLocaleString()}
+                  {formatInstant(new Date(latest.createdAt))}
                 </CardDescription>
               </div>
               <StatusBadge status={latest.status} />
@@ -79,7 +79,7 @@ export default async function WorkPlanPage({ params }: { params: { studentProfil
           </CardHeader>
           <CardContent className="space-y-4">
             {latest.status === "RETURNED" && reviewComments && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                 <p className="font-medium">Reviewer feedback</p>
                 <p className="mt-0.5">{reviewComments}</p>
               </div>
@@ -124,7 +124,7 @@ export default async function WorkPlanPage({ params }: { params: { studentProfil
                   className="flex items-center justify-between gap-3 py-2.5 text-sm"
                 >
                   <span className="text-muted-foreground">
-                    {new Date(plan.createdAt).toLocaleString()}
+                    {formatInstant(new Date(plan.createdAt))}
                   </span>
                   <StatusBadge status={plan.status} />
                 </li>

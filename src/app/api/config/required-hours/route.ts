@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Program, Role } from "@prisma/client";
-import { getRequiredHoursConfig, setRequiredHoursConfig } from "@/lib/services/attendanceService";
+import {
+  getRequiredHoursConfig,
+  setRequiredHoursConfig,
+} from "@/lib/services/attendance/attendanceService";
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";

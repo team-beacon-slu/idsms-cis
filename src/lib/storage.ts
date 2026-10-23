@@ -17,15 +17,32 @@ if (process.env.NODE_ENV !== "production") {
 
 export const CHECKLIST_BUCKET = "checklist-documents";
 export const MOA_BUCKET = "moa-documents";
+export const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
 const MAX_PDF_BYTES = 5 * 1024 * 1024; // 5MB
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
 const ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+// The browser sets file.type from the extension, so a renamed file passes it;
+// the first bytes say what the file really is.
+const SIGNATURES: Record<string, number[]> = {
+  "application/pdf": [0x25, 0x50, 0x44, 0x46], // %PDF
+  "image/jpeg": [0xff, 0xd8, 0xff],
+  "image/png": [0x89, 0x50, 0x4e, 0x47],
+};
 
 export class InvalidFileError extends Error {
   constructor(message = "Invalid file") {
     super(message);
     this.name = "InvalidFileError";
+  }
+}
+
+// Deterministic: re-rendering the same content yields the same size, so the
+// PDF retry loop must not retry it.
+export class PdfTooLargeError extends InvalidFileError {
+  constructor(message: string) {
+    super(message);
+    this.name = "PdfTooLargeError";
   }
 }
 
@@ -46,10 +63,37 @@ export function validateUpload(file: File): void {
 // accumulating orphaned versions against the 1GB free-tier cap.
 export async function uploadFile(bucket: string, path: string, file: File): Promise<string> {
   validateUpload(file);
+  const signature = SIGNATURES[file.type];
+  const head = new Uint8Array(await file.slice(0, signature.length).arrayBuffer());
+  if (!signature.every((byte, i) => head[i] === byte)) {
+    throw new InvalidFileError("The file's contents don't match its type");
+  }
 
   const { error } = await supabaseAdmin.storage.from(bucket).upload(path, file, {
     upsert: true,
     contentType: file.type,
+  });
+
+  if (error) {
+    throw new InvalidFileError(error.message);
+  }
+
+  return path;
+}
+
+// Server-generated PDFs (Module 8) arrive as Buffers, not browser Files, so
+// validateUpload()'s File-based MIME check doesn't apply — the content type
+// is fixed here and only the size cap needs enforcing.
+export async function uploadPdfBuffer(bucket: string, path: string, pdf: Buffer): Promise<string> {
+  if (pdf.byteLength > MAX_PDF_BYTES) {
+    throw new PdfTooLargeError(
+      `Generated PDF exceeds the ${MAX_PDF_BYTES / (1024 * 1024)}MB limit`
+    );
+  }
+
+  const { error } = await supabaseAdmin.storage.from(bucket).upload(path, pdf, {
+    upsert: true,
+    contentType: "application/pdf",
   });
 
   if (error) {
@@ -73,4 +117,18 @@ export async function getSignedUrl(
   }
 
   return data.signedUrl;
+}
+
+export class StorageDeleteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StorageDeleteError";
+  }
+}
+
+// Idempotent: a missing object is success, so a retried delete (or one whose
+// object is already gone) doesn't fail the caller.
+export async function deleteObject(bucket: string, path: string): Promise<void> {
+  const { error } = await supabaseAdmin.storage.from(bucket).remove([path]);
+  if (error && !/not found/i.test(error.message)) throw new StorageDeleteError(error.message);
 }
