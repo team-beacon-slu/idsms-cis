@@ -11,7 +11,11 @@ const SLU_LINKS = [
     label: "Library",
     icon: Library,
   },
-  { href: "http://dataprotection.slu.edu.ph/", label: "Data Protection Office", icon: ShieldCheck },
+  {
+    href: "https://dataprotection.slu.edu.ph/",
+    label: "Data Protection Office",
+    icon: ShieldCheck,
+  },
 ];
 
 // Help lives behind sign-in, so the public legal pages leave it out.
