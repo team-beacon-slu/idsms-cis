@@ -8,6 +8,7 @@ import { displayName } from "@/lib/utils/displayName";
 import { SiteFooter } from "@/components/site-footer";
 import { DashboardNav } from "./_components/dashboard-nav";
 import { PrivacyConsentDialog } from "./_components/privacy-consent-dialog";
+import { OfflineBanner } from "./_components/offline-banner";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUserPage();
@@ -41,6 +42,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       >
         Skip to content
       </a>
+      <OfflineBanner />
       {/* print:hidden — the weekly report preview is printed to PDF from the browser */}
       <div className="print:hidden">
         <DashboardNav

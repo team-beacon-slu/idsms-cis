@@ -14,6 +14,7 @@ import { logEvent } from "@/lib/services/accounts/auditService";
 import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
+import { requestCache } from "@/lib/utils/requestCache";
 import {
   CREDITED_HOURS_SELECT,
   entryCreditedHours,
@@ -367,6 +368,12 @@ export async function calculateRenderedHours(
   return Math.max(0, Math.round((credited - deducted) * 100) / 100);
 }
 
+// Pages ask for rendered hours from several places (hours summary, projected finish);
+// within one render they share a single computation. Transactions use the plain function.
+const renderedHoursThisRender = requestCache((studentProfileId: string) =>
+  calculateRenderedHours(studentProfileId)
+);
+
 // No `logEvent` call here on purpose: this contract (unlike the file's other
 // mutation stubs) never says "Log via logEvent" — only "Writes the result to
 // StudentProfile.renderedHours" — and this function is invoked on every GET
@@ -415,7 +422,7 @@ export async function computeProjectedCompletionDate(
   // that route already calls computeTotalHoursRendered directly alongside
   // this one.
   const [renderedHours, studentProfile] = await Promise.all([
-    calculateRenderedHours(studentProfileId),
+    renderedHoursThisRender(studentProfileId),
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: studentProfileId },
       select: { requiredHours: true },
@@ -942,8 +949,8 @@ function isSubmittedAwaitingReview(revisionHistory: unknown): boolean {
 
 // Read-only (no StudentProfile write) — safe to call on every page view.
 export async function getHoursSummary(studentProfileId: string): Promise<HoursSummary> {
-  const confirmedHours = await calculateRenderedHours(studentProfileId);
-  const [openReports, profile] = await Promise.all([
+  const [confirmedHours, openReports, profile] = await Promise.all([
+    renderedHoursThisRender(studentProfileId),
     prisma.weeklyReport.findMany({
       where: {
         studentProfileId,
