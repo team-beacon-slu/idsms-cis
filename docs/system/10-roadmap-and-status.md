@@ -54,11 +54,11 @@ Quality gates on every merge: type checking, linting, about 1,100 automated test
 ## 3. What is next
 
 1. **Adviser answers** to the [open questions](../ADVISER_QUESTIONS.md). Most have working defaults; Q5, Q7, Q10, Q15, Q17 and Q18 need an answer before launch.
-2. **Phase 5** lab hosting (Planned). Stage 1 (bringing the PR #50 Docker stack up to date) needs no lab computer; the rest waits for answers H1–H6 in the [Phase 5 plan](../plans/phase5-lab-server-hosting.md).
+2. **Phase 5** lab hosting. **Stage 1 is done** (#123): the Docker stack in `deploy/` builds and runs, and file storage can switch to MinIO with `STORAGE_DRIVER=s3`. The rest waits for answers H1–H6 in the [Phase 5 plan](../plans/phase5-lab-server-hosting.md) and a lab computer.
 
 ## 4. Phase 5 plan (Planned)
 
-- Adapt the self-hosting stack from PR #50 (Docker: Postgres + pgvector, MinIO, the app, Caddy) to a lab computer. PR #50 stays open and unmerged until then, because it replaces Supabase Storage and would break uploads today.
+- The self-hosting stack (Docker: Postgres + pgvector, MinIO, the app, a daily cron container, Caddy) is in `deploy/` and runs locally (Stage 1, #123, replacing PR #50). Supabase stays the default until cutover; the lab computer sets `STORAGE_DRIVER=s3`.
 - Make the site reachable off campus over HTTPS (outbound tunnel or an IT-provided address).
 - Migrate data and files from Supabase with count checks; keep a 2-week rollback window. Apply every file in `prisma/migrations_manual/` in order (except the Supabase-bucket files 003/004).
 - Harden: secrets rotation, re-verify the audit-log triggers, UPS and auto-restart, nightly off-site backups with a tested restore, uptime monitoring, an operations runbook.

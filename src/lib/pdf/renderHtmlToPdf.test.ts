@@ -38,6 +38,19 @@ describe("resolveBrowserLaunch", () => {
     expect(chromiumPath).not.toHaveBeenCalled();
   });
 
+  it("passes PUPPETEER_ARGS to a local browser (the Docker image's --no-sandbox)", async () => {
+    process.env.PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium";
+    process.env.PUPPETEER_ARGS = "--no-sandbox  --disable-dev-shm-usage";
+    try {
+      await expect(resolveBrowserLaunch()).resolves.toEqual({
+        executablePath: "/usr/bin/chromium",
+        args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      });
+    } finally {
+      delete process.env.PUPPETEER_ARGS;
+    }
+  });
+
   it("falls back to @sparticuz/chromium (Vercel/Linux)", async () => {
     delete process.env.PUPPETEER_EXECUTABLE_PATH;
     chromiumPath.mockResolvedValue("/tmp/chromium");

@@ -8,7 +8,11 @@ import Chromium from "@sparticuz/chromium";
 export async function resolveBrowserLaunch(): Promise<{ executablePath: string; args: string[] }> {
   const local = process.env.PUPPETEER_EXECUTABLE_PATH;
   if (local) {
-    return { executablePath: local, args: [] };
+    // The Docker image sets PUPPETEER_ARGS="--no-sandbox": Chrome as a non-root container user has no sandbox.
+    return {
+      executablePath: local,
+      args: process.env.PUPPETEER_ARGS?.split(" ").filter(Boolean) ?? [],
+    };
   }
   return { executablePath: await Chromium.executablePath(), args: Chromium.args };
 }

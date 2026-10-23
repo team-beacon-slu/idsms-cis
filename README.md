@@ -37,6 +37,10 @@
 
 Team member? See [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) for the fastest path — GitHub Codespaces needs zero local setup. Below is the local-dev path.
 
+### Just run it (Windows)
+
+Double-click **`scripts/start-idsms.cmd`**. It installs what is missing on the first run, rebuilds only when the code has changed, starts the site and opens http://localhost:3000 in your browser. Close its window to stop the site. For a desktop icon: right-click the file → **Send to** → **Desktop (create shortcut)**. It needs Node.js 24+ and a filled-in `.env` (see below).
+
 ### Prerequisites
 
 - Node.js 24+ (required — `@sparticuz/chromium` and `lint-staged` don't support Node 20)
@@ -99,6 +103,7 @@ The root holds only this README, the folders below, and the config files each to
 /.github                  # CI workflow and CONTRIBUTING.md
 /.husky, /.devcontainer   # Git hooks; Codespaces setup
 /cypress                  # End-to-end tests and their config (Phase 5)
+/deploy                   # Self-hosting stack for the lab computer: Docker, compose, runbook
 /docs                     # All documentation, including the PRD; start at docs/README.md
 /prisma                   # schema.prisma, migrations_manual/, seed scripts
 /scripts                  # One-off scripts (AI golden-set evaluation)

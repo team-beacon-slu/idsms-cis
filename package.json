@@ -26,6 +26,7 @@
     "@emnapi/wasi-threads": "1.2.1"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1156.0",
     "@hookform/resolvers": "^5.9.1",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@prisma/adapter-pg": "^7.10.1",
