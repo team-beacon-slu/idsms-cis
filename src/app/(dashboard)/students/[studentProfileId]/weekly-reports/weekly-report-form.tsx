@@ -197,11 +197,11 @@ function AddDayControl({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed p-3">
-      <div className="space-y-1">
-        <Label htmlFor={`add-day-${weeklyReportId}`} className="text-xs">
-          Add a day you worked outside your schedule
-        </Label>
+    <div className="space-y-2 rounded-lg border border-dashed p-4">
+      <Label htmlFor={`add-day-${weeklyReportId}`} className="text-xs">
+        Add a day you worked outside your schedule
+      </Label>
+      <div className="flex flex-wrap items-center gap-2">
         <Input
           id={`add-day-${weeklyReportId}`}
           type="date"
@@ -212,19 +212,18 @@ function AddDayControl({
           onChange={(e) => setDate(e.target.value)}
           className="w-44"
         />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={add}
+          disabled={disabled || busy || !date}
+          className="h-9 cursor-pointer gap-1.5 disabled:cursor-not-allowed"
+        >
+          <CalendarPlus className="size-3.5" aria-hidden="true" />
+          {busy ? "Adding..." : "Add a day"}
+        </Button>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={add}
-        disabled={disabled || busy || !date}
-        className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
-      >
-        <CalendarPlus className="size-3.5" aria-hidden="true" />
-        {busy ? "Adding..." : "Add a day"}
-      </Button>
-      <p className="w-full text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Only credited with an approved overtime request.
       </p>
     </div>
@@ -588,42 +587,42 @@ export function WeeklyReportForm({
             <div
               key={entry.id}
               className={cn(
-                "grid gap-3 rounded-lg border p-3 sm:grid-cols-[8rem_10rem_1fr]",
+                "space-y-3 rounded-lg border p-4",
                 flag && "border-amber-300 bg-amber-50/50"
               )}
             >
-              <div>
-                <p className="text-sm font-medium text-foreground">{formatDay(entry.reportDate)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {entry.scheduledHours > 0
-                    ? `${formatHrsMins(entry.scheduledHours)} scheduled`
-                    : "Not a scheduled day"}
-                </p>
-                {row.status === "PRESENT" &&
-                  row.hours !== "" &&
-                  !Number.isNaN(Number(row.hours)) && (
-                    <p className="text-xs text-muted-foreground">
-                      {formatHrsMins(Number(row.hours))} worked
-                    </p>
+              {/* One header line per day: what the day is on the left, its status on the right. */}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {formatDay(entry.reportDate)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {entry.scheduledHours > 0
+                      ? `${formatHrsMins(entry.scheduledHours)} scheduled`
+                      : "Not a scheduled day"}
+                    {row.status === "PRESENT" &&
+                      row.hours !== "" &&
+                      !Number.isNaN(Number(row.hours)) &&
+                      ` · ${formatHrsMins(Number(row.hours))} worked`}
+                    {row.dirty && <span className="text-amber-600"> · Unsaved</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {entry.scheduledHours === 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={isPending || hasDirty}
+                      onClick={() => removeAddedDay(entry)}
+                      aria-label={`Remove ${formatDay(entry.reportDate)} from this report`}
+                      className="h-8 cursor-pointer px-2 text-xs text-red-700"
+                    >
+                      Remove day
+                    </Button>
                   )}
-                {row.dirty && <p className="mt-1 text-xs text-amber-600">Unsaved</p>}
-                {entry.scheduledHours === 0 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={isPending || hasDirty}
-                    onClick={() => removeAddedDay(entry)}
-                    aria-label={`Remove ${formatDay(entry.reportDate)} from this report`}
-                    className="mt-1 h-7 cursor-pointer px-2 text-xs text-red-700"
-                  >
-                    Remove day
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <Label htmlFor={`status-${entry.id}`} className="text-xs">
+                  <Label htmlFor={`status-${entry.id}`} className="text-xs text-muted-foreground">
                     Status
                   </Label>
                   <select
@@ -649,74 +648,73 @@ export function WeeklyReportForm({
                             }
                       );
                     }}
-                    className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-2 text-sm disabled:cursor-not-allowed"
+                    className="flex h-9 w-36 cursor-pointer rounded-md border border-input bg-transparent px-2 text-sm disabled:cursor-not-allowed"
                   >
                     <option value="PRESENT">Present</option>
                     <option value="ABSENT">Absent</option>
                     <option value="HOLIDAY">Holiday</option>
                   </select>
                 </div>
-                {row.status === "PRESENT" && (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label htmlFor={`in-${entry.id}`} className="text-xs">
-                          Time in
-                        </Label>
-                        <Input
-                          id={`in-${entry.id}`}
-                          type="time"
-                          value={row.timeIn}
-                          disabled={isPending}
-                          onChange={(e) =>
-                            updateRow(entry.id, withAutoHours({ ...row, timeIn: e.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor={`out-${entry.id}`} className="text-xs">
-                          Time out
-                        </Label>
-                        <Input
-                          id={`out-${entry.id}`}
-                          type="time"
-                          value={row.timeOut}
-                          disabled={isPending}
-                          onChange={(e) =>
-                            updateRow(entry.id, withAutoHours({ ...row, timeOut: e.target.value }))
-                          }
-                        />
-                      </div>
+              </div>
+              {row.status === "PRESENT" ? (
+                <>
+                  {/* The day's times in one even row; two per row on a phone. */}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="space-y-1">
+                      <Label htmlFor={`in-${entry.id}`} className="text-xs whitespace-nowrap">
+                        Time in
+                      </Label>
+                      <Input
+                        id={`in-${entry.id}`}
+                        type="time"
+                        value={row.timeIn}
+                        disabled={isPending}
+                        onChange={(e) =>
+                          updateRow(entry.id, withAutoHours({ ...row, timeIn: e.target.value }))
+                        }
+                      />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label htmlFor={`in2-${entry.id}`} className="text-xs">
-                          Afternoon in
-                        </Label>
-                        <Input
-                          id={`in2-${entry.id}`}
-                          type="time"
-                          value={row.timeIn2}
-                          disabled={isPending}
-                          onChange={(e) =>
-                            updateRow(entry.id, withAutoHours({ ...row, timeIn2: e.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor={`out2-${entry.id}`} className="text-xs">
-                          Afternoon out
-                        </Label>
-                        <Input
-                          id={`out2-${entry.id}`}
-                          type="time"
-                          value={row.timeOut2}
-                          disabled={isPending}
-                          onChange={(e) =>
-                            updateRow(entry.id, withAutoHours({ ...row, timeOut2: e.target.value }))
-                          }
-                        />
-                      </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`out-${entry.id}`} className="text-xs whitespace-nowrap">
+                        Time out
+                      </Label>
+                      <Input
+                        id={`out-${entry.id}`}
+                        type="time"
+                        value={row.timeOut}
+                        disabled={isPending}
+                        onChange={(e) =>
+                          updateRow(entry.id, withAutoHours({ ...row, timeOut: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`in2-${entry.id}`} className="text-xs whitespace-nowrap">
+                        Afternoon in
+                      </Label>
+                      <Input
+                        id={`in2-${entry.id}`}
+                        type="time"
+                        value={row.timeIn2}
+                        disabled={isPending}
+                        onChange={(e) =>
+                          updateRow(entry.id, withAutoHours({ ...row, timeIn2: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`out2-${entry.id}`} className="text-xs whitespace-nowrap">
+                        Afternoon out
+                      </Label>
+                      <Input
+                        id={`out2-${entry.id}`}
+                        type="time"
+                        value={row.timeOut2}
+                        disabled={isPending}
+                        onChange={(e) =>
+                          updateRow(entry.id, withAutoHours({ ...row, timeOut2: e.target.value }))
+                        }
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor={`hours-${entry.id}`} className="text-xs">
@@ -733,64 +731,65 @@ export function WeeklyReportForm({
                         onChange={(e) => updateRow(entry.id, { hours: e.target.value })}
                       />
                     </div>
-                  </>
-                )}
-              </div>
-              <div className="space-y-2">
-                {row.status === "PRESENT" ? (
-                  <>
+                  </div>
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
                     <div className="space-y-1">
                       <Label htmlFor={`acc-${entry.id}`} className="text-xs">
                         Accomplishments
                       </Label>
                       <Textarea
                         id={`acc-${entry.id}`}
-                        rows={2}
+                        rows={3}
                         value={row.accomplishments}
                         disabled={isPending}
                         onChange={(e) => updateRow(entry.id, { accomplishments: e.target.value })}
                         placeholder="What did you work on and finish today?"
                       />
                     </div>
-                    <Input
-                      aria-label={`Tools used on ${formatDay(entry.reportDate)}`}
-                      value={row.toolsUsed}
-                      disabled={isPending}
-                      onChange={(e) => updateRow(entry.id, { toolsUsed: e.target.value })}
-                      placeholder="Tools used (optional) — e.g. VS Code, Figma"
-                    />
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {row.status === "HOLIDAY" ? HOLIDAY_LABEL : "Absent"} — counts 0 hours; no
-                    accomplishments needed.
-                  </p>
-                )}
-                {flag && (
-                  <p className="flex items-center gap-1.5 text-xs text-amber-700">
-                    <AlertTriangle className="size-3.5" aria-hidden="true" />
-                    {flag} — please describe this day&apos;s work in your own words.
-                  </p>
-                )}
-                {rowGaps(entry, row).map((gap) => (
-                  <p key={gap.kind} className="flex items-center gap-1.5 text-xs text-amber-700">
-                    <AlertTriangle className="size-3.5" aria-hidden="true" />
-                    {gap.kind === "late" ? "Late arrival" : "Early leave"}: file an undertime
-                    request —{" "}
-                    <Link
-                      href={`/leave-requests?${new URLSearchParams({
-                        deviationType: "UNDERTIME",
-                        date: entry.reportDate.slice(0, 10),
-                        startTime: gap.start,
-                        endTime: gap.end,
-                      })}`}
-                      className="underline"
-                    >
-                      open the request form
-                    </Link>
-                  </p>
-                ))}
-              </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`tools-${entry.id}`} className="text-xs">
+                        Tools used <span className="text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Input
+                        id={`tools-${entry.id}`}
+                        value={row.toolsUsed}
+                        disabled={isPending}
+                        onChange={(e) => updateRow(entry.id, { toolsUsed: e.target.value })}
+                        placeholder="e.g. VS Code, Figma"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {row.status === "HOLIDAY" ? HOLIDAY_LABEL : "Absent"} — counts 0 hours; no
+                  accomplishments needed.
+                </p>
+              )}
+              {flag && (
+                <p className="flex items-center gap-1.5 text-xs text-amber-700">
+                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                  {flag} — please describe this day&apos;s work in your own words.
+                </p>
+              )}
+              {rowGaps(entry, row).map((gap) => (
+                <p key={gap.kind} className="flex items-center gap-1.5 text-xs text-amber-700">
+                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                  {gap.kind === "late" ? "Late arrival" : "Early leave"}: file an undertime request
+                  —{" "}
+                  <Link
+                    href={`/leave-requests?${new URLSearchParams({
+                      deviationType: "UNDERTIME",
+                      date: entry.reportDate.slice(0, 10),
+                      startTime: gap.start,
+                      endTime: gap.end,
+                    })}`}
+                    className="underline"
+                  >
+                    open the request form
+                  </Link>
+                </p>
+              ))}
             </div>
           );
         })}
