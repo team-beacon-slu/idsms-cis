@@ -60,6 +60,7 @@ Versions from `package.json` (caret ranges as declared).
 
 ```text
 .config/prisma.ts              Prisma CLI config (database URL for the CLI, schema location)
+deploy/                        self-hosting stack: Dockerfile, docker-compose.yml, Caddyfile, OPERATIONS.md
 prisma/
   schema.prisma                data model (single source for tables Prisma manages)
   migrations_manual/           001–015 hand-run SQL, applied in number order
@@ -86,7 +87,7 @@ src/
     pdf/                       renderHtmlToPdf.ts (Puppeteer)
     validators/                zod schemas
     utils/                     small pure helpers (deadlines, Excel, names, labels, safe paths)
-    storage.ts                 the only module that talks to object storage
+    storage.ts                 the only module that talks to object storage (STORAGE_DRIVER: supabase | s3)
   testUtils/                   shared Jest helpers (Prisma mock)
   types/                       shared TypeScript types
 docs/                          all documentation, catalogued in docs/README.md

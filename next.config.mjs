@@ -5,6 +5,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The Docker image (deploy/Dockerfile) builds a self-contained server; everywhere
+  // else `next start` is used, which does not support standalone output.
+  ...(process.env.NEXT_OUTPUT === "standalone" && { output: "standalone" }),
   // The app never uses next/image. With `unoptimized`, /_next/image answers 404 before any
   // decoding, which closes the GHSA-2xp9 image-optimizer RCE surface on 14.x.
   images: { unoptimized: true },

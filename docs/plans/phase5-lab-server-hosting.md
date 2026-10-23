@@ -48,7 +48,17 @@ Each stage ends with a check that must pass before the next one starts.
 - `docker run hello-world`, plus an outbound check: `curl -I https://api.resend.com`, `curl -I https://generativelanguage.googleapis.com`.
 - **Check:** Docker runs; outbound HTTPS works or is documented as blocked.
 
-### Stage 1: Bring PR #50 up to date with Phase 4 (1–2 days, on a dev laptop)
+### Stage 1: Bring PR #50 up to date with Phase 4 (1–2 days, on a dev laptop) — **Done 23 October 2026**
+
+Done by porting PR #50 onto `develop` (not a rebase), then building and running the stack locally. Result:
+
+- `src/lib/storage.ts` has a `STORAGE_DRIVER` switch: `supabase` (default, unchanged) or `s3` (MinIO). Every Phase 4 behaviour is kept on both: upload checks, `uploadPdfBuffer`, deletes, and signed links. On S3, signed links go through `/api/storage/download` and are absolute, because `NextResponse.redirect` needs that.
+- `/api/health` checks the database. The stack lives in `deploy/`: `Dockerfile` (standalone build, Alpine Chromium, non-root), `docker-compose.yml` (Postgres + pgvector, MinIO, bucket setup for all three buckets, app, the daily `cron` service, Caddy), `Caddyfile` and `OPERATIONS.md`. The data migration guide is [phase5-migrate-from-supabase.md](phase5-migrate-from-supabase.md).
+- **MinIO images:** MinIO stopped publishing community images. Docker Hub removed them in September 2026 and quay.io now refuses anonymous pulls. The stack uses Chainguard's free MinIO build, pinned by digest. On Docker Desktop that build only runs as root (see the comment in the compose file); check again on the lab computer.
+- **Verified locally:** the image builds (about 1.5 GB, mostly Chromium) and the stack becomes healthy. `/api/health` reports ok, the sign-in page renders, and a file put in MinIO downloads through a signed link (a tampered link gets 403). Chromium in the container renders PDFs. The cron container reaches the cron route (wrong secret 401).
+- **Still open (needs the H answers):** the `cloudflared` tunnel or an IT-provided address.
+
+Original task list, kept for reference:
 
 - Rebase `feature/vm-migration-artifacts` onto `develop` after the Phase 4 freeze, and resolve conflicts:
   - `storage.ts` must keep Phase 4's `uploadPdfBuffer` and signed-URL behaviour on top of S3.
