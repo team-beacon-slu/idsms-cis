@@ -9,6 +9,8 @@ declare module "next-auth" {
       role: Role;
       isActive: boolean;
       mustResetPassword: boolean;
+      fullName: string | null;
+      privacyConsentVersion: string | null;
     };
   }
 
@@ -18,5 +20,7 @@ declare module "next-auth" {
     role: Role;
     isActive: boolean;
     mustResetPassword: boolean;
+    fullName?: string | null;
+    privacyConsentVersion?: string | null;
   }
 }
