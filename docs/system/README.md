@@ -47,13 +47,13 @@ Every feature in these documents carries one of three labels:
 - **Internship coordinator:** 02, 05, 13 and 07.
 - **Students:** 03 (and 07 for the hours and deadline rules).
 - **Designers:** 15, then 13.
-- **IT office or future maintainer:** 08, 14, 09 and 06, then 13, the source code and `PRD.md`.
+- **IT office or future maintainer:** 08, 14, 09 and 06, then 13, the source code and `docs/PRD.md`.
 
 ## Sources of truth
 
 These documents summarise, and must stay consistent with:
 
-- `PRD.md`: product requirements (the `FR-` and `NFR-` IDs cited throughout).
+- `docs/PRD.md`: product requirements (the `FR-` and `NFR-` IDs cited throughout).
 - `docs/plans/` (active plans) and `docs/archive/` (the executed roadmap, workstream plans and designs).
 - The code itself (`prisma/schema.prisma`, `src/app`, `src/lib`), which is the final word on what is built.
 

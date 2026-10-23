@@ -1,6 +1,6 @@
 # Contributing to IDSMS-CIS
 
-Team Beacon capstone (IT 321). This doc covers how to get set up and how we work — not the product spec, which lives in [`PRD.md`](./PRD.md).
+Team Beacon capstone (IT 321). This doc covers how to get set up and how we work — not the product spec, which lives in [`PRD.md`](../docs/PRD.md).
 
 ## Getting added
 
