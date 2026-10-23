@@ -35,7 +35,7 @@
 
 ## 📦 Getting Started
 
-Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path — GitHub Codespaces needs zero local setup. Below is the local-dev path.
+Team member? See [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) for the fastest path — GitHub Codespaces needs zero local setup. Below is the local-dev path.
 
 ### Prerequisites
 
@@ -92,7 +92,16 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
 
 ## 📂 Project Structure
 
+The root holds only this README, the folders below, and the config files each tool must find at the top level (`package.json`, `tsconfig.json`, `next.config.mjs`, `postcss.config.mjs`, `eslint.config.mjs`, `jest.config.ts`, `components.json` for shadcn/ui, `vercel.json`). `AGENTS.md` is written by `next dev`.
+
 ```text
+/.config                  # Prisma CLI config (prisma.ts)
+/.github                  # CI workflow and CONTRIBUTING.md
+/.husky, /.devcontainer   # Git hooks; Codespaces setup
+/cypress                  # End-to-end tests and their config (Phase 5)
+/docs                     # All documentation, including the PRD; start at docs/README.md
+/prisma                   # schema.prisma, migrations_manual/, seed scripts
+/scripts                  # One-off scripts (AI golden-set evaluation)
 /src
   /app                    # Next.js App Router: (auth), (legal), (dashboard) pages and /api routes
     /(dashboard)/_components  # The signed-in shell: menu, account menu, bell, role dashboards
@@ -104,11 +113,8 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
     /utils                # Helper functions and formatters
     /validators           # Zod schemas for input validation
   /types                  # TypeScript type definitions
-  /testUtils              # Shared Jest helpers (Prisma mock)
+  /testUtils              # Shared Jest helpers (Prisma mock, Jest setup)
   proxy.ts                # Route protection and the CSP nonce (Next 16's middleware)
-/prisma                   # schema.prisma and migrations_manual/ (hand-run SQL)
-/docs                     # All documentation; start at docs/README.md
-/scripts                  # One-off scripts (AI golden-set evaluation)
 ```
 
 ---

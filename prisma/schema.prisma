@@ -1,5 +1,5 @@
 // IDSMS-CIS Prisma schema
-// 18 tables per PRD.md v1.3 Database Schema section (16 domain tables + sessions/accounts
+// 18 tables per docs/PRD.md v1.3 Database Schema section (16 domain tables + sessions/accounts
 // added in v1.3 for NextAuth's database session strategy — see FR-UM-11).
 //
 // The `vector` extension and the audit_logs append-only RLS policy must be applied via
@@ -9,7 +9,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Connection URLs live in prisma.config.ts (CLI) and src/lib/prisma.ts (app) since Prisma 7.
+// Connection URLs live in .config/prisma.ts (CLI) and src/lib/prisma.ts (app) since Prisma 7.
 datasource db {
   provider = "postgresql"
 }
