@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
-The coordinator oversees the whole department. The left menu shows: **Dashboard, Users, Semesters, Companies, Calendar, Profile**, plus the notification bell and **Sign out**. The coordinator can open every student's pages (checklist, work plan, attendance, weekly and monthly reports) from the dashboard or the Users list.
+The coordinator oversees the whole department. The left menu shows **Dashboard**; **Manage:** Users, Class groups, Semesters, Final reports; **Reference:** Companies, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office. The coordinator can open every student's pages (checklist, work plan, attendance, weekly and monthly reports) from the dashboard or the Users list.
 
 ## 1. Department dashboard (`/`)
 
@@ -65,15 +65,15 @@ Coordinators receive MOA expiry warnings. Email copies arrive once SLU provides 
 
 ## 10. Coming later
 
-| Feature                                                                                                            | Status                                 |
-| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| SLU credited-hours rules, Leave & Time Requests, SLU weekly report layout                                          | **In progress** (L1)                   |
-| Choose required checklist items; new items; per-student endorsement override (adviser or coordinator, with reason) | **Planned** (Checklist & MOA settings) |
-| Class group screens: create, rename, delete class groups; assign advisers per semester                             | **Built**                              |
-| Conduct records and the SLU deduction matrix; "Excused" exceptions                                                 | **Built** (L2)                         |
-| Final Technical Report review (approve or return), HTE evaluation, certificates                                    | **Built** (H)                          |
-| Department events (orientation, medical exam, psych assessment) on students' calendars                             | Backlog                                |
-| Monitoring log of supervisor checks and OJT visitations                                                            | Backlog (Q13)                          |
+| Feature                                                                                                            | Status           |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| SLU credited-hours rules, Leave & Time Requests, SLU weekly report layout                                          | **Built** (#87)  |
+| Choose required checklist items; new items; per-student endorsement override (adviser or coordinator, with reason) | **Built** (#105) |
+| Class group screens: create, rename, delete class groups; assign advisers per semester                             | **Built**        |
+| Conduct records and the SLU deduction matrix; "Excused" exceptions                                                 | **Built** (L2)   |
+| Final Technical Report review (approve or return), HTE evaluation, certificates                                    | **Built** (H)    |
+| Department events (orientation, medical exam, psych assessment) on students' calendars                             | Backlog          |
+| Monitoring log of supervisor checks and OJT visitations                                                            | Backlog (Q13)    |
 
 ## 11. Tips
 

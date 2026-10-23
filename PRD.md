@@ -641,7 +641,7 @@ To ensure systematic delivery, mitigate risks, and accommodate the 8-person caps
 > Phase 5, plus Module 7 (Final Technical Report). Phase 5 is reserved for hosting on the
 > dedicated lab server, optimization, hardening and UAT. Execution order (PDF generation first, AI
 > last) and the per-workstream implementation plans are in
-> `docs/superpowers/plans/2026-10-11-phase4-roadmap.md`.
+> `docs/archive/plans/2026-10-11-phase4-roadmap.md`.
 
 **Objective:** Deliver all remaining product functionality so the system is feature-complete before hosting migration.  
 **Duration:** ≈3 Weeks  
@@ -674,7 +674,7 @@ Original Phase 4 task list (retained; all items are covered by the workstreams a
 > **Re-scoped 2026-10-11 (PM decision):** the system moves off Vercel + managed Supabase onto a
 > **dedicated computer in the lab** that hosts the database, file storage and the website. The
 > former Phase 5 feature items (dashboards, Export Center, DSAR, retention) moved to Phase 4.
-> Phase 5 adds no product features. Plan: `docs/superpowers/plans/2026-10-11-phase5-lab-server-hosting.md`.
+> Phase 5 adds no product features. Plan: `docs/plans/phase5-lab-server-hosting.md`.
 
 **Objective:** Run the feature-complete system reliably on the lab server, reachable by off-campus interns, then validate it with users.  
 **Duration:** ≈2 Weeks  

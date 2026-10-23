@@ -4,21 +4,10 @@ import { notify } from "@/lib/services/notify";
 import { getAssignedFacultyIds } from "@/lib/services/notificationRecipients";
 import { WeeklyReportStatusEmail } from "@/components/emails/weekly-report-status-email";
 
-// FR-WR-07 — Owner: Rhaastas (org invite pending — GitHub issue #27
-// created unassigned; assign once they accept)
-// Requirement: Faculty and students must receive email notifications when
-// reports are approved or returned.
-// Connects to: called by PATCH /api/weekly-reports/[id]/review (Task 12
-// route) right after `reviewWeeklyReport_Approve`/`_Return`/`_Regard`/
-// `_Disregard` (`weeklyReportService.ts`, Task 4) returns. Should use
-// Resend + React Email per FR-NT-04's convention (Module 11) — no existing
-// Resend client/template setup exists in this codebase yet (Module 11 is
-// out of scope for Phase 3), so the real implementation likely needs that
-// infrastructure stood up first; flag that dependency rather than silently
-// blocking on it.
-// Edge cases: none specific to this stub — the "sent: false" placeholder
-// intentionally never fails the calling route (the review action itself
-// must still succeed even if email delivery isn't implemented yet).
+// FR-WR-07: faculty and students are notified when a weekly report is
+// approved, returned or regarded. Called by PATCH /api/weekly-reports/[id]/review
+// right after the review action returns. Never throws: a failed notification
+// must not fail the review itself, so problems come back as `sent: false`.
 export async function sendReportStatusEmail(
   weeklyReportId: string,
   action: "APPROVE" | "RETURN" | "REGARD" | "DISREGARD"

@@ -327,11 +327,8 @@ function getManilaWeekStart(date: Date): Date {
   return new Date(manilaMidnight - daysSinceMonday * 24 * 60 * 60 * 1000 - MANILA_OFFSET_MS);
 }
 
-// No SystemConfig-lookup precedent exists yet for this kind of threshold
-// (getRequiredHoursConfig, the pattern this contract points at, is itself
-// still a stub) — hardcoded documented default per the "implementer's
-// call" allowance this contract shares with `detectHighVolumeSubmissionWeeks`
-// above. Revisit if/when a coordinator-configurable threshold is needed.
+// Hardcoded default, like `detectHighVolumeSubmissionWeeks` above. Move it to
+// SystemConfig if a coordinator ever needs to change it.
 const ENDORSEMENT_SPIKE_THRESHOLD = 3;
 
 // Pass `events` (the coordinator view, which already holds every active

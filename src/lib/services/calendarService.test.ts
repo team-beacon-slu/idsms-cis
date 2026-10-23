@@ -267,9 +267,7 @@ describe("detectEndorsementLetterSpikes", () => {
   });
 });
 
-describe("calendarService stubs — reachable and wired correctly", () => {
-  // TODO(JayPing23): replace each of these placeholder-return assertions
-  // once the real logic behind it lands.
+describe("calendarService — reachable and wired correctly", () => {
   it("colorCodeCalendarEvents applies the FR-CAL-01 color scheme without mutating input", () => {
     const date = new Date();
     const events = [

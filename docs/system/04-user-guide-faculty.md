@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
-A faculty adviser sees only the students in the class groups they are assigned to for a semester. The left menu shows: **Dashboard, Companies, Calendar, My Students, Profile**, plus the notification bell and **Sign out**. Student pages (checklist, work plan, attendance, weekly and monthly reports) open from the dashboard or **My Students**.
+A faculty adviser sees only the students in the class groups they are assigned to for a semester. The left menu shows **Dashboard** and **My students**, then **Reference:** Companies, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office. Student pages (checklist, work plan, attendance, weekly and monthly reports) open from the dashboard or **My students**.
 
 Class groups and class group assignments (which adviser handles which class group in which semester) are managed by the coordinator or Super Admin on the **Class groups** page. When an intern requests a schedule change, you get a notification; validate or reject it on the intern's **Attendance** page.
 

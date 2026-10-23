@@ -40,9 +40,7 @@ beforeEach(() => {
   } as never);
 });
 
-describe("attendanceService stubs — reachable and wired correctly", () => {
-  // TODO(JayPing23): replace each of these placeholder-return assertions
-  // once the real logic behind it lands (see PHASE3_TASKS.md for owners).
+describe("attendanceService — reachable and wired correctly", () => {
   it("listDeviationReportsForStudent calls prisma with the right filter", async () => {
     prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
     await listDeviationReportsForStudent("profile-1");

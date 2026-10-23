@@ -15,5 +15,7 @@ export default defineConfig([
     "next-env.d.ts",
     ".claude/**",
     ".playwright-mcp/**",
+    ".remember/**",
+    ".taste-skill/**",
   ]),
 ]);

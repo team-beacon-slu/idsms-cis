@@ -110,9 +110,7 @@ describe("reviewWeeklyReport_Return", () => {
   });
 });
 
-describe("weeklyReportService stubs — reachable and wired correctly", () => {
-  // TODO(JayPing23): replace each of these placeholder-return assertions
-  // once the real logic behind it lands (see PHASE3_TASKS.md for owners).
+describe("weeklyReportService — reachable and wired correctly", () => {
   it("generateReportPdfPreview resolves a null preview for an unknown report", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue(null);
     await expect(generateReportPdfPreview("wr-1")).resolves.toEqual({ previewUrl: null });

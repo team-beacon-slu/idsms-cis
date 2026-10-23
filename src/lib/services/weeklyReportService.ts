@@ -800,7 +800,7 @@ export async function recordWeeklyReportSubmission(
 // `attendanceService.computeTotalHoursRendered` +
 // `computeProjectedCompletionDate` (Task 3) afterward, since this report's
 // hours now count toward both. The route also calls
-// `notificationService.sendReportStatusEmail` (Task 8) after this returns.
+// `notificationService.sendReportStatusEmail` after this returns.
 // Edge cases: none beyond the status transition itself.
 export class WeeklyReportNotAwaitingReviewError extends Error {
   constructor(
@@ -954,26 +954,16 @@ export async function reviewWeeklyReport_Regard(
 // `computeTotalHoursRendered`. Must clear/reset the row so
 // `generateWeeklyReportForm` above can regenerate a fresh form for that
 // week without violating the `[studentProfileId, weekStart]` unique constraint.
-// Edge cases: deciding "clear vs. delete-and-recreate" for the DISREGARDED
-// row is this function's actual design work — document the choice here for
-// `generateWeeklyReportForm`'s implementer.
 //
-// Design choice for the edge case above: delete-and-recreate. A DISREGARDED
-// report is never displayed again (excluded from every downstream read) and
-// carries no state worth preserving, so the simplest way to free up
-// `[studentProfileId, weekStart]` for a fresh row is to delete this one
-// outright — `generateWeeklyReportForm` (still a stub, owned by
-// Shantea23/Task 4) then needs no special-case handling for a leftover
-// DISREGARDED row; its plain `create` just works. `DailyReportEntry` has no
-// `onDelete: Cascade` back to `WeeklyReport` (see schema.prisma), so its rows
-// are deleted first, in the same transaction. The audit row keeps the deleted
-// report's id, since there's no surviving row to attach a `facultyAction` note to.
-// Flag for whoever implements FR-WR-07 (`sendReportStatusEmail`, issue #27,
-// still unassigned): the review route calls it with only `weeklyReportId`
-// right after this function returns, for every action including DISREGARD —
-// by then the row is already gone, so that implementation must not assume
-// the row still exists when `action === "DISREGARD"` (build that email from
-// the id + action alone, don't `findUnique`/`findUniqueOrThrow` it).
+// Design choice: delete-and-recreate. A DISREGARDED report is never displayed
+// again (excluded from every downstream read) and carries no state worth
+// preserving, so deleting it frees `[studentProfileId, weekStart]` and
+// `generateWeeklyReportForm`'s plain `create` just works. `DailyReportEntry`
+// has no `onDelete: Cascade` back to `WeeklyReport` (see schema.prisma), so its
+// rows are deleted first, in the same transaction. The audit row keeps the
+// deleted report's id, since there's no surviving row to attach a note to.
+// The review route then calls `sendReportStatusEmail` with the id, after the
+// row is gone, which is why that function returns early for DISREGARD.
 export async function reviewWeeklyReport_Disregard(
   weeklyReportId: string,
   facultyId: string,
