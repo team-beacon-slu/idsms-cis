@@ -10,6 +10,13 @@ function createClient() {
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
     connectionTimeoutMillis: 20_000,
+    // A new connection to the Supabase pooler costs ~460 ms; pg closes idle ones after
+    // 10 s by default, so after any pause the next click paid that. Keep them 5 minutes.
+    idleTimeoutMillis: 300_000,
+    keepAlive: true,
+    // One long-running server (dev PC, lab PC). Lower it if the app ever runs as many
+    // serverless instances, which would otherwise exhaust the pooler.
+    max: Number(process.env.PG_POOL_MAX) || 10,
   });
   return new PrismaClient({ adapter });
 }

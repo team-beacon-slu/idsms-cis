@@ -17,17 +17,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   // Who is signed in: a student's legal name, else the account's display name (015), else the email.
-  const [profile, consent, cookieStore] = await Promise.all([
+  // The consent version and display name come with the session (authOptions), so only a
+  // student's legal name needs a query here.
+  const consent = { privacyConsentVersion: user.privacyConsentVersion, fullName: user.fullName };
+  const [profile, cookieStore] = await Promise.all([
     user.role === Role.STUDENT_INTERN
       ? prisma.studentProfile.findUnique({
           where: { userId: user.id },
           select: { fullName: true },
         })
       : null,
-    prisma.user.findUnique({
-      where: { id: user.id },
-      select: { privacyConsentVersion: true, fullName: true },
-    }),
     cookies(),
   ]);
   // Set by the sidebar's collapse button (dashboard-nav.tsx).

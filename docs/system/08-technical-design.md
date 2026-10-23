@@ -63,7 +63,7 @@ Versions from `package.json` (caret ranges as declared).
 deploy/                        self-hosting stack: Dockerfile, docker-compose.yml, Caddyfile, OPERATIONS.md
 prisma/
   schema.prisma                data model (single source for tables Prisma manages)
-  migrations_manual/           001–015 hand-run SQL, applied in number order
+  migrations_manual/           001–016 hand-run SQL, applied in number order
   seed-holidays.ts             Philippine holidays seed
 src/
   proxy.ts                     route protection and the CSP nonce (Next 16's middleware)
@@ -360,6 +360,7 @@ Prisma manages tables with `prisma db push` (there is no Prisma migrations histo
 | `013_privacy_consent.sql`                | When each user agreed to the privacy notice, and which version.                                                                                                                                                                                   |
 | `014_checklist_moa_settings.sql`         | Checklist and MOA settings: new checklist items, start-before-MOA override, MOA Drive link, foreign HTE flag. Run in **two** passes (see the file).                                                                                               |
 | `015_user_full_name.sql`                 | `users.full_name`: a display name for staff accounts.                                                                                                                                                                                             |
+| `016_role_timeouts.sql`                  | `statement_timeout` 15 s and `idle_in_transaction_session_timeout` 30 s for the app's role (`CURRENT_USER`, so the same file works on the lab stack).                                                                                             |
 
 **The rule:** run `prisma db push`, then re-run every manual SQL file in order, because `db push` can drop indexes it does not know about. Migration 007 means users can never be hard-deleted (the audit log's foreign key would need an UPDATE); the app only deactivates users. New manual migrations are applied to a database only with the PM's approval.
 

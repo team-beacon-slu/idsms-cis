@@ -102,6 +102,9 @@ export const authOptions: NextAuthOptions = {
       session.user.role = user.role;
       session.user.isActive = user.isActive;
       session.user.mustResetPassword = user.mustResetPassword;
+      // Already loaded with the session row, so the layout needs no extra query for them.
+      session.user.fullName = user.fullName ?? null;
+      session.user.privacyConsentVersion = user.privacyConsentVersion ?? null;
       return session;
     },
   },
