@@ -167,15 +167,29 @@ export default async function AccountSettingsPage() {
           <CardTitle>Privacy</CardTitle>
           <CardDescription>What you agreed to when you started using IDSMS.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <p className="text-sm text-foreground">
             {consent?.privacyConsentAt
-              ? `You agreed to the data privacy notice on ${fmtDate(consent.privacyConsentAt)}${
+              ? `You agreed to the privacy notice and terms of use on ${fmtDate(consent.privacyConsentAt)}${
                   consent.privacyConsentVersion === PRIVACY_NOTICE_VERSION
                     ? " (the current version)."
                     : ". A newer version will be shown for you to review."
                 }`
-              : "You haven't agreed to the data privacy notice yet. It is shown when you sign in."}
+              : "You haven't agreed to the privacy notice and terms of use yet. They are shown when you sign in."}
+          </p>
+          <p className="flex gap-4 text-sm">
+            <Link
+              href="/privacy"
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Read the privacy notice
+            </Link>
+            <Link
+              href="/terms"
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Read the terms of use
+            </Link>
           </p>
         </CardContent>
       </Card>

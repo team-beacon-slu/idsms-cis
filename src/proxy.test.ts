@@ -17,7 +17,13 @@ it("gives signed-in pages a fresh nonce-based script policy", () => {
 });
 
 it("protects the public sign-in pages too, without redirecting them", () => {
-  for (const path of ["/login", "/auth/reset-password", "/auth/reset-password/abc"]) {
+  for (const path of [
+    "/login",
+    "/auth/reset-password",
+    "/auth/reset-password/abc",
+    "/privacy",
+    "/terms",
+  ]) {
     const res = proxy(get(path));
     expect(res.headers.get("location")).toBeNull();
     expect(res.headers.get("Content-Security-Policy")).toContain("'strict-dynamic'");

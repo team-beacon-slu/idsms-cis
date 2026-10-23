@@ -10,7 +10,7 @@ function getSessionCookieName(): string {
 }
 
 // Pages anyone may open; they still get the CSP below.
-const PUBLIC_PATHS = ["/login", "/auth/reset-password"];
+const PUBLIC_PATHS = ["/login", "/auth/reset-password", "/privacy", "/terms"];
 const isPublic = (path: string) => PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
 // Only scripts carrying this request's nonce run (Next adds it to its own scripts),

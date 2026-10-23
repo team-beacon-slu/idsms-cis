@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { ChevronsUpDown, LogOut, UserCog } from "lucide-react";
+import { ChevronsUpDown, FileText, LogOut, ShieldCheck, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/avatar";
 import { ThemeChoice } from "@/components/theme-toggle";
@@ -104,6 +104,16 @@ export function AccountMenu({ identity, rail }: { identity: AccountIdentity; rai
           <div className="px-1 py-1.5">
             <p className="px-1.5 pb-1.5 text-xs text-muted-foreground">Theme</p>
             <ThemeChoice compact />
+          </div>
+          <div className="border-t border-border pt-1">
+            <Link href="/privacy" className={itemClass}>
+              <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
+              Privacy notice
+            </Link>
+            <Link href="/terms" className={itemClass}>
+              <FileText className="size-4 shrink-0" aria-hidden="true" />
+              Terms of use
+            </Link>
           </div>
           <div className="border-t border-border pt-1">
             <button
