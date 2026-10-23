@@ -2,8 +2,12 @@ import Link from "next/link";
 import { ArrowRight, ClipboardCheck, Download, Send, Users, UserX } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requestsAwaitingReviewByStudent } from "@/lib/services/dashboards/attentionService";
-import { getDeductionTally } from "@/lib/services/conduct/deductionService";
-import { getComplianceRows, summarize } from "@/lib/services/dashboards/complianceService";
+import { getDeductionTallies } from "@/lib/services/conduct/deductionService";
+import {
+  getComplianceRows,
+  getComplianceStudentIds,
+  summarize,
+} from "@/lib/services/dashboards/complianceService";
 import { ComplianceTable } from "@/components/compliance-table";
 import { InternCharts } from "@/components/intern-charts";
 import { StatCard, StatStrip } from "@/components/stat-card";
@@ -19,25 +23,24 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 // so the review queue leads, each row linking to the exact page to act on, then the
 // compliance table for every student in the adviser's (class group, semester) pairs.
 export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
-  const [rows, assigned] = await Promise.all([
-    getComplianceRows({ kind: "faculty", facultyId }),
-    prisma.facultyClassGroup.findMany({
-      // Same scope as the KPIs: archived semesters are last term's cohort.
-      where: { facultyId, semester: { archivedAt: null } },
-      select: { classGroupId: true, semesterId: true, classGroup: { select: { name: true } } },
-    }),
+  // One scope object, so the rows and the ids share a single scope lookup (requestCache).
+  const scope = { kind: "faculty", facultyId } as const;
+  const assignedLoad = prisma.facultyClassGroup.findMany({
+    // Same scope as the KPIs: archived semesters are last term's cohort.
+    where: { facultyId, semester: { archivedAt: null } },
+    select: { classGroupId: true, semesterId: true, classGroup: { select: { name: true } } },
+  });
+  // Each load starts as soon as its own input is ready instead of waiting for the full table;
+  // every advisee's tally takes a fixed handful of queries.
+  const [rows, assigned, requests, tallies] = await Promise.all([
+    getComplianceRows(scope),
+    assignedLoad,
+    assignedLoad.then(requestsAwaitingReviewByStudent),
+    getComplianceStudentIds(scope).then((ids) => getDeductionTallies(ids)),
   ]);
   const summary = summarize(rows);
-  const requests = await requestsAwaitingReviewByStudent(assigned);
-  // shortcut: one tally per student (a few queries each); fine for a class
-  // group of ~40, batch the loads if advisers get much larger rosters.
   const deductions = Object.fromEntries(
-    await Promise.all(
-      rows.map(
-        async (r) =>
-          [r.studentProfileId, (await getDeductionTally(r.studentProfileId)).totals] as const
-      )
-    )
+    [...tallies].map(([id, tally]) => [id, tally.totals] as const)
   );
   // One bulk button per class group, even if advised across several semesters.
   const groupNames = new Map(assigned.map((g) => [g.classGroupId, g.classGroup.name]));

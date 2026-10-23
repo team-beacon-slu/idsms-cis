@@ -162,6 +162,28 @@ Result per student page on the throttled link: about 19 KB less JavaScript and 1
 
 Left for later: server-side duplicate protection for retried creates (an idempotency key).
 
+### Before and after, and what caching would add (24 October 2026)
+
+Same machine and database, the code before any performance work (`18044d5`) against `develop`:
+
+| Page                 | Before (warm / first hit after a pause) | After                |
+| -------------------- | --------------------------------------- | -------------------- |
+| Student home         | 607 ms / 1.5–1.7 s                      | 342 ms / 0.37–0.39 s |
+| Faculty home         | 503 ms / 1.0–1.2 s                      | 325 ms / 0.33 s      |
+| Coordinator home     | 371 ms / 0.48–0.80 s                    | 331 ms / 0.34 s      |
+| Coordinator users    | 186 ms / 1.0–1.4 s                      | 201 ms / 0.18–0.23 s |
+| Weak 3G, first visit | 4.87 s, 335 KB                          | 4.26 s, 316 KB       |
+
+The dev database has one student, so these numbers show the gains from parallel loading only. The adviser dashboard's deduction tallies are now batched: an adviser with 40 interns went from about 320 queries per view to about 24, however large the roster.
+
+**Caching decisions:**
+
+- **Redis: not now.** One app server can cache in its own memory; Redis earns its place only with several app servers sharing a cache or rate limits. Revisit if production ever runs more than one instance.
+- **Settings cache: not now.** Settings reads are fast key lookups; the cost was waiting for them in sequence, now removed by loading them in parallel. Next 16's `use cache` needs Cache Components across the app, and `unstable_cache` is deprecated.
+- **Client page cache (`staleTimes`): no.** Saves go through API routes, which cannot clear the browser's cached pages, so a student going back to Home after submitting would see the old status.
+
+**Next:** the unified calendar loads each student separately (about 9 queries each, so about 18,000 for a coordinator at 2,000 interns); batch it the same way. Then a load test with 2,000 seeded interns on a local copy (Docker), never on the shared dev database.
+
 ### Separate track: weekly report features (not part of this plan)
 
 Auto-computed hours and its test, the credited-hours preview, "Use my shift", "Same as yesterday", the progress line, and clearer field messages.

@@ -7,6 +7,7 @@ import {
   ConductStateError,
   excuseItem,
   getDeductionTally,
+  getDeductionTallies,
   listAutomaticItems,
   withdrawExcuse,
   getDefaultConductHours,
@@ -52,6 +53,7 @@ describe("automatic items and excuses", () => {
   const faculty = { id: "faculty-1", role: Role.FACULTY_ADVISER };
   const missingWeek = {
     id: "wr-1",
+    studentProfileId: "profile-1",
     weekStart: new Date("2026-10-05T00:00:00Z"),
     weekEnd: new Date("2026-10-11T00:00:00Z"),
     revisionHistory: [],
@@ -65,7 +67,10 @@ describe("automatic items and excuses", () => {
       semesterId: "s-1",
     } as never);
     prismaMock.facultyClassGroup.findFirst.mockResolvedValue({ id: "fcg-1" } as never);
-    prismaMock.workPlan.findFirst.mockResolvedValue(null);
+    prismaMock.workPlan.findMany.mockResolvedValue([] as never);
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      { id: "profile-1", semester: null },
+    ] as never);
     prismaMock.weeklyReport.findMany.mockResolvedValue([missingWeek] as never);
     prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
     prismaMock.deductionException.findMany.mockResolvedValue([] as never);
@@ -85,6 +90,7 @@ describe("automatic items and excuses", () => {
     prismaMock.deductionException.findMany.mockResolvedValue([
       {
         id: "ex-1",
+        studentProfileId: "profile-1",
         itemType: "MISSING_WWR",
         itemKey: "2026-10-05",
         reasonCode: "BEYOND_INTERN_CONTROL",
@@ -151,11 +157,13 @@ describe("automatic items and excuses", () => {
   it("tallies active records and non-excused items", async () => {
     prismaMock.systemConfig.findUnique.mockResolvedValue(null);
     prismaMock.conductRecord.findMany.mockResolvedValue([
-      { categoryKey: "DEMERIT", weight: 1 },
+      { studentProfileId: "profile-1", categoryKey: "DEMERIT", weight: 1 },
     ] as never);
     const tally = await getDeductionTally("profile-1", now);
     expect(prismaMock.conductRecord.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { studentProfileId: "profile-1", revokedAt: null } })
+      expect.objectContaining({
+        where: { studentProfileId: { in: ["profile-1"] }, revokedAt: null },
+      })
     );
     // demerit 3/3 + one missing (unjustified) WWR 3/5 + 2/2
     expect(tally.totals).toEqual({ adviser: 8, wwr: 10 });
@@ -163,6 +171,7 @@ describe("automatic items and excuses", () => {
     prismaMock.deductionException.findMany.mockResolvedValue([
       {
         id: "ex-1",
+        studentProfileId: "profile-1",
         itemType: "MISSING_WWR",
         itemKey: "2026-10-05",
         reasonCode: "BEYOND_INTERN_CONTROL",
@@ -170,6 +179,23 @@ describe("automatic items and excuses", () => {
       },
     ] as never);
     expect((await getDeductionTally("profile-1", now)).totals).toEqual({ adviser: 3, wwr: 3 });
+  });
+
+  it("tallies many interns in one query per table, keeping each intern's records apart", async () => {
+    prismaMock.systemConfig.findUnique.mockResolvedValue(null);
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      { id: "profile-1", semester: null },
+      { id: "profile-2", semester: null },
+    ] as never);
+    prismaMock.conductRecord.findMany.mockResolvedValue([
+      { studentProfileId: "profile-1", categoryKey: "DEMERIT", weight: 1 },
+    ] as never);
+    const tallies = await getDeductionTallies(["profile-1", "profile-2"], now);
+    // profile-1: demerit + the missing week; profile-2: nothing on record.
+    expect(tallies.get("profile-1")?.totals).toEqual({ adviser: 8, wwr: 10 });
+    expect(tallies.get("profile-2")?.totals).toEqual({ adviser: 0, wwr: 0 });
+    expect(prismaMock.conductRecord.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledTimes(1);
   });
 
   it("refuses students", async () => {
