@@ -74,16 +74,10 @@ Team member? See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the fastest path —
    npx prisma generate
    npx prisma db push
 
-   # THEN run these by hand in the Supabase SQL editor, in order — each
-   # touches something Prisma can't express (a Postgres extension, RLS, or
-   # Storage buckets), and 001/002 specifically ALTER tables that db push is
-   # what creates, so all three must run AFTER it:
-   #   prisma/migrations_manual/001_vector_extension_and_audit_rls.sql
-   #     enables pgvector and locks down audit_logs (append-only)
-   #   prisma/migrations_manual/002_default_deny_rls.sql
-   #     enables RLS (no policies) on every other table
-   #   prisma/migrations_manual/003_storage_buckets.sql
-   #     provisions the checklist-documents and moa-documents Storage buckets
+   # THEN run EVERY file in prisma/migrations_manual/ by hand in the Supabase
+   # SQL editor, in number order (001, 002, … up to the highest), AFTER db push.
+   # Each touches something Prisma can't express (pgvector, RLS, Storage
+   # buckets, indexes, constraints) and many ALTER tables db push creates.
    ```
 
    Also requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` as of Phase 2 (file uploads for MOA records and deviation proofs go through Supabase Storage) — see `.env.example`.
