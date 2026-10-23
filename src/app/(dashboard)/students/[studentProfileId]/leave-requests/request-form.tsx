@@ -139,7 +139,8 @@ export function RequestForm({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-4">
+      {/* Same column rhythm as the selects above, so the fields line up. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor={`${idp}-date`}>{isLeave ? "From" : "Date"}</Label>
           <Input
@@ -149,7 +150,6 @@ export function RequestForm({
             value={v.date}
             disabled={pending}
             onChange={(e) => set({ date: e.target.value })}
-            className="w-44"
           />
         </div>
         {isLeave && !v.startTime && (
@@ -162,7 +162,6 @@ export function RequestForm({
               value={v.endDate}
               disabled={pending}
               onChange={(e) => set({ endDate: e.target.value })}
-              className="w-44"
             />
           </div>
         )}
@@ -177,7 +176,6 @@ export function RequestForm({
             value={v.startTime}
             disabled={pending}
             onChange={(e) => set({ startTime: e.target.value })}
-            className="w-32"
           />
         </div>
         <div className="space-y-1">
@@ -189,7 +187,6 @@ export function RequestForm({
             value={v.endTime}
             disabled={pending}
             onChange={(e) => set({ endTime: e.target.value })}
-            className="w-32"
           />
         </div>
       </div>
