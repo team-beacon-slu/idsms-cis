@@ -9,7 +9,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { changePasswordSchema } from "@/lib/validators/auth";
 import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -67,9 +67,9 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-2">
             <Label htmlFor="currentPassword">Current password</Label>
-            <Input
+            <PasswordInput
               id="currentPassword"
-              type="password"
+              autoComplete="current-password"
               {...register("currentPassword")}
               {...errorProps("currentPassword", errors.currentPassword?.message)}
             />
@@ -77,9 +77,9 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="newPassword">New password</Label>
-            <Input
+            <PasswordInput
               id="newPassword"
-              type="password"
+              autoComplete="new-password"
               {...register("newPassword")}
               {...errorProps("newPassword", errors.newPassword?.message)}
             />
@@ -87,9 +87,9 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm new password</Label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
+              autoComplete="new-password"
               {...register("confirmPassword")}
               {...errorProps("confirmPassword", errors.confirmPassword?.message)}
             />

@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 
 // Reusable inline "confirm with your password" step (NFR-SEC-05). Used by the
@@ -90,10 +90,9 @@ export function PasswordAction({
       )}
       <div className="space-y-2">
         <Label htmlFor={fieldId}>Your password</Label>
-        <Input
+        <PasswordInput
           ref={inputRef}
           id={fieldId}
-          type="password"
           autoComplete="current-password"
           autoFocus
           required

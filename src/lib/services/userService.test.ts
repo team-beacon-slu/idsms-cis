@@ -52,6 +52,16 @@ beforeEach(() => {
 });
 
 describe("verifyCredentials", () => {
+  it("looks the email up trimmed and lowercased, so capitals or a pasted space still sign in", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    await verifyCredentials("  Student@Example.COM ", "whatever");
+
+    expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+      where: { email: "student@example.com" },
+    });
+  });
+
   it("rejects an unknown email without revealing it doesn't exist", async () => {
     prismaMock.user.findUnique.mockResolvedValue(null);
 

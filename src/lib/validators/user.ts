@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { Program, Role } from "@prisma/client";
+import { emailSchema } from "./auth";
 
 // Staff only: a student needs a profile and checklist rows, which only the class-list
 // import creates (bulkImportStudents).
 export const createUserSchema = z.object({
-  email: z.email(),
+  email: emailSchema,
   role: z.enum([Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]),
 });
 
@@ -19,7 +20,7 @@ export const updateUserSchema = z.object({
 // list" is already scoped to a single class group/semester by definition.
 export const bulkImportRowSchema = z.object({
   studentNumber: z.string().min(1, "Student number is required"),
-  email: z.email(),
+  email: emailSchema,
   program: z.enum(Program),
   requiredHours: z.coerce.number().int().positive(),
 });

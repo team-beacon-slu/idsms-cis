@@ -64,10 +64,12 @@ export type VerifyCredentialsResult =
 const TIMING_DUMMY_HASH = "$2b$12$VDqK0XVzqtWrnyk.YMPj3OvYU.urBdV4zgVWMJ3JUeXDOlkBGLY9W";
 
 export async function verifyCredentials(
-  email: string,
+  rawEmail: string,
   password: string,
   ipAddress?: string | null
 ): Promise<VerifyCredentialsResult> {
+  // Emails are stored lowercase; a capital letter or a pasted trailing space must still sign in.
+  const email = rawEmail.trim().toLowerCase();
   const pre = await prisma.user.findUnique({ where: { email } });
 
   if (!pre || pre.deletedAt) {

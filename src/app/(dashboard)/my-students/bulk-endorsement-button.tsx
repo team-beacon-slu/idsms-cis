@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 
 interface BulkEntry {
@@ -131,9 +131,8 @@ export function BulkEndorsementButton({
         ) : (
           <form id={`bulk-${classGroupId}`} onSubmit={onSubmit} className="space-y-2">
             <Label htmlFor={`bulk-password-${classGroupId}`}>Password</Label>
-            <Input
+            <PasswordInput
               id={`bulk-password-${classGroupId}`}
-              type="password"
               autoComplete="current-password"
               required
               value={password}
