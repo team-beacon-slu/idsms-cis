@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUserPage } from "@/lib/auth/session";
 import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
 import { displayName } from "@/lib/utils/displayName";
+import { SiteFooter } from "@/components/site-footer";
 import { DashboardNav } from "./dashboard-nav";
 import { PrivacyConsentDialog } from "./privacy-consent-dialog";
 
@@ -64,6 +65,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {children}
         </div>
       </main>
+      <SiteFooter
+        signedIn
+        className="md:pl-60 md:transition-[padding] md:duration-200 md:group-has-[aside[data-collapsed=true]]/shell:pl-[72px]"
+      />
       {consent?.privacyConsentVersion !== PRIVACY_NOTICE_VERSION && <PrivacyConsentDialog />}
     </div>
   );
