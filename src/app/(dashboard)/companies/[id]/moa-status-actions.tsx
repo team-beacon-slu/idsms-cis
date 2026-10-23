@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MoaStatus } from "@prisma/client";
+import type { MoaStatus } from "@prisma/client";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
 import { ArrowRight } from "lucide-react";

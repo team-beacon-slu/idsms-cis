@@ -7,15 +7,15 @@ import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "./providers";
 
 // The taste sheet's face, self-hosted by next/font (the CSP allows font-src 'self' only).
+// Both are variable fonts: no weight list, so each family is one @font-face covering every
+// weight from the same file, rather than a rule per weight.
 const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   variable: "--font-dm-sans",
   display: "swap",
 });
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
-  weight: ["600", "700"],
   variable: "--font-bricolage",
   display: "swap",
 });
