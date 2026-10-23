@@ -22,6 +22,7 @@ export type AuditLogRow = {
   entityType: string;
   entityId: string | null;
   email: string | null;
+  name: string | null; // the user's display name (staff); null for older accounts
   ipAddress: string | null;
   detail: unknown;
 };
@@ -64,7 +65,7 @@ export async function queryAuditLogs(
       orderBy: { timestamp: "desc" },
       skip: opts.max ? 0 : (filter.page - 1) * pageSize,
       take: opts.max ?? pageSize,
-      include: { user: { select: { email: true } } },
+      include: { user: { select: { email: true, fullName: true } } },
     }),
     prisma.auditLog.count({ where }),
   ]);
@@ -76,6 +77,7 @@ export async function queryAuditLogs(
       entityType: r.entityType,
       entityId: r.entityId,
       email: user?.email ?? null,
+      name: user?.fullName ?? null,
       ipAddress: r.ipAddress,
       detail: r.detail,
     })),

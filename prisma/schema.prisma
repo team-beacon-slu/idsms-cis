@@ -188,6 +188,8 @@ model User {
   // FR-CK-05: null until the user agrees to the privacy notice; a new version asks again.
   privacyConsentAt      DateTime? @map("privacy_consent_at") @db.Timestamptz
   privacyConsentVersion String?   @map("privacy_consent_version")
+  // Display name for staff (students' legal name lives on student_profiles.full_name).
+  fullName              String?   @map("full_name")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   deletedAt             DateTime? @map("deleted_at")

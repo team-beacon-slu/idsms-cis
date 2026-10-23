@@ -6,7 +6,9 @@ import {
   bulkImportStudents,
   changePassword,
   completePasswordReset,
+  countOtherSessions,
   createUser,
+  signOutOtherSessions,
   forceLogout,
   getUserProfile,
   listUsers,
@@ -763,7 +765,13 @@ describe("createUser", () => {
       baseUser({ id: "new-staff", role: Role.FACULTY_ADVISER }) as never
     );
 
-    const result = await createUser("faculty@example.com", Role.FACULTY_ADVISER, "admin-1");
+    const result = await createUser(
+      "faculty@example.com",
+      Role.FACULTY_ADVISER,
+      "admin-1",
+      null,
+      "Maria Santos"
+    );
 
     expect(result.user.id).toBe("new-staff");
     expect(result.temporaryPassword).toBeTruthy();
@@ -773,7 +781,34 @@ describe("createUser", () => {
           email: "faculty@example.com",
           role: Role.FACULTY_ADVISER,
           mustResetPassword: true,
+          fullName: "Maria Santos",
         }),
+      })
+    );
+  });
+});
+
+describe("other sessions", () => {
+  it("counts only this user's live sessions, excluding the current device", async () => {
+    prismaMock.session.count.mockResolvedValue(2 as never);
+    const now = new Date("2026-10-23T00:00:00Z");
+
+    expect(await countOtherSessions("u1", "this-device", now)).toBe(2);
+    expect(prismaMock.session.count).toHaveBeenCalledWith({
+      where: { userId: "u1", expires: { gt: now }, sessionToken: { not: "this-device" } },
+    });
+  });
+
+  it("signs out every other session, keeps the current one, and audits it", async () => {
+    prismaMock.session.deleteMany.mockResolvedValue({ count: 3 } as never);
+
+    expect(await signOutOtherSessions("u1", "this-device")).toBe(3);
+    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({
+      where: { userId: "u1", sessionToken: { not: "this-device" } },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "OTHER_SESSIONS_SIGNED_OUT", userId: "u1" }),
       })
     );
   });
@@ -815,6 +850,7 @@ describe("listUsers", () => {
           // A coordinator looks people up by name or student number, not only email.
           OR: [
             { email: { contains: "admin", mode: "insensitive" } },
+            { fullName: { contains: "admin", mode: "insensitive" } },
             { studentProfile: { fullName: { contains: "admin", mode: "insensitive" } } },
             { studentProfile: { studentNumber: { contains: "admin", mode: "insensitive" } } },
           ],

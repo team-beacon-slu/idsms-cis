@@ -5,6 +5,7 @@ import { emailSchema } from "./auth";
 // Staff only: a student needs a profile and checklist rows, which only the class-list
 // import creates (bulkImportStudents).
 export const createUserSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter their full name").max(150),
   email: emailSchema,
   role: z.enum([Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]),
 });

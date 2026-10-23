@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function FullNameForm({ initial }: { initial: string | null }) {
+export function FullNameForm({
+  initial,
+  label = "Full name (as it should appear on your endorsement letter)",
+}: {
+  initial: string | null;
+  label?: string;
+}) {
   const router = useRouter();
   const [fullName, setFullName] = useState(initial ?? "");
   const [isPending, setIsPending] = useState(false);
@@ -38,9 +44,7 @@ export function FullNameForm({ initial }: { initial: string | null }) {
   return (
     <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
       <div className="space-y-2">
-        <Label htmlFor="full-name">
-          Full name (as it should appear on your endorsement letter)
-        </Label>
+        <Label htmlFor="full-name">{label}</Label>
         <Input
           id="full-name"
           value={fullName}

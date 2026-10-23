@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const body = createUserSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
 
-    const result = await createUser(body.email, body.role, user.id, ipAddress);
+    const result = await createUser(body.email, body.role, user.id, ipAddress, body.fullName);
     await notifyAccountCreated(result.user.id); // FR-NT-01 #1 (no password in it)
 
     return NextResponse.json(result, { status: 201 });

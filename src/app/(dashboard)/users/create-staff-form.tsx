@@ -19,25 +19,38 @@ const STAFF_ROLES = [
 // be made in the app. Students still come only from the class-list import.
 export function CreateStaffForm() {
   const router = useRouter();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>(STAFF_ROLES[0].value);
   const [isPending, setIsPending] = useState(false);
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  const [created, setCreated] = useState<{
+    name: string;
+    email: string;
+    password: string;
+  } | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsPending(true);
     const res = await sendJson("/api/users", {
       method: "POST",
-      body: { email: email.trim(), role },
+      body: { fullName: fullName.trim(), email: email.trim(), role },
     });
     setIsPending(false);
     if (!res.ok) {
       toast.error(res.status === 409 ? "An account with that email already exists" : res.error);
       return;
     }
-    const body = res.body as { user: { email: string }; temporaryPassword: string };
-    setCreated({ email: body.user.email, password: body.temporaryPassword });
+    const body = res.body as {
+      user: { email: string; fullName: string | null };
+      temporaryPassword: string;
+    };
+    setCreated({
+      name: body.user.fullName ?? body.user.email,
+      email: body.user.email,
+      password: body.temporaryPassword,
+    });
+    setFullName("");
     setEmail("");
     router.refresh();
   }
@@ -45,6 +58,17 @@ export function CreateStaffForm() {
   return (
     <div className="space-y-4">
       <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex-1 space-y-2">
+          <Label htmlFor="staff-name">Full name</Label>
+          <Input
+            id="staff-name"
+            required
+            autoComplete="off"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Juan Dela Cruz"
+          />
+        </div>
         <div className="flex-1 space-y-2">
           <Label htmlFor="staff-email">Email</Label>
           <Input
@@ -82,8 +106,9 @@ export function CreateStaffForm() {
           className="rounded-lg border border-notice-border bg-notice p-4 text-sm text-notice-foreground"
         >
           <p>
-            Account created for <span className="font-medium">{created.email}</span>. Give them this
-            temporary password; they must change it when they first sign in. It is shown only once.
+            Account created for <span className="font-medium">{created.name}</span> ({created.email}
+            ). Give them this temporary password; they must change it when they first sign in. It is
+            shown only once.
           </p>
           <p className="mt-2 font-mono text-base text-foreground select-all">{created.password}</p>
         </div>

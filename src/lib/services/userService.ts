@@ -29,6 +29,7 @@ function toSafeUser(user: User): SafeUser {
     mustResetPassword: user.mustResetPassword,
     lockedUntil: user.lockedUntil,
     createdAt: user.createdAt,
+    fullName: user.fullName,
   };
 }
 
@@ -550,6 +551,42 @@ export async function changePassword(
   });
 }
 
+// Account settings → Security: other devices still signed in (a lab PC, a lost phone).
+// Sessions store no device details, and collecting them would be more personal data, so
+// this is a count plus one action, not a device list.
+export async function countOtherSessions(
+  userId: string,
+  currentSessionToken: string | null,
+  now: Date = new Date()
+): Promise<number> {
+  return prisma.session.count({
+    where: {
+      userId,
+      expires: { gt: now },
+      ...(currentSessionToken ? { sessionToken: { not: currentSessionToken } } : {}),
+    },
+  });
+}
+
+export async function signOutOtherSessions(
+  userId: string,
+  currentSessionToken: string,
+  ipAddress?: string | null
+): Promise<number> {
+  const { count } = await prisma.session.deleteMany({
+    where: { userId, sessionToken: { not: currentSessionToken } },
+  });
+  await logEvent({
+    userId,
+    action: "OTHER_SESSIONS_SIGNED_OUT",
+    entityType: "User",
+    entityId: userId,
+    ipAddress,
+    detail: { count },
+  });
+  return count;
+}
+
 export interface BulkImportInputRow {
   // The row's position in the original uploaded file — callers filter out
   // zod-invalid rows before this function ever sees them, so this can't be
@@ -717,14 +754,15 @@ export async function createUser(
   email: string,
   role: Role,
   actingUserId: string,
-  ipAddress?: string | null
+  ipAddress?: string | null,
+  fullName?: string | null
 ): Promise<{ user: SafeUser; temporaryPassword: string }> {
   const temporaryPassword = randomBytes(12).toString("base64url");
   const hashedPassword = await hashPassword(temporaryPassword);
 
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
-      data: { email, hashedPassword, role, mustResetPassword: true },
+      data: { email, hashedPassword, role, mustResetPassword: true, fullName: fullName ?? null },
     });
     await logEvent(
       {
@@ -759,11 +797,12 @@ export async function listUsers(filters: ListUsersFilters = {}) {
     deletedAt: null,
     ...(filters.role ? { role: filters.role } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
-    // People are found by email, or for students by name or student number.
+    // People are found by email or name, or for students by student number.
     ...(filters.search
       ? {
           OR: [
             { email: { contains: filters.search, mode: "insensitive" } },
+            { fullName: { contains: filters.search, mode: "insensitive" } },
             { studentProfile: { fullName: { contains: filters.search, mode: "insensitive" } } },
             {
               studentProfile: { studentNumber: { contains: filters.search, mode: "insensitive" } },
@@ -787,7 +826,7 @@ export async function listUsers(filters: ListUsersFilters = {}) {
   return {
     users: users.map((u) => ({
       ...toSafeUser(u),
-      name: u.studentProfile?.fullName ?? null,
+      name: u.studentProfile?.fullName || u.fullName || null,
       studentNumber: u.studentProfile?.studentNumber ?? null,
     })),
     total,

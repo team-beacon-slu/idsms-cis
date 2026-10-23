@@ -25,6 +25,7 @@ const logRow = (over: Record<string, unknown> = {}) => ({
   entityType: "Semester",
   entityId: "s1",
   email: "admin@slu.edu.ph",
+  name: "Maria Santos",
   ipAddress: "10.0.0.1",
   detail: { semesterId: "s1" },
   ...over,
@@ -62,6 +63,7 @@ it("exports audit rows for a Super Admin with Manila timestamps", async () => {
   expect(first).toEqual({
     Timestamp: "2026-10-12 00:30",
     "User email": "admin@slu.edu.ph",
+    "User name": "Maria Santos",
     Action: "SEMESTER_ACTIVATED",
     "Entity type": "Semester",
     "Entity id": "s1",

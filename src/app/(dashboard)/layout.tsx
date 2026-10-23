@@ -4,6 +4,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUserPage } from "@/lib/auth/session";
 import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
+import { displayName } from "@/lib/utils/displayName";
 import { DashboardNav } from "./dashboard-nav";
 import { PrivacyConsentDialog } from "./privacy-consent-dialog";
 
@@ -14,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/change-password");
   }
 
-  // Students are shown by name when their profile has one; staff accounts only have an email.
+  // Who is signed in: a student's legal name, else the account's display name (015), else the email.
   const [profile, consent, cookieStore] = await Promise.all([
     user.role === Role.STUDENT_INTERN
       ? prisma.studentProfile.findUnique({
@@ -22,7 +23,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           select: { fullName: true },
         })
       : null,
-    prisma.user.findUnique({ where: { id: user.id }, select: { privacyConsentVersion: true } }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { privacyConsentVersion: true, fullName: true },
+    }),
     cookies(),
   ]);
   // Set by the sidebar's collapse button (dashboard-nav.tsx).
@@ -34,7 +38,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="print:hidden">
         <DashboardNav
           role={user.role}
-          userLabel={profile?.fullName || user.email}
+          name={displayName({
+            email: user.email,
+            fullName: consent?.fullName,
+            studentName: profile?.fullName,
+          })}
+          email={user.email}
           initialCollapsed={collapsed}
         />
       </div>

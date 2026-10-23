@@ -78,7 +78,7 @@ describe("queryAuditLogs", () => {
         entityId: null,
         ipAddress: "1.2.3.4",
         detail: { a: 1 },
-        user: { email: "ana@slu.edu.ph" },
+        user: { email: "ana@slu.edu.ph", fullName: "Ana Cruz" },
       },
       {
         id: "a2",
@@ -102,6 +102,7 @@ describe("queryAuditLogs", () => {
       entityType: "User",
       entityId: null,
       email: "ana@slu.edu.ph",
+      name: "Ana Cruz",
       ipAddress: "1.2.3.4",
       detail: { a: 1 },
     });

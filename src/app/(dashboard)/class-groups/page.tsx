@@ -28,7 +28,10 @@ export default async function ClassGroupsPage() {
     id: s.id,
     label: `${s.name} (${s.academicYear})${s.isActive ? " · active" : ""}`,
   }));
-  const adviserOptions = advisers.map((a) => ({ id: a.id, label: a.email }));
+  const adviserOptions = advisers.map((a) => ({
+    id: a.id,
+    label: a.fullName ? `${a.fullName} (${a.email})` : a.email,
+  }));
   const activeSemesterId = openSemesters.find((s) => s.isActive)?.id;
 
   return (
@@ -80,13 +83,21 @@ export default async function ClassGroupsPage() {
                       className="flex min-h-11 items-center justify-between gap-3 px-3"
                     >
                       <span className="min-w-0 text-sm">
-                        <span className="font-medium text-foreground">{fg.faculty.email}</span>
+                        <span className="font-medium text-foreground">
+                          {fg.faculty.fullName || fg.faculty.email}
+                        </span>
+                        {fg.faculty.fullName && (
+                          <span className="text-muted-foreground"> · {fg.faculty.email}</span>
+                        )}
                         <span className="text-muted-foreground">
                           {" "}
                           · {fg.semester.name} ({fg.semester.academicYear})
                         </span>
                       </span>
-                      <RemoveAdviserButton assignmentId={fg.id} label={fg.faculty.email} />
+                      <RemoveAdviserButton
+                        assignmentId={fg.id}
+                        label={fg.faculty.fullName || fg.faculty.email}
+                      />
                     </li>
                   ))}
                 </ul>

@@ -22,7 +22,6 @@ import {
   ScrollText,
   Download,
   Settings,
-  UserCircle,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -33,6 +32,8 @@ import {
 import { cn } from "@/lib/utils";
 import { BrandMark, BrandTile } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Avatar } from "@/components/avatar";
+import { AccountMenu } from "./account-menu";
 import { NotificationBell } from "./notification-bell";
 
 // The desktop sidebar folds to an icon rail; its state is a cookie so the server renders
@@ -182,21 +183,18 @@ function NavLinks({
   );
 }
 
-function AccountRow({
-  userLabel,
+// Phone drawer footer: who you are, then settings, theme and sign out as plain rows
+// (the desktop sidebar uses the account menu instead).
+function DrawerAccount({
+  name,
   role,
   pathname,
   onNavigate,
-  rail,
-  onToggleRail,
 }: {
-  userLabel?: string;
+  name: string;
   role: Role;
   pathname: string;
-  onNavigate?: () => void;
-  rail?: boolean;
-  /** Desktop only: folds or unfolds the sidebar. */
-  onToggleRail?: () => void;
+  onNavigate: () => void;
 }) {
   const profileActive = isActive(pathname, "/profile");
   return (
@@ -205,54 +203,25 @@ function AccountRow({
         href="/profile"
         onClick={onNavigate}
         aria-current={profileActive ? "page" : undefined}
-        title="Profile & preferences"
-        className={cn(
-          rowClass,
-          RAIL_CENTER,
-          "h-auto py-1.5",
-          profileActive && "bg-sidebar-accent text-sidebar-foreground"
-        )}
+        className={cn(rowClass, "h-auto py-1.5", profileActive && "bg-sidebar-accent")}
       >
-        <UserCircle className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
-        <span className={cn("min-w-0", RAIL_HIDE)}>
-          <span className="block truncate font-medium text-sidebar-foreground">
-            {userLabel ?? "Profile"}
-          </span>
+        <Avatar name={name} className="size-8" />
+        <span className="min-w-0">
+          <span className="block truncate font-medium text-sidebar-foreground">{name}</span>
           <span className="block truncate text-xs text-sidebar-foreground/60">
-            {ROLE_LABEL[role]}
+            {ROLE_LABEL[role]} · Account settings
           </span>
         </span>
       </Link>
-      <ThemeToggle
-        className={cn(rowClass, RAIL_CENTER, "cursor-pointer")}
-        labelClassName={RAIL_HIDE}
-      />
+      <ThemeToggle className={cn(rowClass, "cursor-pointer")} />
       <button
         type="button"
-        title={rail ? "Sign out" : undefined}
-        className={cn(rowClass, RAIL_CENTER, "cursor-pointer")}
+        className={cn(rowClass, "cursor-pointer")}
         onClick={() => signOut({ callbackUrl: "/login" })}
       >
         <LogOut className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
-        <span className={RAIL_HIDE}>Sign out</span>
+        Sign out
       </button>
-      {onToggleRail && (
-        <button
-          type="button"
-          onClick={onToggleRail}
-          aria-expanded={!rail}
-          aria-controls="sidebar-nav"
-          title={rail ? "Expand sidebar" : undefined}
-          className={cn(rowClass, RAIL_CENTER, "cursor-pointer")}
-        >
-          {rail ? (
-            <PanelLeftOpen className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
-          ) : (
-            <PanelLeftClose className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
-          )}
-          <span className={RAIL_HIDE}>{rail ? "Expand sidebar" : "Collapse sidebar"}</span>
-        </button>
-      )}
     </div>
   );
 }
@@ -274,11 +243,14 @@ function Brand({ compact = false }: { compact?: boolean }) {
 
 export function DashboardNav({
   role,
-  userLabel,
+  name,
+  email,
   initialCollapsed = false,
 }: {
   role: Role;
-  userLabel?: string;
+  /** displayName(): legal name, display name, or email. */
+  name: string;
+  email: string;
   initialCollapsed?: boolean;
 }) {
   const pathname = usePathname();
@@ -305,19 +277,37 @@ export function DashboardNav({
           <NotificationBell className="ml-auto group-data-[collapsed=true]/side:ml-0" />
         </div>
         <NavLinks id="sidebar-nav" groups={groups} pathname={pathname} rail={rail} />
-        <AccountRow
-          userLabel={userLabel}
-          role={role}
-          pathname={pathname}
-          rail={rail}
-          onToggleRail={toggleRail}
-        />
+        <div className="flex flex-col gap-1 border-t border-sidebar-border p-3">
+          <AccountMenu identity={{ name, email, roleLabel: ROLE_LABEL[role] }} rail={rail} />
+          <button
+            type="button"
+            onClick={toggleRail}
+            aria-expanded={!rail}
+            aria-controls="sidebar-nav"
+            title={rail ? "Expand sidebar" : undefined}
+            className={cn(rowClass, RAIL_CENTER, "cursor-pointer")}
+          >
+            {rail ? (
+              <PanelLeftOpen className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+            )}
+            <span className={RAIL_HIDE}>{rail ? "Expand sidebar" : "Collapse sidebar"}</span>
+          </button>
+        </div>
       </aside>
 
       {/* Phone: a 48px bar with the product, the bell and the menu. */}
       <header className="sticky top-0 z-40 flex h-14 items-center gap-1 border-b border-white/60 bg-white/75 px-4 backdrop-blur-xl md:hidden dark:border-white/8 dark:bg-card/75">
         <Brand compact />
         <NotificationBell className="ml-auto" />
+        <Link
+          href="/profile"
+          aria-label={`Account settings for ${name}`}
+          className="grid size-11 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Avatar name={name} className="size-8 text-xs" />
+        </Link>
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
@@ -348,7 +338,7 @@ export function DashboardNav({
             </button>
           </div>
           <NavLinks groups={groups} pathname={pathname} onNavigate={close} />
-          <AccountRow userLabel={userLabel} role={role} pathname={pathname} onNavigate={close} />
+          <DrawerAccount name={name} role={role} pathname={pathname} onNavigate={close} />
         </div>
       )}
     </>
