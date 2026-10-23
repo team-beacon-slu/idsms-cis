@@ -144,6 +144,16 @@ One `Connection terminated unexpectedly` happened once, in an earlier run. It wa
    - watch database and storage size against the plan's limits.
 5. Deadlines are already computed in Manila time (`Asia/Manila`); keep a test that guards it.
 
+### Slow and dropped connections (done 24 October 2026)
+
+Measured with Chrome throttled to a weak 3G link (300 ms latency, 750/250 kbps): a first visit to any page takes 4.3–4.8 s and downloads about 320 KB; repeat visits reuse the cached scripts.
+
+- **Saves time out after 30 s** (`sendJson`) instead of spinning forever. The message says the save may already have gone through, so the intern checks before resending, which avoids duplicate entries.
+- **An offline banner** in the dashboard appears the moment the connection drops and clears on reconnect, so interns know before they press Save.
+- **The schedule-change attachment is size-checked in the browser**, so a slow connection is not spent uploading a file the server will refuse.
+
+Left for later: server-side duplicate protection for retried creates (an idempotency key), trimming font weights and client JavaScript.
+
 ### Separate track: weekly report features (not part of this plan)
 
 Auto-computed hours and its test, the credited-hours preview, "Use my shift", "Same as yesterday", the progress line, and clearer field messages.

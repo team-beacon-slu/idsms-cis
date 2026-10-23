@@ -1,5 +1,10 @@
 /** @jest-environment node */
-import { OFFLINE_MESSAGE, sendJson } from "@/lib/utils/sendJson";
+import {
+  OFFLINE_MESSAGE,
+  REQUEST_TIMEOUT_MS,
+  TIMEOUT_MESSAGE,
+  sendJson,
+} from "@/lib/utils/sendJson";
 
 const fetchMock = jest.fn();
 beforeEach(() => {
@@ -15,6 +20,22 @@ it("turns a dropped connection into a failure instead of throwing", async () => 
     body: {},
     error: OFFLINE_MESSAGE,
   });
+});
+
+it("gives up on a stalled request and says it may already have saved", async () => {
+  jest.useFakeTimers();
+  fetchMock.mockImplementation(
+    (_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init.signal?.addEventListener("abort", () => reject(new DOMException("", "AbortError")))
+      )
+  );
+  const pending = sendJson("/api/x", { method: "POST", body: {} });
+  jest.advanceTimersByTime(REQUEST_TIMEOUT_MS);
+  await expect(pending).resolves.toEqual(
+    expect.objectContaining({ ok: false, status: 0, error: TIMEOUT_MESSAGE })
+  );
+  jest.useRealTimers();
 });
 
 it("reads a validation message, then the server's error, then a generic one", async () => {
