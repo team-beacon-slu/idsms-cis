@@ -152,7 +152,15 @@ Measured with Chrome throttled to a weak 3G link (300 ms latency, 750/250 kbps):
 - **An offline banner** in the dashboard appears the moment the connection drops and clears on reconnect, so interns know before they press Save.
 - **The schedule-change attachment is size-checked in the browser**, so a slow connection is not spent uploading a file the server will refuse.
 
-Left for later: server-side duplicate protection for retried creates (an idempotency key), trimming font weights and client JavaScript.
+**Trimmed (24 October 2026), with no visible change** (pixel-identical screenshots of five pages, light and dark, before and after):
+
+- Removed next-auth's `SessionProvider`: nothing used it, yet it shipped its code and fetched `/api/auth/session` (a database read) on every page load and tab focus. Sign-in and sign-out work without it.
+- The sidebar no longer pulls Prisma's browser bundle (~50 KB) just to compare roles.
+- Both fonts are variable, so each is now one `@font-face` covering every weight (7 rules instead of 20). The font files were already the minimum: one 41 KB and one 37 KB file, downloaded once and cached for a year.
+
+Result per student page on the throttled link: about 19 KB less JavaScript and 1–2 fewer requests. Load time is about the same; most of the remaining ~200 KB is React and Next.js itself. Checked and kept: zod in the weekly report form (it gives the same validation as the server), and Next's gzip (Caddy's default zstd came out 4% larger).
+
+Left for later: server-side duplicate protection for retried creates (an idempotency key).
 
 ### Separate track: weekly report features (not part of this plan)
 

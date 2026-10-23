@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Role } from "@prisma/client";
+// Type-only: a value import would ship Prisma's browser bundle (~50 KB) with the sidebar.
+import type { Role } from "@prisma/client";
 import {
   LayoutDashboard,
   LifeBuoy,
@@ -71,7 +72,7 @@ const REFERENCE: NavGroup = {
 // is the faculty_class_groups roster, which only faculty have.
 export function getNavGroups(role: Role): NavGroup[] {
   const home: NavGroup = { items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] };
-  if (role === Role.STUDENT_INTERN) {
+  if (role === "STUDENT_INTERN") {
     return [
       home,
       {
@@ -94,7 +95,7 @@ export function getNavGroups(role: Role): NavGroup[] {
       REFERENCE,
     ];
   }
-  if (role === Role.FACULTY_ADVISER) {
+  if (role === "FACULTY_ADVISER") {
     return [
       { items: [...home.items, { href: "/my-students", label: "My students", icon: Users }] },
       REFERENCE,
@@ -112,7 +113,7 @@ export function getNavGroups(role: Role): NavGroup[] {
       ],
     },
   ];
-  if (role === Role.SUPER_ADMIN) {
+  if (role === "SUPER_ADMIN") {
     groups.push({
       label: "Records",
       items: [
