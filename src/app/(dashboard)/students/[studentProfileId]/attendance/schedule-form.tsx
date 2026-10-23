@@ -276,6 +276,12 @@ export function AttendanceScheduleForm({
     formData.set("hoursPerDay", String(schedule.hoursPerDay));
     appendShift(formData, schedule);
     const file = fileInputRef.current?.files?.[0];
+    // Same limits as the server (validateUpload); checked here so a slow connection
+    // is not spent uploading a file that will be refused.
+    if (file && file.size > (file.type === "application/pdf" ? 5 : 2) * 1024 * 1024) {
+      toast.error("That file is too large. Use a PDF up to 5MB, or a JPG/PNG up to 2MB.");
+      return;
+    }
     if (file) formData.set("file", file);
 
     setIsPending(true);
