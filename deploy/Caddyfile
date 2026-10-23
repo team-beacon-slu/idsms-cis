@@ -1,0 +1,19 @@
+# Replace idsms.example.edu with the real subdomain before first deploy.
+idsms.example.edu {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+	}
+	reverse_proxy app:3000
+	log {
+		output file /data/access.log
+		format json
+	}
+}
+
+# --- Option A only: MinIO S3 API on its own hostname (no path rewrite) ---
+# storage.idsms.example.edu {
+# 	reverse_proxy minio:9000
+# }

@@ -1,0 +1,120 @@
+# The self-hosted stack for the SAMCIS lab computer (Phase 5).
+# Run from the repository root:
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# deploy/.env holds POSTGRES_PASSWORD, MINIO_ROOT_* and CRON_SECRET; the app reads .env.production
+# (see .env.example and deploy/OPERATIONS.md).
+name: idsms
+
+networks:
+  idsms_net:
+
+volumes:
+  pg_data:
+  minio_data:
+  caddy_data:
+  caddy_config:
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: idsms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: idsms
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks: [idsms_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idsms -d idsms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO stopped publishing community images (Docker Hub removed them in Sept 2026,
+  # quay.io gated them); Chainguard's free build is the same MinIO, pinned by digest.
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
+    restart: unless-stopped
+    # shortcut: as its non-root user this build refuses the data volume ("file access
+    # denied") on Docker Desktop/WSL2. It publishes no ports and only the app reaches it;
+    # retry without this line on the lab computer's Linux Docker.
+    user: "0:0"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in deploy/.env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in deploy/.env}
+    volumes:
+      - minio_data:/data
+    networks: [idsms_net]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot: creates the three private buckets the app uses (replaces
+  # migrations 003 and 004, which are Supabase Storage SQL).
+  minio-init:
+    image: cgr.dev/chainguard/minio-client@sha256:f0b1d3d6ae12391d9bbe88345dee6da67027c93cda18dc5c9a463c2cc7d61b29
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks: [idsms_net]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" &&
+      for b in checklist-documents moa-documents generated-documents; do
+        mc mb -p local/$$b && mc anonymous set none local/$$b;
+      done
+      "
+
+  app:
+    image: ghcr.io/team-beacon-slu/idsms-cis:${IMAGE_TAG:-stable}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    env_file: ${APP_ENV_FILE:-../.env.production}
+    networks: [idsms_net]
+
+  # Daily reminders and MOA-expiry alerts (FR-NT-05): Vercel Cron does this today.
+  # 00:00 UTC is 08:00 Manila. CRON_SECRET must match the app's .env.production.
+  cron:
+    image: alpine:3.22
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in deploy/.env}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo '0 0 * * * wget -qO- --header "Authorization: Bearer '"$$CRON_SECRET"'" http://app:3000/api/cron/daily' > /etc/crontabs/root
+        exec crond -f -l 8
+    networks: [idsms_net]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [idsms_net]

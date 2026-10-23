@@ -1,0 +1,20 @@
+# BuildKit reads this because it sits beside deploy/Dockerfile.
+.git
+.github
+.next
+.swc
+node_modules
+coverage
+cypress
+docs
+deploy
+scripts
+**/*.test.ts
+**/*.test.tsx
+.env*
+!.env.example
+.claude
+.remember
+.superpowers
+TEST_ACCOUNTS.md
+npm-debug.log*
