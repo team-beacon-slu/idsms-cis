@@ -53,6 +53,7 @@ yarn-error.log*
 skills-lock.json
 .worktrees/
 /.playwright-mcp
+/.swc
 /.taste-skill
 /.superpowers
 /.remember

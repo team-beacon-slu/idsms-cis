@@ -79,7 +79,7 @@ Accounts and security; companies and MOAs; the pre-deployment checklist (status 
 
 ## 6. Modules, status and requirements
 
-PRD requirement IDs are listed so readers can trace each module back to `PRD.md`.
+PRD requirement IDs are listed so readers can trace each module back to `docs/PRD.md`.
 
 | #   | Module                                 | What it does                                                                                                                                   | PRD requirements                      | Status                                                                                                                                                |
 | --- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |

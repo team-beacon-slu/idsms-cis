@@ -59,6 +59,7 @@ Versions from `package.json` (caret ranges as declared).
 ## 3. Folder structure
 
 ```text
+.config/prisma.ts              Prisma CLI config (database URL for the CLI, schema location)
 prisma/
   schema.prisma                data model (single source for tables Prisma manages)
   migrations_manual/           001–015 hand-run SQL, applied in number order
