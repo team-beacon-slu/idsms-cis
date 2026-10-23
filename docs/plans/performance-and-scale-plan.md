@@ -93,6 +93,8 @@ A direct test of the pooler showed no dropped connections after 15, 45, 90 or 18
 
 One `Connection terminated unexpectedly` happened once, in an earlier run. It was not reproduced; Phase 4 should make a failed session read show "try again" rather than the sign-in page.
 
+**Student home follow-up (24 October 2026):** the home page's reads now run in parallel instead of one after another, and rendered hours are computed once per page instead of twice (a shared `requestCache` helper in `src/lib/utils/requestCache.ts`). 24 queries instead of 27; the first visit after a 40 s pause now takes 0.16–0.44 s instead of 0.5–2.6 s.
+
 **Skipped:** the uptime monitor (no public URL until hosting), and the Vercel region (IDSMS is not on Vercel).
 
 ### Phase 1: no data loss

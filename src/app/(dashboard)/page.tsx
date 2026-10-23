@@ -74,31 +74,34 @@ export default async function DashboardHomePage(props: {
 
   const profile = await getUserProfile(user.id);
   const studentProfile = profile?.studentProfile;
-  const [progress, hours, projectedCompletion] = studentProfile
-    ? await Promise.all([
-        getChecklistProgress(studentProfile.id),
-        getHoursSummary(studentProfile.id),
-        computeProjectedCompletionDate(studentProfile.id),
-      ])
-    : [null, null, null];
+  // Everything below depends only on the profile, so it loads in one parallel round
+  // instead of a chain of waits (each wait is a trip to the database).
+  const [progress, hours, projectedCompletion, finalThreshold, finalCover, attention, reports] =
+    studentProfile
+      ? await Promise.all([
+          getChecklistProgress(studentProfile.id),
+          getHoursSummary(studentProfile.id),
+          computeProjectedCompletionDate(studentProfile.id),
+          getFinalReportThreshold(studentProfile.program, studentProfile.requiredHours),
+          getFinalCoverDocument(studentProfile.id),
+          getAttentionItems(studentProfile.id),
+          prisma.weeklyReport.findMany({
+            where: { studentProfileId: studentProfile.id },
+            select: {
+              id: true,
+              weekStart: true,
+              weekEnd: true,
+              status: true,
+              revisionHistory: true,
+            },
+            orderBy: { weekStart: "desc" },
+          }),
+        ])
+      : [null, null, null, null, null, null, []];
   const confirmedHours = hours?.confirmedHours ?? 0;
   const requiredHours = hours?.requiredHours ?? 0;
   const pendingHours = hours?.pendingHours ?? 0;
-  const [finalThreshold, finalCover] = studentProfile
-    ? await Promise.all([
-        getFinalReportThreshold(studentProfile.program, studentProfile.requiredHours),
-        getFinalCoverDocument(studentProfile.id),
-      ])
-    : [null, null];
   const coverUnlocked = finalThreshold !== null && confirmedHours >= finalThreshold;
-  const attention = studentProfile ? await getAttentionItems(studentProfile.id) : null;
-  const reports = studentProfile
-    ? await prisma.weeklyReport.findMany({
-        where: { studentProfileId: studentProfile.id },
-        select: { id: true, weekStart: true, weekEnd: true, status: true, revisionHistory: true },
-        orderBy: { weekStart: "desc" },
-      })
-    : [];
   const reportHistory = weeklyHistory(reports);
   const track = buildInternshipTrack({
     reports: reports.map((r) => ({ weekStart: r.weekStart, state: reportState(r) })),
