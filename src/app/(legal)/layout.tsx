@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
+import { SiteFooter } from "@/components/site-footer";
 
 // Public reading pages (privacy notice, terms): readable before signing in, so people
 // can check what they are agreeing to.
@@ -28,6 +29,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       <main id="main" className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
         <article className="rounded-3xl glass p-6 sm:p-10">{children}</article>
       </main>
+      <SiteFooter signedIn={false} containerClassName="max-w-3xl px-4 sm:px-6" />
     </div>
   );
 }
