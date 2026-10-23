@@ -10,9 +10,14 @@ const config: Config = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
-  testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/", "<rootDir>/cypress/"],
+  testPathIgnorePatterns: [
+    "<rootDir>/.next/",
+    "<rootDir>/.claude/",
+    "<rootDir>/node_modules/",
+    "<rootDir>/cypress/",
+  ],
   // Build output contains package.json files that collide in the module map.
-  modulePathIgnorePatterns: ["<rootDir>/.next/"],
+  modulePathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/.claude/"],
   // Every core as a worker saturated the machine: a worker could miss Jest's
   // shutdown deadline ("failed to exit gracefully"; no open handles found), and the
   // run took twice as long. Half the cores is faster and quiet.

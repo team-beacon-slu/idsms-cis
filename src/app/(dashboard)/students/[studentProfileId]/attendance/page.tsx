@@ -157,7 +157,7 @@ export default async function AttendancePage(props: {
                   </span>
                 </p>
                 {summary.pendingHours > 0 && (
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <p className="text-xs text-amber-700">
                     +{summary.pendingHours} hrs pending faculty review
                   </p>
                 )}

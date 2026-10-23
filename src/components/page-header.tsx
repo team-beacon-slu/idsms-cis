@@ -8,20 +8,25 @@ export function PageHeader({
   description,
   actions,
   hero = false,
+  greeting,
   children,
 }: {
   title: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
   hero?: boolean;
+  /** Hero only: a line above the title ("Good evening, Danielle"). */
+  greeting?: string;
   children?: React.ReactNode;
 }) {
   if (hero) {
     return (
       <div className="relative overflow-hidden rounded-3xl px-6 py-7 beacon-band shadow-[0_1px_3px_rgb(18_49_83/0.08)] sm:px-8 sm:py-8">
+        <span aria-hidden="true" className="beacon-beam" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-[28px] leading-tight font-bold tracking-tight text-white sm:text-[34px]">
+            {greeting && <p className="mb-1 text-[15px] font-medium text-white/80">{greeting}</p>}
+            <h1 className="font-display text-[28px] leading-tight font-bold tracking-tight text-white sm:text-[34px]">
               {title}
             </h1>
             {description && (
@@ -37,13 +42,13 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-[26px] leading-tight font-bold tracking-tight text-brand-900 sm:text-[30px]">
+        <h1 className="font-display text-[26px] leading-tight font-bold tracking-tight text-brand-900 sm:text-[30px]">
           {title}
         </h1>
         <span
           aria-hidden="true"
           className={cn(
-            "mt-2 block h-1 w-12 rounded-full bg-gradient-to-r from-brand-600 to-[#5fbf8f]"
+            "mt-2 block h-1 w-12 rounded-full bg-gradient-to-r from-brand-600 to-beacon-light"
           )}
         />
         {description && (

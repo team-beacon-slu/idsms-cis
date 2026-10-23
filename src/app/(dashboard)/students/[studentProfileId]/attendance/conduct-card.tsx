@@ -286,14 +286,11 @@ export function ConductCard({
                   <p className="text-sm">
                     {i.detail}
                     {i.unjustified && !i.excused && (
-                      <span className="text-xs text-red-700 dark:text-red-400">
-                        {" "}
-                        · no valid reason (+2)
-                      </span>
+                      <span className="text-xs text-red-700"> · no valid reason (+2)</span>
                     )}
                   </p>
                   {i.excused && (
-                    <p className="text-xs text-green-700 dark:text-green-400">
+                    <p className="text-xs text-green-700">
                       Excused — {REASON_LABEL[i.excused.reasonCode] ?? i.excused.reasonCode}:{" "}
                       {i.excused.note}
                     </p>

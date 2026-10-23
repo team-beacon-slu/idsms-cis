@@ -151,7 +151,7 @@ export function MonthlyReportView({
             </div>
 
             {!month.submitted && !month.eligible && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-amber-700">
                 Not yet eligible. The month must be over (unless your hours are complete) and every
                 weekly report in it approved or regarded by your faculty adviser.
               </p>

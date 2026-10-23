@@ -81,9 +81,9 @@ export function WeeklyReportReviewActions({ weeklyReportId }: { weeklyReportId: 
               className={cn(
                 "cursor-pointer transition-colors duration-200",
                 action === "RETURN" &&
-                  "border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10",
+                  "border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10",
                 action === "DISREGARD" &&
-                  "border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-500/30 dark:text-slate-300 dark:hover:bg-slate-500/10"
+                  "border-slate-300 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-500/10"
               )}
             >
               <Icon className="size-3.5" aria-hidden="true" />

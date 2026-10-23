@@ -37,8 +37,7 @@ function dueStatus(dueAt: Date, now: Date): { label: string; className: string }
     const days = -diff;
     return {
       label: `Overdue by ${days} ${days === 1 ? "day" : "days"}`,
-      className:
-        "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
+      className: "border-red-300 bg-red-50 text-red-800",
     };
   }
   const days = diff;
@@ -47,7 +46,7 @@ function dueStatus(dueAt: Date, now: Date): { label: string; className: string }
     label,
     className:
       days <= DSAR_REMINDER_DAYS
-        ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        ? "border-amber-300 bg-amber-50 text-amber-900"
         : "text-foreground",
   };
 }

@@ -69,7 +69,7 @@ export default async function FinalReportPage(props: {
           <CardHeader>
             <CardTitle>{report ? STATUS_TEXT[report.status] : "Not started"}</CardTitle>
             {report?.status === "RETURNED" && report.reviewNote && (
-              <CardDescription className="text-red-700 dark:text-red-400">
+              <CardDescription className="text-red-700">
                 Coordinator&apos;s note: {report.reviewNote}
               </CardDescription>
             )}

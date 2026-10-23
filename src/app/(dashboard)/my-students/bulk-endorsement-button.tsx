@@ -117,12 +117,12 @@ export function BulkEndorsementButton({
               </ul>
             )}
             {result.failed.length > 0 && (
-              <p className="text-amber-700 dark:text-amber-400">
+              <p className="text-amber-700">
                 Failed letters can be regenerated from each student&apos;s checklist page.
               </p>
             )}
             {result.notAttempted.length > 0 && (
-              <p className="text-amber-700 dark:text-amber-400">
+              <p className="text-amber-700">
                 {result.notAttempted.length} student(s) weren&apos;t reached in this run — run it
                 again to continue.
               </p>

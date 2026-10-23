@@ -86,7 +86,7 @@ export function StudentDashboardTables({
                       aria-hidden="true"
                       className={cn("absolute top-0 left-3 h-3 w-14 rounded-t-md", f.tab)}
                     />
-                    <div className="relative rounded-xl border border-white/70 bg-white/80 px-3 py-2.5">
+                    <div className="relative rounded-xl border border-white/70 bg-white/80 px-3 py-2.5 dark:border-white/8 dark:bg-white/5">
                       <p className="text-sm leading-snug font-medium text-foreground">
                         {requirementLabel(item.requirementType)}
                       </p>

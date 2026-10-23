@@ -46,7 +46,7 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
         onClick={() => review("RETURN")}
         className={cn(
           "cursor-pointer gap-1.5 border-red-200 text-red-700 transition-colors duration-200 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed",
-          "dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+          "dark:border-red-500/30 dark:hover:bg-red-500/10"
         )}
       >
         <RotateCcw className="size-3.5" aria-hidden="true" />

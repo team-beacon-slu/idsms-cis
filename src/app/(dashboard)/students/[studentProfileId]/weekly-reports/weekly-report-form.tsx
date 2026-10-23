@@ -589,8 +589,7 @@ export function WeeklyReportForm({
               key={entry.id}
               className={cn(
                 "grid gap-3 rounded-lg border p-3 sm:grid-cols-[8rem_10rem_1fr]",
-                flag &&
-                  "border-amber-300 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/5"
+                flag && "border-amber-300 bg-amber-50/50"
               )}
             >
               <div>
@@ -616,7 +615,7 @@ export function WeeklyReportForm({
                     disabled={isPending || hasDirty}
                     onClick={() => removeAddedDay(entry)}
                     aria-label={`Remove ${formatDay(entry.reportDate)} from this report`}
-                    className="mt-1 h-7 cursor-pointer px-2 text-xs text-red-700 dark:text-red-400"
+                    className="mt-1 h-7 cursor-pointer px-2 text-xs text-red-700"
                   >
                     Remove day
                   </Button>
@@ -768,16 +767,13 @@ export function WeeklyReportForm({
                   </p>
                 )}
                 {flag && (
-                  <p className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                  <p className="flex items-center gap-1.5 text-xs text-amber-700">
                     <AlertTriangle className="size-3.5" aria-hidden="true" />
                     {flag} — please describe this day&apos;s work in your own words.
                   </p>
                 )}
                 {rowGaps(entry, row).map((gap) => (
-                  <p
-                    key={gap.kind}
-                    className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400"
-                  >
+                  <p key={gap.kind} className="flex items-center gap-1.5 text-xs text-amber-700">
                     <AlertTriangle className="size-3.5" aria-hidden="true" />
                     {gap.kind === "late" ? "Late arrival" : "Early leave"}: file an undertime
                     request —{" "}
@@ -809,8 +805,8 @@ export function WeeklyReportForm({
       />
 
       {late && (
-        <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-500/20 dark:bg-red-500/10">
-          <Label htmlFor={`delay-${weeklyReportId}`} className="text-red-700 dark:text-red-400">
+        <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+          <Label htmlFor={`delay-${weeklyReportId}`} className="text-red-700">
             Reason for delay (required — due{" "}
             {dueDate.toLocaleDateString(undefined, {
               weekday: "short",

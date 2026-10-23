@@ -5,6 +5,8 @@ import { getUserProfile } from "@/lib/services/userService";
 import { getMyDataRequestSummary } from "@/lib/services/dataRequestService";
 import { FullNameForm } from "./full-name-form";
 import { DataRequestCard } from "./data-request-card";
+import { ThemeChoice } from "@/components/theme-toggle";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -25,10 +27,10 @@ export default async function ProfilePage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Profile</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Your account details and access level.</p>
-      </div>
+      <PageHeader
+        title="Profile & preferences"
+        description="Your account, how IDSMS looks for you, and your data."
+      />
 
       {user.role === "STUDENT_INTERN" && profile?.studentProfile && (
         <Card>
@@ -99,6 +101,19 @@ export default async function ProfilePage() {
               />
             </Link>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>
+            Saved on this device. Match device follows your computer or phone&apos;s setting. The
+            sidebar remembers whether you collapsed it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeChoice />
         </CardContent>
       </Card>
 

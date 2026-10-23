@@ -4,7 +4,7 @@ import type { TrackKind, TrackWeek } from "@/lib/utils/internshipTrack";
 
 // The BEACON signature: every internship week as one cell on the way to the finish,
 // coloured by where its weekly report stands. The legend swatches are the cells themselves.
-const KIND: Record<TrackKind, { label: string; cell: string }> = {
+export const KIND: Record<TrackKind, { label: string; cell: string }> = {
   confirmed: { label: "Approved", cell: "bg-brand-600" },
   review: { label: "Awaiting review", cell: "bg-brand-100 border border-dashed border-brand-600" },
   returned: { label: "Returned", cell: "bg-danger-soft border border-red-300" },
