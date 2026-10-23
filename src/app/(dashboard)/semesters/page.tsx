@@ -19,6 +19,7 @@ import { SemesterActions } from "./semester-actions";
 import { WeekOneField } from "./week-one-field";
 import { toDateKey } from "@/lib/utils/reportDeadline";
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Semesters" };
 
@@ -40,13 +41,10 @@ export default async function SemestersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Semesters</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          One semester is active at a time. Archiving keeps every record and hides the semester from
-          default views.
-        </p>
-      </div>
+      <PageHeader
+        title="Semesters"
+        description="One semester is active at a time. Archiving keeps every record and hides the semester from default views."
+      />
 
       {canManage && (
         <Card>

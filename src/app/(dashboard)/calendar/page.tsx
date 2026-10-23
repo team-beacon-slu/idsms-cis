@@ -16,6 +16,7 @@ import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Calendar" };
 
@@ -63,12 +64,10 @@ export default async function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Calendar</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Deadlines, holidays, and OJT milestones for your role.
-        </p>
-      </div>
+      <PageHeader
+        title="Calendar"
+        description="Deadlines, holidays, and OJT milestones for your role."
+      />
 
       {user.role === Role.STUDENT_INTERN && (
         <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-4 text-sm">

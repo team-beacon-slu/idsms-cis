@@ -3,6 +3,7 @@ import { listNotifications } from "@/lib/services/inbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { NotificationList, type InboxItem } from "./notification-list";
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Notifications" };
 
@@ -26,12 +27,10 @@ export default async function NotificationsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Notifications</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Review outcomes, deadlines, and account updates.
-        </p>
-      </div>
+      <PageHeader
+        title="Notifications"
+        description="Review outcomes, deadlines, and account updates."
+      />
       <Card>
         <CardContent className="p-5">
           <NotificationList items={inbox} />

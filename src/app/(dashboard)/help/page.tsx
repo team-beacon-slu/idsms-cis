@@ -219,7 +219,7 @@ function FaqList({ items }: { items: Faq[] }) {
     <div className="divide-y divide-border">
       {items.map((f) => (
         <details key={f.q} className="group py-3 first:pt-0 last:pb-0">
-          <summary className="cursor-pointer list-none text-sm font-medium text-foreground marker:hidden">
+          <summary className="cursor-pointer list-none py-1 text-sm font-medium text-foreground marker:hidden">
             <span
               className="mr-2 inline-block text-brand-600 transition-transform group-open:rotate-90"
               aria-hidden="true"

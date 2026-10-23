@@ -181,6 +181,15 @@ Error prevention (confirm dialogs), Visibility of status (active nav, statuses, 
 
 Decision (Jay, 2026-10-23): insurance proof is **not stored** (SLU holds it); no checklist item.
 
+**Status (2026-10-23):** built: 5a (#108), Parts 1–3 (#109–#111), 6.2/6.1/6.5/6.6/6.7 (this
+pass). Dropped after checking the running app: Part 3's getting-started card and staff
+intern search (duplicates of "Waiting on you" and the Users search); 6.4 (the dashboard's
+`loading.tsx` already makes navigation instant, so `useLinkStatus` never fires); 6.8 (a
+local-only "saved" line could be mistaken for a server save; restore notice + "Draft saved"
+exist); 6.1 submit confirmation (toast with reference + submitted state exist). Backlog:
+6.9 withdraw-to-draft (policy question for the adviser), 6.10 prefill check, Part 4
+notification preferences.
+
 ### Verification for every part
 
 tsc, eslint (max-warnings 0), jest with new tests for the helpers (display name, initials,
