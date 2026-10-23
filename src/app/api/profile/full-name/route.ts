@@ -3,7 +3,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserApi } from "@/lib/auth/session";
-import { logEvent } from "@/lib/services/auditService";
+import { logEvent } from "@/lib/services/accounts/auditService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 const schema = z.object({ fullName: z.string().trim().min(3, "Enter your full name").max(150) });

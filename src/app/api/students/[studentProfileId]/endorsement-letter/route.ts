@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import {
   generateEndorsementLetterPdf,
   getEndorsementLetterDocument,
   getGeneratedDocumentDownloadUrl,
-} from "@/lib/services/documentService";
-import { notifyEndorsementReady } from "@/lib/services/notificationEvents";
+} from "@/lib/services/reports/documentService";
+import { notifyEndorsementReady } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";

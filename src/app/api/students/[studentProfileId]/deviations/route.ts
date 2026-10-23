@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listDeviationReportsForStudent } from "@/lib/services/attendanceService";
+import { listDeviationReportsForStudent } from "@/lib/services/attendance/attendanceService";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Read-only legacy list. Filing moved to /api/students/[id]/time-requests

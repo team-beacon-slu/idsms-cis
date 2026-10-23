@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
-import { getWeeklyReport } from "@/lib/services/weeklyReportService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
+import { getWeeklyReport } from "@/lib/services/reports/weeklyReportService";
 import { processWeeklyReportAi } from "@/lib/ai/processing";
 import { handleApiError } from "@/lib/utils/apiError";
 

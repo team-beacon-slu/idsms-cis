@@ -3,14 +3,16 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/dataRequestService", () => ({ markDataRequestFulfilled: jest.fn() }));
-jest.mock("@/lib/services/notify", () => ({ notify: jest.fn() }));
+jest.mock("@/lib/services/privacy/dataRequestService", () => ({
+  markDataRequestFulfilled: jest.fn(),
+}));
+jest.mock("@/lib/services/notifications/notify", () => ({ notify: jest.fn() }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
 import { DataRequestStateError } from "@/lib/errors/compliance";
-import { markDataRequestFulfilled } from "@/lib/services/dataRequestService";
-import { notify } from "@/lib/services/notify";
+import { markDataRequestFulfilled } from "@/lib/services/privacy/dataRequestService";
+import { notify } from "@/lib/services/notifications/notify";
 import { POST } from "@/app/api/admin/data-requests/[id]/fulfil/route";
 
 const admin = { id: "a-1", email: "admin@slu.edu.ph", role: "SUPER_ADMIN" };

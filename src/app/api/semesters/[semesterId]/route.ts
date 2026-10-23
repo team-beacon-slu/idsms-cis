@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { setSemesterWeekOne } from "@/lib/services/semesterService";
+import { setSemesterWeekOne } from "@/lib/services/academic/semesterService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";

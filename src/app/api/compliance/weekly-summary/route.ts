@@ -7,7 +7,7 @@ import {
   resolveComplianceScope,
   type ReportState,
   type WeeklySummaryRow,
-} from "@/lib/services/complianceService";
+} from "@/lib/services/dashboards/complianceService";
 import { buildWorkbook, toSheetRows, xlsxResponse } from "@/lib/utils/excelExport";
 import { addDays, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";
 import { handleApiError } from "@/lib/utils/apiError";

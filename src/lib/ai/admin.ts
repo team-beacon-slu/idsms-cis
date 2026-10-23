@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { logEvent } from "@/lib/services/auditService";
+import { logEvent } from "@/lib/services/accounts/auditService";
 import { evaluateThreshold, type EvalResult, type LabeledScore } from "@/lib/ai/evaluation";
 import { AI_KEYS, getAiSettings, THRESHOLD_MAX, THRESHOLD_MIN } from "@/lib/ai/settings";
 

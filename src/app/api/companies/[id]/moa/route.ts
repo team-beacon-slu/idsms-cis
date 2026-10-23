@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Role } from "@prisma/client";
 import { createMoaRecordSchema } from "@/lib/validators/company";
-import { createMoaRecord, listMoaRecordsForCompany } from "@/lib/services/companyService";
+import {
+  createMoaRecord,
+  listMoaRecordsForCompany,
+} from "@/lib/services/predeployment/companyService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 import { MOA_BUCKET, uploadFile } from "@/lib/storage";

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { requestPasswordResetSchema } from "@/lib/validators/auth";
-import { requestPasswordReset } from "@/lib/services/userService";
-import { notifyPasswordReset } from "@/lib/services/notificationEvents";
+import { requestPasswordReset } from "@/lib/services/accounts/userService";
+import { notifyPasswordReset } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Looks up the account, issues the token and emails it. Runs after the response.

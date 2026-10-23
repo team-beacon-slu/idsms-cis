@@ -2,9 +2,12 @@ import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
 import { Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { FINAL_REPORT_REVIEWERS, getFinalReportState } from "@/lib/services/finalReportService";
-import { getFinalTechnicalReportDocument } from "@/lib/services/documentService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
+import {
+  FINAL_REPORT_REVIEWERS,
+  getFinalReportState,
+} from "@/lib/services/reports/finalReportService";
+import { getFinalTechnicalReportDocument } from "@/lib/services/reports/documentService";
 import { toContent } from "@/lib/validators/finalReport";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";

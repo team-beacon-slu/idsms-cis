@@ -3,15 +3,18 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/timeRequestService", () => ({
-  ...jest.requireActual("@/lib/services/timeRequestService"),
+jest.mock("@/lib/services/attendance/timeRequestService", () => ({
+  ...jest.requireActual("@/lib/services/attendance/timeRequestService"),
   reviewTimeRequest: jest.fn(),
 }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { ForbiddenError } from "@/lib/services/userService";
-import { reviewTimeRequest, TimeRequestStateError } from "@/lib/services/timeRequestService";
+import { ForbiddenError } from "@/lib/services/accounts/userService";
+import {
+  reviewTimeRequest,
+  TimeRequestStateError,
+} from "@/lib/services/attendance/timeRequestService";
 import { POST } from "@/app/api/time-requests/[id]/review/route";
 
 const call = (body: unknown) =>

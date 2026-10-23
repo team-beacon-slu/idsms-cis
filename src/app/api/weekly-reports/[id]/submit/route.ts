@@ -5,11 +5,11 @@ import {
   getWeeklyReport,
   recordWeeklyReportSubmission,
   validateLateSubmissionReason,
-} from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/weeklyReportService";
 import { weeklyReportSubmitSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
-import { notifyReportSubmitted } from "@/lib/services/notificationEvents";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
+import { notifyReportSubmitted } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-WR-05 + FR-WR-10: student self-only. The late-reason gate runs first so

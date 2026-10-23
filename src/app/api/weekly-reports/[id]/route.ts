@@ -6,10 +6,10 @@ import {
   getDailyReportEntryWeeklyReportId,
   getWeeklyReport,
   saveDailyAccomplishment,
-} from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/weeklyReportService";
 import { dailyEntrySchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {

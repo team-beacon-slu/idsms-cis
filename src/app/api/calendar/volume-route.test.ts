@@ -2,9 +2,9 @@
 import { Role } from "@prisma/client";
 import { GET } from "./route";
 import { requireUserApi } from "@/lib/auth/session";
-import { detectHighVolumeSubmissionWeeks } from "@/lib/services/calendarService";
+import { detectHighVolumeSubmissionWeeks } from "@/lib/services/calendar/calendarService";
 jest.mock("@/lib/auth/session", () => ({ requireUserApi: jest.fn() }));
-jest.mock("@/lib/services/calendarService", () => ({
+jest.mock("@/lib/services/calendar/calendarService", () => ({
   getUnifiedCalendarEvents: jest.fn(async () => []),
   getFacultyCalendarView: jest.fn(async () => []),
   getCoordinatorCalendarView: jest.fn(async () => []),

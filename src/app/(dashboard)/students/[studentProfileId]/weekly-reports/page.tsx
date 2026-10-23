@@ -4,15 +4,15 @@ import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { loadShift } from "@/lib/services/creditedHours";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
+import { loadShift } from "@/lib/services/attendance/creditedHours";
 import {
   getConfirmedSubmission,
   getLatestSubmission,
   getWeeklyReportHistory,
   isAwaitingReview,
   isWeeklyReportEditable,
-} from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/weeklyReportService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";

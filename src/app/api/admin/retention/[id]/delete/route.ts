@@ -3,7 +3,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
-import { deleteRetentionFlaggedFile } from "@/lib/services/retentionService";
+import { deleteRetentionFlaggedFile } from "@/lib/services/privacy/retentionService";
 import { StorageDeleteError } from "@/lib/storage";
 import { handleApiError } from "@/lib/utils/apiError";
 

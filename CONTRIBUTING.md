@@ -128,7 +128,7 @@ This shows you which files changed. Read it before staging anything — it preve
 accidentally committing files you didn't mean to (like `.env` or stray debug files).
 
 ```bash
-git add src/lib/services/calendarService.ts
+git add src/lib/services/calendar/calendarService.ts
 git commit -m "Implement holidays route handler"
 ```
 

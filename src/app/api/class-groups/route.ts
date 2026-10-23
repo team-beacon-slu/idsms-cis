@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { createClassGroup } from "@/lib/services/classGroupService";
+import { createClassGroup } from "@/lib/services/academic/classGroupService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 const MANAGERS: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];

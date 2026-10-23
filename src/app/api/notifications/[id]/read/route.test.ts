@@ -1,10 +1,10 @@
 /** @jest-environment node */
 jest.mock("@/lib/auth/session", () => ({ requireUserApi: jest.fn() }));
-jest.mock("@/lib/services/inbox", () => ({ markNotificationRead: jest.fn() }));
+jest.mock("@/lib/services/notifications/inbox", () => ({ markNotificationRead: jest.fn() }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { markNotificationRead } from "@/lib/services/inbox";
+import { markNotificationRead } from "@/lib/services/notifications/inbox";
 import { PATCH } from "@/app/api/notifications/[id]/read/route";
 
 const req = () => new NextRequest("http://localhost/x", { method: "PATCH" });

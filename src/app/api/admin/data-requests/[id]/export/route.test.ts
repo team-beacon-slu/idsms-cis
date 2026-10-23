@@ -4,8 +4,8 @@ jest.mock("@/lib/auth/session", () => ({
   requireUserApi: jest.fn(),
 }));
 jest.mock("@/lib/auth/confirmPassword", () => ({ confirmPassword: jest.fn() }));
-jest.mock("@/lib/services/auditService", () => ({ logEvent: jest.fn() }));
-jest.mock("@/lib/services/dataRequestService", () => ({
+jest.mock("@/lib/services/accounts/auditService", () => ({ logEvent: jest.fn() }));
+jest.mock("@/lib/services/privacy/dataRequestService", () => ({
   getDataRequestSubject: jest.fn(),
   buildPersonalDataWorkbook: jest.fn(),
 }));
@@ -15,11 +15,11 @@ import * as XLSX from "xlsx";
 import { requireUserApi } from "@/lib/auth/session";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
 import { ComplianceNotFoundError } from "@/lib/errors/compliance";
-import { logEvent } from "@/lib/services/auditService";
+import { logEvent } from "@/lib/services/accounts/auditService";
 import {
   buildPersonalDataWorkbook,
   getDataRequestSubject,
-} from "@/lib/services/dataRequestService";
+} from "@/lib/services/privacy/dataRequestService";
 import { POST } from "@/app/api/admin/data-requests/[id]/export/route";
 
 const admin = { id: "a-1", email: "admin@slu.edu.ph", role: "SUPER_ADMIN" };

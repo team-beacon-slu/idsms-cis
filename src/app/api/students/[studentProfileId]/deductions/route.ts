@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { getDeductionTally, listAutomaticItems } from "@/lib/services/deductionService";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { getDeductionTally, listAutomaticItems } from "@/lib/services/conduct/deductionService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L2: the intern's tally and automatic items (intern and their staff).

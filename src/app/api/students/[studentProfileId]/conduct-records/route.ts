@@ -4,8 +4,8 @@ import {
   CONDUCT_STAFF_ROLES,
   issueConductRecord,
   listConductRecords,
-} from "@/lib/services/conductService";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+} from "@/lib/services/conduct/conductService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L2: the intern and their staff read conduct records; staff issue them.

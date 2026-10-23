@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { createTimeRequest, listTimeRequests } from "@/lib/services/timeRequestService";
+import { createTimeRequest, listTimeRequests } from "@/lib/services/attendance/timeRequestService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream L1: the intern's leave / OT / UT requests. JSON only — no

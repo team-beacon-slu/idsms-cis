@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { markNotificationRead } from "@/lib/services/inbox";
+import { markNotificationRead } from "@/lib/services/notifications/inbox";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Ownership is enforced by the query (scoped to the session user): a foreign

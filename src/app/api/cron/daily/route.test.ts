@@ -2,13 +2,13 @@
 jest.mock("@/lib/ai/batch", () => ({
   processPendingAiReports: jest.fn().mockResolvedValue({ processed: 0, failed: 0, skipped: true }),
 }));
-jest.mock("@/lib/services/scheduledNotifications", () => ({
+jest.mock("@/lib/services/notifications/scheduledNotifications", () => ({
   runDailyNotifications: jest
     .fn()
     .mockResolvedValue({ deadlineReminders: 0, moaWarnings: 0, errors: [] }),
 }));
 import { NextRequest } from "next/server";
-import { runDailyNotifications } from "@/lib/services/scheduledNotifications";
+import { runDailyNotifications } from "@/lib/services/notifications/scheduledNotifications";
 import { GET } from "@/app/api/cron/daily/route";
 
 const ENV = process.env.CRON_SECRET;

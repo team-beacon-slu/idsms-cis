@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import {
   generateFinalCoverPdf,
   getFinalCoverDocument,
   getGeneratedDocumentDownloadUrl,
-} from "@/lib/services/documentService";
+} from "@/lib/services/reports/documentService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export const runtime = "nodejs";

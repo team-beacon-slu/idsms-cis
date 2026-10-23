@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import { bulkImportRequestSchema, bulkImportRowSchema } from "@/lib/validators/user";
-import { bulkImportStudents, BulkImportInputRow } from "@/lib/services/userService";
+import { bulkImportStudents, BulkImportInputRow } from "@/lib/services/accounts/userService";
 import { parseImportFile } from "@/lib/utils/fileImport";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
-import { notifyAccountsCreatedByEmail } from "@/lib/services/notificationEvents";
+import { notifyAccountsCreatedByEmail } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // A class list is a few hundred rows; anything far larger is a mistake, and

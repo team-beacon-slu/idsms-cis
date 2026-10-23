@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { findSimilarCompanies } from "@/lib/services/companyService";
+import { findSimilarCompanies } from "@/lib/services/predeployment/companyService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-MOA-02: any signed-in user, same as the company list (companies aren't sensitive).

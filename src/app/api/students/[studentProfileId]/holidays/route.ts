@@ -3,10 +3,10 @@ import { Role } from "@prisma/client";
 import {
   getHolidayCalendarForStudent,
   markHolidayApplicable,
-} from "@/lib/services/attendanceService";
+} from "@/lib/services/attendance/attendanceService";
 import { holidayApplicableSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // FR-AT-02: holiday calendar for this student's semester, with their opt-outs applied.

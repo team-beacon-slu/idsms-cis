@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import {
   checkMonthlyAggregationEligibility,
   listMonthlyReportsForStudent,
-} from "@/lib/services/monthlyReportService";
-import { listWeeklyReportsForStudent } from "@/lib/services/weeklyReportService";
+} from "@/lib/services/reports/monthlyReportService";
+import { listWeeklyReportsForStudent } from "@/lib/services/reports/weeklyReportService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { MonthlyReportView, type MonthRollup } from "./monthly-report-view";

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { submitFinalReport } from "@/lib/services/finalReportService";
+import { submitFinalReport } from "@/lib/services/reports/finalReportService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Workstream H: the intern submits the final report for the coordinator's review.

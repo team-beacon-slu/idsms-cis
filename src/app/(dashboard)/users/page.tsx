@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Role } from "@prisma/client";
 import { Users as UsersIcon, UserCheck, UserX, Upload } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { listUsers } from "@/lib/services/userService";
+import { listUsers } from "@/lib/services/accounts/userService";
 import {
   Table,
   TableBody,

@@ -12,7 +12,7 @@ IDSMS is a **modular monolith**: one Next.js 14 (App Router) application contain
 
 ```mermaid
 flowchart LR
-    B["Browser<br/>(desktop or phone)"] -->|HTTPS| MW["middleware.ts<br/>session-cookie gate"]
+    B["Browser<br/>(desktop or phone)"] -->|HTTPS| MW["proxy.ts<br/>session-cookie gate + CSP nonce"]
     MW --> P["Pages<br/>src/app/(dashboard), (auth)"]
     B -->|fetch JSON| API["API routes<br/>src/app/api/**/route.ts"]
     P --> S
@@ -60,59 +60,76 @@ Versions from `package.json` (caret ranges as declared).
 
 ```text
 prisma/
-  schema.prisma              data model (single source for tables Prisma manages)
-  migrations_manual/         001–015 hand-run SQL, applied in number order (extensions, RLS, buckets, triggers, indexes, columns)
-  seed-holidays.ts           Philippine holidays seed
+  schema.prisma                data model (single source for tables Prisma manages)
+  migrations_manual/           001–015 hand-run SQL, applied in number order
+  seed-holidays.ts             Philippine holidays seed
 src/
-  middleware.ts              redirects to /login when no session cookie (UX gate only)
+  proxy.ts                     route protection and the CSP nonce (Next 16's middleware)
   app/
-    (auth)/login             sign-in page
-    auth/reset-password      password reset request and token pages
-    change-password          forced / voluntary password change
-    (dashboard)/             all signed-in pages; dashboard-nav.tsx defines each role's menu
-    api/                     JSON route handlers (inventory in section 5)
-  components/                shared UI (compliance table, shadcn/ui primitives)
+    (auth)/login               sign-in page
+    (legal)/privacy, terms     public privacy notice and terms of use
+    auth/reset-password        password reset request and token pages
+    change-password            forced / voluntary password change
+    (dashboard)/               every signed-in page, one folder per route
+      _components/             the shell shared by those pages: menu, account menu, bell,
+                               consent dialog, role dashboards (private: not a route)
+    api/                       JSON route handlers (inventory in section 5)
+  components/                  shared UI used across route groups (page header, footer, charts…)
+    ui/                        shadcn/ui primitives
+    emails/                    React Email templates
   lib/
-    auth/                    authOptions.ts, session.ts (requireUserPage/Api, requireRole), confirmPassword.ts
-    services/                business logic (section 4)
-    documents/               HTML templates and data loaders for each PDF
-    pdf/                     renderHtmlToPdf.ts (Puppeteer)
-    storage.ts               the only module that talks to object storage
-    validators/              zod schemas
-    utils/                   deadlines, Excel helpers, default passwords, safe paths, schedule helpers
-  types/                     shared TypeScript types
-.github/workflows/ci.yml     CI pipeline
-vercel.json                  daily cron definition
+    services/<domain>/         business logic, grouped by internship domain (section 4)
+    ai/                        AI evaluation, scrubbing and prompts behind aiService
+    auth/                      authOptions.ts, session.ts (requireUserPage/Api, requireRole), confirmPassword.ts
+    documents/                 HTML templates and data loaders for each PDF
+    pdf/                       renderHtmlToPdf.ts (Puppeteer)
+    validators/                zod schemas
+    utils/                     small pure helpers (deadlines, Excel, names, labels, safe paths)
+    storage.ts                 the only module that talks to object storage
+  testUtils/                   shared Jest helpers (Prisma mock)
+  types/                       shared TypeScript types
+docs/                          all documentation, catalogued in docs/README.md
+scripts/                       one-off scripts (AI golden-set evaluation)
+.github/workflows/ci.yml       CI pipeline
+vercel.json                    daily cron definition
 ```
+
+Each service's test sits next to it (`fooService.test.ts`). Route-specific components live inside their route folder; a component used by several route groups goes in `src/components/`.
 
 ## 4. Service map
 
-| Service (`src/lib/services/`) | Responsibility                                                                                                                                                               |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `userService.ts`              | Credentials check, lockout, session revocation, password reset/change, bulk import, `assertCanAccessStudent` (record-level RBAC), user listing.                              |
-| `auditService.ts`             | `logEvent`: append a row to `audit_logs` (optionally inside the caller's transaction).                                                                                       |
-| `auditLogQuery.ts`            | Filtered audit log queries for the audit log page and export.                                                                                                                |
-| `checklistService.ts`         | Checklist progress, review (Approve/Return), the 9/9 endorsement gate (`isEndorsementGateSatisfied`).                                                                        |
-| `companyService.ts`           | Companies, MOA records and their lifecycle, verification, expiring-MOA query.                                                                                                |
-| `workPlanService.ts`          | Work plan submission, coordinator review, approved-plan locking, history.                                                                                                    |
-| `attendanceService.ts`        | Schedules, holidays, deviation reports, schedule changes, confirmed/pending hours, projected completion, required-hours and final-report-threshold settings, attendance CSV. |
-| `weeklyReportService.ts`      | Weekly form generation, daily entries, submission (late flag, reference code), the four review actions, preview.                                                             |
-| `monthlyReportService.ts`     | Monthly eligibility (all weeks Approved/Regarded) and submission.                                                                                                            |
-| `documentService.ts`          | PDF generation with retry for weekly, monthly, endorsement (single and bulk) and final cover; signed download URLs.                                                          |
-| `calendarService.ts`          | Unified calendar events per role, high-volume weeks, endorsement-demand clusters.                                                                                            |
-| `complianceService.ts`        | Compliance rows and statuses for dashboards, filters, weekly summary, Excel shapes.                                                                                          |
-| `attentionService.ts`         | The student's "Needs attention" counts.                                                                                                                                      |
-| `semesterService.ts`          | Create, activate (exactly one active) and archive semesters.                                                                                                                 |
-| `notify.ts`                   | Notification backbone: in-app row always, email when Resend is configured, dedupe; never throws.                                                                             |
-| `notificationEvents.ts`       | One function per event trigger (account created, report submitted/returned, checklist, work plan, deviation, endorsement).                                                   |
-| `notificationRecipients.ts`   | Recipient lookups (student, assigned faculty, department staff, Super Admins).                                                                                               |
-| `notificationService.ts`      | Report-status email (FR-WR-07).                                                                                                                                              |
-| `scheduledNotifications.ts`   | The daily job: deadline reminders, MOA warnings, DSAR reminders, retention scan; notification settings.                                                                      |
-| `inbox.ts`                    | List notifications, mark one or all read.                                                                                                                                    |
-| `dataRequestService.ts`       | DSAR tickets (15-day SLA), queue, fulfilment, personal-data workbook.                                                                                                        |
-| `retentionService.ts`         | Quarterly 3-year retention scan, keep/delete review.                                                                                                                         |
-| `adminExportService.ts`       | The six Export Center workbooks.                                                                                                                                             |
-| `aiService.ts`                | AI adapter (Gemini embeddings and sentiment, names removed first); switched off until enabled in settings (Workstream D, #90).                                               |
+| Service (`src/lib/services/<domain>/`)    | Responsibility                                                                                                                                                               |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accounts/userService.ts`                 | Credentials check, lockout, session revocation, password reset/change, bulk import, `assertCanAccessStudent` (record-level RBAC), user listing.                              |
+| `accounts/auditService.ts`                | `logEvent`: append a row to `audit_logs` (optionally inside the caller's transaction).                                                                                       |
+| `accounts/auditLogQuery.ts`               | Filtered audit log queries for the audit log page and export.                                                                                                                |
+| `predeployment/checklistService.ts`       | Checklist progress, review (Approve/Return), the 9/9 endorsement gate (`isEndorsementGateSatisfied`).                                                                        |
+| `predeployment/companyService.ts`         | Companies, MOA records and their lifecycle, verification, expiring-MOA query.                                                                                                |
+| `predeployment/workPlanService.ts`        | Work plan submission, coordinator review, approved-plan locking, history.                                                                                                    |
+| `attendance/attendanceService.ts`         | Schedules, holidays, deviation reports, schedule changes, confirmed/pending hours, projected completion, required-hours and final-report-threshold settings, attendance CSV. |
+| `reports/weeklyReportService.ts`          | Weekly form generation, daily entries, submission (late flag, reference code), the four review actions, preview.                                                             |
+| `reports/monthlyReportService.ts`         | Monthly eligibility (all weeks Approved/Regarded) and submission.                                                                                                            |
+| `reports/documentService.ts`              | PDF generation with retry for weekly, monthly, endorsement (single and bulk) and final cover; signed download URLs.                                                          |
+| `calendar/calendarService.ts`             | Unified calendar events per role, high-volume weeks, endorsement-demand clusters.                                                                                            |
+| `dashboards/complianceService.ts`         | Compliance rows and statuses for dashboards, filters, weekly summary, Excel shapes.                                                                                          |
+| `dashboards/attentionService.ts`          | The student's "Needs attention" counts.                                                                                                                                      |
+| `academic/semesterService.ts`             | Create, activate (exactly one active) and archive semesters.                                                                                                                 |
+| `notifications/notify.ts`                 | Notification backbone: in-app row always, email when Resend is configured, dedupe; never throws.                                                                             |
+| `notifications/notificationEvents.ts`     | One function per event trigger (account created, report submitted/returned, checklist, work plan, deviation, endorsement).                                                   |
+| `notifications/notificationRecipients.ts` | Recipient lookups (student, assigned faculty, department staff, Super Admins).                                                                                               |
+| `notifications/notificationService.ts`    | Report-status email (FR-WR-07).                                                                                                                                              |
+| `notifications/scheduledNotifications.ts` | The daily job: deadline reminders, MOA warnings, DSAR reminders, retention scan; notification settings.                                                                      |
+| `notifications/inbox.ts`                  | List notifications, mark one or all read.                                                                                                                                    |
+| `privacy/dataRequestService.ts`           | DSAR tickets (15-day SLA), queue, fulfilment, personal-data workbook.                                                                                                        |
+| `privacy/retentionService.ts`             | Quarterly 3-year retention scan, keep/delete review.                                                                                                                         |
+| `privacy/adminExportService.ts`           | The six Export Center workbooks.                                                                                                                                             |
+| `ai/aiService.ts`                         | AI adapter (Gemini embeddings and sentiment, names removed first); switched off until enabled in settings (Workstream D, #90).                                               |
+| `academic/classGroupService.ts`           | Class groups: create, rename, delete, assign faculty advisers per semester.                                                                                                  |
+| `attendance/creditedHours.ts`             | SLU credited-hours rules: time within the shift, approved overtime of 30+ minutes, no offsetting.                                                                            |
+| `attendance/timeRequestService.ts`        | Leave, overtime and undertime requests: filing, review, proof.                                                                                                               |
+| `reports/finalReportService.ts`           | Final Technical Report: unlock threshold, submission, coordinator review, HTE evaluation.                                                                                    |
+| `conduct/conductService.ts`               | Conduct records (warnings, demerits, violations, suspensions), optional hours, revoke.                                                                                       |
+| `conduct/deductionService.ts`             | SLU deduction matrix, automatic late/unsupported counts, excused exceptions, tally.                                                                                          |
 
 ## 5. API route inventory
 
@@ -282,7 +299,7 @@ erDiagram
 ## 7. Authentication and RBAC
 
 - **NextAuth v4, database sessions** (`src/lib/auth/authOptions.ts`). The credentials provider normally only supports JWTs; IDSMS creates a real `sessions` row at sign-in (via the `jwt.encode` override) and the cookie holds that session token. Sessions last 30 minutes, refreshed every 5 minutes of activity. Cookies are HttpOnly, and Secure under HTTPS.
-- **Middleware** (`src/middleware.ts`) only checks that a session cookie exists and redirects to `/login` otherwise. It runs at the edge and cannot reach the database, so it is a UX gate, not the security boundary.
+- **Proxy** (`src/proxy.ts`, Next 16's name for middleware) checks that a session cookie exists, redirects to `/login` otherwise (public pages such as `/privacy` and `/terms` excepted), and sets a per-request CSP nonce. It does not query the database, so it is a UX gate, not the security boundary.
 - **The real checks** run in every page and route: `requireUserPage()` / `requireUserApi()` load the session from the database and reject inactive users; `requireRole(user, roles)` checks the role; `assertCanAccessStudent` (in `userService.ts`) enforces record ownership: students only themselves, faculty only students in their assigned class group and semester.
 - **Forced password change:** the dashboard layout redirects users with `mustResetPassword` to `/change-password`.
 - **Lockout** (`verifyCredentials`): 5 consecutive failures lock the account for 15 minutes and delete its sessions. Hardened in PR #84: the slow bcrypt check runs outside the database transaction; the failure counter uses an atomic increment; a successful login uses a conditional update so it cannot clear a lock or accept a password changed concurrently; an expired lock re-locks correctly. Every attempt is audited.

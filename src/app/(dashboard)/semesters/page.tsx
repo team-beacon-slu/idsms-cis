@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { CalendarX } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { listSemesters } from "@/lib/services/semesterService";
+import { listSemesters } from "@/lib/services/academic/semesterService";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

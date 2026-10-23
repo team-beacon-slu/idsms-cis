@@ -3,8 +3,8 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/complianceService", () => ({
-  ...jest.requireActual("@/lib/services/complianceService"),
+jest.mock("@/lib/services/dashboards/complianceService", () => ({
+  ...jest.requireActual("@/lib/services/dashboards/complianceService"),
   resolveComplianceScope: jest.fn(),
   getComplianceRows: jest.fn(),
 }));
@@ -17,7 +17,7 @@ import {
   getComplianceRows,
   resolveComplianceScope,
   type ComplianceRow,
-} from "@/lib/services/complianceService";
+} from "@/lib/services/dashboards/complianceService";
 import { GET } from "@/app/api/compliance/export/route";
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

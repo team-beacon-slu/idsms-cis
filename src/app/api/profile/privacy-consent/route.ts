@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserApi } from "@/lib/auth/session";
-import { logEvent } from "@/lib/services/auditService";
+import { logEvent } from "@/lib/services/accounts/auditService";
 import { handleApiError } from "@/lib/utils/apiError";
 import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
 

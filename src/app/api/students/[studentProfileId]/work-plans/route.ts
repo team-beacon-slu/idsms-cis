@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { submitWorkPlanSchema } from "@/lib/validators/workPlan";
-import { getWorkPlanHistory, submitWorkPlan } from "@/lib/services/workPlanService";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { getWorkPlanHistory, submitWorkPlan } from "@/lib/services/predeployment/workPlanService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

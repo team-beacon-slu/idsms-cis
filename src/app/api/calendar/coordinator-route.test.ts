@@ -5,9 +5,9 @@ import { requireUserApi } from "@/lib/auth/session";
 import {
   getCoordinatorCalendarView,
   detectEndorsementLetterSpikes,
-} from "@/lib/services/calendarService";
+} from "@/lib/services/calendar/calendarService";
 jest.mock("@/lib/auth/session", () => ({ requireUserApi: jest.fn() }));
-jest.mock("@/lib/services/calendarService", () => ({
+jest.mock("@/lib/services/calendar/calendarService", () => ({
   getUnifiedCalendarEvents: jest.fn(async () => []),
   getFacultyCalendarView: jest.fn(async () => []),
   getCoordinatorCalendarView: jest.fn(async () => []),

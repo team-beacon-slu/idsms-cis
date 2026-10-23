@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { completePasswordResetSchema } from "@/lib/validators/auth";
-import { completePasswordReset } from "@/lib/services/userService";
+import { completePasswordReset } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // Public route — the token itself is the credential.

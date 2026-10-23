@@ -3,9 +3,12 @@ import { Role } from "@prisma/client";
 import { GET } from "./route";
 import { requireUserApi } from "@/lib/auth/session";
 import { UnauthorizedError } from "@/lib/auth/errors";
-import { getFacultyCalendarView, getUnifiedCalendarEvents } from "@/lib/services/calendarService";
+import {
+  getFacultyCalendarView,
+  getUnifiedCalendarEvents,
+} from "@/lib/services/calendar/calendarService";
 jest.mock("@/lib/auth/session", () => ({ requireUserApi: jest.fn() }));
-jest.mock("@/lib/services/calendarService", () => ({
+jest.mock("@/lib/services/calendar/calendarService", () => ({
   getFacultyCalendarView: jest.fn(),
   getUnifiedCalendarEvents: jest.fn(),
   detectHighVolumeSubmissionWeeks: jest.fn(async () => []),

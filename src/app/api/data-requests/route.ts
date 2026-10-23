@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { createDataRequest } from "@/lib/services/dataRequestService";
-import { getSuperAdminIds } from "@/lib/services/notificationRecipients";
-import { notify } from "@/lib/services/notify";
+import { createDataRequest } from "@/lib/services/privacy/dataRequestService";
+import { getSuperAdminIds } from "@/lib/services/notifications/notificationRecipients";
+import { notify } from "@/lib/services/notifications/notify";
 import { formatManilaDateTime } from "@/lib/utils/excelExport";
 import { handleApiError } from "@/lib/utils/apiError";
 

@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import "dotenv/config"; // Prisma 7 no longer loads .env itself
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { embedText } from "@/lib/services/aiService";
+import { embedText } from "@/lib/services/ai/aiService";
 import { evaluateThreshold, type LabeledScore } from "@/lib/ai/evaluation";
 import { cosine, parseGoldenCsv } from "@/lib/ai/golden";
 import { AI_KEYS, getAiSettings } from "@/lib/ai/settings";

@@ -6,21 +6,21 @@ import {
   computeProjectedCompletionDate,
   getFinalReportThreshold,
   getHoursSummary,
-} from "@/lib/services/attendanceService";
-import { getFinalCoverDocument } from "@/lib/services/documentService";
-import { getAttentionItems } from "@/lib/services/attentionService";
+} from "@/lib/services/attendance/attendanceService";
+import { getFinalCoverDocument } from "@/lib/services/reports/documentService";
+import { getAttentionItems } from "@/lib/services/dashboards/attentionService";
 import { ReportPdfActions } from "./students/[studentProfileId]/weekly-reports/report-pdf-actions";
 import { prisma } from "@/lib/prisma";
-import { getUserProfile } from "@/lib/services/userService";
-import { getChecklistProgress } from "@/lib/services/checklistService";
+import { getUserProfile } from "@/lib/services/accounts/userService";
+import { getChecklistProgress } from "@/lib/services/predeployment/checklistService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { greeting } from "@/lib/utils/greeting";
-import { FacultyDashboard } from "./faculty-dashboard";
-import { CoordinatorDashboard } from "./coordinator-dashboard";
-import { StudentDashboardTables } from "./student-dashboard";
-import { reportState, weeklyHistory } from "@/lib/services/complianceService";
+import { FacultyDashboard } from "./_components/faculty-dashboard";
+import { CoordinatorDashboard } from "./_components/coordinator-dashboard";
+import { StudentDashboardTables } from "./_components/student-dashboard";
+import { reportState, weeklyHistory } from "@/lib/services/dashboards/complianceService";
 import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
 import { InternshipTrack, MiniTrack } from "@/components/internship-track";

@@ -10,8 +10,8 @@ import {
   getFacultyCalendarView,
   getStudentCalendarView,
   getUnifiedCalendarEvents,
-} from "@/lib/services/calendarService";
-import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
+} from "@/lib/services/calendar/calendarService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyCredentials } from "@/lib/services/userService";
+import { verifyCredentials } from "@/lib/services/accounts/userService";
 
 const schema = z.string().min(1);
 

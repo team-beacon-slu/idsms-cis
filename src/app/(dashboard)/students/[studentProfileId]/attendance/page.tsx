@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatCalendarDate } from "@/lib/documents/html";
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import {
   computeProjectedCompletionDate,
   getHoursSummary,
@@ -10,8 +10,8 @@ import {
   getLatestScheduleChangeStatus,
   listDeviationReportsForStudent,
   type ScheduleChangeHistoryEntry,
-} from "@/lib/services/attendanceService";
-import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/workPlanService";
+} from "@/lib/services/attendance/attendanceService";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
@@ -42,8 +42,8 @@ import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-f
 import { AttendanceExportButton } from "./export-button";
 import { HolidayList } from "./holiday-list";
 import { ConductCard, type ConductCardData } from "./conduct-card";
-import { listConductRecords } from "@/lib/services/conductService";
-import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/deductionService";
+import { listConductRecords } from "@/lib/services/conduct/conductService";
+import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/conduct/deductionService";
 import { tallyDeductions } from "@/lib/utils/deductionMatrix";
 import type { Metadata } from "next";
 

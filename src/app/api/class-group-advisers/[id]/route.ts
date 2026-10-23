@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { removeAdviser } from "@/lib/services/classGroupService";
+import { removeAdviser } from "@/lib/services/academic/classGroupService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {

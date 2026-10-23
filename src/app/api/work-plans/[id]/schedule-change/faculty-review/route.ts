@@ -4,12 +4,12 @@ import { Role } from "@prisma/client";
 import {
   getWorkPlanStudentProfileId,
   validateScheduleChangeFaculty,
-} from "@/lib/services/attendanceService";
+} from "@/lib/services/attendance/attendanceService";
 import { scheduleChangeReviewSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent } from "@/lib/services/userService";
+import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
-import { notifyScheduleChange } from "@/lib/services/notificationEvents";
+import { notifyScheduleChange } from "@/lib/services/notifications/notificationEvents";
 
 // FR-AT-09 step 1: Faculty Adviser only, and only for a student they're
 // assigned to.

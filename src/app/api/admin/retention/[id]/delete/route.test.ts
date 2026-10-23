@@ -4,7 +4,9 @@ jest.mock("@/lib/auth/session", () => ({
   requireUserApi: jest.fn(),
 }));
 jest.mock("@/lib/auth/confirmPassword", () => ({ confirmPassword: jest.fn() }));
-jest.mock("@/lib/services/retentionService", () => ({ deleteRetentionFlaggedFile: jest.fn() }));
+jest.mock("@/lib/services/privacy/retentionService", () => ({
+  deleteRetentionFlaggedFile: jest.fn(),
+}));
 jest.mock("@/lib/storage", () => ({
   ...jest.requireActual("@/lib/storage"),
   deleteObject: jest.fn(),
@@ -14,7 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
 import { ComplianceNotFoundError } from "@/lib/errors/compliance";
-import { deleteRetentionFlaggedFile } from "@/lib/services/retentionService";
+import { deleteRetentionFlaggedFile } from "@/lib/services/privacy/retentionService";
 import { StorageDeleteError } from "@/lib/storage";
 import { POST } from "@/app/api/admin/retention/[id]/delete/route";
 

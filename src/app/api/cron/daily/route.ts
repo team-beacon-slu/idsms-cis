@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { runDailyNotifications } from "@/lib/services/scheduledNotifications";
+import { runDailyNotifications } from "@/lib/services/notifications/scheduledNotifications";
 import { processPendingAiReports } from "@/lib/ai/batch";
 
 export const runtime = "nodejs";

@@ -4,7 +4,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import {
   FINAL_REPORT_REVIEWERS,
   listFinalReportsAwaitingReview,
-} from "@/lib/services/finalReportService";
+} from "@/lib/services/reports/finalReportService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import type { Metadata } from "next";

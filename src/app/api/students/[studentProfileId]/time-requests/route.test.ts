@@ -3,20 +3,20 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/timeRequestService", () => ({
-  ...jest.requireActual("@/lib/services/timeRequestService"),
+jest.mock("@/lib/services/attendance/timeRequestService", () => ({
+  ...jest.requireActual("@/lib/services/attendance/timeRequestService"),
   createTimeRequest: jest.fn(),
   listTimeRequests: jest.fn(),
 }));
-jest.mock("@/lib/services/userService", () => ({
-  ...jest.requireActual("@/lib/services/userService"),
+jest.mock("@/lib/services/accounts/userService", () => ({
+  ...jest.requireActual("@/lib/services/accounts/userService"),
   assertCanAccessStudent: jest.fn(),
 }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { createTimeRequest, listTimeRequests } from "@/lib/services/timeRequestService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
+import { createTimeRequest, listTimeRequests } from "@/lib/services/attendance/timeRequestService";
 import { GET, POST } from "@/app/api/students/[studentProfileId]/time-requests/route";
 
 const params = { params: Promise.resolve({ studentProfileId: "p-1" }) };

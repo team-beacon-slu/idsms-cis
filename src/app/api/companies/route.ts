@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCompanySchema, listCompaniesQuerySchema } from "@/lib/validators/company";
-import { createCompany, listCompanies } from "@/lib/services/companyService";
+import { createCompany, listCompanies } from "@/lib/services/predeployment/companyService";
 import { requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 

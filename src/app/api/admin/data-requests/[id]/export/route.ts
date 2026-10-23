@@ -3,11 +3,11 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { confirmPassword } from "@/lib/auth/confirmPassword";
-import { logEvent } from "@/lib/services/auditService";
+import { logEvent } from "@/lib/services/accounts/auditService";
 import {
   buildPersonalDataWorkbook,
   getDataRequestSubject,
-} from "@/lib/services/dataRequestService";
+} from "@/lib/services/privacy/dataRequestService";
 import { buildWorkbook, xlsxResponse } from "@/lib/utils/excelExport";
 import { handleApiError } from "@/lib/utils/apiError";
 

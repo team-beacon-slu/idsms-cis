@@ -2,13 +2,16 @@ import { redirect } from "next/navigation";
 import { ChecklistRequirementType, Program, Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { getAiSettings } from "@/lib/ai/settings";
-import { getRequiredHoursConfig } from "@/lib/services/attendanceService";
-import { getRequiredChecklistTypes } from "@/lib/services/checklistService";
-import { getDeductionMatrix, getDefaultConductHours } from "@/lib/services/deductionService";
-import { getNotificationSettings } from "@/lib/services/scheduledNotifications";
+import { getRequiredHoursConfig } from "@/lib/services/attendance/attendanceService";
+import { getRequiredChecklistTypes } from "@/lib/services/predeployment/checklistService";
+import {
+  getDeductionMatrix,
+  getDefaultConductHours,
+} from "@/lib/services/conduct/deductionService";
+import { getNotificationSettings } from "@/lib/services/notifications/scheduledNotifications";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { requirementLabel } from "@/app/(dashboard)/student-dashboard";
+import { requirementLabel } from "@/lib/utils/requirementLabel";
 import { NotificationSettingsForm } from "../users/notification-settings-form";
 import { RequiredHoursForm } from "../users/required-hours-form";
 import { ChecklistSettingsForm } from "../users/checklist-settings-form";

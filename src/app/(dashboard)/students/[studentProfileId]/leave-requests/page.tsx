@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { CalendarX2 } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/userService";
-import { listTimeRequests } from "@/lib/services/timeRequestService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
+import { listTimeRequests } from "@/lib/services/attendance/timeRequestService";
 import { toDateKey } from "@/lib/utils/reportDeadline";
 import { formatHrsMins } from "@/lib/utils/timeMath";
 import { Badge } from "@/components/ui/badge";

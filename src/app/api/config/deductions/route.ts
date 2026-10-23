@@ -6,7 +6,7 @@ import {
   MAX_CONDUCT_HOURS,
   setDeductionMatrix,
   setDefaultConductHours,
-} from "@/lib/services/deductionService";
+} from "@/lib/services/conduct/deductionService";
 import { deductionMatrixSchema } from "@/lib/validators/deductionMatrix";
 import { handleApiError } from "@/lib/utils/apiError";
 

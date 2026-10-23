@@ -3,15 +3,15 @@ jest.mock("@/lib/auth/session", () => ({
   ...jest.requireActual("@/lib/auth/session"),
   requireUserApi: jest.fn(),
 }));
-jest.mock("@/lib/services/semesterService", () => ({
-  ...jest.requireActual("@/lib/services/semesterService"),
+jest.mock("@/lib/services/academic/semesterService", () => ({
+  ...jest.requireActual("@/lib/services/academic/semesterService"),
   listSemesters: jest.fn(),
   createSemester: jest.fn(),
 }));
 
 import { NextRequest } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { createSemester, listSemesters } from "@/lib/services/semesterService";
+import { createSemester, listSemesters } from "@/lib/services/academic/semesterService";
 import { GET, POST } from "@/app/api/semesters/route";
 
 const post = (body: unknown) =>

@@ -1,4 +1,4 @@
-import type { ComplianceStatus } from "@/lib/services/complianceService";
+import type { ComplianceStatus } from "@/lib/services/dashboards/complianceService";
 import type { TrackKind } from "@/lib/utils/internshipTrack";
 
 type Row = { status: ComplianceStatus; hoursPercent: number; recentWeeks: TrackKind[] };

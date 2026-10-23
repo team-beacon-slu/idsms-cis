@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/session";
-import { listNotifications, markAllRead } from "@/lib/services/inbox";
+import { listNotifications, markAllRead } from "@/lib/services/notifications/inbox";
 import { handleApiError } from "@/lib/utils/apiError";
 
 // The caller's own in-app inbox — always the session user, never a body id.
