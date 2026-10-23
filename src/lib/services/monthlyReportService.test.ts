@@ -8,7 +8,7 @@ import {
 
 beforeEach(() => resetPrismaMock());
 
-describe("monthlyReportService stubs — reachable and wired correctly", () => {
+describe("monthlyReportService — reachable and wired correctly", () => {
   it("listMonthlyReportsForStudent calls prisma with the right filter", async () => {
     prismaMock.generatedDocument.findMany.mockResolvedValue([] as never);
     await listMonthlyReportsForStudent("profile-1");

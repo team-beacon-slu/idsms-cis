@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 12 October 2026. Audience: IT office, maintainers, developers. Status labels: **Built**, **In progress**, **Planned**._
+_Last updated: 23 October 2026. Audience: IT office, maintainers, developers. Status labels: **Built**, **In progress**, **Planned**._
 
 This is the technical design document (TDD) for IDSMS-CIS as built on `develop` (Phases 1–3, Phase 4 Workstreams A, B, E, C, F, G and the D7 status-only checklist, PR #85). File paths are relative to the repository root.
 
@@ -61,7 +61,7 @@ Versions from `package.json` (caret ranges as declared).
 ```text
 prisma/
   schema.prisma              data model (single source for tables Prisma manages)
-  migrations_manual/         001–007 hand-run SQL (extensions, RLS, buckets, triggers, partial indexes)
+  migrations_manual/         001–015 hand-run SQL, applied in number order (extensions, RLS, buckets, triggers, indexes, columns)
   seed-holidays.ts           Philippine holidays seed
 src/
   middleware.ts              redirects to /login when no session cookie (UX gate only)
@@ -112,7 +112,7 @@ vercel.json                  daily cron definition
 | `dataRequestService.ts`       | DSAR tickets (15-day SLA), queue, fulfilment, personal-data workbook.                                                                                                        |
 | `retentionService.ts`         | Quarterly 3-year retention scan, keep/delete review.                                                                                                                         |
 | `adminExportService.ts`       | The six Export Center workbooks.                                                                                                                                             |
-| `aiService.ts`                | Placeholder for the AI adapter (Workstream D, **Planned**).                                                                                                                  |
+| `aiService.ts`                | AI adapter (Gemini embeddings and sentiment, names removed first); switched off until enabled in settings (Workstream D, #90).                                               |
 
 ## 5. API route inventory
 
@@ -333,8 +333,16 @@ Prisma manages tables with `prisma db push` (there is no Prisma migrations histo
 | `005_phase4_columns.sql`                 | Adds nullable `time_in`/`time_out` (with HH:MM check constraints), `notifications.read_at`, `student_profiles.full_name`, `companies.supervisor_position`. Idempotent.                                                                            |
 | `006_notification_indexes.sql`           | Partial unique index deduplicating in-app notifications by `dedupeKey`, plus the inbox index.                                                                                                                                                     |
 | `007_compliance.sql`                     | Append-only **triggers** on `audit_logs` (block UPDATE, DELETE, TRUNCATE for every role), RLS on `data_requests` and `retention_flags`, and a partial unique index allowing one open data request per user. Includes manual verification queries. |
+| `008_leave_time.sql`                     | Workstream L1: leave and time requests, two time ranges per day, Week 1 date, credited-hours columns.                                                                                                                                             |
+| `009_conduct_deductions.sql`             | Workstream L2: conduct records and deduction-matrix exceptions (two tables, RLS default-deny).                                                                                                                                                    |
+| `010_final_technical_report.sql`         | Workstream H: final technical report table and its status enum.                                                                                                                                                                                   |
+| `011_ai_sentiment_reasoning.sql`         | Workstream D: the AI sentiment "brief reasoning" column (FR-AI-03).                                                                                                                                                                               |
+| `012_fk_indexes.sql`                     | Indexes on foreign keys used by per-intern lookups, review counts, force-logout and the audit-log filter.                                                                                                                                         |
+| `013_privacy_consent.sql`                | When each user agreed to the privacy notice, and which version.                                                                                                                                                                                   |
+| `014_checklist_moa_settings.sql`         | Checklist and MOA settings: new checklist items, start-before-MOA override, MOA Drive link, foreign HTE flag. Run in **two** passes (see the file).                                                                                               |
+| `015_user_full_name.sql`                 | `users.full_name`: a display name for staff accounts.                                                                                                                                                                                             |
 
-**The rule:** run `prisma db push`, then re-run the manual SQL files (at least 006 and 007), because `db push` can drop indexes it does not know about. Migration 007 means users can never be hard-deleted (the audit log's foreign key would need an UPDATE); the app only deactivates users. Migration 008 is **In progress** (L1) and is applied only with the PM's approval.
+**The rule:** run `prisma db push`, then re-run every manual SQL file in order, because `db push` can drop indexes it does not know about. Migration 007 means users can never be hard-deleted (the audit log's foreign key would need an UPDATE); the app only deactivates users. New manual migrations are applied to a database only with the PM's approval.
 
 ## 13. Testing strategy
 

@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
-The Super Admin has every coordinator capability (see the [coordinator guide](05-user-guide-coordinator.md)) plus system settings and the privacy tools. The left menu shows: **Dashboard, Users, Semesters, Audit log, Export Center, Companies, Calendar, Profile**, plus the notification bell and **Sign out**.
+The Super Admin has every coordinator capability (see the [coordinator guide](05-user-guide-coordinator.md)) plus system settings and the privacy tools. The left menu shows **Dashboard**; **Manage:** Users, Class groups, Semesters, Final reports; **Records:** Audit log, Export center, Settings; **Reference:** Companies, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office.
 
 > **Password re-check.** Sensitive actions (Export Center downloads, data request exports, deleting a retained file, bulk endorsement letters) ask for **your password again**. Wrong passwords count toward the 5-attempt lockout, the same as at sign-in.
 
@@ -75,11 +75,11 @@ Companies, MOAs, checklist review, work plan approval, schedule-change final app
 
 ## 7. Coming later
 
-| Feature                                                                                                                                                 | Status                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| Choose which checklist items are required (dashboards show "x/required")                                                                                | **Planned** (Checklist & MOA settings) |
-| Class group & staff management screens (create, rename, delete class groups; assign advisers; create staff accounts)                                    | **Built**                              |
-| Edit the SLU deduction matrix (categories, tiers, ADVISER and WWR points, total-at-count or per-incident) and the default hours per demerit (default 0) | **Built** (L2)                         |
-| "Week 1 starts" date per semester (Semesters page)                                                                                                      | **Built** (L1)                         |
-| AI similarity threshold (0.60 to 0.85) with golden-set evaluation shown before each change                                                              | **Built** (D; off until enabled)       |
-| Move hosting to the SAMCIS lab computer; backups, monitoring, operations runbook                                                                        | **Planned** (Phase 5)                  |
+| Feature                                                                                                                                                 | Status                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Choose which checklist items are required (dashboards show "x/required")                                                                                | **Built** (#105)                 |
+| Class group & staff management screens (create, rename, delete class groups; assign advisers; create staff accounts)                                    | **Built**                        |
+| Edit the SLU deduction matrix (categories, tiers, ADVISER and WWR points, total-at-count or per-incident) and the default hours per demerit (default 0) | **Built** (L2)                   |
+| "Week 1 starts" date per semester (Semesters page)                                                                                                      | **Built** (L1)                   |
+| AI similarity threshold (0.60 to 0.85) with golden-set evaluation shown before each change                                                              | **Built** (D; off until enabled) |
+| Move hosting to the SAMCIS lab computer; backups, monitoring, operations runbook                                                                        | **Planned** (Phase 5)            |

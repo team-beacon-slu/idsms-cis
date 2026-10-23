@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 13 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 This document shows how people move through IDSMS: the screen map per role, the main user flows, the life cycle (states) of each important record, and the key behind-the-scenes sequences. Everything is derived from the code (`src/app/**`, `src/app/(dashboard)/dashboard-nav.tsx`, `src/lib/services/**`). Planned and in-progress parts are marked. Each flow describes the system's intended behaviour; it is not based on usability testing, which is planned for Phase 5.
 
@@ -147,7 +147,7 @@ Notes: sessions expire after 30 minutes of inactivity. A reset does not lift a l
 
 ```mermaid
 flowchart TD
-    S0([First login]) --> S1["Profile: set legal name"]
+    S0([First login]) --> S1["Account settings: set legal name"]
     S1 --> S2["Checklist: see status of 9 items<br/>(files go to Google Classroom)"]
     S2 --> S3["Companies: register host company"]
     S3 --> S4["Work Plan: submit planned tasks"]
@@ -170,7 +170,7 @@ flowchart TD
     M1 -- No --> W1
     W8 --> FC{"Confirmed hours ≥<br/>final threshold?"}
     FC -- Yes --> FC2["Dashboard: generate final report cover (FC-…)"]
-    S1 -.-> DR["Profile: Request my data<br/>(any time)"]
+    S1 -.-> DR["Account settings: Request my data<br/>(any time)"]
     W2 -.-> L1["In progress (L1): two time ranges,<br/>undertime gate, Leave & Time Requests"]
 ```
 

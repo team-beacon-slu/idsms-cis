@@ -52,6 +52,10 @@ yarn-error.log*
 /.claude
 skills-lock.json
 .worktrees/
+/.playwright-mcp
+/.taste-skill
+/.superpowers
+/.remember
 
 # Local-only test credentials — never commit, delete once you're done testing.
 TEST_ACCOUNTS.md

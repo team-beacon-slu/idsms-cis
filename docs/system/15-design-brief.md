@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 13 October 2026. Audience: designers, front-end maintainers, the adviser. Items labelled **Recommendation (not built)** are suggestions, not current behaviour._
+_Last updated: 23 October 2026. Audience: designers, front-end maintainers, the adviser. Items labelled **Recommendation (not built)** are suggestions, not current behaviour._
 
-This brief describes the IDSMS-CIS user interface as built (Next.js 14, Tailwind CSS, shadcn/ui components, the navy/slate "enterprise dashboard" redesign from PR #48) and the rules new screens should follow. Sources: `tailwind.config.ts`, `src/app/globals.css`, `src/app/layout.tsx`, `src/components/**`, `src/app/(dashboard)/**`, `src/lib/documents/**`.
+This brief describes the IDSMS-CIS user interface as built (Next.js 16, Tailwind CSS 4, shadcn/ui components, and the BEACON identity from PRs #104, #106 and #107) and the rules new screens should follow. Sources: `src/app/globals.css` (all tokens), `src/app/layout.tsx`, `src/components/**`, `src/app/(dashboard)/**`, `src/lib/documents/**`.
 
 ## 1. Purpose and audiences
 
@@ -22,7 +22,7 @@ IDSMS is an institutional work tool for SAMCIS, Saint Louis University. People u
 - **Institutional and trustworthy:** SLU SAMCIS context; calm navy and slate colours; no decorative imagery; no emoji in the UI.
 - **Plain, specific language:** say what happened and what to do next ("A note is required when returning an item").
 - **Honest status:** never suggest something is done when it is pending (for example "+8 hrs pending review" next to confirmed hours).
-- The UI currently shows the name "IDSMS-CIS" as text; there is no SLU logo yet. The PDF letterhead is a text letterhead until SLU's official letterhead is supplied.
+- **BEACON identity:** a lighthouse mark (`components/brand-mark.tsx`) and a slow lighthouse-beam light on the home hero, which stays still when the user prefers reduced motion. The PDF letterhead stays a plain text letterhead until SLU supplies its official one.
 
 ## 3. Design principles
 
@@ -35,76 +35,72 @@ IDSMS is an institutional work tool for SAMCIS, Saint Louis University. People u
 
 ## 4. Colour tokens (as built)
 
-Defined as HSL CSS variables in `globals.css`, mapped to Tailwind colours in `tailwind.config.ts`. Hex values are the nearest Tailwind palette equivalents.
+All colours are CSS variables in `src/app/globals.css`, defined once for light mode (`:root`) and once for dark mode (`.dark`). Components use the variables, never raw colours. The theme follows the device setting by default; users can pick light, dark or system in the account menu or Account settings (`next-themes`).
 
-| Token                                  | HSL (light)                     | Hex                                                   | Usage                                         |
-| -------------------------------------- | ------------------------------- | ----------------------------------------------------- | --------------------------------------------- |
-| `--background`                         | `0 0% 100%`                     | `#FFFFFF`                                             | Page background                               |
-| `--foreground`                         | `222 47% 11%`                   | `#0F172A`                                             | Body text (slate-900)                         |
-| `--card`                               | `0 0% 100%`                     | `#FFFFFF`                                             | Cards                                         |
-| `--primary`                            | `221 83% 53%`                   | `#2563EB`                                             | Primary buttons, links, focus ring (blue-600) |
-| `--secondary` / `--muted` / `--accent` | `210 40% 96%`                   | `#F1F5F9`                                             | Secondary surfaces (slate-100)                |
-| `--muted-foreground`                   | `215 16% 47%`                   | `#64748B`                                             | Secondary text (slate-500)                    |
-| `--border` / `--input`                 | `214 32% 91%`                   | `#E2E8F0`                                             | Borders and inputs (slate-200)                |
-| `--destructive`                        | `0 84% 60%`                     | `#EF4444`                                             | Destructive actions, errors                   |
-| `--ring`                               | `221 83% 53%`                   | `#2563EB`                                             | Focus ring                                    |
-| `--sidebar`                            | `222 47% 11%`                   | `#0F172A`                                             | Fixed dark-navy sidebar                       |
-| `--sidebar-accent`                     | `217 33% 17%`                   | `#1E293B`                                             | Sidebar hover                                 |
-| `--sidebar-primary`                    | `221 83% 53%`                   | `#2563EB`                                             | Active nav item                               |
-| `--sidebar-border`                     | `215 19% 35%`                   | `#475569`                                             | Sidebar dividers                              |
-| `--chart-1…5`                          | blue, green, amber, red, violet | `#2563EB`, `#22C55E`, `#F59E0B`, `#EF4444`, `#7C3AED` | Charts (reserved)                             |
-| Radius `--radius`                      | `0.5rem`                        | —                                                     | Cards, buttons (md/sm derived)                |
+| Token                      | Light (HSL)                       | Dark (HSL)    | Usage                                              |
+| -------------------------- | --------------------------------- | ------------- | -------------------------------------------------- |
+| `--background`             | `216 45% 97%`                     | `214 50% 8%`  | Page background (pale blue tint / deep night navy) |
+| `--foreground`             | `215 28% 9%`                      | `212 38% 93%` | Body text                                          |
+| `--card`                   | `0 0% 100%`                       | dark navy     | Cards and panels                                   |
+| `--primary` / `--ring`     | `209 59% 30%`                     | `210 58% 64%` | Primary buttons, links, focus ring (SLU navy)      |
+| `--secondary` / `--accent` | `213 45% 96%`                     | dark navy     | Secondary surfaces, hover                          |
+| `--muted-foreground`       | `218 9% 40%`                      | `213 20% 68%` | Secondary text (at least 4.5:1 on both grounds)    |
+| `--border`                 | `215 28% 90%`                     | `214 32% 21%` | Borders and inputs                                 |
+| `--destructive`            | `358 69% 46%`                     | `0 70% 50%`   | Destructive actions, errors                        |
+| `--chart-1…5`              | navy, light blue, ink, red, green | darker set    | Charts; status charts use `--color-status-*`       |
+| `--radius`                 | `0.5rem`                          | —             | Cards, buttons, inputs                             |
 
-**Status tones** (`src/components/status-badge.tsx`, also used by StatCard icons), each a light tint, darker text, border and a dot:
+Status badges keep five tones. In dark mode the Tailwind palette is mirrored once in `globals.css`, so the same classes stay readable without per-component dark styles:
 
-| Tone  | Classes                           | Statuses                                                                                |
-| ----- | --------------------------------- | --------------------------------------------------------------------------------------- |
-| Green | green-50 / green-700 / green-200  | Approved, Approved Active, Validated, Generated, Sent, Regarded, Completed              |
-| Amber | amber-50 / amber-700 / amber-200  | Pending, Pending Draft, Drafting, Submitted, For HTE/University Review, Expiring, Draft |
-| Red   | red-50 / red-700 / red-200        | Returned, Rejected, Expired, Failed, Disregarded, Needs Attention                       |
-| Blue  | blue-50 / blue-700 / blue-200     | On Track, Archived, Locked, Linked                                                      |
-| Slate | slate-100 / slate-700 / slate-200 | Anything else                                                                           |
+| Tone  | Statuses                                                                                |
+| ----- | --------------------------------------------------------------------------------------- |
+| Green | Approved, Approved Active, Validated, Generated, Sent, Regarded, Completed              |
+| Amber | Pending, Pending Draft, Drafting, Submitted, For HTE/University Review, Expiring, Draft |
+| Red   | Returned, Rejected, Expired, Failed, Disregarded, Needs Attention                       |
+| Blue  | On Track, Archived, Locked, Linked                                                      |
+| Slate | Anything else                                                                           |
 
-A `.dark` token set exists in `globals.css`, but there is no theme switch, so the app runs in light mode (the sidebar is always dark navy). The PDF letterhead uses navy `#1E3A5F`.
-
-Note: `design-system/idsms-cis/MASTER.md` (generated 27 August 2026) proposed a dark theme with Fira fonts. The redesign that was actually built (PR #48) uses the light palette above and Geist. This brief documents what is built; the MASTER file should be updated to match (**Recommendation (not built)**).
+Surfaces use light frosted glass (`glass` utilities) over a soft coloured backdrop; text on glass keeps at least 4.5:1 contrast. The PDF letterhead uses navy `#1E3A5F`.
 
 ## 5. Typography
 
-| Use            | As built                                                                              |
-| -------------- | ------------------------------------------------------------------------------------- |
-| UI font        | Geist Sans (local variable font, `--font-geist-sans`); Geist Mono available for codes |
-| Page title     | `text-2xl font-semibold tracking-tight`                                               |
-| Card title     | shadcn `CardTitle` (`text-base` for compact cards)                                    |
-| Body           | Tailwind default `text-sm` in tables and forms, `text-base` elsewhere                 |
-| Secondary text | `text-sm text-muted-foreground`; hints `text-xs`                                      |
-| Stat values    | `text-2xl font-semibold`                                                              |
-| PDFs           | Arial/Helvetica 11 pt; letterhead 14 pt bold navy                                     |
-
-Formats: dates and times in **Asia/Manila** (`en-PH`), for example "Oct 13, 2026, 8:00 AM"; reference codes in uppercase (`WR-20261005-1A2B3C4D`). Hours appear as decimals today ("7.5"); SLU's "N hrs M mins" format arrives with L1 (**In progress**).
+| Use            | As built                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| UI font        | DM Sans (`--font-dm-sans`, loaded with `next/font`)                                                    |
+| Display font   | Bricolage Grotesque (`--font-bricolage`, class `font-display`) for headings, the brand and big numbers |
+| Page title     | Shared `PageHeader` component: `text-2xl font-semibold tracking-tight` plus a one-line description     |
+| Body           | `text-sm` in tables and forms, `text-base` elsewhere                                                   |
+| Secondary text | `text-sm text-muted-foreground`; hints `text-xs`                                                       |
+| PDFs           | Arial/Helvetica 11 pt; letterhead 14 pt bold navy                                                      |
 
 ## 6. Layout and spacing
 
-- **Shell** (`(dashboard)/layout.tsx`): fixed 256 px (`w-64`) dark-navy sidebar on desktop (`md` and up); content offset `md:pl-64`; content column `max-w-6xl`, centred, padding `px-4` / `sm:px-6` / `md:px-8`, `py-6`.
-- **Mobile:** top bar (56 px) with the app name, bell and a menu button that opens a slide-over drawer (`w-72`) with an overlay; closes on navigation.
+- **Shell** (`(dashboard)/layout.tsx`): a 240 px frosted-glass sidebar on desktop that collapses to a 72 px icon rail (remembered in a `sidebar` cookie); the content column is fluid, capped at 1480 px, padding `px-4` to `xl:px-12`. A "Skip to content" link comes first for keyboard users, and a site footer closes every page.
+- **Mobile:** top bar with the brand, bell, account avatar and a menu button that opens a slide-over drawer; it closes on navigation.
 - **Spacing scale:** Tailwind 4 px steps; cards use `p-5`/`p-6`, sections `mb-4`/`gap-4`, inline gaps `gap-1.5`–`gap-3`.
 - **Grids:** stat cards in responsive grids (one column on phones, up to four on desktop); tables full-width inside cards.
 - **Print:** navigation hidden (`print:hidden`), padding removed, so the weekly report preview prints cleanly.
 
 ## 7. Component inventory
 
-| Component                                                        | Source                                    | Notes                                                                                                                    |
-| ---------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Button, Input, Label, Textarea, Card, Table, Badge, Form, Dialog | `src/components/ui/*` (shadcn/ui, Radix)  | Dialog is used only for the bulk endorsement password prompt (the mobile nav is a custom drawer); prefer inline patterns |
-| Toaster                                                          | `ui/sonner.tsx` (sonner)                  | Short success/error confirmations after actions                                                                          |
-| StatusBadge                                                      | `components/status-badge.tsx`             | Text label + tinted background + dot; humanises enum values ("For Hte Review")                                           |
-| StatCard                                                         | `components/stat-card.tsx`                | Label, big value, optional hint, tinted icon (aria-hidden)                                                               |
-| EmptyState                                                       | `components/empty-state.tsx`              | Dashed border, icon, title, description, optional action                                                                 |
-| ComplianceTable                                                  | `components/compliance-table.tsx`         | Shared staff table: hours bar, pending hours, checklist x/9, due-week state, status                                      |
-| AuthShell                                                        | `components/auth-shell.tsx`               | Two-panel sign-in and reset pages                                                                                        |
-| PasswordAction                                                   | `admin/export-center/password-action.tsx` | Inline password re-check form with confirm/cancel, focus kept in the form                                                |
-| NotificationBell                                                 | `(dashboard)/notification-bell.tsx`       | Unread count, links to `/notifications`                                                                                  |
-| Icons                                                            | lucide-react                              | Always with a visible text label or `aria-hidden` when decorative                                                        |
+| Component                                                        | Source                                                        | Notes                                                                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Button, Input, Label, Textarea, Card, Table, Badge, Form, Dialog | `src/components/ui/*` (shadcn/ui, Radix)                      | Dialog is used only for the bulk endorsement password prompt (the mobile nav is a custom drawer); prefer inline patterns |
+| Toaster                                                          | `ui/sonner.tsx` (sonner)                                      | Short success/error confirmations after actions                                                                          |
+| StatusBadge                                                      | `components/status-badge.tsx`                                 | Text label + tinted background + dot; humanises enum values ("For Hte Review")                                           |
+| StatCard                                                         | `components/stat-card.tsx`                                    | Label, big value, optional hint, tinted icon (aria-hidden)                                                               |
+| EmptyState                                                       | `components/empty-state.tsx`                                  | Dashed border, icon, title, description, optional action                                                                 |
+| ComplianceTable                                                  | `components/compliance-table.tsx`                             | Shared staff table: hours bar, pending hours, checklist x/9, due-week state, status                                      |
+| AuthShell                                                        | `components/auth-shell.tsx`                                   | Two-panel sign-in and reset pages                                                                                        |
+| PasswordAction                                                   | `admin/export-center/password-action.tsx`                     | Inline password re-check form with confirm/cancel, focus kept in the form                                                |
+| NotificationBell                                                 | `(dashboard)/notification-bell.tsx`                           | Unread count, links to `/notifications`                                                                                  |
+| PageHeader                                                       | `components/page-header.tsx`                                  | Page title, one-line description, optional actions; one per page                                                         |
+| BrandMark, Avatar                                                | `components/brand-mark.tsx`, `avatar.tsx`                     | Lighthouse logo; initials avatar for the signed-in account                                                               |
+| AccountMenu, ThemeChoice                                         | `(dashboard)/account-menu.tsx`, `components/theme-toggle.tsx` | Who is signed in, Account settings, theme, privacy, terms, sign out                                                      |
+| PasswordInput                                                    | `components/ui/password-input.tsx`                            | Show/Hide button, Caps Lock hint, hides again on submit                                                                  |
+| InternCharts                                                     | `components/intern-charts.tsx`                                | Staff home charts with a screen-reader table version                                                                     |
+| SiteFooter                                                       | `components/site-footer.tsx`                                  | SLU links (new tab), Help, Privacy, Terms, copyright                                                                     |
+| Icons                                                            | lucide-react                                                  | Always with a visible text label or `aria-hidden` when decorative                                                        |
 
 ## 8. Interaction patterns
 
@@ -123,11 +119,11 @@ Formats: dates and times in **Asia/Manila** (`en-PH`), for example "Oct 13, 2026
 
 ## 9. Role dashboards
 
-| Role                      | Layout                                                                                                                                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Student                   | "Welcome back"; amber **Needs attention** card (only when needed); stat cards (hours with pending hint); pre-deployment requirements; weekly report history; final report cover card; quick links      |
-| Faculty                   | Stat cards (total, submitted this week, pending review, not submitted); My students table; Export to Excel and Weekly summary; bulk endorsement per class group                                        |
-| Coordinator / Super Admin | Stat cards (users, students, deployed, average hours, needs attention, companies, verified, MOAs expiring); program cards; filters (semester, program, status); all-students compliance table; exports |
+| Role                      | Layout                                                                                                                                                                                                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Student                   | Greeting hero; when every required hour is confirmed it says so and offers **Submit final report**; confirmed-hours ring; "Your weeks" track; next deadline; submission streak; **Waiting on you** list; pre-deployment requirements; recent weeks; final report cover |
+| Faculty                   | Greeting hero; stat cards; charts of where interns stand and weekly report status; My students table; Export to Excel and Weekly summary; bulk endorsement per class group                                                                                             |
+| Coordinator / Super Admin | Greeting hero; stat cards per program; charts (where interns stand, weekly reports over 8 weeks, hours completed); host-company cards; filters (semester, program, status); all-students compliance table; exports                                                     |
 
 ## 10. Accessibility
 
@@ -172,7 +168,7 @@ As built:
 
 - Use the SLU terms users know: HTE, MOA, OJT, Weekly Work Report, endorsement letter (see [Glossary](12-glossary.md)).
 - Buttons are verbs: "Submit", "Approve", "Return", "Generate", "Request my data".
-- Errors say what to do: "Set your full name on the Profile page first".
+- Errors say what to do: "Set your full name in Account settings first".
 - Mention Google Classroom wherever a document must go there ("signed documents are never uploaded to IDSMS").
 - Use "confirmed" for approved hours and "pending review" for submitted hours.
 - Name the person or role that acts next ("awaiting faculty review").
@@ -180,16 +176,15 @@ As built:
 
 ## 14. Recommendations from the design review
 
-All items below are **Recommendation (not built)**. They came from the ui-ux-pro-max review (accessibility, forms, data tables) and our own reading of the code. The tool's generic "dashboard" suggestion (dark glassmorphism, Fira fonts) was **not** adopted because it does not suit an institutional, print-oriented, light-mode tool.
+Items marked **Built** were done in later work; the rest are **Recommendation (not built)**.
 
-| Priority | Recommendation                                                                      |
-| -------- | ----------------------------------------------------------------------------------- |
-| High     | Announce async status changes with contextual `role="status"` text                  |
-| High     | Horizontal-scroll or card layout for staff tables on phones                         |
-| High     | Field-level errors plus an error summary on the weekly report form                  |
-| Medium   | Show hours as "N hrs M mins" everywhere once L1 ships, for consistency with the PDF |
-| Medium   | Add the SLU logo and seal to the sidebar header and PDFs                            |
-| Medium   | Update `design-system/idsms-cis/MASTER.md` to the built light palette and Geist     |
-| Medium   | A first-login tour (NFR-USA-02) explaining status colours and the main action       |
-| Low      | Optional dark theme switch (tokens already exist)                                   |
-| Low      | Respect reduced-motion preferences for transitions                                  |
+| Priority | Recommendation                                                                | Status                         |
+| -------- | ----------------------------------------------------------------------------- | ------------------------------ |
+| High     | Announce async status changes with contextual `role="status"` text            | Recommendation (not built)     |
+| High     | Horizontal-scroll or card layout for staff tables on phones                   | **Built** (#98)                |
+| High     | Field-level errors plus an error summary on the weekly report form            | Recommendation (not built)     |
+| Medium   | Show hours as "N hrs M mins" everywhere, for consistency with the PDF         | Recommendation (not built)     |
+| Medium   | Add the SLU logo and seal to the sidebar header and PDFs                      | Waiting for SLU's official art |
+| Medium   | A first-login tour (NFR-USA-02) explaining status colours and the main action | Partly: Help page (#111)       |
+| Low      | Dark theme switch                                                             | **Built** (#107)               |
+| Low      | Respect reduced-motion preferences for transitions                            | **Built** (`globals.css`)      |

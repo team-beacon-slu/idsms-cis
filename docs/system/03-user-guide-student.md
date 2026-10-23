@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
-This guide describes every screen a student sees. The left menu (a slide-out menu on phones) shows, in order: **Dashboard, Companies, Calendar, Checklist, Work Plan, Attendance, Weekly Reports, Monthly Reports, Profile**, plus the notification bell and **Sign out**.
+This guide describes every screen a student sees. The left menu (a slide-out menu on phones) is grouped: **Dashboard**; **Every week:** Weekly reports, Attendance, Leave & time requests; **Requirements:** Checklist, Work plan, Monthly reports, Final report; **Reference:** Companies, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office.
 
 > **Golden rule (decisions D2 and D7):** never upload signed documents, signatures, medical certificates or psychological records to IDSMS. Those go to **Google Classroom**. IDSMS records their status and produces the PDFs you print for signing.
 
@@ -110,11 +110,11 @@ The bell shows unread notifications: report submitted, report returned (with the
 - Submit every Monday or early Tuesday; the late flag uses Manila time, not your phone's time.
 - Fill in each day as you go; you can save without submitting.
 - If a week is returned, fix only what the note asks and resubmit quickly so your hours count.
-- Keep your legal name correct on the Profile page before your adviser generates your endorsement letter.
+- Keep your legal name correct in Account settings before your adviser generates your endorsement letter.
 - Never upload signed or medical documents to IDSMS; use Google Classroom.
 
 ## Privacy notice and company registration
 
-- The first time you open IDSMS you'll see the **Data privacy notice**. Choose **I agree** to continue; **I disagree** signs you out (talk to your coordinator). If the notice changes, you'll be asked again.
+- The first time you open IDSMS you'll see the **privacy notice and terms of use**. Tick the box to confirm you have read them, then choose **I agree** to continue; **I disagree** signs you out (talk to your coordinator). If the notice changes, you'll be asked again.
 - When you register your company, IDSMS lists companies already registered under a similar name. If yours is there, choose **This is my company** instead of adding a copy.
 - On each weekly report, **Running total (worked)** is the hours you've worked; **Conduct deductions** are shown separately, and **Remaining** takes them into account.

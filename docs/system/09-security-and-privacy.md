@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 22 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 IDSMS processes students' personal data, so it must comply with the **Data Privacy Act of 2012 (RA 10173)**, its implementing rules and SLU's data privacy policy. This document lists the measures in place, in plain language. Technical details are in [08. Technical design](08-technical-design.md).
 
@@ -20,9 +20,9 @@ IDSMS processes students' personal data, so it must comply with the **Data Priva
 | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Supervisor-signed weekly/monthly reports, signatures                                               | Google Classroom (D2, PR #80 removed the signed-copy upload)                                                                           |
 | Medical certificates, psychological clearance, parent's consent and other pre-deployment documents | Google Classroom (D7, PR #85: the checklist records status only)                                                                       |
-| Post-internship certificates (CPO attendance, HTE completion)                                      | Google Classroom; status tracking is **Planned** (H)                                                                                   |
+| Post-internship certificates (CPO attendance, HTE completion)                                      | Google Classroom; status tracking is **Built** (#89)                                                                                   |
 | Proof for leave, overtime and undertime                                                            | Today: optional upload on deviation reports. L1 proposes Google Classroom only, with IDSMS tracking status; pending confirmation (Q19) |
-| Wet-signed MOA                                                                                     | Today: an MOA can be a Drive link or a PDF. **Planned**: Drive link and status only, no upload                                         |
+| Wet-signed MOA                                                                                     | Drive link and status only, no upload (**Built**, #105)                                                                                |
 
 IDSMS keeps only the **status** (Pending, Approved, Returned), who reviewed it and when, and the reviewer's note.
 
@@ -47,7 +47,7 @@ During development the database and files are on Supabase (cloud) and the app on
 ## 4. Access control
 
 - **Four roles** with a role check on every page and every server action.
-- **Privacy notice:** every user agrees to the data privacy notice (RA 10173) before using IDSMS; the agreement time and notice version are stored, and agreements and refusals are audit-logged (FR-CK-05, NFR-DP-03).
+- **Privacy notice and terms of use:** both are public pages (`/privacy`, `/terms`), readable before signing in. Every user ticks a box and agrees to them before using IDSMS; the agreement time and notice version are stored, agreements and refusals are audit-logged, and a new notice version asks everyone again (FR-CK-05, NFR-DP-03; #101, #110).
 - **Record-level checks:** students see only their own records; faculty advisers only students in their assigned class groups for that semester; crafted requests for other students are refused (FR-UM-09).
 - **Default-deny database security (RLS):** every table has Row Level Security enabled with no policies, so the Supabase public key, if ever leaked, could read nothing (migration 002, NFR-SEC-11). Real authorisation is enforced by the application.
 - **Private file storage:** files are never public; the app checks access, then issues a link valid for 5 minutes (NFR-SEC-03).
@@ -57,17 +57,17 @@ During development the database and files are on Supabase (cloud) and the app on
 
 ## 5. Sessions, passwords and lockout
 
-| Measure            | Rule                                                                                                                                                                                |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session lifetime   | 30 minutes of inactivity (FR-UM-06). Sessions are stored in the database, so they can be ended instantly.                                                                           |
-| Instant revocation | Lockout, deactivation, forced logout and password reset end all of a user's sessions at once (FR-UM-11).                                                                            |
-| Lockout            | 5 consecutive wrong passwords lock the account for 15 minutes (FR-UM-07, FR-UM-10). Hardened against concurrent attempts (PR #84).                                                  |
-| First login        | A new password must be set before anything else (FR-UM-04).                                                                                                                         |
-| Default passwords  | Derived from the student number with a secret key; shown once to the importer; never emailed (FR-UM-03).                                                                            |
-| Password reset     | One-hour link; only a hash of the token is stored (FR-UM-10).                                                                                                                       |
-| Re-authentication  | Exports, data request exports, file deletion and bulk endorsement letters ask for the password again; wrong attempts count toward lockout (NFR-SEC-05). MFA (FR-UM-05) is deferred. |
-| Cookies            | HttpOnly; Secure under HTTPS (NFR-SEC-08).                                                                                                                                          |
-| Transport          | HTTPS (NFR-SEC-02).                                                                                                                                                                 |
+| Measure            | Rule                                                                                                                                                                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session lifetime   | 30 minutes of inactivity (FR-UM-06). Sessions are stored in the database, so they can be ended instantly.                                                                                                                           |
+| Instant revocation | Lockout, deactivation, forced logout and password reset end all of a user's sessions at once (FR-UM-11). Users can also end their other sessions themselves with **Sign out of other devices** in Account settings (audited, #109). |
+| Lockout            | 5 consecutive wrong passwords lock the account for 15 minutes (FR-UM-07, FR-UM-10). Hardened against concurrent attempts (PR #84).                                                                                                  |
+| First login        | A new password must be set before anything else (FR-UM-04).                                                                                                                                                                         |
+| Default passwords  | Derived from the student number with a secret key; shown once to the importer; never emailed (FR-UM-03).                                                                                                                            |
+| Password reset     | One-hour link; only a hash of the token is stored (FR-UM-10).                                                                                                                                                                       |
+| Re-authentication  | Exports, data request exports, file deletion and bulk endorsement letters ask for the password again; wrong attempts count toward lockout (NFR-SEC-05). MFA (FR-UM-05) is deferred.                                                 |
+| Cookies            | HttpOnly; Secure under HTTPS (NFR-SEC-08).                                                                                                                                                                                          |
+| Transport          | HTTPS (NFR-SEC-02).                                                                                                                                                                                                                 |
 
 ## 6. Audit log immutability
 
@@ -83,7 +83,7 @@ The audit log records sign-in attempts (successful, failed, locked, inactive), r
 
 ## 7. Data subject access requests (DSAR)
 
-- Any user can click **Request my data** on their Profile page (NFR-DP-07). One open request per user, enforced by the database.
+- Any user can click **Request my data** in Account settings (NFR-DP-07). One open request per user, enforced by the database.
 - The request is due **15 days** later. Super Admins are notified immediately and reminded daily from 3 days before the due date, including when overdue.
 - The Super Admin exports the person's data (password required) as an Excel workbook containing what the person generated or is the subject of, including report histories, and excluding credentials, lockout counters, tokens and file paths. The Super Admin then marks the request fulfilled.
 - Every step is recorded in the audit log.
@@ -103,11 +103,11 @@ The audit log records sign-in attempts (successful, failed, locked, inactive), r
 
 ## 10. Third parties
 
-| Service            | Data sent                                                         | Status                                             |
-| ------------------ | ----------------------------------------------------------------- | -------------------------------------------------- |
-| Vercel, Supabase   | Hosting of the app, database and files                            | **Built** (development); replaced in Phase 5       |
-| Resend (email)     | Recipient email, notification text                                | **Built**, active only with a sending domain (Q15) |
-| Google Gemini (AI) | Report text with names removed, only with approval under RA 10173 | **Planned**, optional (Q16); disabled by default   |
+| Service            | Data sent                                                         | Status                                                        |
+| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| Vercel, Supabase   | Hosting of the app, database and files                            | **Built** (development); replaced in Phase 5                  |
+| Resend (email)     | Recipient email, notification text                                | **Built**, active only with a sending domain (Q15)            |
+| Google Gemini (AI) | Report text with names removed, only with approval under RA 10173 | **Built** (#90), switched off by default until approved (Q16) |
 
 ## 11. Open points
 
