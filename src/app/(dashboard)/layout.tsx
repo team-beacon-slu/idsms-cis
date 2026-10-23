@@ -34,6 +34,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="group/shell app-backdrop min-h-dvh bg-fixed">
+      {/* First stop for keyboard users: past the sidebar, straight to the page. */}
+      <a
+        href="#main"
+        className="sr-only z-[60] rounded-lg bg-card px-4 py-2 text-sm font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Skip to content
+      </a>
       {/* print:hidden — the weekly report preview is printed to PDF from the browser */}
       <div className="print:hidden">
         <DashboardNav
@@ -48,7 +55,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         />
       </div>
       {/* The padding follows the sidebar's own data-collapsed, so folding it needs no re-render here. */}
-      <main className="md:pl-60 md:transition-[padding] md:duration-200 md:group-has-[aside[data-collapsed=true]]/shell:pl-[72px] print:pl-0">
+      <main
+        id="main"
+        className="md:pl-60 md:transition-[padding] md:duration-200 md:group-has-[aside[data-collapsed=true]]/shell:pl-[72px] print:pl-0"
+      >
         {/* Fluid: the canvas follows the window, capped only on very wide screens. */}
         <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8 xl:px-12 print:max-w-none print:p-0">
           {children}

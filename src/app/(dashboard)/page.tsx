@@ -25,6 +25,9 @@ import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
 import { InternshipTrack, MiniTrack } from "@/components/internship-track";
 import { BeaconRing } from "@/components/beacon-ring";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Dashboard" };
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 

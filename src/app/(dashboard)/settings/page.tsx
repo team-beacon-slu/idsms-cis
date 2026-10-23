@@ -14,6 +14,9 @@ import { RequiredHoursForm } from "../users/required-hours-form";
 import { ChecklistSettingsForm } from "../users/checklist-settings-form";
 import { AiSettingsForm } from "../users/ai-settings-form";
 import { DeductionSettingsForm } from "../users/deduction-settings-form";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Settings" };
 
 // System settings, one view of their own (they used to sit above the account list on
 // Users, which pushed that page's main job to the bottom). Super Admin only.

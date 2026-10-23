@@ -45,6 +45,9 @@ import { ConductCard, type ConductCardData } from "./conduct-card";
 import { listConductRecords } from "@/lib/services/conductService";
 import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/deductionService";
 import { tallyDeductions } from "@/lib/utils/deductionMatrix";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Attendance" };
 
 const DEVIATION_TYPE_LABEL: Record<string, string> = {
   ABSENCE: "Absence",

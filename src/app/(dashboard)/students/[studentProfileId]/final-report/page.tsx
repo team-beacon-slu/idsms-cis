@@ -10,6 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { FinalReportEditor } from "./final-report-editor";
 import { FinalReportReview } from "./final-report-review";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Final report" };
 
 // Workstream H (PRD Module 7) — the Final Technical Report page.
 const STATUS_TEXT: Record<string, string> = {

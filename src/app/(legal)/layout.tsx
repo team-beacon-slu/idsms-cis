@@ -25,7 +25,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
           </Link>
         </nav>
       </header>
-      <main className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
+      <main id="main" className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
         <article className="rounded-3xl glass p-6 sm:p-10">{children}</article>
       </main>
     </div>

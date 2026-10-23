@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { LEGAL_UPDATED, PrivacyNoticeBody } from "@/components/legal-content";
 
-export const metadata: Metadata = { title: "Privacy notice · IDSMS-CIS" };
+export const metadata: Metadata = { title: "Privacy notice" };
 
 export default function PrivacyPage() {
   return (

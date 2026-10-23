@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { LEGAL_UPDATED, TermsBody } from "@/components/legal-content";
 
-export const metadata: Metadata = { title: "Terms of use · IDSMS-CIS" };
+export const metadata: Metadata = { title: "Terms of use" };
 
 export default function TermsPage() {
   return (

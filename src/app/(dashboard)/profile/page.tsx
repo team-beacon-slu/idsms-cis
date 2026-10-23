@@ -12,6 +12,9 @@ import { ThemeChoice } from "@/components/theme-toggle";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Account settings" };
 
 function humanizeRole(role: string) {
   return role

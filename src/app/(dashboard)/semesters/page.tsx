@@ -18,6 +18,9 @@ import { CreateSemesterForm } from "./create-semester-form";
 import { SemesterActions } from "./semester-actions";
 import { WeekOneField } from "./week-one-field";
 import { toDateKey } from "@/lib/utils/reportDeadline";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Semesters" };
 
 const STAFF_ROLES: Role[] = [Role.SUPER_ADMIN, Role.DEPARTMENT_COORDINATOR];
 

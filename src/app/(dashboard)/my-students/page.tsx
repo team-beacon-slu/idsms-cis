@@ -15,6 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "My students" };
 
 // Weekly reports open from the intern's name; these are the other records.
 const ACTION_LINKS = [

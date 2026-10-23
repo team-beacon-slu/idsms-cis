@@ -7,6 +7,9 @@ import {
 } from "@/lib/services/finalReportService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Final reports" };
 
 // Workstream H — the coordinator's queue of final reports awaiting review.
 export default async function FinalReportsQueuePage() {
