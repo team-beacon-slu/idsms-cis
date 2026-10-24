@@ -18,7 +18,7 @@ commands that a new operator can follow without prior context.
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | VM working directory | `/opt/idsms`                                                                                                                       |
 | Compose project      | `idsms` (`name:` in `docker-compose.yml`)                                                                                          |
-| Containers           | `postgres` (pgvector/pgvector:pg16), `minio`, `app` (`ghcr.io/team-beacon-slu/idsms-cis`), `caddy`; plus the one-shot `minio-init` |
+| Containers           | `postgres` (pgvector/pgvector:pg17), `minio`, `app` (`ghcr.io/team-beacon-slu/idsms-cis`), `caddy`; plus the one-shot `minio-init` |
 | Published ports      | `caddy` only: `80`, `443`. Nothing else is reachable from outside the VM.                                                          |
 | Named volumes        | `pg_data`, `minio_data`, `caddy_data`, `caddy_config`                                                                              |
 | Public URL           | `https://<domain>` (set the real host in `Caddyfile` and `NEXTAUTH_URL`)                                                           |
@@ -301,6 +301,42 @@ If restoring from the off-site copy, `rclone copy offsite:idsms-backups
 Once a term, restore the latest dump into a throwaway database
 (`createdb -U idsms idsms_drill` + `pg_restore -d idsms_drill`) and spot-check
 row counts. An untested backup is not a backup.
+
+### 5.6 Backups while on Supabase (before the lab stack is live)
+
+The `Nightly backup` GitHub Actions workflow (`.github/workflows/backup.yml`) runs at 02:00
+Manila every day: `pg_dump` (Postgres 17, `public` schema) through the session pooler,
+encrypted with a passphrase, kept 30 days as a workflow artifact. The daily connection also
+stops the free-plan project from pausing when idle.
+
+**One-time setup** (repository Settings > Secrets and variables > Actions):
+
+| Secret                | Value                                                                                                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_BACKUP_URL` | The session pooler URL (port **5432**, `aws-0-…pooler.supabase.com`), same as `DIRECT_URL`. The direct `db.…supabase.co` host is IPv6-only and runners cannot reach it. |
+| `BACKUP_PASSPHRASE`   | A long random passphrase, also kept in the team's password manager. **Without it no backup can be opened.**                                                             |
+
+Run it once by hand (Actions > Nightly backup > Run workflow) and check a file appears.
+
+**Restore** (into the lab stack or any Postgres 17 with pgvector):
+
+```bash
+gh run download --name idsms-db-backup            # latest run's artifact
+gpg --decrypt --output idsms.dump idsms-YYYYMMDD.dump.gpg
+# The dump holds the public schema only; create the vector extension first or
+# daily_report_entries (which uses the vector type) fails to restore.
+docker compose exec -T postgres psql -U idsms -d idsms -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker compose exec -T postgres pg_restore -U idsms -d idsms --no-owner --no-privileges < idsms.dump
+```
+
+`ERROR: schema "public" already exists` is expected and harmless. Then compare row counts.
+
+**Drill, 24 October 2026:** a dump of the dev database (88 KB, 10.8 s) restored into
+`pgvector/pgvector:pg17` in 1.6 s; all 25 tables matched the live row counts. Without the
+`CREATE EXTENSION` step, `daily_report_entries` failed to restore, which is why it is listed above.
+
+Not covered: files in Supabase Storage (MOA files, schedule-change proofs, generated PDFs).
+Generated PDFs can be rebuilt; the uploaded files cannot.
 
 ---
 

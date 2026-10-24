@@ -63,7 +63,7 @@ Versions from `package.json` (caret ranges as declared).
 deploy/                        self-hosting stack: Dockerfile, docker-compose.yml, Caddyfile, OPERATIONS.md
 prisma/
   schema.prisma                data model (single source for tables Prisma manages)
-  migrations_manual/           001–017 hand-run SQL, applied in number order
+  migrations_manual/           001–018 hand-run SQL, applied in number order
   seed-holidays.ts             Philippine holidays seed
 src/
   proxy.ts                     route protection and the CSP nonce (Next 16's middleware)
@@ -131,6 +131,7 @@ Each service's test sits next to it (`fooService.test.ts`). Route-specific compo
 | `attendance/timeRequestService.ts`        | Leave, overtime and undertime requests: filing, review, proof.                                                                                                               |
 | `reports/finalReportService.ts`           | Final Technical Report: unlock threshold, submission, coordinator review, HTE evaluation.                                                                                    |
 | `conduct/conductService.ts`               | Conduct records (warnings, demerits, violations, suspensions), optional hours, revoke.                                                                                       |
+| `conduct/disputeService.ts`               | Intern disputes of a deduction; staff decline with a note (excuse/revoke accept via `acceptOpenDisputes`). |
 | `conduct/deductionService.ts`             | SLU deduction matrix, automatic late/unsupported counts, excused exceptions, tally.                                                                                          |
 
 ## 5. API route inventory
@@ -364,6 +365,7 @@ Prisma manages tables with `prisma db push` (there is no Prisma migrations histo
 | `015_user_full_name.sql`                 | `users.full_name`: a display name for staff accounts.                                                                                                                                                                                             |
 | `016_role_timeouts.sql`                  | `statement_timeout` 15 s and `idle_in_transaction_session_timeout` 30 s for the app's role (`CURRENT_USER`, so the same file works on the lab stack).                                                                                             |
 | `017_company_holidays.sql`               | A host company's own non-working days (FR-AT-02): `holiday_calendar.company_id` and `created_by`, and `HolidayType` value `COMPANY`. Additive.                                                                                                    |
+| `018_deduction_disputes.sql`             | `deduction_disputes`: an intern's dispute of a deduction and its outcome (ACCEPTED by excuse/revoke, or DECLINED with a note); one open dispute per item (partial unique index). Additive.                                                        |
 
 **The rule:** run `prisma db push`, then re-run every manual SQL file in order, because `db push` can drop indexes it does not know about. Migration 007 means users can never be hard-deleted (the audit log's foreign key would need an UPDATE); the app only deactivates users. New manual migrations are applied to a database only with the PM's approval.
 

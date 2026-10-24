@@ -247,6 +247,74 @@ export async function notifyConductRecordIssued(
   });
 }
 
+// Go-live item 5: the intern disputed a deduction; the assigned advisers decide.
+export async function notifyDeductionDisputed(studentProfileId: string, itemDetail: string) {
+  try {
+    const facultyIds = await getAssignedFacultyIds(studentProfileId);
+    if (facultyIds.length === 0) return;
+    await notify({
+      userIds: facultyIds,
+      trigger: "DEDUCTION_DISPUTED",
+      title: "An intern disputed a deduction",
+      body: `Disputed: ${itemDetail}. Review it under Conduct & deductions.`,
+      link: `/students/${studentProfileId}/attendance`,
+      email: true,
+    });
+  } catch (error) {
+    console.error("Notification recipient lookup failed", { trigger: "DEDUCTION_DISPUTED", error });
+  }
+}
+
+export async function notifyDisputeResolved(
+  studentProfileId: string,
+  itemDetail: string,
+  outcome: "ACCEPTED" | "DECLINED",
+  note: string
+) {
+  await toStudent(studentProfileId, {
+    trigger: "DEDUCTION_DISPUTE_RESOLVED",
+    title:
+      outcome === "ACCEPTED"
+        ? "Your dispute was accepted: the deduction no longer counts"
+        : "Your dispute was declined: the deduction stands",
+    body: `${itemDetail}. Adviser's note: ${note}`,
+    link: `/students/${studentProfileId}/attendance`,
+  });
+}
+
+// An intern added a day off for their whole company: every adviser of an intern placed there
+// sees it, so a day nobody checked can't quietly excuse absences.
+export async function notifyCompanyDayAdded(args: {
+  companyId: string;
+  name: string;
+  date: Date;
+  addedByStudentProfileId: string;
+}) {
+  try {
+    const interns = await prisma.studentProfile.findMany({
+      where: { companyId: args.companyId, deletedAt: null },
+      select: { classGroupId: true, semesterId: true },
+    });
+    if (interns.length === 0) return;
+    const links = await prisma.facultyClassGroup.findMany({
+      where: {
+        OR: interns.map((i) => ({ classGroupId: i.classGroupId, semesterId: i.semesterId })),
+      },
+      select: { facultyId: true },
+    });
+    const day = args.date.toISOString().slice(0, 10);
+    await notify({
+      userIds: links.map((l) => l.facultyId),
+      trigger: "COMPANY_DAY_ADDED",
+      title: `Company day off added: ${args.name}`,
+      body: `An intern added ${day} as a day off for everyone at their company. Remove it from their Attendance page if it isn't real.`,
+      link: `/students/${args.addedByStudentProfileId}/attendance`,
+    });
+  } catch (error) {
+    console.error("Notification recipient lookup failed", { trigger: "COMPANY_DAY_ADDED", error });
+  }
+}
+
 export async function notifyTimeRequestReviewed(
   studentProfileId: string,
   action: "APPROVE" | "RETURN",

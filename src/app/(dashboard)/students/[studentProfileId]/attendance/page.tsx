@@ -45,6 +45,7 @@ import { prisma } from "@/lib/prisma";
 import { ConductCard, type ConductCardData } from "./conduct-card";
 import { listConductRecords } from "@/lib/services/conduct/conductService";
 import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/conduct/deductionService";
+import { listDisputes } from "@/lib/services/conduct/disputeService";
 import { tallyDeductions } from "@/lib/utils/deductionMatrix";
 import type { Metadata } from "next";
 
@@ -88,10 +89,11 @@ export default async function AttendancePage(props: {
 
   const isOwner = user.role === "STUDENT_INTERN";
   // Workstream L2: conduct records, automatic deduction items and the tally.
-  const [matrix, conductRecords, automaticItems] = await Promise.all([
+  const [matrix, conductRecords, automaticItems, disputes] = await Promise.all([
     getDeductionMatrix(),
     listConductRecords(params.studentProfileId),
     listAutomaticItems(params.studentProfileId),
+    listDisputes(params.studentProfileId),
   ]);
   const conduct: ConductCardData = {
     tally: tallyDeductions(
@@ -110,6 +112,14 @@ export default async function AttendancePage(props: {
       revokeReason: r.revokeReason,
     })),
     items: automaticItems.map((i) => ({ ...i, date: i.date.toISOString() })),
+    disputes: disputes.map((d) => ({
+      id: d.id,
+      itemType: d.itemType,
+      itemKey: d.itemKey,
+      reason: d.reason,
+      outcome: d.outcome,
+      resolutionNote: d.resolutionNote,
+    })),
     categories: matrix
       .filter((c) => c.source === "MANUAL")
       .map(({ key, label }) => ({ key, label })),
