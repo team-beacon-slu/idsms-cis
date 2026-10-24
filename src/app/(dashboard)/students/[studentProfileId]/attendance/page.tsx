@@ -41,6 +41,7 @@ import {
 import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
 import { AttendanceExportButton } from "./export-button";
 import { HolidayList } from "./holiday-list";
+import { prisma } from "@/lib/prisma";
 import { ConductCard, type ConductCardData } from "./conduct-card";
 import { listConductRecords } from "@/lib/services/conduct/conductService";
 import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/conduct/deductionService";
@@ -72,13 +73,17 @@ export default async function AttendancePage(props: {
 
   // getHoursSummary is read-only (no StudentProfile.renderedHours write) —
   // a page view shouldn't persist hours; approvals already do.
-  const [deviationReports, workPlan, holidays, summary, projectedCompletionDate] =
+  const [deviationReports, workPlan, holidays, summary, projectedCompletionDate, placement] =
     await Promise.all([
       listDeviationReportsForStudent(params.studentProfileId),
       getLatestApprovedWorkPlanForStudent(params.studentProfileId),
       getHolidayCalendarForStudent(params.studentProfileId),
       getHoursSummary(params.studentProfileId),
       computeProjectedCompletionDate(params.studentProfileId),
+      prisma.studentProfile.findUnique({
+        where: { id: params.studentProfileId },
+        select: { company: { select: { name: true } } },
+      }),
     ]);
 
   const isOwner = user.role === "STUDENT_INTERN";
@@ -273,8 +278,8 @@ export default async function AttendancePage(props: {
         <CardHeader>
           <CardTitle>Holidays</CardTitle>
           <CardDescription>
-            Philippine holidays this semester. Uncheck one your host company works through so it
-            appears on your weekly report.
+            Philippine holidays this semester and the host company&apos;s own days off. Uncheck one
+            the company works through so it appears on the weekly report.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -285,8 +290,12 @@ export default async function AttendancePage(props: {
               date: h.date.toISOString(),
               name: h.name,
               applicable: h.applicable,
+              company: h.holidayType === "COMPANY",
+              // Staff may remove any company day; an intern only one they added.
+              removable: h.holidayType === "COMPANY" && (!isOwner || h.createdById === user.id),
             }))}
             canEdit={isOwner}
+            companyName={placement?.company?.name ?? null}
           />
         </CardContent>
       </Card>

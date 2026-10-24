@@ -107,7 +107,7 @@ export async function loadWeeklyReportDocumentData(
       ? getHolidayCalendarForStudent(report.studentProfileId)
       : Promise.resolve([]),
   ]);
-  const holidayName = new Map(holidays.map((h) => [toDateKey(h.date), h.name]));
+  const holidayByDate = new Map(holidays.map((h) => [toDateKey(h.date), h]));
   const toRow = (r: (typeof requests)[number]): TimeRow => ({
     date: r.date,
     startTime: r.startTime,
@@ -151,7 +151,8 @@ export async function loadWeeklyReportDocumentData(
       timeOut: e.timeOut,
       timeIn2: e.timeIn2,
       timeOut2: e.timeOut2,
-      holidayName: holidayName.get(toDateKey(e.reportDate)) ?? null,
+      holidayName: holidayByDate.get(toDateKey(e.reportDate))?.name ?? null,
+      companyHoliday: holidayByDate.get(toDateKey(e.reportDate))?.holidayType === "COMPANY",
     })),
     overtime: requests.filter((r) => r.deviationType === DeviationType.OVERTIME).map(toRow),
     undertime: requests.filter((r) => r.deviationType === DeviationType.UNDERTIME).map(toRow),

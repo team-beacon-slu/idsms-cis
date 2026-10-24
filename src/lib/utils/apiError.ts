@@ -23,6 +23,7 @@ import {
   WorkPlanStateError,
 } from "@/lib/services/predeployment/workPlanService";
 import {
+  CompanyHolidayError,
   HolidayNotFoundError,
   InvalidScheduleChangeCoordinatorStateError,
   InvalidScheduleChangeStateError,
@@ -59,6 +60,7 @@ const BAD_REQUEST_ERRORS = [
   WeeklyReportIncompleteError,
   LateSubmissionReasonRequiredError,
   DailyEntryDateError,
+  CompanyHolidayError,
   DocumentNotReadyError,
   EndorsementDataIncompleteError,
   FinalReportLockedError,

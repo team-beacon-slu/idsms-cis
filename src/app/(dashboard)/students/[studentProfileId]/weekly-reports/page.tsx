@@ -6,6 +6,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { loadShift } from "@/lib/services/attendance/creditedHours";
+import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
   getConfirmedSubmission,
   getLatestSubmission,
@@ -62,28 +63,37 @@ export default async function WeeklyReportsPage(props: {
     throw error;
   }
 
-  const reports = await prisma.weeklyReport.findMany({
-    where: { studentProfileId: params.studentProfileId },
-    orderBy: { weekStart: "desc" },
-    include: { dailyEntries: { orderBy: { reportDate: "asc" } } },
-  });
-  const documents = await prisma.generatedDocument.findMany({
-    where: { studentProfileId: params.studentProfileId, documentType: "WEEKLY_REPORT" },
-    select: { periodLabel: true, status: true, referenceCode: true },
-  });
+  // Independent reads, loaded together rather than one after another.
+  const [reports, documents, conduct, shift, holidayList] = await Promise.all([
+    prisma.weeklyReport.findMany({
+      where: { studentProfileId: params.studentProfileId },
+      orderBy: { weekStart: "desc" },
+      include: { dailyEntries: { orderBy: { reportDate: "asc" } } },
+    }),
+    prisma.generatedDocument.findMany({
+      where: { studentProfileId: params.studentProfileId, documentType: "WEEKLY_REPORT" },
+      select: { periodLabel: true, status: true, referenceCode: true },
+    }),
+    // One query for all weeks; each week counts deductions dated on or before its end (as getConductDeductions does).
+    prisma.conductRecord.findMany({
+      where: { studentProfileId: params.studentProfileId, revokedAt: null },
+      select: { date: true, hoursDeducted: true },
+    }),
+    loadShift(params.studentProfileId),
+    getHolidayCalendarForStudent(params.studentProfileId),
+  ]);
+  const holidays = Object.fromEntries(
+    holidayList
+      .filter((h) => h.applicable)
+      .map((h) => [toDateKey(h.date), { name: h.name, company: h.holidayType === "COMPANY" }])
+  );
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
-  // One query for all weeks; each week counts deductions dated on or before its end (as getConductDeductions does).
-  const conduct = await prisma.conductRecord.findMany({
-    where: { studentProfileId: params.studentProfileId, revokedAt: null },
-    select: { date: true, hoursDeducted: true },
-  });
   const deductionsAsOf = (weekEnd: Date) =>
     Math.round(
       conduct
         .filter((c) => c.date <= weekEnd)
         .reduce((sum, c) => sum + Number(c.hoursDeducted), 0) * 100
     ) / 100;
-  const shift = await loadShift(params.studentProfileId);
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
 
@@ -241,6 +251,7 @@ export default async function WeeklyReportsPage(props: {
                       weeklyReportId={report.id}
                       editable={editable}
                       shift={shift}
+                      holidays={holidays}
                       weekEnd={report.weekEnd.toISOString()}
                       priorAccomplishments={priorAccomplishments}
                       totals={{

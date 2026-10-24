@@ -1,7 +1,9 @@
 import { Program, Role, WeeklyReportStatus } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
+  addCompanyHoliday,
   applyScheduleChangeProspectively,
+  CompanyHolidayError,
   approveScheduleChangeCoordinator,
   computeProjectedCompletionDate,
   computeTotalHoursRendered,
@@ -21,6 +23,7 @@ import {
   logScheduleChangeHistory,
   markHolidayApplicable,
   MissingScheduleChangeRequestError,
+  removeCompanyHoliday,
   requestScheduleChange,
   setRequiredHoursConfig,
   validateScheduleChangeFaculty,
@@ -278,6 +281,121 @@ describe("holiday calendar (FR-AT-02)", () => {
     prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ semesterId: "sem-1" } as never);
     prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
     await expect(markHolidayApplicable("profile-1", "h-x", false, studentUser)).rejects.toThrow(
+      HolidayNotFoundError
+    );
+  });
+});
+
+describe("company non-working days (FR-AT-02)", () => {
+  const day = new Date("2027-02-06T00:00:00Z");
+  const coordinator = { id: "coord-1", role: Role.DEPARTMENT_COORDINATOR };
+
+  beforeEach(() => {
+    // assertCanAccessStudent: the intern owns profile-1.
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      userId: "student-1",
+      classGroupId: "cg-1",
+      semesterId: "sem-1",
+      companyId: "company-1",
+    } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({
+      companyId: "company-1",
+    } as never);
+  });
+
+  it("lists the intern's company days beside the semester's PH holidays", async () => {
+    prismaMock.holidayCalendarEntry.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "c-1",
+          date: day,
+          name: "Chinese New Year",
+          holidayType: "COMPANY",
+          createdById: "u-1",
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const holidays = await getHolidayCalendarForStudent("profile-1");
+
+    expect(prismaMock.holidayCalendarEntry.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: {
+          studentProfileId: null,
+          OR: [{ semesterId: "sem-1" }, { companyId: "company-1" }],
+        },
+      })
+    );
+    expect(holidays).toEqual([
+      expect.objectContaining({
+        name: "Chinese New Year",
+        holidayType: "COMPANY",
+        applicable: true,
+      }),
+    ]);
+  });
+
+  it("adds a day to the intern's company for everyone placed there, audited", async () => {
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
+    prismaMock.holidayCalendarEntry.create.mockResolvedValue({ id: "c-1" } as never);
+
+    await addCompanyHoliday("profile-1", { date: day, name: "Chinese New Year" }, studentUser);
+
+    expect(prismaMock.holidayCalendarEntry.create).toHaveBeenCalledWith({
+      data: {
+        date: day,
+        name: "Chinese New Year",
+        holidayType: "COMPANY",
+        companyId: "company-1",
+        createdById: "student-1",
+      },
+      select: { id: true },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "COMPANY_HOLIDAY_ADDED" }),
+      })
+    );
+  });
+
+  it("refuses an intern with no company and a second day on the same date", async () => {
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValueOnce({ companyId: null } as never);
+    await expect(
+      addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser)
+    ).rejects.toThrow(CompanyHolidayError);
+
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue({ id: "c-1" } as never);
+    await expect(
+      addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser)
+    ).rejects.toThrow(CompanyHolidayError);
+    expect(prismaMock.holidayCalendarEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("lets staff remove any company day but an intern only one they added", async () => {
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue({
+      id: "c-1",
+      date: day,
+      name: "Chinese New Year",
+      createdById: "someone-else",
+    } as never);
+
+    await expect(removeCompanyHoliday("profile-1", "c-1", studentUser)).rejects.toThrow(
+      ForbiddenError
+    );
+    expect(prismaMock.holidayCalendarEntry.delete).not.toHaveBeenCalled();
+
+    await removeCompanyHoliday("profile-1", "c-1", coordinator);
+    // Interns' opt-outs for that day go with it.
+    expect(prismaMock.holidayCalendarEntry.deleteMany).toHaveBeenCalledWith({
+      where: { date: day, holidayType: "COMPANY", studentProfile: { companyId: "company-1" } },
+    });
+    expect(prismaMock.holidayCalendarEntry.delete).toHaveBeenCalledWith({ where: { id: "c-1" } });
+  });
+
+  it("refuses to remove a day that isn't the intern's company's", async () => {
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
+    await expect(removeCompanyHoliday("profile-1", "c-x", coordinator)).rejects.toThrow(
       HolidayNotFoundError
     );
   });

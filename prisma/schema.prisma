@@ -137,6 +137,7 @@ enum NotificationStatus {
 enum HolidayType {
   NATIONAL
   REGIONAL
+  COMPANY // a host company's own non-working day (FR-AT-02)
 }
 
 // ── NextAuth (database session strategy — FR-UM-11) ────────────────────────
@@ -177,6 +178,7 @@ model Session {
 // ── Core domain tables ──────────────────────────────────────────────────
 
 model User {
+  holidaysAdded HolidayCalendarEntry[] @relation("HolidayCreatedBy")
   id                    String    @id @default(uuid()) @db.Uuid
   email                 String    @unique
   hashedPassword        String    @map("hashed_password")
@@ -338,6 +340,7 @@ model Company {
 
   students   StudentProfile[]
   moaRecords MoaRecord[]
+  holidays   HolidayCalendarEntry[]
 
   @@map("companies")
 }
@@ -668,11 +671,18 @@ model HolidayCalendarEntry {
   name             String
   holidayType      HolidayType @map("holiday_type")
   semesterId       String?     @map("semester_id") @db.Uuid
-  studentProfileId String?     @map("student_profile_id") @db.Uuid // nullable — company-specific override
+  studentProfileId String?     @map("student_profile_id") @db.Uuid // set = this intern's opt-out marker
+  // Set = a host company's own non-working day, shared by every intern placed there.
+  companyId        String?     @map("company_id") @db.Uuid
+  createdById      String?     @map("created_by") @db.Uuid
 
   semester       Semester?       @relation(fields: [semesterId], references: [id])
   studentProfile StudentProfile? @relation(fields: [studentProfileId], references: [id])
+  company        Company?        @relation(fields: [companyId], references: [id])
+  createdBy      User?           @relation("HolidayCreatedBy", fields: [createdById], references: [id])
 
+  @@index([companyId])
+  @@index([createdById])
   @@map("holiday_calendar")
 }
 

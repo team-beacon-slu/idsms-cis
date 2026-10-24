@@ -54,12 +54,16 @@ describe("getUnifiedCalendarEvents", () => {
         date: new Date("2026-04-09T00:00:00.000Z"),
         name: "Araw ng Kagitingan",
         applicable: true,
+        holidayType: "NATIONAL",
+        createdById: null,
       },
       {
         id: "h-2",
         date: new Date("2026-05-01T00:00:00.000Z"),
         name: "Labor Day",
         applicable: false,
+        holidayType: "NATIONAL",
+        createdById: null,
       },
     ]);
     prismaMock.deviationReport.findMany.mockResolvedValue([
@@ -295,12 +299,16 @@ describe("calendarService — reachable and wired correctly", () => {
         date: new Date("2026-11-01T00:00:00Z"),
         name: "All Saints' Day",
         applicable: true,
+        holidayType: "NATIONAL",
+        createdById: null,
       },
       {
         id: "h-2",
         date: new Date("2026-11-30T00:00:00Z"),
         name: "Bonifacio Day",
         applicable: false,
+        holidayType: "NATIONAL",
+        createdById: null,
       },
     ]);
 
