@@ -282,6 +282,39 @@ export async function notifyDisputeResolved(
   });
 }
 
+// An intern added a day off for their whole company: every adviser of an intern placed there
+// sees it, so a day nobody checked can't quietly excuse absences.
+export async function notifyCompanyDayAdded(args: {
+  companyId: string;
+  name: string;
+  date: Date;
+  addedByStudentProfileId: string;
+}) {
+  try {
+    const interns = await prisma.studentProfile.findMany({
+      where: { companyId: args.companyId, deletedAt: null },
+      select: { classGroupId: true, semesterId: true },
+    });
+    if (interns.length === 0) return;
+    const links = await prisma.facultyClassGroup.findMany({
+      where: {
+        OR: interns.map((i) => ({ classGroupId: i.classGroupId, semesterId: i.semesterId })),
+      },
+      select: { facultyId: true },
+    });
+    const day = args.date.toISOString().slice(0, 10);
+    await notify({
+      userIds: links.map((l) => l.facultyId),
+      trigger: "COMPANY_DAY_ADDED",
+      title: `Company day off added: ${args.name}`,
+      body: `An intern added ${day} as a day off for everyone at their company. Remove it from their Attendance page if it isn't real.`,
+      link: `/students/${args.addedByStudentProfileId}/attendance`,
+    });
+  } catch (error) {
+    console.error("Notification recipient lookup failed", { trigger: "COMPANY_DAY_ADDED", error });
+  }
+}
+
 export async function notifyTimeRequestReviewed(
   studentProfileId: string,
   action: "APPROVE" | "RETURN",

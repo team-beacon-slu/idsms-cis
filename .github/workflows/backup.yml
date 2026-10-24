@@ -1,0 +1,45 @@
+# Nightly off-machine backup of the database while IDSMS runs on Supabase's free plan, which has
+# no point-in-time restore. The daily connection also keeps the project from pausing when idle.
+# Restore steps: deploy/OPERATIONS.md, "Backups while on Supabase".
+name: Nightly backup
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # 02:00 Manila
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Dump the database (Postgres 17, matching the server)
+        env:
+          # The session pooler URL (port 5432): the direct host is IPv6-only, which runners can't reach.
+          DATABASE_BACKUP_URL: ${{ secrets.DATABASE_BACKUP_URL }}
+        run: |
+          test -n "$DATABASE_BACKUP_URL" || { echo "DATABASE_BACKUP_URL secret is not set"; exit 1; }
+          docker run --rm -e PGURL="$DATABASE_BACKUP_URL" -v "$PWD:/out" postgres:17 \
+            sh -c 'pg_dump "$PGURL" --format=custom --schema=public --no-owner --no-privileges --file=/out/idsms.dump'
+          # An empty or tiny file means the dump silently failed.
+          test "$(stat -c %s idsms.dump)" -gt 10000
+
+      - name: Encrypt it
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE secret is not set"; exit 1; }
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 --output "idsms-$(date -u +%Y%m%d).dump.gpg" idsms.dump
+          rm idsms.dump
+
+      - name: Keep it for 30 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: idsms-db-backup
+          path: idsms-*.dump.gpg
+          retention-days: 30
+          if-no-files-found: error

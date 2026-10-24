@@ -16,7 +16,8 @@ volumes:
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    # Same major version as Supabase (17), so its backups restore here (pg_restore needs >= the dump's version).
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: idsms
