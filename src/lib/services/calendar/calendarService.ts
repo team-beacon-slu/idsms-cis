@@ -1,5 +1,5 @@
 // Unified calendar aggregation across roles. See PRD Module 12 (FR-CAL-*).
-import { Role, ValidationStatus } from "@prisma/client";
+import { Role, ValidationStatus, WorkPlanStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   computeProjectedCompletionDate,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/services/attendance/attendanceService";
 import { listWeeklyReportsForStudent } from "@/lib/services/reports/weeklyReportService";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
+import { projectCompletionDate } from "@/lib/utils/completionProjection";
 import { getExpiringMoaRecords } from "@/lib/services/predeployment/companyService";
 
 export type CalendarEventType = "DEADLINE" | "HOLIDAY" | "DEVIATION" | "COMPLETION";
@@ -92,19 +93,18 @@ async function resolveVisibleStudentProfileIds(userId: string, role: Role): Prom
   return students.map((s) => s.id);
 }
 
-async function getStudentCalendarEvents(studentProfileId: string): Promise<CalendarEvent[]> {
-  const [weeklyReports, holidays, deviations, completionDate] = await Promise.all([
-    listWeeklyReportsForStudent(studentProfileId),
-    getHolidayCalendarForStudent(studentProfileId),
-    prisma.deviationReport.findMany({
-      where: { studentProfileId, validationStatus: ValidationStatus.VALIDATED },
-    }),
-    computeProjectedCompletionDate(studentProfileId),
-  ]);
+type EventSources = {
+  weeklyReports: { weekStart: Date; weekEnd: Date }[];
+  holidays: { date: Date; name: string; applicable: boolean }[];
+  deviations: { date: Date; deviationType: string; reason: string }[];
+  completionDate: Date | null;
+};
 
+// One intern's events from already-loaded rows; the single-intern and batched loaders share it.
+function buildStudentEvents(studentProfileId: string, sources: EventSources): CalendarEvent[] {
   const events: CalendarEvent[] = [];
 
-  for (const report of weeklyReports) {
+  for (const report of sources.weeklyReports) {
     events.push({
       type: "DEADLINE",
       date: getWeeklyReportDueDate(report.weekEnd),
@@ -116,12 +116,12 @@ async function getStudentCalendarEvents(studentProfileId: string): Promise<Calen
   // Only holidays this student hasn't opted out of apply to their schedule
   // — see `getHolidayCalendarForStudent`'s own schema-gap note for what
   // `applicable` means.
-  for (const holiday of holidays) {
+  for (const holiday of sources.holidays) {
     if (!holiday.applicable) continue;
     events.push({ type: "HOLIDAY", date: holiday.date, label: holiday.name, studentProfileId });
   }
 
-  for (const deviation of deviations) {
+  for (const deviation of sources.deviations) {
     events.push({
       type: "DEVIATION",
       date: deviation.date,
@@ -130,10 +130,10 @@ async function getStudentCalendarEvents(studentProfileId: string): Promise<Calen
     });
   }
 
-  if (completionDate) {
+  if (sources.completionDate) {
     events.push({
       type: "COMPLETION",
-      date: completionDate,
+      date: sources.completionDate,
       label: "Projected OJT Completion Date",
       studentProfileId,
     });
@@ -142,17 +142,90 @@ async function getStudentCalendarEvents(studentProfileId: string): Promise<Calen
   return events;
 }
 
+async function getStudentCalendarEvents(studentProfileId: string): Promise<CalendarEvent[]> {
+  const [weeklyReports, holidays, deviations, completionDate] = await Promise.all([
+    listWeeklyReportsForStudent(studentProfileId),
+    getHolidayCalendarForStudent(studentProfileId),
+    prisma.deviationReport.findMany({
+      where: { studentProfileId, validationStatus: ValidationStatus.VALIDATED },
+    }),
+    computeProjectedCompletionDate(studentProfileId),
+  ]);
+  return buildStudentEvents(studentProfileId, {
+    weeklyReports,
+    holidays,
+    deviations,
+    completionDate,
+  });
+}
+
+// Staff calendars cover many interns (the whole department for a coordinator), so they
+// load one query per table instead of ~9 per intern. The projection uses the stored
+// rendered hours, which every hours-changing action refreshes (computeTotalHoursRendered);
+// an intern's own calendar keeps the live calculation.
+async function getCalendarEventsForStudents(ids: string[]): Promise<CalendarEvent[]> {
+  if (ids.length === 0) return [];
+  const where = { studentProfileId: { in: ids } };
+  const [profiles, reports, optOuts, deviations, plans] = await Promise.all([
+    prisma.studentProfile.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, semesterId: true, requiredHours: true, renderedHours: true },
+    }),
+    prisma.weeklyReport.findMany({
+      where,
+      orderBy: { weekStart: "desc" },
+      select: { studentProfileId: true, weekStart: true, weekEnd: true },
+    }),
+    prisma.holidayCalendarEntry.findMany({ where, select: { studentProfileId: true, date: true } }),
+    prisma.deviationReport.findMany({
+      where: { ...where, validationStatus: ValidationStatus.VALIDATED },
+      select: { studentProfileId: true, date: true, deviationType: true, reason: true },
+    }),
+    // Same rule as getLatestApprovedWorkPlanForStudent: the newest approved plan per intern.
+    prisma.workPlan.findMany({
+      where: { ...where, status: WorkPlanStatus.APPROVED },
+      orderBy: { createdAt: "desc" },
+      distinct: ["studentProfileId"],
+      select: { studentProfileId: true, scheduleConfig: true },
+    }),
+  ]);
+  const semesterIds = [...new Set(profiles.map((p) => p.semesterId))];
+  const systemHolidays = await prisma.holidayCalendarEntry.findMany({
+    where: { semesterId: { in: semesterIds }, studentProfileId: null },
+    orderBy: { date: "asc" },
+    select: { semesterId: true, date: true, name: true },
+  });
+
+  return profiles.flatMap((profile) => {
+    const optedOut = new Set(
+      optOuts.filter((o) => o.studentProfileId === profile.id).map((o) => o.date.getTime())
+    );
+    const schedule = plans.find((p) => p.studentProfileId === profile.id)?.scheduleConfig as
+      { daysOfWeek?: number[]; hoursPerDay?: number } | null | undefined;
+    return buildStudentEvents(profile.id, {
+      weeklyReports: reports.filter((r) => r.studentProfileId === profile.id),
+      holidays: systemHolidays
+        .filter((h) => h.semesterId === profile.semesterId)
+        .map((h) => ({ ...h, applicable: !optedOut.has(h.date.getTime()) })),
+      deviations: deviations.filter((d) => d.studentProfileId === profile.id),
+      completionDate: projectCompletionDate(
+        schedule,
+        profile.requiredHours,
+        Number(profile.renderedHours)
+      ),
+    });
+  });
+}
+
 export async function getUnifiedCalendarEvents(
   userId: string,
   role: Role
 ): Promise<CalendarEvent[]> {
   const studentProfileIds = await resolveVisibleStudentProfileIds(userId, role);
-  // shortcut: ~9 queries per student (reports, holidays, requests, projection);
-  // batch them into per-table queries if department-wide pages get slow at full enrollment.
-  const perStudentEvents = await Promise.all(
-    studentProfileIds.map((studentProfileId) => getStudentCalendarEvents(studentProfileId))
-  );
-  return perStudentEvents.flat();
+  if (role === Role.STUDENT_INTERN) {
+    return (await Promise.all(studentProfileIds.map(getStudentCalendarEvents))).flat();
+  }
+  return getCalendarEventsForStudents(studentProfileIds);
 }
 
 // FR-CAL-01 — Owner: AndresBonifaci0 (Matt)
@@ -292,7 +365,18 @@ export async function getCoordinatorCalendarView(coordinatorId: string): Promise
       date: validTo,
       label: `MOA expiry — ${companyNames.get(companyId)}`,
     }));
-  return colorCodeCalendarEvents([...events, ...expiryEvents]).sort(
+  // FR-CAL-04 asks for department-wide milestones: every intern shares the same report
+  // deadlines and semester holidays, so show each once instead of once per intern.
+  // Completions stay per intern; the endorsement-demand forecast counts them.
+  const seen = new Set<string>();
+  const milestones = events.flatMap((event): CalendarEvent[] => {
+    if (event.type !== "DEADLINE" && event.type !== "HOLIDAY") return [event];
+    const key = `${event.type}|${event.date.getTime()}|${event.label}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ type: event.type, date: event.date, label: event.label }];
+  });
+  return colorCodeCalendarEvents([...milestones, ...expiryEvents]).sort(
     (a, b) => a.date.getTime() - b.date.getTime()
   );
 }
