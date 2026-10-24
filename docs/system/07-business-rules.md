@@ -183,6 +183,7 @@ Source: SLU "Deduction Matrix" and "Issues" slides; decisions of 12 October 2026
 - A "First and Final" warning, or a "Final" warning without a "First", counts as 2 warnings.
 - Tier values are the **total** at that count by default; "per incident" is also supported (Q9).
 - Submitting a late or missing deliverable afterwards does **not** remove its deduction. Staff can mark an automatic item **Excused** for HTE-attested documentation or circumstances beyond the intern's control, with a note; excuses are audited and can be withdrawn.
+- **Disputes:** the intern can dispute any deduction that still counts (an automatic item or a conduct record) with a reason of at least 10 characters. The assigned advisers are notified. Staff accept by excusing the item or revoking the record, which closes the dispute automatically, or **Keep deduction** with a note to the intern. Only one dispute per item is open at a time; after a decline the intern may dispute again. Every step is audited and the intern is notified of the outcome.
 - Records are never deleted, only revoked with a reason; the intern is notified and can see their tally.
 - A record can also deduct rendered hours (default **0**, adjustable; Q12).
 - IDSMS shows the tally; it does **not** compute the final grade (Q11).

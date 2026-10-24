@@ -8,12 +8,16 @@ import { computeTotalHoursRendered } from "@/lib/services/attendance/attendanceS
 import { logEvent } from "@/lib/services/accounts/auditService";
 import { refreshWeeklyTotalsFrom } from "@/lib/services/reports/weeklyReportService";
 import {
+  acceptOpenDisputes,
   assertStaffFor,
   ConductStateError,
   getDefaultConductHours,
   getDeductionMatrix,
 } from "@/lib/services/conduct/deductionService";
-import { notifyConductRecordIssued } from "@/lib/services/notifications/notificationEvents";
+import {
+  notifyConductRecordIssued,
+  notifyDisputeResolved,
+} from "@/lib/services/notifications/notificationEvents";
 import { conductRecordSchema, revokeReasonSchema } from "@/lib/validators/conduct";
 
 export { CONDUCT_STAFF_ROLES, ConductStateError } from "@/lib/services/conduct/deductionService";
@@ -97,7 +101,7 @@ export async function revokeConductRecord(
   });
   await assertStaffFor(actingUser, record.studentProfileId);
 
-  await prisma.$transaction(async (tx) => {
+  const accepted = await prisma.$transaction(async (tx) => {
     const { count } = await tx.conductRecord.updateMany({
       where: { id, revokedAt: null },
       data: { revokedAt: new Date(), revokedById: actingUser.id, revokeReason },
@@ -114,7 +118,16 @@ export async function revokeConductRecord(
       },
       tx
     );
+    return acceptOpenDisputes(tx, record.studentProfileId, "CONDUCT", id, actingUser.id);
   });
+  if (accepted > 0) {
+    await notifyDisputeResolved(
+      record.studentProfileId,
+      "A conduct record",
+      "ACCEPTED",
+      revokeReason
+    );
+  }
   if (Number(record.hoursDeducted) > 0)
     await refreshRenderedHours(record.studentProfileId, record.date);
 }
