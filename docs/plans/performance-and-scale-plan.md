@@ -182,7 +182,9 @@ The dev database has one student, so these numbers show the gains from parallel 
 - **Settings cache: not now.** Settings reads are fast key lookups; the cost was waiting for them in sequence, now removed by loading them in parallel. Next 16's `use cache` needs Cache Components across the app, and `unstable_cache` is deprecated.
 - **Client page cache (`staleTimes`): no.** Saves go through API routes, which cannot clear the browser's cached pages, so a student going back to Home after submitting would see the old status.
 
-**Next:** the unified calendar loads each student separately (about 9 queries each, so about 18,000 for a coordinator at 2,000 interns); batch it the same way. Then a load test with 2,000 seeded interns on a local copy (Docker), never on the shared dev database.
+**Calendar (done 24 October 2026):** staff calendars loaded each intern separately, about 9 queries each, so about 18,000 for a coordinator at 2,000 interns. They now load 7 queries in total, however many interns. Projected completion for staff comes from the stored rendered hours, which every hours-changing action refreshes; an intern's own calendar keeps the live calculation. The coordinator calendar shows shared deadlines and holidays once, as department milestones (FR-CAL-04), instead of once per intern. Checked live against the previous build: the same events for every role.
+
+**Next:** count queries in tests (1 intern against 50) for the remaining staff pages, so a per-intern loop cannot come back unnoticed. Keep the full load test with seeded interns for just before the school-server move.
 
 ### Separate track: weekly report features (not part of this plan)
 
