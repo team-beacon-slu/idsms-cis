@@ -169,7 +169,7 @@ Jobs 3, 6, 7, 4+10, 9, 12, 2, 8 and 1, plus the transparency panel, as described
 Staff only, for judging whether a company is worth partnering with. No verdict and no score; coordinators make that call.
 
 - **Facts, from the database:** interns placed per term, average hours a week, overtime filed, absences, share of reports on time, work setup, company days off.
-- **The intern's evaluation of the company:** a required post-internship checklist item. It is required so that companies reach the 5-intern minimum; only the ratings are required, the free text stays optional. Its 7 criteria come from Cameron University, NEUST (Natividad 2025) and UP CIDS (Santillana 2026):
+- **The intern's evaluation of the company:** a required post-internship checklist item. **It opens automatically once the intern completes their required hours** (`required_hours` on their profile, for example 600 or 250, depending on the program), so they rate the company only after their time there is done. It is required so that companies reach the 5-intern minimum; only the ratings are required, the free text stays optional. Its 7 criteria come from Cameron University, NEUST (Natividad 2025) and UP CIDS (Santillana 2026):
   - supervision and mentoring;
   - learning and relevance;
   - safety and welfare;
@@ -226,7 +226,6 @@ Staff only, for judging whether a company is worth partnering with. No verdict a
 | Does SLU provide the lab machine, and what RAM / GPU does it have? | SLU IT | Yes, for the lab AI |
 | The DPO request: Gemini for beta testers, the privacy-notice wording, the HTE feedback notice, and coordinator-only access | DPO, via Jay | Yes, for go-live |
 | Small-model licence (Gemma terms, Qwen licence) | SLU legal / IT | Yes, for jobs 1, 2 and 8 |
-| Company evaluation timing: open after grades are final, or keep it open with a "never linked to your grade" note? | Jay | No, but before building the form |
 | Does SLU already have an HTE evaluation form? | Coordinator | No (use it if so) |
 | Will the adviser confirm about 40 golden-set pairs in one sitting? | Adviser | Yes, for switch-on |
 
@@ -261,6 +260,7 @@ Today all AI calls go through the one 120-line `aiService.ts`, so R1 replaces it
 | 24 Oct | Summaries plus pointers, later narrowed to quotes only | AI grill Q2, council 2 |
 | 24 Oct | The pre-submit check only warns | AI grill Q3 |
 | 24 Oct | The company evaluation is required | AI grill Q4 |
+| 24 Oct | It opens automatically once the intern completes their required hours | Jay |
 | 24 Oct | AI ships at go-live (capstone theme) | Jay, overriding council 1 |
 | 24 Oct | Three jobs at first, then a full 15-job review | Jay |
 | 24 Oct | Hybrid: interns' words on local models only | Jay |
