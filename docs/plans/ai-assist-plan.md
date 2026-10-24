@@ -140,7 +140,7 @@ Semantic AI can be wrong, so nothing switches on without a measured check agains
 | Does SLU already have an HTE evaluation form for interns? | Coordinator | No (use it if so) |
 | Is coordinator-only HTE feedback within the private-duty exception, and does the privacy notice need a new line? | SLU data protection office | Yes, for the company evaluation |
 
-## 9. Order
+## 9. Order (superseded by section 10)
 
 1. P0: label the golden set, record privacy approval, switch on, watch for two weeks.
 2. P1 rules check for interns (no AI, warn only, can ship any time).
