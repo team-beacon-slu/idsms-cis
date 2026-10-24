@@ -21,13 +21,14 @@ jest.mock("@/lib/storage", () => {
     PdfTooLargeError,
     uploadPdfBuffer: jest.fn(),
     getSignedUrl: jest.fn(),
+    deleteObject: jest.fn(),
   };
 });
 
 import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
 import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData";
 import { renderHtmlToPdf } from "@/lib/pdf/renderHtmlToPdf";
-import { PdfTooLargeError, uploadPdfBuffer } from "@/lib/storage";
+import { PdfTooLargeError, deleteObject, uploadPdfBuffer } from "@/lib/storage";
 import {
   DocumentNotReadyError,
   generateFinalTechnicalReportPdf,
@@ -36,6 +37,8 @@ import {
   generateWeeklyReportPdf,
   renderAndStoreDocument,
   getWeeklyReportDocument,
+  pruneOldReportPdfs,
+  REPORT_PDF_KEEP_DAYS,
   weeklyPeriodLabel,
   withRetry,
 } from "@/lib/services/reports/documentService";
@@ -634,5 +637,57 @@ describe("generateFinalTechnicalReportPdf (WS-H)", () => {
       }),
     });
     expect(render.mock.calls[0][0]).toContain("Evaluation Scores");
+  });
+});
+
+describe("pruneOldReportPdfs", () => {
+  const now = new Date("2026-11-01T18:00:00Z");
+  const old = new Date("2026-10-01T00:00:00Z");
+
+  it("only looks at weekly/monthly PDFs generated before the keep window", async () => {
+    prismaMock.generatedDocument.findMany.mockResolvedValue([]);
+    await pruneOldReportPdfs(now);
+    const where = prismaMock.generatedDocument.findMany.mock.calls[0][0]!.where!;
+    expect(where.documentType).toEqual({
+      in: [DocumentType.WEEKLY_REPORT, DocumentType.MONTHLY_REPORT],
+    });
+    expect(where.status).toBe(DocumentStatus.GENERATED);
+    expect(where.generatedAt).toEqual({
+      lt: new Date(now.getTime() - REPORT_PDF_KEEP_DAYS * 86_400_000),
+    });
+  });
+
+  it("resets the row to Generate, then deletes the file", async () => {
+    prismaMock.generatedDocument.findMany.mockResolvedValue([
+      { id: "d-1", fileUrl: "weekly/p-1/wr-1.pdf", generatedAt: old },
+    ] as never);
+    prismaMock.generatedDocument.updateMany.mockResolvedValue({ count: 1 });
+    await expect(pruneOldReportPdfs(now)).resolves.toEqual({ pruned: 1, failed: 0 });
+    expect(prismaMock.generatedDocument.updateMany).toHaveBeenCalledWith({
+      where: { id: "d-1", generatedAt: old },
+      data: { status: DocumentStatus.PENDING_DRAFT, fileUrl: null, generatedAt: null },
+    });
+    expect(deleteObject).toHaveBeenCalledWith("generated-documents", "weekly/p-1/wr-1.pdf");
+  });
+
+  it("leaves a PDF regenerated since the query alone", async () => {
+    prismaMock.generatedDocument.findMany.mockResolvedValue([
+      { id: "d-1", fileUrl: "weekly/p-1/wr-1.pdf", generatedAt: old },
+    ] as never);
+    prismaMock.generatedDocument.updateMany.mockResolvedValue({ count: 0 });
+    await expect(pruneOldReportPdfs(now)).resolves.toEqual({ pruned: 0, failed: 0 });
+    expect(deleteObject).not.toHaveBeenCalled();
+  });
+
+  it("counts a failed delete and carries on with the rest", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.generatedDocument.findMany.mockResolvedValue([
+      { id: "d-1", fileUrl: "weekly/p-1/wr-1.pdf", generatedAt: old },
+      { id: "d-2", fileUrl: "monthly/p-1/2026-09.pdf", generatedAt: old },
+    ] as never);
+    prismaMock.generatedDocument.updateMany.mockResolvedValue({ count: 1 });
+    (deleteObject as jest.Mock).mockRejectedValueOnce(new Error("storage down"));
+    await expect(pruneOldReportPdfs(now)).resolves.toEqual({ pruned: 1, failed: 1 });
+    expect(deleteObject).toHaveBeenCalledTimes(2);
   });
 });

@@ -326,6 +326,8 @@ One daily job (Vercel Hobby allows one cron a day): `vercel.json` calls `GET /ap
 3. **DSAR reminders** to Super Admins for requests due within 3 days or overdue.
 4. **Retention scan**, self-gated to run every 90 days.
 
+The route then runs the AI batch (a no-op while AI is off) and `documentService.pruneOldReportPdfs`: weekly and monthly PDFs generated more than 14 days ago are deleted and their rows set back to `PENDING_DRAFT`, so the page shows "Generate PDF" and re-renders them with the same reference code. Endorsement letters, covers and final reports are kept. This keeps the `generated-documents` bucket within the free plan's 1 GB.
+
 Errors are isolated per step and per student; any error makes the route return 500 so the scheduler shows a failed run. On the lab server (Phase 5) a host cron or cron container calls the same URL.
 
 ## 10. Storage

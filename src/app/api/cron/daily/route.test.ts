@@ -7,8 +7,12 @@ jest.mock("@/lib/services/notifications/scheduledNotifications", () => ({
     .fn()
     .mockResolvedValue({ deadlineReminders: 0, moaWarnings: 0, errors: [] }),
 }));
+jest.mock("@/lib/services/reports/documentService", () => ({
+  pruneOldReportPdfs: jest.fn().mockResolvedValue({ pruned: 0, failed: 0 }),
+}));
 import { NextRequest } from "next/server";
 import { runDailyNotifications } from "@/lib/services/notifications/scheduledNotifications";
+import { pruneOldReportPdfs } from "@/lib/services/reports/documentService";
 import { GET } from "@/app/api/cron/daily/route";
 
 const ENV = process.env.CRON_SECRET;
@@ -66,4 +70,24 @@ it("refuses to run when CRON_SECRET is not configured at all", async () => {
     })
   );
   expect(res.status).toBe(401);
+});
+
+it("answers 500 when the old-PDF prune throws or partly fails", async () => {
+  process.env.CRON_SECRET = "s3cret";
+  const call = () =>
+    GET(
+      new NextRequest("http://localhost/api/cron/daily", {
+        headers: { authorization: "Bearer s3cret" },
+      })
+    );
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  (pruneOldReportPdfs as jest.Mock).mockRejectedValueOnce(new Error("storage down"));
+  const thrown = await call();
+  expect(thrown.status).toBe(500);
+  await expect(thrown.json()).resolves.toEqual(
+    expect.objectContaining({ pdfs: null, errors: ["pdf-prune"] })
+  );
+
+  (pruneOldReportPdfs as jest.Mock).mockResolvedValueOnce({ pruned: 2, failed: 1 });
+  expect((await call()).status).toBe(500);
 });
