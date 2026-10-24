@@ -1,10 +1,9 @@
 // Workstream L2: the deduction matrix and default hours per conduct record
 // (SystemConfig), automatic deduction items, excuses and the per-intern tally.
 import { z } from "zod";
-import { DeviationType, Prisma, Role } from "@prisma/client";
+import { DeviationType, Prisma, Role, WorkPlanStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
-import { loadShift } from "@/lib/services/attendance/creditedHours";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import {
   findAutomaticItems,
@@ -13,6 +12,8 @@ import {
 } from "@/lib/utils/automaticDeductions";
 import { DEFAULT_MATRIX, tallyDeductions, type MatrixCategory } from "@/lib/utils/deductionMatrix";
 import { deductionMatrixSchema } from "@/lib/validators/deductionMatrix";
+import { parseScheduleConfig } from "@/lib/utils/schedule";
+import { scheduleShift } from "@/lib/utils/timeMath";
 
 type ActingUser = { id: string; role: Role };
 
@@ -97,16 +98,33 @@ export async function listAutomaticItems(
   studentProfileId: string,
   now: Date = new Date()
 ): Promise<AutomaticItemView[]> {
-  const [shift, profile, reports, requests, exceptions] = await Promise.all([
-    loadShift(studentProfileId),
-    prisma.studentProfile.findUnique({
-      where: { id: studentProfileId },
-      select: { semester: { select: { endDate: true } } },
+  return (await listAutomaticItemsMany([studentProfileId], now)).get(studentProfileId) ?? [];
+}
+
+// One query per table for the whole list, not per intern: the adviser dashboard tallies
+// every advisee, and loading them one by one cost ~8 queries each.
+async function listAutomaticItemsMany(
+  ids: string[],
+  now: Date
+): Promise<Map<string, AutomaticItemView[]>> {
+  const where = { studentProfileId: { in: ids } };
+  const [plans, profiles, reports, requests, exceptions] = await Promise.all([
+    // Same rule as getLatestApprovedWorkPlanForStudent: the newest approved plan per intern.
+    prisma.workPlan.findMany({
+      where: { ...where, status: WorkPlanStatus.APPROVED },
+      orderBy: { createdAt: "desc" },
+      distinct: ["studentProfileId"],
+      select: { studentProfileId: true, scheduleConfig: true },
+    }),
+    prisma.studentProfile.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, semester: { select: { endDate: true } } },
     }),
     prisma.weeklyReport.findMany({
-      where: { studentProfileId },
+      where,
       select: {
         id: true,
+        studentProfileId: true,
         weekStart: true,
         weekEnd: true,
         revisionHistory: true,
@@ -124,11 +142,9 @@ export async function listAutomaticItems(
       },
     }),
     prisma.deviationReport.findMany({
-      where: {
-        studentProfileId,
-        deviationType: { in: [DeviationType.UNDERTIME, DeviationType.ABSENCE] },
-      },
+      where: { ...where, deviationType: { in: [DeviationType.UNDERTIME, DeviationType.ABSENCE] } },
       select: {
+        studentProfileId: true,
         deviationType: true,
         validationStatus: true,
         date: true,
@@ -138,36 +154,71 @@ export async function listAutomaticItems(
       },
     }),
     prisma.deductionException.findMany({
-      where: { studentProfileId, withdrawnAt: null },
-      select: { id: true, itemType: true, itemKey: true, reasonCode: true, note: true },
+      where: { ...where, withdrawnAt: null },
+      select: {
+        id: true,
+        studentProfileId: true,
+        itemType: true,
+        itemKey: true,
+        reasonCode: true,
+        note: true,
+      },
     }),
   ]);
-  const semesterEnd = profile?.semester?.endDate ?? null;
-  return findAutomaticItems({ now, shift, semesterEnd, reports, requests }).map((item) => {
-    const ex = exceptions.find(
-      (e) => sameItemFamily(e.itemType, item.itemType) && e.itemKey === item.itemKey
+  const result = new Map<string, AutomaticItemView[]>();
+  for (const id of ids) {
+    const schedule = parseScheduleConfig(
+      plans.find((p) => p.studentProfileId === id)?.scheduleConfig
     );
-    return {
-      ...item,
-      excused: ex ? { id: ex.id, reasonCode: ex.reasonCode, note: ex.note } : null,
-    };
-  });
+    const excuses = exceptions.filter((e) => e.studentProfileId === id);
+    const items = findAutomaticItems({
+      now,
+      shift: schedule ? scheduleShift(schedule) : null,
+      semesterEnd: profiles.find((p) => p.id === id)?.semester?.endDate ?? null,
+      reports: reports.filter((r) => r.studentProfileId === id),
+      requests: requests.filter((r) => r.studentProfileId === id),
+    });
+    result.set(
+      id,
+      items.map((item) => {
+        const ex = excuses.find(
+          (e) => sameItemFamily(e.itemType, item.itemType) && e.itemKey === item.itemKey
+        );
+        return {
+          ...item,
+          excused: ex ? { id: ex.id, reasonCode: ex.reasonCode, note: ex.note } : null,
+        };
+      })
+    );
+  }
+  return result;
 }
 
 // The intern's deduction tally (ADVISER / WWR points per category).
 export async function getDeductionTally(studentProfileId: string, now: Date = new Date()) {
+  const tallies = await getDeductionTallies([studentProfileId], now);
+  return tallies.get(studentProfileId) as ReturnType<typeof tallyDeductions>;
+}
+
+// Tallies for many interns in a fixed number of queries, however many there are.
+export async function getDeductionTallies(ids: string[], now: Date = new Date()) {
   const [matrix, records, items] = await Promise.all([
     getDeductionMatrix(),
     prisma.conductRecord.findMany({
-      where: { studentProfileId, revokedAt: null },
-      select: { categoryKey: true, weight: true },
+      where: { studentProfileId: { in: ids }, revokedAt: null },
+      select: { studentProfileId: true, categoryKey: true, weight: true },
     }),
-    listAutomaticItems(studentProfileId, now),
+    listAutomaticItemsMany(ids, now),
   ]);
-  return tallyDeductions(
-    matrix,
-    records,
-    items.filter((i) => !i.excused)
+  return new Map(
+    ids.map((id) => [
+      id,
+      tallyDeductions(
+        matrix,
+        records.filter((r) => r.studentProfileId === id),
+        (items.get(id) ?? []).filter((i) => !i.excused)
+      ),
+    ])
   );
 }
 

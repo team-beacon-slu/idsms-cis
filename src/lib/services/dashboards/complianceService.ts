@@ -2,6 +2,7 @@ import { Role, type Prisma, type Program, type WeeklyReportStatus } from "@prism
 import { buildInternshipTrack, type TrackKind } from "@/lib/utils/internshipTrack";
 
 import { prisma } from "@/lib/prisma";
+import { requestCache } from "@/lib/utils/requestCache";
 import { ForbiddenError } from "@/lib/services/accounts/userService";
 import { getLatestSubmission, isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import {
@@ -123,7 +124,10 @@ export function weeklyHistory(reports: WeeklyHistoryInput[]): WeeklyHistoryRow[]
     }));
 }
 
-async function scopeWhere(scope: ComplianceScope): Promise<Prisma.StudentProfileWhereInput | null> {
+// Per render: the faculty dashboard asks for the same scope's rows and its student ids.
+const scopeWhere = requestCache(async function scopeWhere(
+  scope: ComplianceScope
+): Promise<Prisma.StudentProfileWhereInput | null> {
   if (scope.kind === "department") {
     // Deliberately no archivedAt/isActive condition: archived semesters stay
     // fully readable (FR-DB-07).
@@ -145,13 +149,21 @@ async function scopeWhere(scope: ComplianceScope): Promise<Prisma.StudentProfile
     deletedAt: null,
     OR: pairs.map((p) => ({ classGroupId: p.classGroupId, semesterId: p.semesterId })),
   };
+});
+
+// Just the ids in scope, so per-student work can start without waiting for the full rows.
+export async function getComplianceStudentIds(scope: ComplianceScope): Promise<string[]> {
+  const where = await scopeWhere(scope);
+  if (!where) return [];
+  const students = await prisma.studentProfile.findMany({ where, select: { id: true } });
+  return students.map((s) => s.id);
 }
 
 export async function getComplianceRows(
   scope: ComplianceScope,
   now: Date = new Date()
 ): Promise<ComplianceRow[]> {
-  const where = await scopeWhere(scope);
+  const [where, required] = await Promise.all([scopeWhere(scope), getRequiredChecklistTypes()]);
   if (!where) return [];
 
   // Due week = the Monday-Sunday week before the current Manila week; that
@@ -159,7 +171,6 @@ export async function getComplianceRows(
   const dueWeekStart = addDays(getWeekStartMonday(now), -7);
   const dueKey = toDateKey(dueWeekStart);
 
-  const required = await getRequiredChecklistTypes();
   // One bounded query for the whole scope: no per-student follow-up queries.
   const students = await prisma.studentProfile.findMany({
     where,
