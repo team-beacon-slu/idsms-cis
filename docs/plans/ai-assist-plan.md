@@ -1,6 +1,6 @@
 # Plan: where AI should help in IDSMS, and where it should not
 
-_24 October 2026. Status: **proposal, nothing built**. To be grilled and reviewed by the LLM council before any code._
+_24 October 2026. Status: **grilled (Q1–Q4) and reviewed by the LLM council; go-live scope set by Jay (section 10). Nothing built yet.**_
 
 ## 1. What already exists (Phase 4, switched off)
 
@@ -52,7 +52,7 @@ Most "AI ideas" can be done with plain rules that are always correct and cost no
 - **No AI-written report text for interns.** Integrity; the report must be the intern's own words.
 - **No AI decisions.** No auto-approve, auto-return or auto-deduction. Advisers decide.
 - **No chatbot.** High cost and risk for unclear value; the help page and FAQ already answer common questions.
-- **No paid models.** The Gemini free tier, within its rate limits.
+- **No paid models,** unless SLU's data protection office will not accept the free tier's data terms (see section 10).
 
 ## 6. Requirements
 
@@ -146,3 +146,43 @@ Semantic AI can be wrong, so nothing switches on without a measured check agains
 2. P1 rules check for interns (no AI, warn only, can ship any time).
 3. P1 confirm/dismiss on findings, then work-plan alignment pointers, then welfare flags.
 4. Summaries only if Jay chooses them (AI grill Q2), and only after the rated-sample gate passes.
+
+## 10. Go-live scope (after the LLM council, 24 October 2026)
+
+**Jay's ruling: AI ships at go-live.** The capstone's theme is advancement through modern technology, so AI must be visible and working in the deployed system, not held back until later. The council's review (five advisors, peer review, chairman) found no reason to drop AI, but four ways to switch it on unsafely. Those findings become the switch-on conditions below.
+
+**Switched on at go-live:**
+
+| Feature | Why it is safe enough to ship |
+| --- | --- |
+| Similarity hints (built) | Writes no text; points at the earlier entry it resembles |
+| Tone hint (built) | Adviser only; a hint, never a decision |
+| Work-plan alignment pointers | Writes no text; each pointer links to the entries |
+| "Week at a glance" summary | Labelled AI, beside the entries; must pass the "nothing invented" check |
+| Kinds of work on the company page (section 2) | Groups real entries; nothing generated |
+
+**Not at go-live:**
+- Welfare flags feeding company "Signals". An AI mistake there becomes a claim about a named company, which is the libel risk. They need their own accuracy check first.
+- The AI company summary (section 4). With the 5-intern minimum it would be empty in year one anyway.
+- The CHED Annex C/D export. This was the council's strongest post-go-live idea.
+
+**Before go-live (the council's safeguards):**
+1. **Realistic demo and test data.** Seed made-up interns (about 30 to 50 entries across several weeks and companies) written to read like real intern entries. These give the golden set and the summary and alignment samples their data, and give the defence a live demo. No real student text is used before consent.
+2. **Consent covers AI.** Add a line to the privacy notice and the consent dialog: AI reads report text to give advisers hints, and AI never decides anything. Interns can see their own hints and ask for a correction through the existing data-request flow. Flags are deleted with the report.
+3. **One request to SLU's data protection office (DPO), with a deadline.** It covers Q16 (scrubbed text sent to Google), the free tier's data-use terms, the company-feedback notice, and the intern AI disclosure. If the DPO rejects the free tier, use the paid Gemini tier, whose inputs are not used for training (pennies at this scale).
+4. **An SLU-owned Gemini key and Google project,** not a student's personal account, with a named SLU owner (the coordinator or IT).
+5. **Automatic switch-off.** Each AI feature turns itself off and shows "AI hints unavailable" when its model errors or is retired, when the free tier rate-limits it, or when advisers' "Not right" share passes a set limit. It fails visibly, never silently.
+6. **Access separation.** Team members who are also interns do not get admin or database access to their classmates' AI flags or company ratings.
+7. **Confirm/dismiss on every hint** from day one, so accuracy keeps being measured on real use. These numbers also feed the thesis evaluation chapter.
+
+**Also from the council (no AI):**
+- **The advisers' review queue** is sorted by the pre-submit rule flags, so the weeks that need attention come first.
+- **Company evaluation timing.** It opens after grades are final, or carries a clear "never linked to your grade" note. Skipping it shows as an open checklist item and never blocks a grade. *(The timing still needs Jay's call.)*
+- **Plan consistency.** The golden set is prepared by the team and confirmed by the adviser (Decisions above); the company page is in scope, despite the earlier "partner analytics" rejection, which referred to company-facing analytics.
+
+**Order:**
+1. The DPO request is sent this week.
+2. Seed data, then the golden set; switch-off and confirm/dismiss.
+3. The rules check and the sorted queue.
+4. Alignment pointers, then the summary.
+5. The evaluation form and the company facts and kinds of work.
