@@ -15,6 +15,7 @@ import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
 import { requestCache } from "@/lib/utils/requestCache";
+import { projectCompletionDate } from "@/lib/utils/completionProjection";
 import {
   CREDITED_HOURS_SELECT,
   entryCreditedHours,
@@ -429,40 +430,7 @@ export async function computeProjectedCompletionDate(
     }),
   ]);
 
-  const remainingHours = studentProfile.requiredHours - renderedHours;
-  if (remainingHours <= 0) {
-    return new Date();
-  }
-
-  // B14 (applyScheduleChangeProspectively, out of scope here) is what keeps
-  // the latest APPROVED WorkPlan's scheduleConfig current for "today
-  // onward" — reading it here is what makes this projection automatically
-  // honor an approved schedule change without duplicating any
-  // history-walking logic of its own.
-  const workingDays = new Set(scheduleConfig.daysOfWeek);
-  const daysNeeded = Math.ceil(remainingHours / scheduleConfig.hoursPerDay);
-
-  let projected = new Date();
-  let workingDaysCounted = 0;
-  while (workingDaysCounted < daysNeeded) {
-    projected = new Date(projected.getTime() + 24 * 60 * 60 * 1000);
-    if (workingDays.has(getManilaDayOfWeek(projected))) {
-      workingDaysCounted += 1;
-    }
-  }
-
-  return projected;
-}
-
-// All internship students/schedules are Philippines-based (see the
-// `getHolidayCalendarForStudent` comment above re: Philippine holidays), but
-// this runs on servers/CI in UTC. `daysOfWeek` was configured against
-// Manila-local weekdays, so day-of-week must be read after shifting to
-// UTC+8 — plain `getUTCDay()` on a raw UTC timestamp is up to one calendar
-// day behind Manila between 00:00-07:59 local time.
-function getManilaDayOfWeek(date: Date): number {
-  const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
-  return new Date(date.getTime() + MANILA_OFFSET_MS).getUTCDay();
+  return projectCompletionDate(scheduleConfig, studentProfile.requiredHours, renderedHours);
 }
 
 const REQUIRED_HOURS_CONFIG_KEY = (program: Program) => `required_hours:${program}`;

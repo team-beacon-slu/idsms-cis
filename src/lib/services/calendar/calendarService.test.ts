@@ -34,6 +34,9 @@ beforeEach(() => {
   mockedGetHolidayCalendarForStudent.mockReset().mockResolvedValue([]);
   mockedListWeeklyReportsForStudent.mockReset().mockResolvedValue([]);
   prismaMock.deviationReport.findMany.mockResolvedValue([]);
+  prismaMock.weeklyReport.findMany.mockResolvedValue([]);
+  prismaMock.holidayCalendarEntry.findMany.mockResolvedValue([]);
+  prismaMock.workPlan.findMany.mockResolvedValue([]);
 });
 
 describe("getUnifiedCalendarEvents", () => {
@@ -136,9 +139,10 @@ describe("getUnifiedCalendarEvents", () => {
       where: { deletedAt: null, OR: [{ classGroupId: "cg-1", semesterId: "sem-1" }] },
       select: { id: true },
     });
-    // Both students' (empty) event sets got aggregated — two calls, one per id.
-    expect(mockedListWeeklyReportsForStudent).toHaveBeenCalledWith("profile-1");
-    expect(mockedListWeeklyReportsForStudent).toHaveBeenCalledWith("profile-2");
+    // Both students load in one query per table.
+    expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { studentProfileId: { in: ["profile-1", "profile-2"] } } })
+    );
     expect(events).toEqual([]);
   });
 
@@ -151,7 +155,9 @@ describe("getUnifiedCalendarEvents", () => {
       where: { deletedAt: null },
       select: { id: true },
     });
-    expect(mockedListWeeklyReportsForStudent).toHaveBeenCalledWith("profile-9");
+    expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { studentProfileId: { in: ["profile-9"] } } })
+    );
   });
 
   it("rolls a deadline that would otherwise land on weekEnd's own Tuesday to the following week", async () => {
