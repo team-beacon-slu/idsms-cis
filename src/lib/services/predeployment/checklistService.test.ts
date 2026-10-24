@@ -212,6 +212,23 @@ describe("settings", () => {
     );
   });
 
+  it("revokes the exception, clearing the reason, and logs who did it", async () => {
+    await setStartBeforeMoa("profile-1", { allowed: false }, staffUser);
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: expect.objectContaining({
+        startBeforeMoaAllowed: false,
+        startBeforeMoaReason: null,
+        startBeforeMoaBy: "coordinator-1",
+      }),
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "START_BEFORE_MOA_REVOKED" }),
+      })
+    );
+  });
+
   it("does not let a student change it", async () => {
     await expect(
       setStartBeforeMoa("profile-1", { allowed: false }, { id: "s-1", role: Role.STUDENT_INTERN })
