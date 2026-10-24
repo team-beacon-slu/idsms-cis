@@ -147,12 +147,22 @@ export function HolidayList({
           ))}
         </ul>
       )}
-      {companyName && <AddCompanyDay endpoint={endpoint} companyName={companyName} />}
+      {companyName && (
+        <AddCompanyDay endpoint={endpoint} companyName={companyName} isIntern={canEdit} />
+      )}
     </div>
   );
 }
 
-function AddCompanyDay({ endpoint, companyName }: { endpoint: string; companyName: string }) {
+function AddCompanyDay({
+  endpoint,
+  companyName,
+  isIntern,
+}: {
+  endpoint: string;
+  companyName: string;
+  isIntern: boolean;
+}) {
   const router = useRouter();
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
@@ -195,6 +205,12 @@ function AddCompanyDay({ endpoint, companyName }: { endpoint: string; companyNam
           <Input
             id="company-day-date"
             type="date"
+            // Interns may add only upcoming days (the server enforces it too); staff can record past ones.
+            min={
+              isIntern
+                ? new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" })
+                : undefined
+            }
             value={date}
             onChange={(e) => setDate(e.target.value)}
             disabled={pending}

@@ -226,6 +226,8 @@ function holidayScope(profile: { semesterId: string; companyId: string | null })
   ];
 }
 
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+
 export class CompanyHolidayError extends Error {
   constructor(message: string) {
     super(message);
@@ -239,9 +241,18 @@ export class CompanyHolidayError extends Error {
 export async function addCompanyHoliday(
   studentProfileId: string,
   input: { date: Date; name: string },
-  actingUser: { id: string; role: Role }
+  actingUser: { id: string; role: Role },
+  now: Date = new Date()
 ): Promise<{ id: string }> {
   await assertCanAccessStudent(actingUser, studentProfileId);
+  // Interns may only add upcoming days: a past day would retroactively excuse absences.
+  // Staff can still record one that already happened.
+  const today = new Date(now.getTime() + MANILA_OFFSET_MS).toISOString().slice(0, 10);
+  if (actingUser.role === Role.STUDENT_INTERN && input.date.toISOString().slice(0, 10) < today) {
+    throw new CompanyHolidayError(
+      "Pick today or a later date; ask your adviser to record a past day off"
+    );
+  }
   const { companyId } = await prisma.studentProfile.findUniqueOrThrow({
     where: { id: studentProfileId },
     select: { companyId: true },
@@ -249,7 +260,7 @@ export async function addCompanyHoliday(
   if (!companyId) {
     throw new CompanyHolidayError("Add the host company first; company days belong to a company");
   }
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const existing = await tx.holidayCalendarEntry.findFirst({
       where: { companyId, date: input.date },
       select: { id: true },
@@ -277,6 +288,19 @@ export async function addCompanyHoliday(
     );
     return created;
   });
+  if (actingUser.role === Role.STUDENT_INTERN) {
+    // Loaded here, not at the top: the email client it pulls in would load into every importer
+    // of this widely used module (and break its jsdom tests).
+    const { notifyCompanyDayAdded } =
+      await import("@/lib/services/notifications/notificationEvents");
+    await notifyCompanyDayAdded({
+      companyId,
+      name: input.name,
+      date: input.date,
+      addedByStudentProfileId: studentProfileId,
+    });
+  }
+  return result;
 }
 
 // Staff may remove any company day they can see; an intern only one they added.

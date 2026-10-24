@@ -22,6 +22,7 @@ export type NotificationTrigger =
   | "DEVIATION_VALIDATED"
   | "REQUEST_RETURNED"
   | "CONDUCT_RECORD_ISSUED"
+  | "COMPANY_DAY_ADDED"
   | "DSAR_REQUESTED"
   | "DSAR_FULFILLED"
   | "DSAR_DUE"
