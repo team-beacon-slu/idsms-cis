@@ -25,6 +25,7 @@ An adviser with 40 interns reads about 40 weekly reports a week, each 4–6 days
 - **AI is auxiliary, never the doer.** It supports advisers, faculty and interns, and never decides, approves, or completes work for anyone: no AI-written reports, no AI-made reviews. It points people at what to check; people do the work.
 - **Golden-set labels:** the team prepares 30–40 anonymized report pairs and labels them; the adviser confirms the labels in one sitting.
 - **Summaries plus pointers (AI grill Q2: b).** Advisers get a short summary of a week, plus pointers linking to the exact entries. The summary is labelled as AI, sits beside the entries rather than replacing them, and must pass the "nothing invented" gate before switch-on.
+- **The pre-submit check only warns (AI grill Q3: a).** Vague or repeated days get a warning, and the intern can fix them or submit anyway. IDSMS never blocks a submission on content; the adviser decides.
 
 ## 3. Principle: rules first, AI only where rules cannot do it
 
@@ -141,6 +142,6 @@ Semantic AI can be wrong, so nothing switches on without a measured check agains
 ## 9. Order
 
 1. P0: label the golden set, record privacy approval, switch on, watch for two weeks.
-2. P1 rules check for interns (no AI, can ship any time).
+2. P1 rules check for interns (no AI, warn only, can ship any time).
 3. P1 confirm/dismiss on findings, then work-plan alignment pointers, then welfare flags.
 4. Summaries only if Jay chooses them (AI grill Q2), and only after the rated-sample gate passes.
