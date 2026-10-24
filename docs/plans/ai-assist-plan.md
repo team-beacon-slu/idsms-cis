@@ -26,6 +26,7 @@ An adviser with 40 interns reads about 40 weekly reports a week, each 4–6 days
 - **Golden-set labels:** the team prepares 30–40 anonymized report pairs and labels them; the adviser confirms the labels in one sitting.
 - **Summaries plus pointers (AI grill Q2: b).** Advisers get a short summary of a week, plus pointers linking to the exact entries. The summary is labelled as AI, sits beside the entries rather than replacing them, and must pass the "nothing invented" gate before switch-on.
 - **The pre-submit check only warns (AI grill Q3: a).** Vague or repeated days get a warning, and the intern can fix them or submit anyway. IDSMS never blocks a submission on content; the adviser decides.
+- **The company evaluation is required (AI grill Q4: a).** It is one more post-internship checklist item, so companies reach the 5-intern minimum. Only the ratings are required; free text stays optional. Like the other checklist items, IDSMS tracks that it is done.
 
 ## 3. Principle: rules first, AI only where rules cannot do it
 
@@ -98,7 +99,7 @@ Helps coordinators and advisers judge whether a company is worth partnering with
    - **Resources.**
    - **Would you recommend this company to next year's interns?**
 
-   Ratings use a 5-point scale per criterion. The free text is optional, factual ("what happened"), and names are removed before staff see it. The form rates the *role* ("my supervisor"), never a named person.
+   Required for every intern as a post-internship checklist item (Q4). Ratings use a 5-point scale per criterion. The free text is optional, factual ("what happened"), and names are removed before staff see it. The form rates the *role* ("my supervisor"), never a named person.
 
 Rules, updated with the research:
 - **No verdict, no score.** No "good/bad partner" label; coordinators judge.
