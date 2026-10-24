@@ -1,8 +1,13 @@
+jest.mock("@/lib/services/notifications/notificationEvents", () => ({
+  notifyDisputeResolved: jest.fn(),
+}));
+
 import { Prisma, Role } from "@prisma/client";
 import { ZodError } from "zod";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { DEFAULT_MATRIX } from "@/lib/utils/deductionMatrix";
 import { ForbiddenError } from "@/lib/services/accounts/userService";
+import { notifyDisputeResolved } from "@/lib/services/notifications/notificationEvents";
 import {
   ConductStateError,
   excuseItem,
@@ -16,7 +21,10 @@ import {
   setDefaultConductHours,
 } from "@/lib/services/conduct/deductionService";
 
-beforeEach(() => resetPrismaMock());
+beforeEach(() => {
+  resetPrismaMock();
+  jest.mocked(notifyDisputeResolved).mockReset();
+});
 
 describe("deduction matrix config", () => {
   it("falls back to SLU's defaults when unset or invalid", async () => {
@@ -76,6 +84,32 @@ describe("automatic items and excuses", () => {
     prismaMock.deductionException.findMany.mockResolvedValue([] as never);
     prismaMock.deductionException.create.mockResolvedValue({ id: "ex-1" } as never);
     prismaMock.deductionException.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.deductionDispute.updateMany.mockResolvedValue({ count: 0 } as never);
+  });
+
+  it("an excuse accepts the intern's open dispute on the same week, and tells them", async () => {
+    prismaMock.deductionDispute.updateMany.mockResolvedValue({ count: 1 } as never);
+    await excuseItem("profile-1", excuse, faculty, null, now);
+    expect(prismaMock.deductionDispute.updateMany).toHaveBeenCalledWith({
+      where: {
+        studentProfileId: "profile-1",
+        itemType: { in: ["LATE_WWR", "MISSING_WWR"] },
+        itemKey: "2026-10-05",
+        resolvedAt: null,
+      },
+      data: expect.objectContaining({ outcome: "ACCEPTED", resolvedById: "faculty-1" }),
+    });
+    expect(notifyDisputeResolved).toHaveBeenCalledWith(
+      "profile-1",
+      expect.any(String),
+      "ACCEPTED",
+      excuse.note
+    );
+  });
+
+  it("an excuse with no open dispute notifies no one", async () => {
+    await excuseItem("profile-1", excuse, faculty, null, now);
+    expect(notifyDisputeResolved).not.toHaveBeenCalled();
   });
 
   const now = new Date("2026-10-20T00:00:00Z");

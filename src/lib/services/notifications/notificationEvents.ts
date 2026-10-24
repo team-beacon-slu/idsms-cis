@@ -247,6 +247,41 @@ export async function notifyConductRecordIssued(
   });
 }
 
+// Go-live item 5: the intern disputed a deduction; the assigned advisers decide.
+export async function notifyDeductionDisputed(studentProfileId: string, itemDetail: string) {
+  try {
+    const facultyIds = await getAssignedFacultyIds(studentProfileId);
+    if (facultyIds.length === 0) return;
+    await notify({
+      userIds: facultyIds,
+      trigger: "DEDUCTION_DISPUTED",
+      title: "An intern disputed a deduction",
+      body: `Disputed: ${itemDetail}. Review it under Conduct & deductions.`,
+      link: `/students/${studentProfileId}/attendance`,
+      email: true,
+    });
+  } catch (error) {
+    console.error("Notification recipient lookup failed", { trigger: "DEDUCTION_DISPUTED", error });
+  }
+}
+
+export async function notifyDisputeResolved(
+  studentProfileId: string,
+  itemDetail: string,
+  outcome: "ACCEPTED" | "DECLINED",
+  note: string
+) {
+  await toStudent(studentProfileId, {
+    trigger: "DEDUCTION_DISPUTE_RESOLVED",
+    title:
+      outcome === "ACCEPTED"
+        ? "Your dispute was accepted: the deduction no longer counts"
+        : "Your dispute was declined: the deduction stands",
+    body: `${itemDetail}. Adviser's note: ${note}`,
+    link: `/students/${studentProfileId}/attendance`,
+  });
+}
+
 export async function notifyTimeRequestReviewed(
   studentProfileId: string,
   action: "APPROVE" | "RETURN",

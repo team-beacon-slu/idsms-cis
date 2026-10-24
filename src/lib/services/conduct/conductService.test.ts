@@ -1,5 +1,6 @@
 jest.mock("@/lib/services/notifications/notificationEvents", () => ({
   notifyConductRecordIssued: jest.fn(),
+  notifyDisputeResolved: jest.fn(),
 }));
 jest.mock("@/lib/services/attendance/attendanceService", () => ({
   computeTotalHoursRendered: jest.fn(),
@@ -12,7 +13,10 @@ import { Role } from "@prisma/client";
 import { ZodError } from "zod";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { ForbiddenError } from "@/lib/services/accounts/userService";
-import { notifyConductRecordIssued } from "@/lib/services/notifications/notificationEvents";
+import {
+  notifyConductRecordIssued,
+  notifyDisputeResolved,
+} from "@/lib/services/notifications/notificationEvents";
 import { computeTotalHoursRendered } from "@/lib/services/attendance/attendanceService";
 import { refreshWeeklyTotalsFrom } from "@/lib/services/reports/weeklyReportService";
 import {
@@ -106,6 +110,28 @@ describe("revokeConductRecord", () => {
       studentProfileId: "profile-1",
       hoursDeducted: 0,
     } as never);
+    prismaMock.conductRecord.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.deductionDispute.updateMany.mockResolvedValue({ count: 0 } as never);
+  });
+
+  it("a revoke accepts the intern's open dispute on that record, and tells them", async () => {
+    prismaMock.deductionDispute.updateMany.mockResolvedValue({ count: 1 } as never);
+    await revokeConductRecord("cr-1", "Issued to the wrong student", faculty);
+    expect(prismaMock.deductionDispute.updateMany).toHaveBeenCalledWith({
+      where: {
+        studentProfileId: "profile-1",
+        itemType: { in: ["CONDUCT"] },
+        itemKey: "cr-1",
+        resolvedAt: null,
+      },
+      data: expect.objectContaining({ outcome: "ACCEPTED" }),
+    });
+    expect(notifyDisputeResolved).toHaveBeenCalledWith(
+      "profile-1",
+      "A conduct record",
+      "ACCEPTED",
+      "Issued to the wrong student"
+    );
   });
 
   it("revokes with a reason (guarded) and audits", async () => {

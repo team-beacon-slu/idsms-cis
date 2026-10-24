@@ -263,6 +263,7 @@ model StudentProfile {
   deviationReports     DeviationReport[]
   conductRecords       ConductRecord[]
   deductionExceptions  DeductionException[]
+  deductionDisputes    DeductionDispute[]
   finalTechnicalReport FinalTechnicalReport?
   weeklyReports        WeeklyReport[]
   generatedDocuments   GeneratedDocument[]
@@ -557,6 +558,26 @@ model DeductionException {
 
   @@index([studentProfileId])
   @@map("deduction_exceptions")
+}
+
+// Go-live item 5: an intern disputes a deduction. Staff accept it by excusing
+// the item or revoking the record, or decline it with a note (migration 018).
+model DeductionDispute {
+  id               String    @id @default(uuid()) @db.Uuid
+  studentProfileId String    @map("student_profile_id") @db.Uuid
+  itemType         String    @map("item_type") // LATE_WWR | MISSING_WWR | UNSUPPORTED_UT | CONDUCT
+  itemKey          String    @map("item_key") // week start / day, or the conduct record id
+  reason           String
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz(3)
+  resolvedById     String?   @map("resolved_by_id") @db.Uuid
+  outcome          String? // ACCEPTED | DECLINED
+  resolutionNote   String?   @map("resolution_note")
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@index([studentProfileId])
+  @@map("deduction_disputes")
 }
 
 model GeneratedDocument {

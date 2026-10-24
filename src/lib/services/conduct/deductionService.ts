@@ -13,6 +13,7 @@ import {
 import { DEFAULT_MATRIX, tallyDeductions, type MatrixCategory } from "@/lib/utils/deductionMatrix";
 import { deductionMatrixSchema } from "@/lib/validators/deductionMatrix";
 import { parseScheduleConfig } from "@/lib/utils/schedule";
+import { notifyDisputeResolved } from "@/lib/services/notifications/notificationEvents";
 import { scheduleShift } from "@/lib/utils/timeMath";
 
 type ActingUser = { id: string; role: Role };
@@ -244,12 +245,20 @@ export async function excuseItem(
   z.literal(true, { message: "That item isn't on this intern's record" }).parse(
     items.some((i) => sameItemFamily(i.itemType, data.itemType) && i.itemKey === data.itemKey)
   );
+  let accepted = 0;
   try {
-    return await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const created = await tx.deductionException.create({
         data: { studentProfileId, ...data, createdById: actingUser.id },
         select: { id: true },
       });
+      accepted = await acceptOpenDisputes(
+        tx,
+        studentProfileId,
+        data.itemType,
+        data.itemKey,
+        actingUser.id
+      );
       await logEvent(
         {
           userId: actingUser.id,
@@ -263,6 +272,18 @@ export async function excuseItem(
       );
       return created;
     });
+    if (accepted > 0) {
+      const item = items.find(
+        (i) => sameItemFamily(i.itemType, data.itemType) && i.itemKey === data.itemKey
+      );
+      await notifyDisputeResolved(
+        studentProfileId,
+        item?.detail ?? "A deduction",
+        "ACCEPTED",
+        data.note
+      );
+    }
+    return created;
   } catch (error) {
     // The partial unique index allows one active excuse per item.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -299,4 +320,21 @@ export async function withdrawExcuse(
       tx
     );
   });
+}
+
+// An excuse or a revoke settles the intern's open dispute on that item in the
+// same transaction, so a dispute is never left "waiting" on a removed deduction.
+export async function acceptOpenDisputes(
+  tx: Prisma.TransactionClient,
+  studentProfileId: string,
+  itemType: string,
+  itemKey: string,
+  actingUserId: string
+): Promise<number> {
+  const itemTypes = itemType.endsWith("_WWR") ? ["LATE_WWR", "MISSING_WWR"] : [itemType];
+  const { count } = await tx.deductionDispute.updateMany({
+    where: { studentProfileId, itemType: { in: itemTypes }, itemKey, resolvedAt: null },
+    data: { resolvedAt: new Date(), resolvedById: actingUserId, outcome: "ACCEPTED" },
+  });
+  return count;
 }

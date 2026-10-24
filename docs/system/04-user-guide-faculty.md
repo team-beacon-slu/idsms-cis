@@ -89,7 +89,7 @@ You are notified when one of your students submits a weekly report. Email copies
 
 ## 10. Conduct, AI hints and what's still coming
 
-- **Conduct and deductions (L2, built):** record written warnings, demerits, major violations and suspensions for your own students; automatic counts of late or missing reports and unsupported undertime/absences appear with them; mark an item **Excused** with a reason. Deducted hours show as their own figure on the weekly report.
+- **Conduct and deductions (L2, built):** record written warnings, demerits, major violations and suspensions for your own students; automatic counts of late or missing reports and unsupported undertime/absences appear with them; mark an item **Excused** with a reason. When an intern **disputes** an item you get a notification and see their reason under it: excuse the item or revoke the record to accept, or choose **Keep deduction** and tell them why. Deducted hours show as their own figure on the weekly report.
 - **AI hints (built, off until the Super Admin enables them):** advisory only, shown on the review page above a confidence threshold (Q16).
 - **Monitoring log** of supervisor checks and OJT visitations (backlog, Q13).
 
