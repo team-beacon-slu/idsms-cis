@@ -1,3 +1,7 @@
+jest.mock("@/lib/services/notifications/notificationEvents", () => ({
+  notifyCompanyDayAdded: jest.fn(),
+}));
+import { notifyCompanyDayAdded } from "@/lib/services/notifications/notificationEvents";
 import { Program, Role, WeeklyReportStatus } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
@@ -336,11 +340,18 @@ describe("company non-working days (FR-AT-02)", () => {
     ]);
   });
 
+  const before = new Date("2027-01-01T00:00:00Z");
+
   it("adds a day to the intern's company for everyone placed there, audited", async () => {
     prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
     prismaMock.holidayCalendarEntry.create.mockResolvedValue({ id: "c-1" } as never);
 
-    await addCompanyHoliday("profile-1", { date: day, name: "Chinese New Year" }, studentUser);
+    await addCompanyHoliday(
+      "profile-1",
+      { date: day, name: "Chinese New Year" },
+      studentUser,
+      before
+    );
 
     expect(prismaMock.holidayCalendarEntry.create).toHaveBeenCalledWith({
       data: {
@@ -359,15 +370,57 @@ describe("company non-working days (FR-AT-02)", () => {
     );
   });
 
+  it("tells the advisers when an intern adds a day, but not when staff do", async () => {
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
+    prismaMock.holidayCalendarEntry.create.mockResolvedValue({ id: "c-1" } as never);
+    jest.mocked(notifyCompanyDayAdded).mockClear();
+
+    await addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser, before);
+    expect(notifyCompanyDayAdded).toHaveBeenCalledWith(
+      expect.objectContaining({ companyId: "company-1", addedByStudentProfileId: "profile-1" })
+    );
+
+    jest.mocked(notifyCompanyDayAdded).mockClear();
+    await addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, coordinator, before);
+    expect(notifyCompanyDayAdded).not.toHaveBeenCalled();
+  });
+
+  it("refuses a past day from an intern but lets staff record one", async () => {
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
+    prismaMock.holidayCalendarEntry.create.mockResolvedValue({ id: "c-1" } as never);
+    const after = new Date("2027-03-01T00:00:00Z");
+
+    await expect(
+      addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser, after)
+    ).rejects.toThrow(CompanyHolidayError);
+    expect(prismaMock.holidayCalendarEntry.create).not.toHaveBeenCalled();
+
+    await addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, coordinator, after);
+    expect(prismaMock.holidayCalendarEntry.create).toHaveBeenCalled();
+  });
+
+  it("counts today in Manila as not past, even before 8 AM UTC", async () => {
+    prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue(null);
+    prismaMock.holidayCalendarEntry.create.mockResolvedValue({ id: "c-1" } as never);
+    // 2027-02-05 17:00 UTC is already 2027-02-06 01:00 in Manila: the 6th is today, not past.
+    await addCompanyHoliday(
+      "profile-1",
+      { date: day, name: "Anniversary" },
+      studentUser,
+      new Date("2027-02-05T17:00:00Z")
+    );
+    expect(prismaMock.holidayCalendarEntry.create).toHaveBeenCalled();
+  });
+
   it("refuses an intern with no company and a second day on the same date", async () => {
     prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValueOnce({ companyId: null } as never);
     await expect(
-      addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser)
+      addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser, before)
     ).rejects.toThrow(CompanyHolidayError);
 
     prismaMock.holidayCalendarEntry.findFirst.mockResolvedValue({ id: "c-1" } as never);
     await expect(
-      addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser)
+      addCompanyHoliday("profile-1", { date: day, name: "Anniversary" }, studentUser, before)
     ).rejects.toThrow(CompanyHolidayError);
     expect(prismaMock.holidayCalendarEntry.create).not.toHaveBeenCalled();
   });
