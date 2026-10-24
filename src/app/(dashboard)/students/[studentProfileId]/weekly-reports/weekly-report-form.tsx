@@ -112,8 +112,6 @@ function rowPayload(entryId: string, row: RowState) {
   };
 }
 
-const HOLIDAY_LABEL = "Holiday (PH Calendar)";
-
 function formatDay(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
     weekday: "short",
@@ -253,6 +251,7 @@ export function WeeklyReportForm({
   weekEnd,
   priorAccomplishments,
   shift = null,
+  holidays = {},
 }: {
   weeklyReportId: string;
   entries: DailyEntryRow[];
@@ -261,8 +260,15 @@ export function WeeklyReportForm({
   weekEnd: string;
   priorAccomplishments: string[];
   shift?: Shift | null;
+  // This intern's applicable holidays by date (YYYY-MM-DD): PH holidays and company days off.
+  holidays?: Record<string, { name: string; company: boolean }>;
 }) {
   const router = useRouter();
+  const holidayOn = (iso: string) => holidays[iso.slice(0, 10)];
+  const holidayLabel = (iso: string) => {
+    const h = holidayOn(iso);
+    return h ? `${h.name} (${h.company ? "company day off" : "PH holiday"})` : "Holiday";
+  };
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
     Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e)]))
   );
@@ -491,7 +497,7 @@ export function WeeklyReportForm({
                 <span className="font-medium">
                   {formatDay(entry.reportDate)} ·{" "}
                   {entry.attendanceStatus === "HOLIDAY"
-                    ? HOLIDAY_LABEL
+                    ? holidayLabel(entry.reportDate)
                     : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
                 </span>
                 <span className="whitespace-nowrap">
@@ -537,7 +543,7 @@ export function WeeklyReportForm({
                   </td>
                   <td className="py-2 pr-3">
                     {entry.attendanceStatus === "HOLIDAY"
-                      ? HOLIDAY_LABEL
+                      ? holidayLabel(entry.reportDate)
                       : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
                   </td>
                   <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
@@ -652,7 +658,10 @@ export function WeeklyReportForm({
                   >
                     <option value="PRESENT">Present</option>
                     <option value="ABSENT">Absent</option>
-                    <option value="HOLIDAY">Holiday</option>
+                    {/* Only a real holiday may be one; any other day off is an absence. */}
+                    {(holidayOn(entry.reportDate) || row.status === "HOLIDAY") && (
+                      <option value="HOLIDAY">Holiday</option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -762,8 +771,8 @@ export function WeeklyReportForm({
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  {row.status === "HOLIDAY" ? HOLIDAY_LABEL : "Absent"} — counts 0 hours; no
-                  accomplishments needed.
+                  {row.status === "HOLIDAY" ? holidayLabel(entry.reportDate) : "Absent"} — counts 0
+                  hours; no accomplishments needed.
                 </p>
               )}
               {flag && (

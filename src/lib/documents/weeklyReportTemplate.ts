@@ -43,6 +43,7 @@ export interface WeeklyReportDocumentData {
     timeIn2: string | null;
     timeOut2: string | null;
     holidayName: string | null;
+    companyHoliday: boolean; // the host company's own day off, not a PH holiday
   }[];
   overtime: TimeRow[];
   undertime: TimeRow[];
@@ -87,7 +88,7 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
       let times: string;
       let hours: string;
       if (e.attendanceStatus === "HOLIDAY") {
-        times = `Holiday (PH Calendar)${e.holidayName ? `<br />${escapeHtml(e.holidayName)}` : ""}`;
+        times = `Holiday (${e.companyHoliday ? "Company" : "PH Calendar"})${e.holidayName ? `<br />${escapeHtml(e.holidayName)}` : ""}`;
         hours = formatHrsMins(0);
       } else if (e.attendanceStatus === "ABSENT") {
         times = "Absent";

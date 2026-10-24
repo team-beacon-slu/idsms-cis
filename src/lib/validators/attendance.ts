@@ -50,6 +50,14 @@ export const holidayApplicableSchema = z.object({
   applicable: z.boolean(),
 });
 
+// A company day off: stored at UTC midnight, like the published PH holidays it sits beside.
+export const companyHolidaySchema = z.object({
+  date: z.iso.date().transform((d) => new Date(`${d}T00:00:00.000Z`)),
+  name: z.string().trim().min(2, "Name the day, e.g. Chinese New Year").max(80),
+});
+
+export const holidayEntryIdSchema = z.object({ holidayEntryId: z.uuid() });
+
 export const requiredHoursConfigSchema = z.object({
   program: z.enum(Program),
   hours: z.number().int().positive(),

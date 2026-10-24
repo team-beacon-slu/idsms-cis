@@ -467,8 +467,35 @@ describe("saveDailyAccomplishment", () => {
     );
   });
 
+  // getHolidayCalendarForStudent's two reads: the published/company list, then opt-outs.
+  function mockHolidayOn(date: string | null) {
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      semesterId: "sem-1",
+      companyId: null,
+    } as never);
+    prismaMock.holidayCalendarEntry.findMany
+      .mockResolvedValueOnce(
+        (date
+          ? [{ id: "h-1", date: new Date(date), name: "Holiday", holidayType: "NATIONAL" }]
+          : []) as never
+      )
+      .mockResolvedValueOnce([] as never);
+  }
+
+  it("refuses Holiday on a day that isn't on the intern's holiday list", async () => {
+    mockEntry(WeeklyReportStatus.PENDING);
+    mockHolidayOn(null);
+    await expect(
+      saveDailyAccomplishment("entry-1", 0, "", "student-1", undefined, {
+        attendanceStatus: "HOLIDAY",
+      })
+    ).rejects.toThrow(DailyEntryDateError);
+    expect(prismaMock.dailyReportEntry.update).not.toHaveBeenCalled();
+  });
+
   it("clears stale tools, times and text when a day is marked non-PRESENT", async () => {
     mockEntry(WeeklyReportStatus.PENDING);
+    mockHolidayOn("2026-10-05T00:00:00Z");
     prismaMock.dailyReportEntry.update.mockResolvedValue({
       id: "entry-1",
       actualHours: 0,

@@ -19,6 +19,7 @@ function entry(over: Partial<Entry> = {}): Entry {
     timeIn2: "13:00",
     timeOut2: "17:00",
     holidayName: null,
+    companyHoliday: false,
     ...over,
   };
 }
@@ -114,6 +115,25 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(html).toContain("Holiday (PH Calendar)");
     expect(html).toContain("Bonifacio Day");
     expect(html).toContain("0 hrs");
+  });
+
+  it("labels a host company's own day off as a company holiday", () => {
+    const html = renderWeeklyReportHtml(
+      sample({
+        entries: [
+          entry({
+            attendanceStatus: "HOLIDAY",
+            actualHours: 0,
+            creditedHours: 0,
+            holidayName: "Chinese New Year",
+            companyHoliday: true,
+          }),
+        ],
+      })
+    );
+    expect(html).toContain("Holiday (Company)");
+    expect(html).not.toContain("PH Calendar");
+    expect(html).toContain("Chinese New Year");
   });
 
   it("prints the three totals, where beginning + this week = ending", () => {
