@@ -102,3 +102,78 @@ it("refuses to call out when GEMINI_API_KEY is missing", async () => {
   await expect(embedText("x")).rejects.toThrow(AiProviderError);
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+describe("OpenAI-compatible adapter (AI_PROVIDER=openai)", () => {
+  beforeEach(() => {
+    Object.assign(process.env, {
+      AI_PROVIDER: "openai",
+      AI_BASE_URL: "http://ollama:11434/v1/",
+      AI_EMBEDDING_MODEL: "nomic-embed-text-v2-moe",
+      AI_CHAT_MODEL: "gemma3:4b",
+    });
+    delete process.env.AI_API_KEY;
+  });
+
+  it("embeds a batch, scrubbed, back in input order, with no key header for a local server", async () => {
+    fetchMock.mockResolvedValue(
+      ok({
+        data: [
+          { index: 1, embedding: Array(768).fill(2) },
+          { index: 0, embedding: Array(768).fill(1) },
+        ],
+      })
+    );
+    const vectors = await embedTexts(["a juan@slu.edu.ph", "b"]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://ollama:11434/v1/embeddings");
+    expect(init.headers.authorization).toBeUndefined();
+    const body = JSON.parse(init.body);
+    expect(body).toMatchObject({ model: "nomic-embed-text-v2-moe", dimensions: 768 });
+    expect(init.body).not.toContain("juan@slu.edu.ph");
+    expect(vectors.map((v) => v[0])).toEqual([1, 2]);
+  });
+
+  it("sends the key as a bearer token when one is set", async () => {
+    process.env.AI_API_KEY = "k";
+    fetchMock.mockResolvedValue(ok({ data: [{ index: 0, embedding: Array(768).fill(0) }] }));
+    await embedText("x");
+    expect(fetchMock.mock.calls[0][1].headers.authorization).toBe("Bearer k");
+  });
+
+  it("rejects wrong-dimension embeddings", async () => {
+    fetchMock.mockResolvedValue(ok({ data: [{ index: 0, embedding: [0.1] }] }));
+    await expect(embedText("x")).rejects.toThrow(AiProviderError);
+  });
+
+  it("classifies sentiment through chat completions in JSON mode", async () => {
+    fetchMock.mockResolvedValue(
+      ok({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ label: "NEUTRAL", confidence: 0.8, reasoning: "Routine." }),
+            },
+          },
+        ],
+      })
+    );
+    await expect(classifySentiment("did tasks")).resolves.toEqual({
+      label: "NEUTRAL",
+      confidence: 0.8,
+      reasoning: "Routine.",
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://ollama:11434/v1/chat/completions");
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: "gemma3:4b",
+      temperature: 0,
+      response_format: { type: "json_object" },
+    });
+  });
+
+  it("refuses to call out without a base URL", async () => {
+    delete process.env.AI_BASE_URL;
+    await expect(embedText("x")).rejects.toThrow(/AI_BASE_URL/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

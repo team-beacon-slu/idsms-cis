@@ -43,7 +43,56 @@ async function callGemini(model: string, method: string, body: unknown): Promise
   return json;
 }
 
+// The AI port's second adapter (ai-assist-plan R1): any OpenAI-compatible server — Ollama
+// or vLLM on the lab server, or Gemini's own OpenAI endpoint on the beta — so the beta runs
+// the exact code path the rollout will. AI_PROVIDER=openai switches to it; Gemini stays the default.
+const openAiSelected = () => process.env.AI_PROVIDER === "openai";
+
+async function callOpenAi(path: string, body: unknown): Promise<unknown> {
+  const base = process.env.AI_BASE_URL?.replace(/\/+$/, "");
+  if (!base) throw new AiProviderError("AI_BASE_URL is not configured");
+  const key = process.env.AI_API_KEY; // a local Ollama needs none
+  const res = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(key ? { authorization: `Bearer ${key}` } : {}),
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+  if (!res.ok) {
+    throw new AiProviderError(
+      `AI ${path} failed (${res.status}): ${json.error?.message ?? "unknown"}`,
+      res.status
+    );
+  }
+  return json;
+}
+
+async function openAiEmbed(inputs: string[]): Promise<number[][]> {
+  const model = process.env.AI_EMBEDDING_MODEL;
+  if (!model) throw new AiProviderError("AI_EMBEDDING_MODEL is not configured");
+  const json = (await callOpenAi("/embeddings", {
+    model,
+    input: inputs,
+    dimensions: EMBEDDING_DIM,
+  })) as { data?: { index?: number; embedding?: number[] }[] };
+  const vectors = [...(json.data ?? [])]
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    .map((d) => d.embedding);
+  if (
+    vectors.length !== inputs.length ||
+    vectors.some((v) => !Array.isArray(v) || v.length !== EMBEDDING_DIM)
+  ) {
+    throw new AiProviderError(`Expected ${inputs.length} ${EMBEDDING_DIM}-dim embeddings`);
+  }
+  return vectors as number[][];
+}
+
 export async function embedText(text: string, opts: { names?: string[] } = {}): Promise<number[]> {
+  if (openAiSelected()) return (await openAiEmbed([scrubPii(text, opts)]))[0];
   const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
   const json = (await callGemini(model, "embedContent", {
     model: `models/${model}`,
@@ -66,6 +115,7 @@ export async function embedTexts(
   opts: { names?: string[] } = {}
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
+  if (openAiSelected()) return openAiEmbed(texts.map((text) => scrubPii(text, opts)));
   const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
   const json = (await callGemini(model, "batchEmbedContents", {
     requests: texts.map((text) => ({
@@ -101,13 +151,27 @@ export async function classifySentiment(
   text: string,
   opts: { names?: string[] } = {}
 ): Promise<SentimentResult> {
-  const model = process.env.GEMINI_SENTIMENT_MODEL || DEFAULT_SENTIMENT_MODEL;
-  const json = (await callGemini(model, "generateContent", {
-    contents: [{ role: "user", parts: [{ text: SENTIMENT_PROMPT + scrubPii(text, opts) }] }],
-    generationConfig: { responseMimeType: "application/json", temperature: 0 },
-  })) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const prompt = SENTIMENT_PROMPT + scrubPii(text, opts);
+  let raw: string | undefined;
+  if (openAiSelected()) {
+    const model = process.env.AI_CHAT_MODEL;
+    if (!model) throw new AiProviderError("AI_CHAT_MODEL is not configured");
+    const json = (await callOpenAi("/chat/completions", {
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0,
+      response_format: { type: "json_object" },
+    })) as { choices?: { message?: { content?: string } }[] };
+    raw = json.choices?.[0]?.message?.content;
+  } else {
+    const model = process.env.GEMINI_SENTIMENT_MODEL || DEFAULT_SENTIMENT_MODEL;
+    const json = (await callGemini(model, "generateContent", {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0 },
+    })) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
+  }
 
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw ?? "");
