@@ -135,7 +135,8 @@ function LoginForm() {
           </p>
         </CardContent>
       </Card>
-      <p className="mt-4 text-center text-xs text-muted-foreground">
+      {/* Text over the painted scene sits on glass (the plan's scene rule). */}
+      <p className="mx-auto mt-4 w-fit rounded-lg glass px-3 py-1.5 text-center text-xs text-muted-foreground">
         <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
           Privacy notice
         </Link>

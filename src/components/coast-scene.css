@@ -32,7 +32,6 @@
   --cs-glint: #ffffff;
   --cs-hull: #1f4e79;
   --cs-sail: #ffffff;
-  --cs-foam: #ffffff;
   --cs-rim: #dcecf7;
   --cs-head: #5b7584;
   --cs-head-deep: #2f4553;
@@ -107,7 +106,6 @@
   --cs-glint: #dfeaff; /* moonlight on the water is cool, not gold */
   --cs-hull: #050c18;
   --cs-sail: #3d6a86;
-  --cs-foam: #8fc9cf;
   --cs-rim: #2e6f8a;
   --cs-head: #0b1a2b;
   --cs-head-deep: #040a14;
