@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
-import { previewThreshold, runGoldenEval, setAiEnabled, setThreshold } from "@/lib/ai/admin";
+import {
+  previewThreshold,
+  runGoldenEval,
+  runSearchEval,
+  setAiEnabled,
+  setThreshold,
+} from "@/lib/ai/admin";
 import { getAiSettings } from "@/lib/ai/settings";
 import { setConnections, connectionsSchema, getConnections } from "@/lib/ai/connections";
 import { JOB_IDS, getAiPanel, reembedAll, reenableJob, type JobId } from "@/lib/ai/jobs";
@@ -18,6 +24,7 @@ const patchSchema = z.union([
 const postSchema = z.union([
   z.object({ previewThreshold: z.number() }),
   z.object({ runTest: z.literal(true) }),
+  z.object({ runSearchTest: z.literal(true) }),
   z.object({ reembed: z.literal(true) }),
 ]);
 
@@ -46,6 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(await previewThreshold(body.previewThreshold));
     }
     if ("runTest" in body) return NextResponse.json(await runGoldenEval(user.id));
+    if ("runSearchTest" in body) return NextResponse.json(await runSearchEval(user.id));
     const conn = (await getConnections()).private;
     if (!conn)
       return NextResponse.json({ error: "Set the private connection first" }, { status: 400 });

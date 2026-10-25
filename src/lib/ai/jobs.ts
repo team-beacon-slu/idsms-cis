@@ -9,6 +9,7 @@ import {
   type AiConnection,
   type AiConnections,
 } from "@/lib/ai/connections";
+import type { SearchEvalResult } from "@/lib/ai/admin";
 
 // The AI jobs (ai-assist-plan §6). `reads: "intern"` jobs use only the private connection.
 // Every feature asks `connectionFor(job)` first: no connection back means the feature
@@ -317,5 +318,15 @@ export async function getAiPanel() {
       ratings: await ratingSummary(job, states[job]?.since),
     }))
   );
-  return { rows, connections, embeddedWith, lastEval: settings.lastEval };
+  const search = await prisma.systemConfig.findUnique({
+    where: { configKey: "ai:search_eval" },
+    select: { configValue: true },
+  });
+  return {
+    rows,
+    connections,
+    embeddedWith,
+    lastEval: settings.lastEval,
+    searchEval: (search?.configValue ?? null) as SearchEvalResult | null,
+  };
 }

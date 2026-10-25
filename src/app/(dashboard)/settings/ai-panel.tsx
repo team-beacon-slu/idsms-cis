@@ -167,6 +167,15 @@ export function AiPanel({ panel }: { panel: Panel }) {
             >
               Run the copy-detection test
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              className="cursor-pointer"
+              onClick={() => call("POST", { runSearchTest: true }, "Search test finished")}
+            >
+              Run the search test
+            </Button>
             {reembedNeeded && (
               <Button
                 variant="outline"
@@ -182,6 +191,13 @@ export function AiPanel({ panel }: { panel: Panel }) {
             )}
           </div>
         </div>
+        {panel.searchEval && (
+          <p className="text-sm text-muted-foreground">
+            Search test on {panel.searchEval.model}: {pct(panel.searchEval.precisionAt5)} of the top
+            5 come from the right demo company over {panel.searchEval.queries} English and Taglish
+            queries (target 80%). Lowest score of a right hit: {panel.searchEval.minRelevantScore}.
+          </p>
+        )}
         {panel.lastEval && (
           <p className="text-sm text-muted-foreground">
             Copy-detection test on {panel.lastEval.model ?? "an unknown model"}: precision{" "}
