@@ -101,3 +101,18 @@ it("pauses the jobs it ran when more than 20% of the run failed (R2)", async () 
   await processPendingAiReports();
   expect(pauseAfterBatch).toHaveBeenCalledWith(["copy"], 2, 2);
 });
+
+it("starts no new report once its time budget is spent, so the rest of the cron still runs", async () => {
+  getAiSettings.mockResolvedValue({ enabled: true });
+  prismaMock.weeklyReport.findMany.mockResolvedValue([
+    { id: "a", studentProfileId: "p-1" },
+    { id: "b", studentProfileId: "p-2" },
+    { id: "c", studentProfileId: "p-3" },
+  ] as never);
+  (processWeeklyReportAi as jest.Mock).mockResolvedValue({ processed: true });
+  const clock = [0, 0, 100_000, 200_000]; // start, before a, before b, before c
+  const now = () => clock.shift() ?? 300_000;
+  const result = await processPendingAiReports(20, 150_000, now);
+  expect(processWeeklyReportAi).toHaveBeenCalledTimes(2); // c would start after 150 s
+  expect(result.processed).toBe(2);
+});

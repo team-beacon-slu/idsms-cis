@@ -9,7 +9,10 @@ import type { AiConnection } from "@/lib/ai/connections";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 export const EMBEDDING_DIM = 768; // must match daily_report_entries.embedding_vector
-const TIMEOUT_MS = 15_000;
+// Embeddings answer in about a second. Chat models think first: a measured call took 29 s,
+// so chat gets far longer before it counts as a failure (and towards a pause, R2).
+const EMBED_TIMEOUT_MS = 20_000;
+const CHAT_TIMEOUT_MS = 60_000;
 
 export class AiProviderError extends Error {
   // HTTP status from the provider, when there was a response; 400 means it rejected this input.
@@ -26,12 +29,18 @@ function keyOf(conn: AiConnection): string | undefined {
   return conn.keyEnv ? process.env[conn.keyEnv] || undefined : undefined;
 }
 
-async function post(url: string, headers: Record<string, string>, body: unknown, what: string) {
+async function post(
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+  what: string,
+  timeoutMs = EMBED_TIMEOUT_MS
+) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
   if (!res.ok) {
@@ -43,22 +52,35 @@ async function post(url: string, headers: Record<string, string>, body: unknown,
   return json;
 }
 
-function gemini(conn: AiConnection, model: string, method: string, body: unknown) {
+function gemini(
+  conn: AiConnection,
+  model: string,
+  method: string,
+  body: unknown,
+  timeoutMs?: number
+) {
   const key = keyOf(conn);
   if (!key) throw new AiProviderError(`${conn.keyEnv ?? "The API key variable"} is not set`);
   return post(
     `${GEMINI_BASE}/${model}:${method}`,
     { "x-goog-api-key": key }, // a header, never the URL (URLs get logged)
     body,
-    `Gemini ${model}:${method}`
+    `Gemini ${model}:${method}`,
+    timeoutMs
   );
 }
 
-function openAi(conn: AiConnection, path: string, body: unknown) {
+function openAi(conn: AiConnection, path: string, body: unknown, timeoutMs?: number) {
   const base = conn.baseUrl?.replace(/\/+$/, "");
   if (!base) throw new AiProviderError(`${conn.name} has no base URL`);
   const key = keyOf(conn); // a local Ollama needs none
-  return post(`${base}${path}`, key ? { authorization: `Bearer ${key}` } : {}, body, `AI ${path}`);
+  return post(
+    `${base}${path}`,
+    key ? { authorization: `Bearer ${key}` } : {},
+    body,
+    `AI ${path}`,
+    timeoutMs
+  );
 }
 
 function checkVectors(vectors: unknown[], count: number): number[][] {
@@ -118,18 +140,29 @@ export async function embedText(
 export async function chatJson(conn: AiConnection, prompt: string): Promise<unknown> {
   let raw: string | undefined;
   if (conn.provider === "openai") {
-    const json = (await openAi(conn, "/chat/completions", {
-      model: conn.chatModel,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0,
-      response_format: { type: "json_object" },
-    })) as { choices?: { message?: { content?: string } }[] };
+    const json = (await openAi(
+      conn,
+      "/chat/completions",
+      {
+        model: conn.chatModel,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0,
+        response_format: { type: "json_object" },
+      },
+      CHAT_TIMEOUT_MS
+    )) as { choices?: { message?: { content?: string } }[] };
     raw = json.choices?.[0]?.message?.content;
   } else {
-    const json = (await gemini(conn, conn.chatModel, "generateContent", {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0 },
-    })) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const json = (await gemini(
+      conn,
+      conn.chatModel,
+      "generateContent",
+      {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0 },
+      },
+      CHAT_TIMEOUT_MS
+    )) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
   }
   try {

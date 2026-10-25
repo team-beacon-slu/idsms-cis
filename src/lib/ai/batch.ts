@@ -6,8 +6,11 @@ import { allJobStatuses, pauseAfterBatch, type JobId } from "@/lib/ai/jobs";
 const REPORT_JOBS: JobId[] = ["copy", "search", "coverage", "tone", "summary"];
 
 // Daily catch-up (FR-NT-05's single Hobby cron). Sequential and capped to stay inside
-// free-tier rate limits and the function's maxDuration.
-export async function processPendingAiReports(limit = 20) {
+// free-tier rate limits and the function's maxDuration: no new report starts after
+// `budgetMs`, so a slow model (a chat call can take 30-60 s) leaves the rest of the cron
+// (the PDF prune) its time; what's left waits for the next night.
+export async function processPendingAiReports(limit = 20, budgetMs = 150_000, now = Date.now) {
+  const started = now();
   const live = (await allJobStatuses()).filter((s) => s.on && REPORT_JOBS.includes(s.job));
   if (!live.length) return { processed: 0, failed: 0, skipped: true };
 
@@ -37,6 +40,7 @@ export async function processPendingAiReports(limit = 20) {
   const failedStudents = new Set<string>();
   for (const { id, studentProfileId } of candidates) {
     if (processed + failed >= limit) break; // the cap counts provider calls only
+    if (now() - started > budgetMs) break;
     // Its later weeks would wait on the failed one anyway; leave them for the next run.
     if (failedStudents.has(studentProfileId)) continue;
     try {
