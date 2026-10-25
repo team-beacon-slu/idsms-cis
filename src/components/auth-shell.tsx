@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { CoastScene } from "@/components/coast-scene";
+import { BetaNotice } from "@/components/beta-notice";
 
 const FEATURES = [
   {
@@ -83,6 +84,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             <div className="mb-6 flex justify-center rounded-2xl glass-strong px-4 py-3 lg:hidden">
               <Wordmark />
             </div>
+            <BetaNotice className="mb-4" />
             {children}
           </div>
         </div>

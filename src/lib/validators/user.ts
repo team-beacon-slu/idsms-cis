@@ -32,3 +32,9 @@ export const bulkImportRequestSchema = z.object({
 });
 
 export type BulkImportRow = z.infer<typeof bulkImportRowSchema>;
+
+// Beta Google onboarding: the two things a Google account doesn't tell us.
+export const onboardingSchema = z.object({
+  studentNumber: z.string().trim().min(1, "Student number is required").max(32),
+  classGroupId: z.uuid("Choose your class group"),
+});

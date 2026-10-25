@@ -5,7 +5,7 @@ import { ZodError } from "zod";
 import { TimeRequestStateError } from "@/lib/services/attendance/timeRequestService";
 import { ConductStateError } from "@/lib/services/conduct/conductService";
 import { UnauthorizedError } from "@/lib/auth/errors";
-import { ForbiddenError } from "@/lib/services/accounts/userService";
+import { ForbiddenError, OnboardingError } from "@/lib/services/accounts/userService";
 import { InvalidFileError } from "@/lib/storage";
 import {
   DocumentNotReadyError,
@@ -52,6 +52,7 @@ import {
 // weekly-report flows. Each carries a message written for the student, so
 // the client can show it verbatim.
 const BAD_REQUEST_ERRORS = [
+  OnboardingError,
   WorkPlanNotApprovedError,
   ScheduleAlreadyConfiguredError,
   ScheduleNotConfiguredError,
@@ -76,6 +77,10 @@ export function handleApiError(error: unknown): NextResponse {
   }
   if (error instanceof ZodError) {
     return NextResponse.json({ error: "Validation failed", issues: error.issues }, { status: 400 });
+  }
+  // request.json() on a malformed body: the client's mistake, not a server failure.
+  if (error instanceof SyntaxError) {
+    return NextResponse.json({ error: "Malformed JSON body" }, { status: 400 });
   }
   if (error instanceof InvalidFileError) {
     return NextResponse.json({ error: error.message }, { status: 400 });
