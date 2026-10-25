@@ -190,6 +190,85 @@
       radial-gradient(62rem 42rem at 78% 112%, rgb(31 78 121 / 0.45), transparent 62%),
       hsl(var(--background));
   }
+
+  /* The living beacon (dashboard only): a lighthouse stands in the bottom-right of the
+     page and its light turns, two opposite beams rotating a full circle around the lamp.
+     Both are fixed layers behind the content; the beams turn on the compositor
+     (transform only) as one thin tapered strip, not a full-screen circle. Reduced
+     motion leaves the light still. */
+  .lighthouse-backdrop {
+    isolation: isolate;
+    --lh-h: 54vh;
+    --lh-w: calc(var(--lh-h) / 3);
+    --lamp-x: calc(100vw - 4vw - var(--lh-w) / 2);
+    --lamp-y: calc(100vh - var(--lh-h) * 0.83);
+    --lh-fill: rgb(31 78 121 / 0.16);
+    --lh-lamp: rgb(47 107 79 / 0.85);
+    --beam: rgb(110 160 215 / 0.16);
+    --beam-core: rgb(255 255 255 / 0.55);
+  }
+  .dark .lighthouse-backdrop {
+    --lh-fill: rgb(150 190 230 / 0.09);
+    --lh-lamp: rgb(95 191 143 / 0.8);
+    --beam: rgb(170 210 245 / 0.06);
+    --beam-core: rgb(200 235 220 / 0.28);
+  }
+  .lighthouse-backdrop::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    left: calc(var(--lamp-x) - 100vmax);
+    top: calc(var(--lamp-y) - 12vmax);
+    width: 200vmax;
+    height: 24vmax;
+    pointer-events: none;
+    /* Two wedges meeting at the lamp, brightest at the lamp and fading outward. */
+    clip-path: polygon(0 0, 50% 48%, 100% 0, 100% 100%, 50% 52%, 0 100%);
+    background: linear-gradient(
+      to right,
+      transparent 4%,
+      var(--beam) 32%,
+      var(--beam-core) 50%,
+      var(--beam) 68%,
+      transparent 96%
+    );
+    animation: lighthouse-turn 24s linear infinite;
+  }
+  .lighthouse-backdrop::after {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    right: 4vw;
+    bottom: 0;
+    width: var(--lh-w);
+    height: var(--lh-h);
+    pointer-events: none;
+    /* The tower is a mask filled with one tint; the lit lamp window sits on top. */
+    background:
+      radial-gradient(circle at 50% 17%, var(--lh-lamp) 0 5%, transparent 9%), var(--lh-fill);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 300'%3E%3Cpath d='M48 14h4v8h-4zM28 40 50 22l22 18zM34 40h32v22H34zM24 62h52v6H24zM33 68h34l12 224H21zM8 292h84v8H8z'/%3E%3C/svg%3E")
+      bottom / contain no-repeat;
+  }
+  /* The 3D scene (BeaconScene) replaces this CSS lighthouse once it is running. */
+  .lighthouse-backdrop[data-scene="on"]::before,
+  .lighthouse-backdrop[data-scene="on"]::after {
+    display: none;
+  }
+  @keyframes lighthouse-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* The logo's lamp breathes like a lit lantern. */
+  .beacon-lamp {
+    animation: beacon-lamp 3.6s ease-in-out infinite;
+  }
+  @keyframes beacon-lamp {
+    50% {
+      opacity: 0.72;
+    }
+  }
 }
 
 @layer base {

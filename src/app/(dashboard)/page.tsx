@@ -25,6 +25,7 @@ import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
 import { InternshipTrack, MiniTrack } from "@/components/internship-track";
 import { BeaconRing } from "@/components/beacon-ring";
+import { CountUp } from "@/components/count-up";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -210,7 +211,7 @@ export default async function DashboardHomePage(props: {
             <BeaconRing value={confirmedHours} max={requiredHours} />
             <div>
               <p className="text-[40px] leading-none font-bold tracking-tight text-white tabular-nums">
-                {confirmedHours}
+                <CountUp value={confirmedHours} />
               </p>
               <p className="mt-1 text-sm text-white/80">of {requiredHours} hrs</p>
               <p className="mt-3 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-sm font-semibold text-white tabular-nums">
