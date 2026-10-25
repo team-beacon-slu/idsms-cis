@@ -90,7 +90,7 @@ describe("getUnifiedCalendarEvents", () => {
     expect(events).toContainEqual({
       type: "DEADLINE",
       date: new Date("2026-03-10T00:00:00.000Z"), // Tuesday after weekEnd
-      label: "Weekly report due — week of 2026-03-02",
+      label: "Weekly report due — week of Mar 2",
       studentProfileId: "profile-1",
     });
     expect(events).toContainEqual({

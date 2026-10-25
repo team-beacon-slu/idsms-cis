@@ -108,7 +108,7 @@ function buildStudentEvents(studentProfileId: string, sources: EventSources): Ca
     events.push({
       type: "DEADLINE",
       date: getWeeklyReportDueDate(report.weekEnd),
-      label: `Weekly report due — week of ${report.weekStart.toISOString().slice(0, 10)}`,
+      label: `Weekly report due — week of ${report.weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`,
       studentProfileId,
     });
   }
