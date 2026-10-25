@@ -94,26 +94,64 @@ export function startBeaconScene(canvas: HTMLCanvasElement, initial: Theme) {
   lampLight.position.y = glass.position.y;
   lighthouse.add(lampLight);
 
-  // Rocks around the foot: a few flattened, jittered dodecahedra.
-  const rockMat = track(
-    new THREE.MeshStandardMaterial({ color: 0x2a3644, roughness: 0.95, flatShading: true })
-  );
-  const rockSeed = [
-    [-1.6, 0.2, 0.6, 1.3],
-    [1.5, 0.1, 0.9, 1.1],
-    [0.3, 0.0, 1.6, 0.9],
-    [-0.6, 0.0, -1.2, 1.2],
-    [2.6, -0.1, -0.2, 0.8],
-    [-2.7, -0.15, -0.4, 0.75],
-  ];
-  for (const [x, y, z, s] of rockSeed) {
-    const geo = track(new THREE.DodecahedronGeometry(s, 0));
-    geo.scale(1.25, 0.55, 1);
-    const rock = new THREE.Mesh(geo, rockMat);
-    rock.position.set(x, y, z);
-    rock.rotation.set(x, z, y);
-    lighthouse.add(rock);
+  // --- The headland: a height field whose coastline curves back from the viewer. Land
+  // rises in a steep, rough face to a grassy top; the lighthouse stands near its edge.
+  // `coast` is placed in the lower right by resize(); the sea's foam follows COAST.
+  const coast = new THREE.Group();
+  scene.add(coast);
+  coast.add(lighthouse);
+  const CLIFF_H = 4.4;
+  const coastX = (z: number) => -1.5 + 0.12 * z + 0.6 * Math.sin(z * 0.45);
+  const LH_LOCAL = new THREE.Vector2(4.6, -3); // x, z of the tower on the cliff top
+  const hash = (x: number, z: number) => {
+    const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const noise = (x: number, z: number) => {
+    const ix = Math.floor(x), iz = Math.floor(z);
+    const fx = x - ix, fz = z - iz;
+    const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
+    const a = hash(ix, iz), b = hash(ix + 1, iz), c = hash(ix, iz + 1), d = hash(ix + 1, iz + 1);
+    return (a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz) * 2 - 1;
+  };
+  const smooth = (e0: number, e1: number, x: number) => {
+    const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+    return t * t * (3 - 2 * t);
+  };
+  function heightAt(x: number, z: number) {
+    const t = x - coastX(z);
+    if (t < 0) return -0.9; // the shelf under the water
+    const s = smooth(0, 1.8, t); // the face: from the waterline to the top in 1.8 units
+    const face = (noise(x * 1.6, z * 1.6) * 0.7 + noise(x * 4, z * 4) * 0.25) * s * (1 - s) * 4;
+    const flat = smooth(1.2, 3.2, Math.hypot(x - LH_LOCAL.x, z - LH_LOCAL.y)); // level ground at the tower
+    const top = (noise(x * 0.35, z * 0.35) * 0.55 + noise(x * 1.2, z * 1.2) * 0.12) * s * flat;
+    return CLIFF_H * s + face + top;
   }
+  const cliffGeo = track(new THREE.PlaneGeometry(30, 34, 120, 136));
+  cliffGeo.rotateX(-Math.PI / 2);
+  cliffGeo.translate(4, 0, -7);
+  const cp = cliffGeo.attributes.position;
+  const cliffColours = new Float32Array(cp.count * 3);
+  const GRASS = new THREE.Color("#4d6a48");
+  const ROCK = new THREE.Color("#6f7884");
+  const WET = new THREE.Color("#323a44");
+  const tmp = new THREE.Color();
+  for (let i = 0; i < cp.count; i++) {
+    const x = cp.getX(i), z = cp.getZ(i);
+    const h = heightAt(x, z);
+    cp.setY(i, h);
+    const k = h / CLIFF_H;
+    tmp.copy(WET).lerp(ROCK, smooth(0.02, 0.35, k)).lerp(GRASS, smooth(0.9, 0.99, k));
+    tmp.offsetHSL(0, 0, noise(x * 3, z * 3) * 0.03); // a little mottling
+    tmp.toArray(cliffColours, i * 3);
+  }
+  cliffGeo.setAttribute("color", new THREE.BufferAttribute(cliffColours, 3));
+  cliffGeo.computeVertexNormals();
+  const rockMat = track(
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true })
+  );
+  coast.add(new THREE.Mesh(cliffGeo, rockMat));
+  lighthouse.position.set(LH_LOCAL.x, heightAt(LH_LOCAL.x, LH_LOCAL.y) - 0.05, LH_LOCAL.y);
 
   // --- The light: two opposite cones turning around the lamp, additive, softly
   // fading along their length and towards their edges, with drifting dust inside.
@@ -217,6 +255,8 @@ export function startBeaconScene(canvas: HTMLCanvasElement, initial: Theme) {
     uGlint: { value: new THREE.Color("#cfeedd") },
     uFar: { value: 150 },
     uAlpha: { value: 0.92 },
+    uCoast: { value: new THREE.Vector2() }, // the headland's origin in world x, z
+    uFoam: { value: new THREE.Color("#e8f4ff") },
   };
   const seaGeo = track(new THREE.PlaneGeometry(260, 140, 160, 90));
   seaGeo.rotateX(-Math.PI / 2);
@@ -234,9 +274,9 @@ export function startBeaconScene(canvas: HTMLCanvasElement, initial: Theme) {
           float swell(vec2 p, vec2 d, float k, float s, float a) { return a * sin(dot(p, d) * k + uTime * s); }
           void main() {
             vec3 p = position;
-            float h = swell(p.xz, normalize(vec2(1.0, 0.6)), 0.35, 1.1, 0.16)
-                    + swell(p.xz, normalize(vec2(-0.7, 1.0)), 0.6, 1.6, 0.08)
-                    + swell(p.xz, normalize(vec2(0.2, -1.0)), 1.3, 2.4, 0.035);
+            // Two long, gentle swells: a calm sea, not a choppy one.
+            float h = swell(p.xz, normalize(vec2(1.0, 0.55)), 0.28, 0.9, 0.18)
+                    + swell(p.xz, normalize(vec2(-0.6, 1.0)), 0.5, 1.3, 0.07);
             p.y += h;
             vHeight = h;
             vec4 w = modelMatrix * vec4(p, 1.0);
@@ -251,10 +291,24 @@ export function startBeaconScene(canvas: HTMLCanvasElement, initial: Theme) {
           uniform vec3 uGlint;
           uniform float uFar;
           uniform float uAlpha;
+          uniform float uTime;
+          uniform vec2 uCoast;
+          uniform vec3 uFoam;
           varying vec3 vWorld;
           varying float vHeight;
+          float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float noise2(vec2 p) {
+            vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(hash2(i), hash2(i + vec2(1, 0)), f.x), mix(hash2(i + vec2(0, 1)), hash2(i + vec2(1, 1)), f.x), f.y);
+          }
           void main() {
-            vec3 col = mix(uDeep, uCrest, smoothstep(-0.12, 0.22, vHeight));
+            vec3 col = mix(uDeep, uCrest, smoothstep(-0.14, 0.24, vHeight));
+            // Surf at the foot of the cliff: the same coastline as the headland's mesh.
+            vec2 local = vWorld.xz - uCoast;
+            float t = local.x - (-1.5 + 0.12 * local.y + 0.6 * sin(local.y * 0.45));
+            float band = smoothstep(-1.4, -0.1, t) * (1.0 - smoothstep(-0.1, 0.3, t));
+            float churn = noise2(vec2(local.y * 1.4, t * 3.0 - uTime * 0.8)) * 0.6 + noise2(local * 3.0 + uTime * 0.3) * 0.4;
+            col = mix(col, uFoam, band * smoothstep(0.35, 0.75, churn + vHeight));
             // Where the turning beam points, the water lights up in a soft path.
             vec2 toP = vWorld.xz - uLamp.xz;
             float dist = length(toP);
@@ -334,7 +388,8 @@ export function startBeaconScene(canvas: HTMLCanvasElement, initial: Theme) {
     seaUniforms.uAlpha.value = dark ? 0.92 : 0.55;
     hazeMat.color.set(dark ? 0xcfe0f2 : 0xffffff);
     hazeMat.opacity = dark ? 0.35 : 0.5;
-    rockMat.color.set(dark ? 0x2a3644 : 0x5b6b7c);
+    rockMat.color.set(dark ? 0x7d8a9b : 0xffffff); // a tint over the cliff's own colours
+    seaUniforms.uFoam.value.set(dark ? "#9fb6cc" : "#ffffff");
   }
   applyTheme(initial);
 
@@ -350,8 +405,9 @@ export function startBeaconScene(canvas: HTMLCanvasElement, initial: Theme) {
       Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) *
       (camera.position.z - LH_Z) *
       camera.aspect;
-    lighthouse.position.set(halfW * 0.7, -0.3, LH_Z);
-    seaUniforms.uLamp.value.set(lighthouse.position.x, 0, LH_Z);
+    coast.position.set(halfW * 0.5, 0, LH_Z);
+    seaUniforms.uCoast.value.set(coast.position.x, coast.position.z);
+    seaUniforms.uLamp.value.set(coast.position.x + LH_LOCAL.x, 0, LH_Z + LH_LOCAL.y);
   }
   resize();
   const ro = new ResizeObserver(resize);
