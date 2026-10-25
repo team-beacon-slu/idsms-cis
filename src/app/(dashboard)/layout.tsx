@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { BeaconScene } from "@/components/beacon-scene";
+import { CoastScene } from "@/components/coast-scene";
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -35,8 +35,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const collapsed = cookieStore.get("sidebar")?.value === "collapsed";
 
   return (
-    <div className="group/shell app-backdrop lighthouse-backdrop min-h-dvh bg-fixed">
-      <BeaconScene />
+    <div className="group/shell app-backdrop isolate min-h-dvh bg-fixed">
+      <CoastScene />
       {/* First stop for keyboard users: past the sidebar, straight to the page. */}
       <a
         href="#main"
