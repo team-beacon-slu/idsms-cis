@@ -548,11 +548,6 @@ export function CoastScene() {
           <path d={SHRUBS} fill="var(--cs-grass-dark)" />
           <path d={PINES_HEAD.whole} fill="var(--cs-pine)" />
           <path d={PINES_HEAD.lit} fill="var(--cs-pine-lit)" />
-          <path
-            d="M950 900 Q962 884 976 890 Q990 876 1004 886 Q1020 872 1036 884 Q1050 878 1062 890 L1066 900Z"
-            fill="var(--cs-foam)"
-            opacity="0.85"
-          />
 
           {/* The BEACON lighthouse: a stone footing, a tapered tower shaded round its
               form, navy and white bands, windows and a door, the gallery and its rail,

@@ -265,7 +265,7 @@
     --secondary: 214 36% 17%;
     --secondary-foreground: 212 38% 93%;
     --muted: 214 36% 17%;
-    --muted-foreground: 213 20% 68%;
+    --muted-foreground: 213 20% 82%; /* 68% failed 4.5:1 over dark glass (3.9:1 on the sign-in card) */
     --accent: 214 36% 17%;
     --accent-foreground: 212 38% 93%;
     /* Mid-tone, not light: these two carry white text (delete buttons, the calendar's today). */
