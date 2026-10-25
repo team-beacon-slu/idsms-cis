@@ -273,7 +273,7 @@ export function UnifiedCalendarView({
                     <span
                       key={index}
                       className={cn(
-                        "block truncate rounded px-1 py-0.5 text-[10px]",
+                        "block truncate rounded px-1 py-0.5 text-[11px]",
                         CHIP_CLASSES[TYPE_TONE[event.type]]
                       )}
                     >
@@ -281,7 +281,7 @@ export function UnifiedCalendarView({
                     </span>
                   ))}
                   {dayEvents.length > 3 && (
-                    <span className="block px-1 text-[10px] text-muted-foreground">
+                    <span className="block px-1 text-[11px] text-muted-foreground">
                       +{dayEvents.length - 3} more
                     </span>
                   )}

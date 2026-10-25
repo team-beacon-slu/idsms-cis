@@ -127,7 +127,7 @@ export default async function DashboardHomePage(props: {
         },
         {
           count: attention.pendingDeviations,
-          label: "Leave & time requests awaiting review",
+          label: "Leave & time requests waiting for your adviser",
           href: "/leave-requests",
         },
         {
@@ -305,11 +305,13 @@ export default async function DashboardHomePage(props: {
 
         <Card className="flex flex-col md:col-span-6 xl:col-span-3">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-brand-900">Waiting on you</CardTitle>
+            <CardTitle className="text-lg text-brand-900">Needs attention</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col">
             {attentionRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing is waiting on you right now.</p>
+              <p className="text-sm text-muted-foreground">
+                Nothing needs your attention right now.
+              </p>
             ) : (
               <ul className="-mx-2">
                 {attentionRows.map((row) => (
