@@ -179,17 +179,20 @@ function DisputeLine({
     (d) => family(d.itemType) === family(itemType) && d.itemKey === itemKey
   );
   const open = latest && !latest.outcome ? latest : null;
+  // Fragment, not a full-width box: the Dispute button sits at the row's right end.
   return (
-    <div className="w-full space-y-1">
+    <>
       {open && (
-        <p className="text-xs text-amber-800 dark:text-amber-300">
+        <p className="w-full text-xs text-amber-800 dark:text-amber-300">
           {isStaff ? "The intern disputes this: " : "You disputed this: "}
           {open.reason}
           {!isStaff && " — waiting for your adviser."}
         </p>
       )}
       {!open && latest?.outcome === "DECLINED" && (
-        <p className="text-xs text-muted-foreground">Dispute declined: {latest.resolutionNote}</p>
+        <p className="w-full text-xs text-muted-foreground">
+          Dispute declined: {latest.resolutionNote}
+        </p>
       )}
       {open && isStaff && (
         <InlineReason
@@ -219,7 +222,7 @@ function DisputeLine({
           }
         />
       )}
-    </div>
+    </>
   );
 }
 
