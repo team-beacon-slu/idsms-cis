@@ -63,7 +63,7 @@ export function InternCharts({
               : `None of ${rows.length} need attention.`}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-1 flex-col justify-between gap-4">
+        <CardContent className="flex flex-1 flex-col gap-4">
           <div
             className="flex h-4 shrink-0 gap-[2px] overflow-hidden rounded-full"
             aria-hidden="true"
@@ -77,7 +77,7 @@ export function InternCharts({
               />
             ))}
           </div>
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+          <ul className="grid flex-1 grid-cols-2 content-evenly gap-x-3 gap-y-2 text-sm">
             {STATUS_ORDER.map((s) => {
               const body = (
                 <>
