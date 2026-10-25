@@ -49,9 +49,9 @@ export function HeroStills() {
       for (const img of root.querySelectorAll<HTMLImageElement>("img[data-i]")) {
         const i = Number(img.dataset.i);
         const d = t - i;
-        img.style.opacity = String(
-          i === 0 ? Math.min(1, Math.max(0, 1 - d)) : Math.max(0, 1 - Math.abs(d))
-        );
+        // Each still holds, then the next dissolves over it in the middle 30% of the
+        // scroll between stops (later stills stack on top): never two half-faded scenes.
+        img.style.opacity = String(i === 0 ? 1 : Math.min(1, Math.max(0, (d + 0.65) / 0.3)));
         if (!still) img.style.transform = `scale(${1.06 - 0.06 * Math.min(1, Math.max(0, d + 1))})`;
       }
     };
