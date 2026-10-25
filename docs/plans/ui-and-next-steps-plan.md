@@ -53,7 +53,7 @@ Each item is one branch and one PR into `develop`; merge only on Jay's OK, after
 
 ### C. The 3D landing page (Apple / Rolex style)
 
-- **Where**: a public page (e.g. `/about` or the logged-out `/`), separate from the dashboard; the dashboard stays 2.5D.
+- **Where**: `/about` (decided 25 Oct: a clear public address that leaves the sign-in redirects alone); the dashboard stays 2.5D.
 - **Start from** branch `feat/beacon-cliff` (commit `4a8e14f`): the Three.js lighthouse, cliff height field, sea with foam and turning volumetric beams.
 - **Technique**: GSAP ScrollTrigger drives the camera around the lighthouse as the page scrolls (Apple's product-turn), each stop telling one step of the internship (checklist, weekly reports, hours, final report). Real-time 3D, so **free**: no Higgsfield/Monid video.
 - **Rules**: Three.js only on this page, loaded after first paint; render only while on screen; a still poster image for phones, weak devices and reduced motion; Hallmark guides the page design; copy follows the taste skill's page run (claims with proof, two-line headlines).
@@ -79,8 +79,8 @@ Each item is one branch and one PR into `develop`; merge only on Jay's OK, after
 
 ## 4. Open decisions for Jay
 
-1. Landing page route (`/about` vs. signed-out `/`) and its sections (C).
-2. Whether the coast scene also goes behind the login and legal pages (today they keep the gradient backdrop).
+1. ~~Landing page route~~: decided, `/about`. Its sections are still open (C).
+2. ~~Coast behind login and legal~~: decided yes, done in PR #148.
 3. Order of D/E vs. C if the deadline tightens (lean: E then D before C; both are small and protect real users).
 
 ## 5. Skills to use
