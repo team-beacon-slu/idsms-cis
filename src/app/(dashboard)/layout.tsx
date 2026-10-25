@@ -9,6 +9,7 @@ import { displayName } from "@/lib/utils/displayName";
 import { SiteFooter } from "@/components/site-footer";
 import { DashboardNav } from "./_components/dashboard-nav";
 import { PrivacyConsentDialog } from "./_components/privacy-consent-dialog";
+import { BetaNotice } from "@/components/beta-notice";
 import { OfflineBanner } from "./_components/offline-banner";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       : null,
     cookies(),
   ]);
+  // Beta Google sign-in: a student with no profile yet still owes their student number
+  // and class group (imported students always have one).
+  if (user.role === Role.STUDENT_INTERN && !profile) redirect("/onboarding");
   // Set by the sidebar's collapse button (dashboard-nav.tsx).
   const collapsed = cookieStore.get("sidebar")?.value === "collapsed";
 
@@ -65,6 +69,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       >
         {/* Fluid: the canvas follows the window, capped only on very wide screens. */}
         <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8 xl:px-12 print:max-w-none print:p-0">
+          <BetaNotice className="mb-6 print:hidden" />
           {children}
         </div>
       </main>

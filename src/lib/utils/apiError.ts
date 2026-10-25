@@ -5,7 +5,7 @@ import { ZodError } from "zod";
 import { TimeRequestStateError } from "@/lib/services/attendance/timeRequestService";
 import { ConductStateError } from "@/lib/services/conduct/conductService";
 import { UnauthorizedError } from "@/lib/auth/errors";
-import { ForbiddenError } from "@/lib/services/accounts/userService";
+import { ForbiddenError, OnboardingError } from "@/lib/services/accounts/userService";
 import { InvalidFileError } from "@/lib/storage";
 import {
   DocumentNotReadyError,
@@ -52,6 +52,7 @@ import {
 // weekly-report flows. Each carries a message written for the student, so
 // the client can show it verbatim.
 const BAD_REQUEST_ERRORS = [
+  OnboardingError,
   WorkPlanNotApprovedError,
   ScheduleAlreadyConfiguredError,
   ScheduleNotConfiguredError,

@@ -1,7 +1,14 @@
 // User management, RBAC, bulk CSV/Excel import, session revocation.
 // See PRD Module 1 (FR-UM-*), especially FR-UM-11 (instant session revocation).
 import { createHash, randomBytes } from "crypto";
-import { ChecklistRequirementType, Prisma, PrismaClient, Role, User } from "@prisma/client";
+import {
+  ChecklistRequirementType,
+  Prisma,
+  PrismaClient,
+  Program,
+  Role,
+  User,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/utils/password";
 import { generateDefaultPassword } from "@/lib/utils/defaultPassword";
@@ -596,6 +603,85 @@ export interface BulkImportInputRow {
   row: BulkImportRow;
 }
 
+// A student profile and its checklist rows (one per requirement type), for the bulk import
+// and for beta Google onboarding alike. Seeding every row now rather than lazily on first
+// view makes "every student has one row per requirement" an invariant enforced once here instead of a
+// defensive check every read path would otherwise need to reimplement (checklistService).
+async function createStudentProfile(
+  tx: Prisma.TransactionClient,
+  data: Prisma.StudentProfileUncheckedCreateInput
+) {
+  const studentProfile = await tx.studentProfile.create({ data });
+  await tx.preDeploymentChecklistItem.createMany({
+    data: Object.values(ChecklistRequirementType).map((requirementType) => ({
+      studentProfileId: studentProfile.id,
+      requirementType,
+    })),
+  });
+  return studentProfile;
+}
+
+// Beta Google sign-in: a student who signed in with their SLU Google account gives their
+// student number and picks their class group; the program, semester (the active one) and
+// required hours follow from those, as the coordinator's import would have set them.
+export async function completeOwnStudentProfile(
+  userId: string,
+  input: { studentNumber: string; classGroupId: string },
+  requiredHoursFor: (program: Program) => Promise<number>
+): Promise<{ studentProfileId: string }> {
+  const [user, group, semester] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, studentProfile: { select: { id: true } } },
+    }),
+    prisma.classGroup.findFirst({
+      where: { id: input.classGroupId, deletedAt: null },
+      select: { id: true, program: true },
+    }),
+    prisma.semester.findFirst({ where: { isActive: true }, select: { id: true } }),
+  ]);
+  if (!user || user.role !== Role.STUDENT_INTERN) throw new ForbiddenError();
+  if (user.studentProfile) throw new OnboardingError("Your student profile is already set up.");
+  if (!group) throw new OnboardingError("That class group no longer exists.");
+  if (!semester) throw new OnboardingError("No semester is open yet. Ask your coordinator.");
+  const taken = await prisma.studentProfile.findUnique({
+    where: { studentNumber: input.studentNumber },
+    select: { id: true },
+  });
+  if (taken) throw new OnboardingError("That student number is already registered.");
+  const requiredHours = await requiredHoursFor(group.program);
+
+  return prisma.$transaction(async (tx) => {
+    const profile = await createStudentProfile(tx, {
+      userId,
+      studentNumber: input.studentNumber,
+      program: group.program,
+      classGroupId: group.id,
+      semesterId: semester.id,
+      requiredHours,
+    });
+    await logEvent(
+      {
+        userId,
+        action: "STUDENT_SELF_ONBOARDED",
+        entityType: "User",
+        entityId: userId,
+        detail: { studentNumber: input.studentNumber, classGroupId: group.id },
+      },
+      tx
+    );
+    return { studentProfileId: profile.id };
+  });
+}
+
+// A message written for the student, shown as-is on the onboarding form.
+export class OnboardingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OnboardingError";
+  }
+}
+
 // FR-UM-02/FR-UM-03. Per-row transactions so one bad row (duplicate email,
 // duplicate student number) doesn't fail the whole batch.
 export async function bulkImportStudents(
@@ -637,26 +723,13 @@ export async function bulkImportStudents(
           },
         });
 
-        const studentProfile = await tx.studentProfile.create({
-          data: {
-            userId: user.id,
-            studentNumber: row.studentNumber,
-            program: row.program,
-            classGroupId,
-            semesterId,
-            requiredHours: row.requiredHours,
-          },
-        });
-
-        // Seed all 9 checklist rows now rather than lazily on first view —
-        // makes "every student has exactly 9 rows" an invariant enforced
-        // once here instead of a defensive check every read path would
-        // otherwise need to reimplement. See checklistService.ts (Phase 2).
-        await tx.preDeploymentChecklistItem.createMany({
-          data: Object.values(ChecklistRequirementType).map((requirementType) => ({
-            studentProfileId: studentProfile.id,
-            requirementType,
-          })),
+        await createStudentProfile(tx, {
+          userId: user.id,
+          studentNumber: row.studentNumber,
+          program: row.program,
+          classGroupId,
+          semesterId,
+          requiredHours: row.requiredHours,
         });
 
         await logEvent(
