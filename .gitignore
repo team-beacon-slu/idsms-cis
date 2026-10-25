@@ -60,3 +60,7 @@ skills-lock.json
 
 # Local-only test credentials — never commit, delete once you're done testing.
 TEST_ACCOUNTS.md
+
+# Blender working files (textures from Poly Haven, renders)
+.blender/
+.hallmark/

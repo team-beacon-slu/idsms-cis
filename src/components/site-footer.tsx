@@ -48,7 +48,7 @@ export function SiteFooter({
                 <p className="font-display text-base font-bold tracking-tight text-foreground">
                   IDSMS-CIS
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-foreground/80">
                   Internship monitoring for Saint Louis University SAMCIS.
                 </p>
               </div>
@@ -60,7 +60,7 @@ export function SiteFooter({
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
                   >
                     <Icon className="size-4 text-primary" aria-hidden="true" />
                     {label}
@@ -81,7 +81,7 @@ export function SiteFooter({
                   )}
                   <Link
                     href={href}
-                    className="rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                    className="rounded-md px-2 py-1.5 text-foreground/80 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
                   >
                     {label}
                   </Link>
@@ -89,7 +89,7 @@ export function SiteFooter({
               ))}
             </ul>
           </nav>
-          <p className="border-t border-border/70 py-3 text-center text-xs text-muted-foreground">
+          <p className="border-t border-border/70 py-3 text-center text-xs text-foreground/80">
             © {new Date().getFullYear()} Saint Louis University · School of Accountancy, Management,
             Computing and Information Studies · Built by Team BEACON
           </p>
