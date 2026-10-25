@@ -264,6 +264,7 @@ model StudentProfile {
   conductRecords       ConductRecord[]
   deductionExceptions  DeductionException[]
   deductionDisputes    DeductionDispute[]
+  companyEvaluation    CompanyEvaluation?
   finalTechnicalReport FinalTechnicalReport?
   weeklyReports        WeeklyReport[]
   generatedDocuments   GeneratedDocument[]
@@ -338,12 +339,40 @@ model Company {
   isVerified         Boolean      @default(false) @map("is_verified")
   isForeign          Boolean      @default(false) @map("is_foreign") // proof of corporate legitimacy applies
   deletedAt          DateTime?    @map("deleted_at")
+  // The company's reply to intern feedback, entered by the coordinator (migration 019).
+  hteReply           String?      @map("hte_reply")
+  hteReplyAt         DateTime?    @map("hte_reply_at") @db.Timestamptz(3)
+  hteReplyBy         String?      @map("hte_reply_by") @db.Uuid
 
-  students   StudentProfile[]
-  moaRecords MoaRecord[]
-  holidays   HolidayCalendarEntry[]
+  students    StudentProfile[]
+  moaRecords  MoaRecord[]
+  holidays    HolidayCalendarEntry[]
+  evaluations CompanyEvaluation[]
 
   @@map("companies")
+}
+
+// The intern's evaluation of their host company, one per intern, opened once
+// all required hours are confirmed (migration 019). Ratings are 1–5.
+model CompanyEvaluation {
+  id               String   @id @default(uuid()) @db.Uuid
+  studentProfileId String   @unique @map("student_profile_id") @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  supervision      Int      @db.SmallInt
+  learning         Int      @db.SmallInt
+  safety           Int      @db.SmallInt
+  communication    Int      @db.SmallInt
+  integration      Int      @db.SmallInt
+  resources        Int      @db.SmallInt
+  recommend        Int      @db.SmallInt
+  comment          String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  company        Company        @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@map("company_evaluations")
 }
 
 model MoaRecord {

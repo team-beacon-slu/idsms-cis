@@ -12,13 +12,14 @@ export interface AttentionItems {
   reportsDueSoon: number; // not yet submitted, deadline within 48h
   pendingDeviations: number;
   incompleteChecklistItems: number;
+  companyEvaluated: boolean;
 }
 
 export async function getAttentionItems(
   studentProfileId: string,
   now: Date = new Date()
 ): Promise<AttentionItems> {
-  const [openReports, pendingDeviations, approvedChecklist] = await Promise.all([
+  const [openReports, pendingDeviations, approvedChecklist, evaluations] = await Promise.all([
     prisma.weeklyReport.findMany({
       where: {
         studentProfileId,
@@ -32,6 +33,7 @@ export async function getAttentionItems(
     prisma.preDeploymentChecklistItem.count({
       where: { studentProfileId, status: ChecklistStatus.APPROVED },
     }),
+    prisma.companyEvaluation.count({ where: { studentProfileId } }),
   ]);
 
   const returnedReports = openReports.filter(
@@ -49,6 +51,7 @@ export async function getAttentionItems(
     reportsDueSoon,
     pendingDeviations,
     incompleteChecklistItems: Math.max(0, CHECKLIST_ITEM_COUNT - approvedChecklist),
+    companyEvaluated: evaluations > 0,
   };
 }
 

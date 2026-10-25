@@ -135,6 +135,18 @@ export default async function DashboardHomePage(props: {
           label: "Checklist items not yet approved",
           href: "/checklist",
         },
+        {
+          // Company view: open once every required hour is confirmed, until the intern sends it.
+          count:
+            studentProfile?.companyId &&
+            requiredHours > 0 &&
+            confirmedHours >= requiredHours &&
+            !attention.companyEvaluated
+              ? 1
+              : 0,
+          label: "Evaluate your host company",
+          href: "/company-evaluation",
+        },
       ].filter((row) => row.count > 0)
     : [];
 
