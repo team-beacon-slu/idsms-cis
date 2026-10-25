@@ -190,6 +190,16 @@
       radial-gradient(62rem 42rem at 78% 112%, rgb(31 78 121 / 0.45), transparent 62%),
       hsl(var(--background));
   }
+
+  /* The logo's lamp breathes like a lit lantern. */
+  .beacon-lamp {
+    animation: beacon-lamp 3.6s ease-in-out infinite;
+  }
+  @keyframes beacon-lamp {
+    50% {
+      opacity: 0.72;
+    }
+  }
 }
 
 @layer base {

@@ -37,59 +37,63 @@ export function SiteFooter({
 
   return (
     <footer className={cn("print:hidden", className)}>
-      <div className={cn("mx-auto w-full", containerClassName)}>
-        <div className="flex flex-wrap items-center justify-between gap-5 border-t border-border/70 py-8">
-          <div className="flex items-center gap-3">
-            <BrandMark className="size-10 shrink-0" />
-            <div>
-              <p className="font-display text-base font-bold tracking-tight text-foreground">
-                IDSMS-CIS
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Internship monitoring for Saint Louis University SAMCIS.
-              </p>
+      <div className={cn("mx-auto w-full pb-4", containerClassName)}>
+        {/* A glass panel like the cards: the dashboard's scene runs behind the footer, so its
+            text needs its own surface to stay readable. */}
+        <div className="rounded-2xl glass px-5 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 py-5">
+            <div className="flex items-center gap-3">
+              <BrandMark className="size-10 shrink-0" />
+              <div>
+                <p className="font-display text-base font-bold tracking-tight text-foreground">
+                  IDSMS-CIS
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Internship monitoring for Saint Louis University SAMCIS.
+                </p>
+              </div>
             </div>
+            <ul aria-label="Saint Louis University sites" className="flex flex-wrap gap-2">
+              {SLU_LINKS.map(({ href, label, icon: Icon }) => (
+                <li key={href}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <Icon className="size-4 text-primary" aria-hidden="true" />
+                    {label}
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul aria-label="Saint Louis University sites" className="flex flex-wrap gap-2">
-            {SLU_LINKS.map(({ href, label, icon: Icon }) => (
-              <li key={href}>
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  <Icon className="size-4 text-primary" aria-hidden="true" />
-                  {label}
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          <nav aria-label="Footer" className="border-t border-border/70 py-3">
+            <ul className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 text-sm">
+              {links.map(({ href, label }, i) => (
+                <li key={href} className="flex items-center gap-1">
+                  {i > 0 && (
+                    <span aria-hidden="true" className="text-muted-foreground/60">
+                      ·
+                    </span>
+                  )}
+                  <Link
+                    href={href}
+                    className="rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <p className="border-t border-border/70 py-3 text-center text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Saint Louis University · School of Accountancy, Management,
+            Computing and Information Studies · Built by Team BEACON
+          </p>
         </div>
-        <nav aria-label="Footer" className="border-t border-border/70 py-5">
-          <ul className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 text-sm">
-            {links.map(({ href, label }, i) => (
-              <li key={href} className="flex items-center gap-1">
-                {i > 0 && (
-                  <span aria-hidden="true" className="text-muted-foreground/60">
-                    ·
-                  </span>
-                )}
-                <Link
-                  href={href}
-                  className="rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-                >
-                  {label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <p className="border-t border-border/70 py-5 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Saint Louis University · School of Accountancy, Management,
-          Computing and Information Studies · Built by Team BEACON
-        </p>
       </div>
     </footer>
   );

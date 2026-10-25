@@ -1,4 +1,11 @@
+"use client";
+
+import { useRef } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { BrandTile } from "@/components/brand-mark";
+
+gsap.registerPlugin(useGSAP);
 
 // The hours as the lighthouse's beam: a ring that fills toward the required hours, with
 // the BEACON mark at its centre. Drawn for a navy tile; the figures sit beside it.
@@ -6,6 +13,14 @@ export function BeaconRing({ value, max }: { value: number; max: number }) {
   const ratio = max > 0 ? Math.min(1, value / max) : 0;
   const r = 52;
   const c = 2 * Math.PI * r;
+  const arc = useRef<SVGCircleElement>(null);
+  // The beam fills to its value once on arrival (reduced motion: drawn full at once).
+  useGSAP(() => {
+    if (!arc.current || ratio <= 0) return;
+    gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.from(arc.current, { strokeDasharray: `0 ${c}`, duration: 0.9, ease: "expo.out" });
+    });
+  });
   return (
     <div
       className="relative grid size-36 shrink-0 place-items-center"
@@ -29,6 +44,7 @@ export function BeaconRing({ value, max }: { value: number; max: number }) {
           cy="60"
           r={r}
           fill="none"
+          ref={arc}
           stroke="#5fbf8f"
           strokeWidth="10"
           strokeLinecap="round"
