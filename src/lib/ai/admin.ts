@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
 import { evaluateThreshold, type EvalResult, type LabeledScore } from "@/lib/ai/evaluation";
 import { AI_KEYS, getAiSettings, THRESHOLD_MAX, THRESHOLD_MIN } from "@/lib/ai/settings";
+import { getConnections } from "@/lib/ai/connections";
+import { cosine } from "@/lib/ai/golden";
+import { GOLDEN_SET } from "@/lib/ai/testsets";
+import { embedTexts } from "@/lib/services/ai/aiService";
 
 export class AiConfigError extends Error {
   constructor(message: string) {
@@ -11,7 +15,7 @@ export class AiConfigError extends Error {
   }
 }
 
-async function upsertConfig(configKey: string, configValue: unknown, actingUserId: string) {
+async function upsertConfig(configKey: string, configValue: unknown, actingUserId: string | null) {
   await prisma.systemConfig.upsert({
     where: { configKey },
     create: {
@@ -60,7 +64,9 @@ export async function setThreshold(threshold: number, actingUserId: string): Pro
     );
   }
   await upsertConfig(AI_KEYS.threshold, threshold, actingUserId);
-  await upsertConfig(AI_KEYS.lastEval, result, actingUserId);
+  // Same golden scores, so the same model they were measured on.
+  const model = (await getAiSettings()).lastEval?.model;
+  await upsertConfig(AI_KEYS.lastEval, { ...result, model }, actingUserId);
   await logEvent({
     userId: actingUserId,
     action: "AI_THRESHOLD_CHANGED",
@@ -75,7 +81,8 @@ export async function setThreshold(threshold: number, actingUserId: string): Pro
   return result;
 }
 
-// D5 + NFR-AI-02 gate. Disabling is always allowed.
+// D5 gate. Disabling is always allowed. Each job then has its own gate (lib/ai/jobs.ts):
+// copy detection needs its golden-set test passed on its model (NFR-AI-02).
 export async function setAiEnabled(
   enabled: boolean,
   privacyApprovedBy: string | null,
@@ -84,13 +91,6 @@ export async function setAiEnabled(
   if (enabled) {
     if (!privacyApprovedBy?.trim()) {
       throw new AiConfigError("Record who approved the data-privacy basis (D5) before enabling AI");
-    }
-    const settings = await getAiSettings();
-    const lastEval = settings.lastEval;
-    if (!lastEval?.passes || lastEval.threshold !== settings.similarityThreshold) {
-      throw new AiConfigError(
-        "A passing golden-set evaluation (≥80% precision, ≥70% recall, ≥30 pairs) at the current threshold is required (NFR-AI-02)"
-      );
     }
     await upsertConfig(AI_KEYS.privacyApprovedBy, privacyApprovedBy.trim(), actingUserId);
   }
@@ -101,4 +101,33 @@ export async function setAiEnabled(
     entityType: "SystemConfig",
     detail: { privacyApprovedBy: privacyApprovedBy ?? null },
   });
+}
+
+// R3 / guardrail 3: run the golden set on the copy-detection connection from the panel
+// (or the script). One batch call; stores the scores, the result and the model it ran on.
+export async function runGoldenEval(actingUserId: string | null): Promise<EvalResult> {
+  const { private: conn } = await getConnections();
+  if (!conn) throw new AiConfigError("Set the connection that may read interns' words first");
+  const texts = GOLDEN_SET.flatMap((r) => [r.textA, r.textB]);
+  const vectors = await embedTexts(conn, texts);
+  const scores: LabeledScore[] = GOLDEN_SET.map((r, i) => ({
+    score: Math.round(cosine(vectors[2 * i], vectors[2 * i + 1]) * 1000) / 1000,
+    label: r.label,
+  }));
+  const { similarityThreshold } = await getAiSettings();
+  const result = { ...evaluateThreshold(scores, similarityThreshold), model: conn.embeddingModel };
+  await upsertConfig(AI_KEYS.goldenScores, scores, actingUserId);
+  await upsertConfig(AI_KEYS.lastEval, result, actingUserId);
+  await logEvent({
+    userId: actingUserId,
+    action: "AI_GOLDEN_EVAL_RUN",
+    entityType: "SystemConfig",
+    detail: {
+      model: result.model,
+      precision: result.precision,
+      recall: result.recall,
+      passes: result.passes,
+    },
+  });
+  return result;
 }

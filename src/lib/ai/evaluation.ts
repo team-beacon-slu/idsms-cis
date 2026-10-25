@@ -11,6 +11,7 @@ export interface EvalResult {
   passes: boolean;
   evaluatedAt: string;
   pairCount: number;
+  model?: string; // the embedding model the scores came from (guardrail 3)
 }
 
 export const MIN_GOLDEN_PAIRS = 30; // NFR-AI-01

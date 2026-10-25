@@ -20,6 +20,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import { MergeDuplicates } from "./merge-duplicates";
+import { AiDuplicates } from "./ai-duplicates";
+import { connectionFor } from "@/lib/ai/jobs";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 
@@ -50,9 +52,10 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
   const searchParams = await props.searchParams;
   const user = await requireUserPage();
   const canMerge = user.role === "DEPARTMENT_COORDINATOR" || user.role === "SUPER_ADMIN";
-  const [companies, duplicates] = await Promise.all([
+  const [companies, duplicates, aiOn] = await Promise.all([
     listCompanies({ search: searchParams.search }),
     canMerge ? listDuplicateCompanyGroups() : [],
+    canMerge ? connectionFor("companies", user).then(Boolean) : false,
   ]);
   const verifiedCount = companies.filter((c) => c.isVerified).length;
 
@@ -76,7 +79,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
         <StatCard label="Verified" value={verifiedCount} icon={ShieldCheck} />
       </StatStrip>
 
-      {duplicates.length > 0 && (
+      {(duplicates.length > 0 || aiOn) && (
         <Card>
           <CardHeader>
             <CardTitle>Possible duplicates</CardTitle>
@@ -89,6 +92,7 @@ export default async function CompaniesPage(props: { searchParams: Promise<{ sea
             {duplicates.map((group) => (
               <MergeDuplicates key={group[0].id} group={group} />
             ))}
+            {aiOn && <AiDuplicates />}
           </CardContent>
         </Card>
       )}

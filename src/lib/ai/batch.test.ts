@@ -1,10 +1,15 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 
-jest.mock("@/lib/ai/settings", () => ({ getAiSettings: jest.fn() }));
+jest.mock("@/lib/ai/jobs", () => ({ allJobStatuses: jest.fn(), pauseAfterBatch: jest.fn() }));
 jest.mock("@/lib/ai/processing", () => ({ processWeeklyReportAi: jest.fn() }));
 
-import { getAiSettings } from "@/lib/ai/settings";
+import { allJobStatuses, pauseAfterBatch } from "@/lib/ai/jobs";
 import { processWeeklyReportAi } from "@/lib/ai/processing";
+
+const getAiSettings = {
+  mockResolvedValue: ({ enabled }: { enabled: boolean }) =>
+    (allJobStatuses as jest.Mock).mockResolvedValue([{ job: "copy", on: enabled }]),
+};
 import { processPendingAiReports } from "@/lib/ai/batch";
 
 beforeEach(() => {
@@ -14,7 +19,7 @@ beforeEach(() => {
 });
 
 it("does nothing while ai:enabled is false", async () => {
-  (getAiSettings as jest.Mock).mockResolvedValue({ enabled: false });
+  getAiSettings.mockResolvedValue({ enabled: false });
   await expect(processPendingAiReports()).resolves.toEqual({
     processed: 0,
     failed: 0,
@@ -24,7 +29,7 @@ it("does nothing while ai:enabled is false", async () => {
 });
 
 it("processes unprocessed reports one at a time, capped, continuing past failures", async () => {
-  (getAiSettings as jest.Mock).mockResolvedValue({ enabled: true });
+  getAiSettings.mockResolvedValue({ enabled: true });
   prismaMock.weeklyReport.findMany.mockResolvedValue([
     { id: "a", studentProfileId: "p-1" },
     { id: "b", studentProfileId: "p-2" },
@@ -53,7 +58,7 @@ it("processes unprocessed reports one at a time, capped, continuing past failure
 });
 
 it("doesn't let reports waiting on earlier weeks use up the daily budget", async () => {
-  (getAiSettings as jest.Mock).mockResolvedValue({ enabled: true });
+  getAiSettings.mockResolvedValue({ enabled: true });
   prismaMock.weeklyReport.findMany.mockResolvedValue(
     ["a", "b", "c", "d", "e"].map((id) => ({ id, studentProfileId: `p-${id}` })) as never
   );
@@ -69,7 +74,7 @@ it("doesn't let reports waiting on earlier weeks use up the daily budget", async
 });
 
 it("after a failure, skips that student's later weeks for the rest of the run", async () => {
-  (getAiSettings as jest.Mock).mockResolvedValue({ enabled: true });
+  getAiSettings.mockResolvedValue({ enabled: true });
   prismaMock.weeklyReport.findMany.mockResolvedValue([
     { id: "a", studentProfileId: "p-1" },
     { id: "b", studentProfileId: "p-1" },
@@ -84,4 +89,15 @@ it("after a failure, skips that student's later weeks for the rest of the run", 
   );
   expect(processWeeklyReportAi).toHaveBeenCalledTimes(2);
   expect(processWeeklyReportAi).not.toHaveBeenCalledWith("b");
+});
+
+it("pauses the jobs it ran when more than 20% of the run failed (R2)", async () => {
+  getAiSettings.mockResolvedValue({ enabled: true });
+  prismaMock.weeklyReport.findMany.mockResolvedValue([
+    { id: "a", studentProfileId: "p-1" },
+    { id: "b", studentProfileId: "p-2" },
+  ] as never);
+  (processWeeklyReportAi as jest.Mock).mockRejectedValue(new Error("down"));
+  await processPendingAiReports();
+  expect(pauseAfterBatch).toHaveBeenCalledWith(["copy"], 2, 2);
 });

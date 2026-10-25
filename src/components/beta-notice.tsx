@@ -8,8 +8,10 @@ export function BetaNotice({ className = "" }: { className?: string }) {
   return (
     <p role="note" className={`rounded-xl glass px-4 py-2 text-sm text-foreground ${className}`}>
       <strong className="font-semibold">Beta test.</strong> Everything you enter is deleted when the
-      beta ends. We do not record your screen or track your clicks (the app keeps only its usual
-      security log); the feedback you choose to send helps us improve IDSMS before the full rollout.
+      beta ends. AI assist sends the text of weekly reports (names removed) to Google Gemini, so
+      don&apos;t enter real internship records. We do not record your screen or track your clicks
+      (the app keeps only its usual security log); the feedback you choose to send helps us improve
+      IDSMS before the full rollout.
       {FEEDBACK && (
         <>
           {" "}

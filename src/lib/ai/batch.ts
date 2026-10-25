@@ -1,13 +1,15 @@
 import { WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getAiSettings } from "@/lib/ai/settings";
 import { processWeeklyReportAi } from "@/lib/ai/processing";
+import { allJobStatuses, pauseAfterBatch, type JobId } from "@/lib/ai/jobs";
 
-// Daily catch-up (FR-NT-05's single Hobby cron). Sequential and capped to
-// stay inside Gemini free-tier rate limits and the function's maxDuration.
+const REPORT_JOBS: JobId[] = ["copy", "search", "coverage", "tone", "summary"];
+
+// Daily catch-up (FR-NT-05's single Hobby cron). Sequential and capped to stay inside
+// free-tier rate limits and the function's maxDuration.
 export async function processPendingAiReports(limit = 20) {
-  const settings = await getAiSettings();
-  if (!settings.enabled) return { processed: 0, failed: 0, skipped: true };
+  const live = (await allJobStatuses()).filter((s) => s.on && REPORT_JOBS.includes(s.job));
+  if (!live.length) return { processed: 0, failed: 0, skipped: true };
 
   const candidates = await prisma.weeklyReport.findMany({
     where: {
@@ -47,5 +49,11 @@ export async function processPendingAiReports(limit = 20) {
       failedStudents.add(studentProfileId);
     }
   }
+  // R2: more than 20% failed pauses these jobs until the next night.
+  await pauseAfterBatch(
+    live.map((s) => s.job),
+    failed,
+    processed + failed
+  );
   return { processed, failed, skipped: false };
 }

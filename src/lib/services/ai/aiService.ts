@@ -1,20 +1,18 @@
-// Similarity detection (Gemini embeddings + pgvector) and sentiment analysis
-// (Gemini Flash), behind a swappable adapter per NFR-MNT-02/NFR-MNT-05.
-// See PRD Module 9 (FR-AI-*) and NFR-AI-01..04 (golden set, precision/recall targets).
-// Models come from env vars because Google retires them: text-embedding-004
-// and gemini-2.5-flash were both gone by 2026-10-21 (R16).
-import { z } from "zod";
+// The AI port (docs/plans/ai-assist-plan.md R1): every job embeds or asks for JSON through
+// these three functions, and a connection (lib/ai/connections.ts) picks the adapter.
+// Two adapters: Gemini's own API, and any OpenAI-compatible server (Ollama, vLLM or
+// LM Studio on the lab server, Groq or OpenRouter, or Gemini's OpenAI endpoint).
+// Adding a provider means adding an adapter here; jobs never change.
+// Every text is PII-scrubbed before it leaves (FR-AI-04); models get no tools (R4).
 import { scrubPii } from "@/lib/ai/scrubPii";
+import type { AiConnection } from "@/lib/ai/connections";
 
-const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const EMBEDDING_DIM = 768; // must match daily_report_entries.embedding_vector
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+export const EMBEDDING_DIM = 768; // must match daily_report_entries.embedding_vector
 const TIMEOUT_MS = 15_000;
-export const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
-// Pinned (not "-latest") so the golden-set evaluation stays reproducible.
-export const DEFAULT_SENTIMENT_MODEL = "gemini-3.8-flash";
 
 export class AiProviderError extends Error {
-  // HTTP status from Gemini, when there was a response; 400 means it rejected this input.
+  // HTTP status from the provider, when there was a response; 400 means it rejected this input.
   constructor(
     message: string,
     readonly status?: number
@@ -24,161 +22,119 @@ export class AiProviderError extends Error {
   }
 }
 
-async function callGemini(model: string, method: string, body: unknown): Promise<unknown> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new AiProviderError("GEMINI_API_KEY is not configured");
-  const res = await fetch(`${API_BASE}/${model}:${method}`, {
+function keyOf(conn: AiConnection): string | undefined {
+  return conn.keyEnv ? process.env[conn.keyEnv] || undefined : undefined;
+}
+
+async function post(url: string, headers: Record<string, string>, body: unknown, what: string) {
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": key },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
   if (!res.ok) {
     throw new AiProviderError(
-      `Gemini ${model}:${method} failed (${res.status}): ${json.error?.message ?? "unknown"}`,
+      `${what} failed (${res.status}): ${json.error?.message ?? "unknown"}`,
       res.status
     );
   }
   return json;
 }
 
-// The AI port's second adapter (ai-assist-plan R1): any OpenAI-compatible server — Ollama
-// or vLLM on the lab server, or Gemini's own OpenAI endpoint on the beta — so the beta runs
-// the exact code path the rollout will. AI_PROVIDER=openai switches to it; Gemini stays the default.
-const openAiSelected = () => process.env.AI_PROVIDER === "openai";
-
-async function callOpenAi(path: string, body: unknown): Promise<unknown> {
-  const base = process.env.AI_BASE_URL?.replace(/\/+$/, "");
-  if (!base) throw new AiProviderError("AI_BASE_URL is not configured");
-  const key = process.env.AI_API_KEY; // a local Ollama needs none
-  const res = await fetch(`${base}${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(key ? { authorization: `Bearer ${key}` } : {}),
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-  if (!res.ok) {
-    throw new AiProviderError(
-      `AI ${path} failed (${res.status}): ${json.error?.message ?? "unknown"}`,
-      res.status
-    );
-  }
-  return json;
+function gemini(conn: AiConnection, model: string, method: string, body: unknown) {
+  const key = keyOf(conn);
+  if (!key) throw new AiProviderError(`${conn.keyEnv ?? "The API key variable"} is not set`);
+  return post(
+    `${GEMINI_BASE}/${model}:${method}`,
+    { "x-goog-api-key": key }, // a header, never the URL (URLs get logged)
+    body,
+    `Gemini ${model}:${method}`
+  );
 }
 
-async function openAiEmbed(inputs: string[]): Promise<number[][]> {
-  const model = process.env.AI_EMBEDDING_MODEL;
-  if (!model) throw new AiProviderError("AI_EMBEDDING_MODEL is not configured");
-  const json = (await callOpenAi("/embeddings", {
-    model,
-    input: inputs,
-    dimensions: EMBEDDING_DIM,
-  })) as { data?: { index?: number; embedding?: number[] }[] };
-  const vectors = [...(json.data ?? [])]
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-    .map((d) => d.embedding);
+function openAi(conn: AiConnection, path: string, body: unknown) {
+  const base = conn.baseUrl?.replace(/\/+$/, "");
+  if (!base) throw new AiProviderError(`${conn.name} has no base URL`);
+  const key = keyOf(conn); // a local Ollama needs none
+  return post(`${base}${path}`, key ? { authorization: `Bearer ${key}` } : {}, body, `AI ${path}`);
+}
+
+function checkVectors(vectors: unknown[], count: number): number[][] {
   if (
-    vectors.length !== inputs.length ||
+    vectors.length !== count ||
     vectors.some((v) => !Array.isArray(v) || v.length !== EMBEDDING_DIM)
   ) {
-    throw new AiProviderError(`Expected ${inputs.length} ${EMBEDDING_DIM}-dim embeddings`);
+    throw new AiProviderError(`Expected ${count} ${EMBEDDING_DIM}-dim embeddings`);
   }
   return vectors as number[][];
 }
 
-export async function embedText(text: string, opts: { names?: string[] } = {}): Promise<number[]> {
-  if (openAiSelected()) return (await openAiEmbed([scrubPii(text, opts)]))[0];
-  const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
-  const json = (await callGemini(model, "embedContent", {
-    model: `models/${model}`,
-    content: { parts: [{ text: scrubPii(text, opts) }] },
-    outputDimensionality: EMBEDDING_DIM,
-  })) as { embedding?: { values?: number[] } };
-  const values = json.embedding?.values;
-  if (!Array.isArray(values) || values.length !== EMBEDDING_DIM) {
-    throw new AiProviderError(
-      `Expected a ${EMBEDDING_DIM}-dim embedding, got ${values?.length ?? "none"}`
-    );
-  }
-  return values;
-}
-
-// One batchEmbedContents call per report (not one call per day), so a week
-// fits comfortably inside the route and cron time limits.
+// One call per batch (not one per text), so a week fits inside the route and cron limits.
 export async function embedTexts(
+  conn: AiConnection,
   texts: string[],
   opts: { names?: string[] } = {}
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
-  if (openAiSelected()) return openAiEmbed(texts.map((text) => scrubPii(text, opts)));
-  const model = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
-  const json = (await callGemini(model, "batchEmbedContents", {
-    requests: texts.map((text) => ({
-      model: `models/${model}`,
-      content: { parts: [{ text: scrubPii(text, opts) }] },
+  const clean = texts.map((t) => scrubPii(t, opts));
+  if (conn.provider === "openai") {
+    const json = (await openAi(conn, "/embeddings", {
+      model: conn.embeddingModel,
+      input: clean,
+      dimensions: EMBEDDING_DIM,
+    })) as { data?: { index?: number; embedding?: number[] }[] };
+    const sorted = [...(json.data ?? [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    return checkVectors(
+      sorted.map((d) => d.embedding),
+      texts.length
+    );
+  }
+  const json = (await gemini(conn, conn.embeddingModel, "batchEmbedContents", {
+    requests: clean.map((text) => ({
+      model: `models/${conn.embeddingModel}`,
+      content: { parts: [{ text }] },
       outputDimensionality: EMBEDDING_DIM,
     })),
   })) as { embeddings?: { values?: number[] }[] };
-  const vectors = json.embeddings?.map((e) => e.values);
-  if (
-    !vectors ||
-    vectors.length !== texts.length ||
-    vectors.some((v) => !Array.isArray(v) || v.length !== EMBEDDING_DIM)
-  ) {
-    throw new AiProviderError(`Expected ${texts.length} ${EMBEDDING_DIM}-dim embeddings`);
-  }
-  return vectors as number[][];
+  return checkVectors(
+    (json.embeddings ?? []).map((e) => e.values),
+    texts.length
+  );
 }
 
-const sentimentSchema = z.object({
-  label: z.enum(["POSITIVE", "NEUTRAL", "NEGATIVE"]),
-  confidence: z.number().min(0).max(1),
-  reasoning: z.string().trim().min(1).max(400),
-});
-export type SentimentResult = z.infer<typeof sentimentSchema>;
-
-const SENTIMENT_PROMPT =
-  "Classify the overall sentiment of this internship weekly report written by a student. " +
-  'Respond only with JSON: {"label": "POSITIVE"|"NEUTRAL"|"NEGATIVE", "confidence": 0..1, ' +
-  '"reasoning": one short sentence}. This is advisory for a faculty adviser and must not judge the student.\n\nReport:\n';
-
-export async function classifySentiment(
+export async function embedText(
+  conn: AiConnection,
   text: string,
   opts: { names?: string[] } = {}
-): Promise<SentimentResult> {
-  const prompt = SENTIMENT_PROMPT + scrubPii(text, opts);
+): Promise<number[]> {
+  return (await embedTexts(conn, [text], opts))[0];
+}
+
+// JSON mode at temperature 0. The prompt is built by lib/ai/guard.ts (fenced data,
+// fixed format); the caller validates the result against its own schema and drops
+// anything else (R4).
+export async function chatJson(conn: AiConnection, prompt: string): Promise<unknown> {
   let raw: string | undefined;
-  if (openAiSelected()) {
-    const model = process.env.AI_CHAT_MODEL;
-    if (!model) throw new AiProviderError("AI_CHAT_MODEL is not configured");
-    const json = (await callOpenAi("/chat/completions", {
-      model,
+  if (conn.provider === "openai") {
+    const json = (await openAi(conn, "/chat/completions", {
+      model: conn.chatModel,
       messages: [{ role: "user", content: prompt }],
       temperature: 0,
       response_format: { type: "json_object" },
     })) as { choices?: { message?: { content?: string } }[] };
     raw = json.choices?.[0]?.message?.content;
   } else {
-    const model = process.env.GEMINI_SENTIMENT_MODEL || DEFAULT_SENTIMENT_MODEL;
-    const json = (await callGemini(model, "generateContent", {
+    const json = (await gemini(conn, conn.chatModel, "generateContent", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: "application/json", temperature: 0 },
     })) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
   }
-
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw ?? "");
+    return JSON.parse(raw ?? "");
   } catch {
-    throw new AiProviderError("Sentiment response was not JSON");
+    throw new AiProviderError("The model's answer was not JSON");
   }
-  const result = sentimentSchema.safeParse(parsed);
-  if (!result.success) throw new AiProviderError("Sentiment response failed validation");
-  return result.data;
 }

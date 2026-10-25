@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AiConfigError } from "@/lib/ai/admin";
+import { AiProviderError } from "@/lib/services/ai/aiService";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { TimeRequestStateError } from "@/lib/services/attendance/timeRequestService";
@@ -81,6 +82,13 @@ export function handleApiError(error: unknown): NextResponse {
   // request.json() on a malformed body: the client's mistake, not a server failure.
   if (error instanceof SyntaxError) {
     return NextResponse.json({ error: "Malformed JSON body" }, { status: 400 });
+  }
+  // The AI service failed or is misconfigured: say so plainly (its message never holds the key).
+  if (error instanceof AiProviderError) {
+    return NextResponse.json(
+      { error: `The AI service didn't answer: ${error.message}` },
+      { status: 502 }
+    );
   }
   if (error instanceof InvalidFileError) {
     return NextResponse.json({ error: error.message }, { status: 400 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ClarityCoach } from "@/components/ai/clarity-coach";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -252,6 +253,7 @@ export function WeeklyReportForm({
   priorAccomplishments,
   shift = null,
   holidays = {},
+  clarityAi = false,
 }: {
   weeklyReportId: string;
   entries: DailyEntryRow[];
@@ -262,6 +264,8 @@ export function WeeklyReportForm({
   shift?: Shift | null;
   // This intern's applicable holidays by date (YYYY-MM-DD): PH holidays and company days off.
   holidays?: Record<string, { name: string; company: boolean }>;
+  // AI assist's clarity coach can take a second look (lib/ai/jobs.ts "clarity" is on).
+  clarityAi?: boolean;
 }) {
   const router = useRouter();
   const holidayOn = (iso: string) => holidays[iso.slice(0, 10)];
@@ -834,6 +838,18 @@ export function WeeklyReportForm({
           />
         </div>
       )}
+
+      <ClarityCoach
+        aiOn={clarityAi}
+        days={entries
+          .filter((e) => rows[e.id]?.status === "PRESENT")
+          .map((e) => ({
+            id: e.id,
+            label: formatDay(e.reportDate),
+            text: rows[e.id]?.accomplishments ?? "",
+            tools: rows[e.id]?.toolsUsed ?? null,
+          }))}
+      />
 
       <div className="flex flex-wrap gap-2">
         <Button

@@ -63,10 +63,11 @@ it("refuses to enable AI without a privacy approval", async () => {
   await expect(setAiEnabled(true, null, "admin-1")).rejects.toThrow(/privacy/i);
 });
 
-it("refuses to enable AI without a passing evaluation at the current threshold", async () => {
+it("turns AI on with only the privacy approval; each job then has its own gate", async () => {
   mockConfig({ "ai:last_eval": { threshold: 0.7, passes: false } });
-  await expect(setAiEnabled(true, "Prof. Fernandez", "admin-1")).rejects.toThrow(
-    /precision|evaluation/i
+  await expect(setAiEnabled(true, "DPO", "admin-1")).resolves.toBeUndefined();
+  expect(prismaMock.systemConfig.upsert).toHaveBeenCalledWith(
+    expect.objectContaining({ where: { configKey: "ai:enabled" } })
   );
 });
 
