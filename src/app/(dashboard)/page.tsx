@@ -15,6 +15,7 @@ import { getUserProfile } from "@/lib/services/accounts/userService";
 import { getChecklistProgress } from "@/lib/services/predeployment/checklistService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { greeting } from "@/lib/utils/greeting";
 import { FacultyDashboard } from "./_components/faculty-dashboard";
@@ -298,17 +299,24 @@ export default async function DashboardHomePage(props: {
           )}
         </Link>
 
-        <div className="flex flex-col justify-between rounded-3xl border border-mint-200 bg-mint-100 p-5 text-mint-900 md:col-span-3 xl:col-span-2">
+        <div
+          className={cn(
+            "flex flex-col justify-between rounded-3xl border p-5 md:col-span-3 xl:col-span-2",
+            streak === 0
+              ? "border-border bg-muted text-foreground"
+              : "border-mint-200 bg-mint-100 text-mint-900"
+          )}
+        >
           <span className="text-sm font-medium">Submission streak</span>
           <span>
             <span className="block text-4xl font-bold tracking-tight tabular-nums">{streak}</span>
-            <span className="mt-1 block text-sm text-mint-900/80">
+            <span className="mt-1 block text-sm opacity-80">
               {streak === 1 ? "week in a row" : "weeks in a row"}
             </span>
           </span>
           {recentKinds.length > 0 && (
             <span className="block">
-              <span className="mb-1.5 block text-xs font-medium text-mint-900/80">
+              <span className="mb-1.5 block text-xs font-medium opacity-80">
                 Last {recentKinds.length} weeks
               </span>
               <MiniTrack kinds={recentKinds} />

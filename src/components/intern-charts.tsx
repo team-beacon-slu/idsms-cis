@@ -53,7 +53,8 @@ export function InternCharts({
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <Card>
+      {/* Cards stretch to the row; flex columns let each body fill it instead of leaving a blank band. */}
+      <Card className="flex flex-col">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Where interns stand</CardTitle>
           <CardDescription>
@@ -62,8 +63,11 @@ export function InternCharts({
               : `None of ${rows.length} need attention.`}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex h-4 gap-[2px] overflow-hidden rounded-full" aria-hidden="true">
+        <CardContent className="flex flex-1 flex-col gap-4">
+          <div
+            className="flex h-4 shrink-0 gap-[2px] overflow-hidden rounded-full"
+            aria-hidden="true"
+          >
             {STATUS_ORDER.filter((s) => counts[s] > 0).map((s) => (
               <span
                 key={s}
@@ -73,7 +77,7 @@ export function InternCharts({
               />
             ))}
           </div>
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+          <ul className="grid flex-1 grid-cols-2 content-evenly gap-x-3 gap-y-2 text-sm">
             {STATUS_ORDER.map((s) => {
               const body = (
                 <>
@@ -168,7 +172,7 @@ export function InternCharts({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="flex flex-col">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Hours completed</CardTitle>
           <CardDescription>
@@ -177,8 +181,8 @@ export function InternCharts({
               : `All ${rows.length} are at least halfway.`}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex h-32 items-end gap-2" aria-hidden="true">
+        <CardContent className="flex flex-1 flex-col">
+          <div className="flex min-h-32 flex-1 items-end gap-2" aria-hidden="true">
             {buckets.map((n, i) => (
               <div
                 key={HOURS_BUCKETS[i]}

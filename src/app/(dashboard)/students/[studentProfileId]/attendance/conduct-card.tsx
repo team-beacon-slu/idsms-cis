@@ -179,18 +179,18 @@ function DisputeLine({
     (d) => family(d.itemType) === family(itemType) && d.itemKey === itemKey
   );
   const open = latest && !latest.outcome ? latest : null;
-  // Fragment, not a full-width box: the Dispute button sits at the row's right end.
+  // Fragment, not a full-width box: the Dispute button sits at the row's right end; notes go last so they never push the buttons down.
   return (
     <>
       {open && (
-        <p className="w-full text-xs text-amber-800 dark:text-amber-300">
+        <p className="order-last w-full text-xs text-amber-800 dark:text-amber-300">
           {isStaff ? "The intern disputes this: " : "You disputed this: "}
           {open.reason}
           {!isStaff && " — waiting for your adviser."}
         </p>
       )}
       {!open && latest?.outcome === "DECLINED" && (
-        <p className="w-full text-xs text-muted-foreground">
+        <p className="order-last w-full text-xs text-muted-foreground">
           Dispute declined: {latest.resolutionNote}
         </p>
       )}

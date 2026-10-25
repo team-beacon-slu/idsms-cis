@@ -2,7 +2,7 @@ import { Children, cloneElement, isValidElement } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type StatTone = "brand" | "green" | "sky" | "amber" | "rose";
+export type StatTone = "brand" | "green" | "sky" | "amber" | "rose" | "neutral";
 
 // One hue family per tile so related figures read as a group; the number stays in ink
 // on a 74%+ white glass so it always clears 4.5:1.
@@ -12,6 +12,7 @@ const TONE: Record<StatTone, { tile: string; ink: string }> = {
   sky: { tile: "from-sky-100/90", ink: "text-sky-700" },
   amber: { tile: "from-amber-100/90", ink: "text-amber-700" },
   rose: { tile: "from-rose-100/90", ink: "text-rose-700" },
+  neutral: { tile: "from-muted/80", ink: "text-muted-foreground" },
 };
 const CYCLE: StatTone[] = ["brand", "green", "sky", "amber", "rose"];
 
@@ -34,7 +35,8 @@ export function StatCard({
   tone?: StatTone;
 }) {
   const calling = action && Number(value) > 0;
-  const t = TONE[calling ? "rose" : tone];
+  // A zero carries no status, so it doesn't get a hue that reads as one.
+  const t = TONE[calling ? "rose" : value === 0 ? "neutral" : tone];
   return (
     <div
       className={cn(
