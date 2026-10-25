@@ -215,6 +215,10 @@ export async function mergeCompanies(
       where: { companyId: { in: ids } },
       data: { companyId: keepId },
     });
+    await tx.companyEvaluation.updateMany({
+      where: { companyId: { in: ids } },
+      data: { companyId: keepId },
+    });
     await tx.moaRecord.updateMany({
       where: { companyId: { in: ids } },
       data: { companyId: keepId },

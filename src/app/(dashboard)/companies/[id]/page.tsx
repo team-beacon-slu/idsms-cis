@@ -26,8 +26,23 @@ import {
 import { CompanyVerifyToggle } from "./company-verify-toggle";
 import { CompanyForeignToggle } from "./company-foreign-toggle";
 import { MoaStatusActions } from "./moa-status-actions";
+import { CompanyReplyForm } from "./company-reply-form";
+import {
+  getCompanyFeedback,
+  MIN_GROUP,
+  REPLY_EDITORS,
+} from "@/lib/services/predeployment/companyEvaluationService";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-lg font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
 
 function VerificationPill({ isVerified }: { isVerified: boolean }) {
   return (
@@ -59,7 +74,10 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
   const isStaff = STAFF_ROLES.includes(user.role);
   // FR-MOA-07: MOA records are restricted to staff — never fetched or shown
   // to a student, not even an empty list.
-  const moaRecords = isStaff ? await listMoaRecordsForCompany(params.id) : [];
+  const [moaRecords, feedback] = isStaff
+    ? await Promise.all([listMoaRecordsForCompany(params.id), getCompanyFeedback(params.id)])
+    : [[], null];
+  const canReply = REPLY_EDITORS.includes(user.role);
 
   return (
     <div className="space-y-6">
@@ -169,6 +187,115 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                 </TableBody>
               </Table>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {feedback && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
+              <CardTitle className="flex items-center gap-2">
+                Interns&apos; experience
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <ShieldCheck className="size-3" aria-hidden="true" />
+                  Staff only
+                </span>
+              </CardTitle>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Facts and ratings appear once {MIN_GROUP} interns are behind them, pooled across
+              terms, so no one intern can be singled out. No score or verdict: whether to keep
+              partnering is the coordinator&apos;s call.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Facts</h2>
+              <p className="text-sm">
+                {feedback.internCount === 0
+                  ? "No interns placed here yet."
+                  : feedback.facts
+                    ? `Interns placed: ${feedback.placements.map((p) => `${p.term} (${p.count})`).join(", ")}.`
+                    : `Interns placed: ${feedback.internCount}.`}
+              </p>
+              {feedback.facts ? (
+                <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Fact
+                    label="Average confirmed hours a week"
+                    value={String(feedback.facts.averageWeeklyHours)}
+                  />
+                  <Fact
+                    label="Weekly reports on time"
+                    value={
+                      feedback.facts.onTimeShare === null ? "—" : `${feedback.facts.onTimeShare}%`
+                    }
+                  />
+                  <Fact
+                    label="Approved overtime requests"
+                    value={String(feedback.facts.overtime)}
+                  />
+                  <Fact label="Approved absences" value={String(feedback.facts.absences)} />
+                </dl>
+              ) : (
+                feedback.internCount > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Shown once {MIN_GROUP} interns have been placed here ({feedback.internCount} so
+                    far).
+                  </p>
+                )
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Interns&apos; ratings</h2>
+              {feedback.ratings ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Average of {feedback.ratings.count} evaluations, 1 (very poor) to 5 (very good).
+                  </p>
+                  <dl className="divide-y rounded-lg border border-border">
+                    {feedback.ratings.averages.map((a) => (
+                      <div key={a.key} className="flex items-center justify-between gap-4 p-3">
+                        <dt className="text-sm">{a.label}</dt>
+                        <dd className="text-sm font-semibold tabular-nums">{a.average}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {feedback.ratings.comments.length > 0 && (
+                    <ul className="space-y-2">
+                      {feedback.ratings.comments.map((c, i) => (
+                        <li key={i} className="rounded-lg bg-muted/40 p-3 text-sm">
+                          {c}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Shown once {MIN_GROUP} interns have evaluated this company (
+                  {feedback.evaluationCount} so far).
+                </p>
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Company&apos;s reply</h2>
+              {canReply ? (
+                <CompanyReplyForm companyId={company.id} current={feedback.reply?.text ?? ""} />
+              ) : feedback.reply ? (
+                <p className="text-sm">{feedback.reply.text}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No reply recorded.</p>
+              )}
+              {feedback.reply?.at && (
+                <p className="text-xs text-muted-foreground">
+                  Recorded {formatCalendarDate(new Date(feedback.reply.at))}
+                </p>
+              )}
+            </section>
           </CardContent>
         </Card>
       )}
