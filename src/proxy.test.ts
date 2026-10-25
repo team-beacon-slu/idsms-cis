@@ -23,6 +23,7 @@ it("protects the public sign-in pages too, without redirecting them", () => {
     "/auth/reset-password/abc",
     "/privacy",
     "/terms",
+    "/about",
   ]) {
     const res = proxy(get(path));
     expect(res.headers.get("location")).toBeNull();
