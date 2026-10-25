@@ -1,7 +1,11 @@
 /** @jest-environment node */
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import type { Adapter } from "next-auth/adapters";
-import { isAllowedGoogleProfile, withBetaGoogleUsers } from "@/lib/auth/betaGoogle";
+import {
+  betaGoogleProvider,
+  isAllowedGoogleProfile,
+  withBetaGoogleUsers,
+} from "@/lib/auth/betaGoogle";
 import { authOptions } from "@/lib/auth/authOptions";
 
 beforeEach(() => resetPrismaMock());
@@ -85,4 +89,14 @@ describe("withBetaGoogleUsers", () => {
     });
     expect(String(data.hashedPassword)).toMatch(/^\$2/); // a bcrypt hash of random bytes
   });
+});
+
+it("stores Google's address in lower case, the spelling every lookup uses", async () => {
+  const provider = betaGoogleProvider();
+  // next-auth keeps our options here and merges them over the defaults at runtime.
+  const user = await provider.options!.profile!(
+    { sub: "g1", name: "Ana", email: "Ana.Cruz@SLU.edu.ph", picture: "" } as never,
+    {} as never
+  );
+  expect(user.email).toBe("ana.cruz@slu.edu.ph");
 });

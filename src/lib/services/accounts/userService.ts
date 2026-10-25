@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/utils/password";
 import { generateDefaultPassword } from "@/lib/utils/defaultPassword";
 import { logEvent } from "@/lib/services/accounts/auditService";
+import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
 import type { BulkImportRow } from "@/lib/validators/user";
 import type { BulkImportResult, BulkImportRowResult, SafeUser } from "@/types/user";
 
@@ -629,50 +630,72 @@ export async function completeOwnStudentProfile(
   input: { studentNumber: string; classGroupId: string },
   requiredHoursFor: (program: Program) => Promise<number>
 ): Promise<{ studentProfileId: string }> {
-  const [user, group, semester] = await Promise.all([
+  const [user, group, semester, taken] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, studentProfile: { select: { id: true } } },
+      select: {
+        role: true,
+        privacyConsentVersion: true,
+        studentProfile: { select: { id: true } },
+      },
     }),
+    // Only a group an adviser holds this semester: otherwise no adviser could see the student.
     prisma.classGroup.findFirst({
-      where: { id: input.classGroupId, deletedAt: null },
+      where: {
+        id: input.classGroupId,
+        deletedAt: null,
+        facultyGroups: { some: { semester: { isActive: true } } },
+      },
       select: { id: true, program: true },
     }),
     prisma.semester.findFirst({ where: { isActive: true }, select: { id: true } }),
+    prisma.studentProfile.findUnique({
+      where: { studentNumber: input.studentNumber },
+      select: { id: true },
+    }),
   ]);
   if (!user || user.role !== Role.STUDENT_INTERN) throw new ForbiddenError();
+  // FR-CK-05: nothing personal is stored before the privacy notice is accepted.
+  if (user.privacyConsentVersion !== PRIVACY_NOTICE_VERSION)
+    throw new OnboardingError("Accept the privacy notice first.");
   if (user.studentProfile) throw new OnboardingError("Your student profile is already set up.");
-  if (!group) throw new OnboardingError("That class group no longer exists.");
   if (!semester) throw new OnboardingError("No semester is open yet. Ask your coordinator.");
-  const taken = await prisma.studentProfile.findUnique({
-    where: { studentNumber: input.studentNumber },
-    select: { id: true },
-  });
-  if (taken) throw new OnboardingError("That student number is already registered.");
+  if (!group) throw new OnboardingError("Choose a class group that has an adviser this semester.");
+  if (taken) throw new OnboardingError(STUDENT_NUMBER_TAKEN);
   const requiredHours = await requiredHoursFor(group.program);
 
-  return prisma.$transaction(async (tx) => {
-    const profile = await createStudentProfile(tx, {
-      userId,
-      studentNumber: input.studentNumber,
-      program: group.program,
-      classGroupId: group.id,
-      semesterId: semester.id,
-      requiredHours,
-    });
-    await logEvent(
-      {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const profile = await createStudentProfile(tx, {
         userId,
-        action: "STUDENT_SELF_ONBOARDED",
-        entityType: "User",
-        entityId: userId,
-        detail: { studentNumber: input.studentNumber, classGroupId: group.id },
-      },
-      tx
-    );
-    return { studentProfileId: profile.id };
-  });
+        studentNumber: input.studentNumber,
+        program: group.program,
+        classGroupId: group.id,
+        semesterId: semester.id,
+        requiredHours,
+      });
+      await logEvent(
+        {
+          userId,
+          action: "STUDENT_SELF_ONBOARDED",
+          entityType: "User",
+          entityId: userId,
+          detail: { studentNumber: input.studentNumber, classGroupId: group.id },
+        },
+        tx
+      );
+      return { studentProfileId: profile.id };
+    });
+  } catch (error) {
+    // Lost a race for the same number (two tabs, or an import running at the same moment).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new OnboardingError(STUDENT_NUMBER_TAKEN);
+    }
+    throw error;
+  }
 }
+
+const STUDENT_NUMBER_TAKEN = "That student number is already registered.";
 
 // A message written for the student, shown as-is on the onboarding form.
 export class OnboardingError extends Error {

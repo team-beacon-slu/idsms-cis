@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { Role } from "@prisma/client";
+import type { User } from "next-auth";
 import type { Adapter, AdapterUser } from "next-auth/adapters";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
@@ -35,6 +36,12 @@ export function betaGoogleProvider() {
     // safe here because Google has verified the address inside SLU's own domain.
     allowDangerousEmailAccountLinking: true,
     authorization: { params: { hd: SLU_DOMAIN, prompt: "select_account" } },
+    // One spelling everywhere: the signIn gate, the adapter's lookup and the stored row.
+    // (Cast: role and the account flags are set by withBetaGoogleUsers, not by Google.)
+    profile(p) {
+      const email = String(p.email).toLowerCase();
+      return { id: p.sub, name: p.name, email, image: p.picture } as unknown as User;
+    },
   });
 }
 

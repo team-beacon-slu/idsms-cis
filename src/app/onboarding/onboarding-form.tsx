@@ -50,6 +50,11 @@ export function OnboardingForm({
           Signed in as {email}. Two details and you are in: your student number and your class
           group.
         </CardDescription>
+        {/* Google newcomers become student accounts; staff accounts are made by an admin. */}
+        <p className="text-sm text-foreground/80">
+          Faculty or staff? Don&apos;t continue: ask the department coordinator to set up your
+          account.
+        </p>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-4" noValidate>

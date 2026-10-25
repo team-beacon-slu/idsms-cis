@@ -4,6 +4,8 @@ import { Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { AuthShell } from "@/components/auth-shell";
+import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
+import { PrivacyConsentDialog } from "@/app/(dashboard)/_components/privacy-consent-dialog";
 import { OnboardingForm } from "./onboarding-form";
 
 export const metadata: Metadata = { title: "Set up your profile" };
@@ -15,13 +17,22 @@ export default async function OnboardingPage() {
   if (user.role !== Role.STUDENT_INTERN) redirect("/");
   const [profile, groups] = await Promise.all([
     prisma.studentProfile.findUnique({ where: { userId: user.id }, select: { id: true } }),
+    // Groups an adviser holds this semester only (the service enforces the same rule).
     prisma.classGroup.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, facultyGroups: { some: { semester: { isActive: true } } } },
       orderBy: [{ program: "asc" }, { name: "asc" }],
       select: { id: true, name: true, program: true },
     }),
   ]);
   if (profile) redirect("/");
+  // FR-CK-05: the privacy notice comes before anything personal is asked or stored.
+  if (user.privacyConsentVersion !== PRIVACY_NOTICE_VERSION) {
+    return (
+      <AuthShell>
+        <PrivacyConsentDialog />
+      </AuthShell>
+    );
+  }
   return (
     <AuthShell>
       <OnboardingForm

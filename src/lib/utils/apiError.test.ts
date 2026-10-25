@@ -40,3 +40,12 @@ describe("compliance errors", () => {
     expect(await res.json()).toEqual({ error: "Not found" });
   });
 });
+
+it("maps a malformed JSON body to 400, not a server error", async () => {
+  const parseError = await Promise.resolve()
+    .then(() => JSON.parse("{bad"))
+    .catch((e: unknown) => e);
+  const res = handleApiError(parseError);
+  expect(res.status).toBe(400);
+  await expect(res.json()).resolves.toEqual({ error: "Malformed JSON body" });
+});

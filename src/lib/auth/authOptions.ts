@@ -42,6 +42,8 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/login",
+    // Refused or failed OAuth sign-ins come back here with ?error=, not to next-auth's page.
+    error: "/login",
   },
   providers: [
     CredentialsProvider({
