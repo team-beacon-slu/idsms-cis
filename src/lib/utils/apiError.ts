@@ -34,6 +34,7 @@ import {
   ScheduleNotConfiguredError,
   WorkPlanNotApprovedError,
 } from "@/lib/services/attendance/attendanceService";
+import { LearningJournalError } from "@/lib/services/reports/monthlyReportService";
 import { SemesterStateError } from "@/lib/services/academic/semesterService";
 import { ClassGroupStateError } from "@/lib/services/academic/classGroupService";
 import {
@@ -67,6 +68,7 @@ const BAD_REQUEST_ERRORS = [
   EndorsementDataIncompleteError,
   FinalReportLockedError,
   AiConfigError,
+  LearningJournalError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {

@@ -178,25 +178,25 @@ model Session {
 // ── Core domain tables ──────────────────────────────────────────────────
 
 model User {
-  holidaysAdded HolidayCalendarEntry[] @relation("HolidayCreatedBy")
-  id                    String    @id @default(uuid()) @db.Uuid
-  email                 String    @unique
-  hashedPassword        String    @map("hashed_password")
+  holidaysAdded         HolidayCalendarEntry[] @relation("HolidayCreatedBy")
+  id                    String                 @id @default(uuid()) @db.Uuid
+  email                 String                 @unique
+  hashedPassword        String                 @map("hashed_password")
   role                  Role
-  isActive              Boolean   @default(true) @map("is_active")
-  mustResetPassword     Boolean   @default(true) @map("must_reset_password")
-  failedLoginAttempts   Int       @default(0) @map("failed_login_attempts")
-  lockedUntil           DateTime? @map("locked_until")
+  isActive              Boolean                @default(true) @map("is_active")
+  mustResetPassword     Boolean                @default(true) @map("must_reset_password")
+  failedLoginAttempts   Int                    @default(0) @map("failed_login_attempts")
+  lockedUntil           DateTime?              @map("locked_until")
   // FR-CK-05: null until the user agrees to the privacy notice; a new version asks again.
-  privacyConsentAt      DateTime? @map("privacy_consent_at") @db.Timestamptz
-  privacyConsentVersion String?   @map("privacy_consent_version")
+  privacyConsentAt      DateTime?              @map("privacy_consent_at") @db.Timestamptz
+  privacyConsentVersion String?                @map("privacy_consent_version")
   // Display name for staff (students' legal name lives on student_profiles.full_name).
-  fullName              String?   @map("full_name")
+  fullName              String?                @map("full_name")
   // ai-assist-plan step 6: each person can turn AI hints off for themselves.
-  aiAssist              Boolean   @default(true) @map("ai_assist")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  deletedAt             DateTime? @map("deleted_at")
+  aiAssist              Boolean                @default(true) @map("ai_assist")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  deletedAt             DateTime?              @map("deleted_at")
 
   accounts               Account[]
   sessions               Session[]
@@ -247,6 +247,8 @@ model StudentProfile {
   // FR-DG-01 endorsement letter needs the student's legal name; the users
   // table only holds an email. Nullable — set from the profile page.
   fullName              String?   @map("full_name")
+  // Office/department at the host company, printed on the JLE and technical report (021).
+  office                String?
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   // Checklist & MOA settings: the adviser may let an intern start before the MOA is approved.
@@ -272,6 +274,7 @@ model StudentProfile {
   weeklyReports        WeeklyReport[]
   generatedDocuments   GeneratedDocument[]
   holidayOverrides     HolidayCalendarEntry[]
+  learningJournals     LearningJournal[]
 
   // classGroupId/semesterId are pre-existing Phase 0 gaps (Postgres never
   // auto-indexes FK columns) left alone here; companyId and classGroupId are
@@ -357,6 +360,20 @@ model Company {
 
 // The intern's evaluation of their host company, one per intern, opened once
 // all required hours are confirmed (migration 019). Ratings are 1–5.
+// SLU Journal on Learning Experience: the intern's narrative for one month (021).
+model LearningJournal {
+  id               String   @id @default(uuid()) @db.Uuid
+  studentProfileId String   @map("student_profile_id") @db.Uuid
+  month            String // "YYYY-MM"
+  narrative        String   @default("")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([studentProfileId, month])
+  @@map("learning_journals")
+}
+
 model CompanyEvaluation {
   id               String   @id @default(uuid()) @db.Uuid
   studentProfileId String   @unique @map("student_profile_id") @db.Uuid

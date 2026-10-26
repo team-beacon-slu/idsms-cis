@@ -1,10 +1,8 @@
-import { WeeklyReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { MonthlyReportDocumentData } from "@/lib/documents/monthlyReportTemplate";
-import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
+import { displayNameFromEmail } from "@/lib/utils/displayName";
 
-// Same overlap rule as monthlyReportService.checkMonthlyAggregationEligibility:
-// a week counts toward every calendar month it touches.
+// The month's Journal on Learning Experience: the intern's narrative and office.
 export async function loadMonthlyReportDocumentData(
   generatedDocumentId: string,
   referenceCode: string
@@ -16,42 +14,18 @@ export async function loadMonthlyReportDocumentData(
       periodLabel: true,
       studentProfileId: true,
       studentProfile: {
-        select: {
-          studentNumber: true,
-          program: true,
-          positionTitle: true,
-          requiredHours: true,
-          user: { select: { email: true } },
-          company: { select: { name: true, supervisorName: true } },
-        },
+        select: { fullName: true, office: true, user: { select: { email: true } } },
       },
     },
   });
   if (!doc?.periodLabel) return null;
 
-  const [year, month] = doc.periodLabel.split("-").map(Number);
-  const monthStart = new Date(Date.UTC(year, month - 1, 1));
-  const monthEnd = new Date(Date.UTC(year, month, 1) - 1);
-
-  const weeks = await prisma.weeklyReport.findMany({
+  const journal = await prisma.learningJournal.findUnique({
     where: {
-      studentProfileId: doc.studentProfileId,
-      weekStart: { lte: monthEnd },
-      weekEnd: { gte: monthStart },
+      studentProfileId_month: { studentProfileId: doc.studentProfileId, month: doc.periodLabel },
     },
-    orderBy: { weekStart: "asc" },
-    select: {
-      weekStart: true,
-      weekEnd: true,
-      status: true,
-      totalHours: true,
-      dailyEntries: { select: { reportDate: true, ...CREDITED_HOURS_SELECT } },
-    },
+    select: { narrative: true },
   });
-  // A week that straddles two months adds only its in-month days to each month's figure.
-  const inMonth = (d: Date) => d >= monthStart && d <= monthEnd;
-
-  const approved = new Set<string>([WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED]);
   const profile = doc.studentProfile;
 
   return {
@@ -61,23 +35,9 @@ export async function loadMonthlyReportDocumentData(
     referenceCode,
     generatedAt: new Date(),
     student: {
-      email: profile.user.email,
-      studentNumber: profile.studentNumber,
-      program: profile.program,
-      positionTitle: profile.positionTitle,
-      requiredHours: profile.requiredHours,
+      name: profile.fullName?.trim() || displayNameFromEmail(profile.user.email),
+      office: profile.office,
     },
-    company: profile.company,
-    weeks: weeks.map((w) => ({
-      weekStart: w.weekStart,
-      weekEnd: w.weekEnd,
-      status: w.status,
-      totalHours: Number(w.totalHours),
-    })),
-    approvedHours: sumCreditedHours(
-      weeks
-        .filter((w) => approved.has(w.status))
-        .flatMap((w) => w.dailyEntries.filter((e) => inMonth(e.reportDate)))
-    ),
+    narrative: journal?.narrative ?? "",
   };
 }
