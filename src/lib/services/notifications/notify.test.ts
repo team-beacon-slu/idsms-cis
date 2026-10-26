@@ -160,7 +160,7 @@ it("records a FAILED email and logs when production has no Resend configured", a
     data: expect.objectContaining({ channel: "EMAIL", status: "FAILED" }),
   });
   expect(console.error).toHaveBeenCalledWith(
-    expect.stringContaining("Resend is not configured"),
+    expect.stringContaining("no email service is configured"),
     expect.anything()
   );
 });
