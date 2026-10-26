@@ -5,13 +5,13 @@ import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { connectionFor, runJob } from "@/lib/ai/jobs";
 import { chatJson } from "@/lib/services/ai/aiService";
-import { buildPrompt } from "@/lib/ai/guard";
+import { buildPrompt, entryId } from "@/lib/ai/guard";
 import { normalizeCompanyName } from "@/lib/services/predeployment/companyService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 const MAX_COMPANIES = 250;
 const answerSchema = z.object({
-  pairs: z.array(z.tuple([z.number().int(), z.number().int()])).max(40),
+  pairs: z.array(z.tuple([entryId, entryId])).max(40),
 });
 
 // Job 12: pairs the name rules miss ("ABC Corp" and "A.B.C. Corporation"). Company names

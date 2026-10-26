@@ -59,7 +59,7 @@ export const GEMINI_DEFAULT: AiConnection = {
   provider: "gemini",
   keyEnv: "GEMINI_API_KEY",
   embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001",
-  chatModel: process.env.GEMINI_SENTIMENT_MODEL || "gemini-3.8-flash",
+  chatModel: process.env.GEMINI_SENTIMENT_MODEL || "gemini-3.5-flash-lite",
 };
 
 export async function getConnections(): Promise<AiConnections> {

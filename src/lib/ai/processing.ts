@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { chatJson, embedTexts } from "@/lib/services/ai/aiService";
 import { getAiSettings } from "@/lib/ai/settings";
 import { allJobStatuses, markEmbeddedWith, runJob, type JobId } from "@/lib/ai/jobs";
-import { buildPrompt, isAddressedToAi, verifiedQuote } from "@/lib/ai/guard";
+import { buildPrompt, entryId, isAddressedToAi, oneObject, verifiedQuote } from "@/lib/ai/guard";
 import { getLatestSubmission } from "@/lib/services/reports/weeklyReportService";
 import type { AiConnection } from "@/lib/ai/connections";
 
@@ -228,7 +228,7 @@ async function planCoverage(
   return { missing, weeks: COVERAGE_WEEKS };
 }
 
-const toneSchema = z.object({ id: z.number().int().nullable(), quote: z.string().nullable() });
+const toneSchema = oneObject(z.object({ id: entryId.nullable(), quote: z.string().nullable() }));
 
 // Job 2: one phrase worth a look (stress, safety, being mistreated, being idle), quoted
 // exactly; or nothing. Never a score, never shown to the intern.
@@ -252,7 +252,7 @@ async function toneHint(
 }
 
 const summarySchema = z.object({
-  quotes: z.array(z.object({ id: z.number().int(), quote: z.string() })).max(5),
+  quotes: z.array(z.object({ id: entryId, quote: z.string() })).max(5),
 });
 
 // Job 1: 2–3 of the intern's own sentences, each linked to its day. No new prose.

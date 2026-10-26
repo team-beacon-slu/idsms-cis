@@ -4,7 +4,7 @@ import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { connectionFor, runJob } from "@/lib/ai/jobs";
 import { chatJson } from "@/lib/services/ai/aiService";
-import { buildPrompt, isAddressedToAi } from "@/lib/ai/guard";
+import { buildPrompt, entryId, isAddressedToAi } from "@/lib/ai/guard";
 import { QUESTIONS, QUESTION_IDS, vagueDays, type QuestionId } from "@/lib/ai/clarity";
 import { handleApiError } from "@/lib/utils/apiError";
 
@@ -20,7 +20,7 @@ const bodySchema = z.object({
     .max(7),
 });
 const answerSchema = z.object({
-  days: z.array(z.object({ id: z.number().int(), questions: z.array(z.string()).max(2) })),
+  days: z.array(z.object({ id: entryId, questions: z.array(z.string()).max(2) })),
 });
 
 // Job 8 with the model: a second look that only picks from the same fixed questions. The
