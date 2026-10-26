@@ -24,7 +24,7 @@ export function contentSecurityPolicy(nonce: string, isDev: boolean): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
-    "font-src 'self'",
+    "font-src 'self' data:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

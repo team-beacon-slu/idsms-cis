@@ -144,7 +144,9 @@ export function verifyDownloadSig(bucket: string, path: string, exp: number, sig
 export async function getSignedUrl(
   bucket: string,
   path: string,
-  expiresInSeconds = 300
+  expiresInSeconds = 300,
+  // Saves under this name (an SLU file name) instead of opening inline under the key.
+  downloadAs?: string
 ): Promise<string> {
   if (STORAGE_DRIVER === "s3") {
     const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
@@ -153,13 +155,14 @@ export async function getSignedUrl(
       k: path,
       exp: String(exp),
       sig: signDownload(bucket, path, exp),
+      ...(downloadAs ? { n: downloadAs } : {}),
     });
     // Absolute, because NextResponse.redirect (deviation proofs) rejects relative URLs.
     return new URL(`/api/storage/download?${qs}`, process.env.NEXTAUTH_URL).toString();
   }
   const { data, error } = await supabaseAdmin!.storage
     .from(bucket)
-    .createSignedUrl(path, expiresInSeconds);
+    .createSignedUrl(path, expiresInSeconds, downloadAs ? { download: downloadAs } : undefined);
 
   if (error || !data) {
     throw new InvalidFileError(error?.message ?? "Failed to create signed URL");

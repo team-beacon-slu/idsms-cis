@@ -68,8 +68,6 @@ const submitted = {
   },
   company: null,
   entries: [],
-  overtime: [],
-  undertime: [],
   totals: { totalHours: 0, runningTotal: 0, remainingHours: 600, beginning: 0, ending: 0 },
 };
 

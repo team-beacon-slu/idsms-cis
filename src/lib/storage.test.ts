@@ -172,7 +172,7 @@ describe("getSignedUrl", () => {
     const url = await getSignedUrl(CHECKLIST_BUCKET, "profile-1/x.pdf");
 
     expect(url).toBe("https://signed.example/x");
-    expect(mockCreateSignedUrl).toHaveBeenCalledWith("profile-1/x.pdf", 300);
+    expect(mockCreateSignedUrl).toHaveBeenCalledWith("profile-1/x.pdf", 300, undefined);
   });
 
   it("respects a custom expiry", async () => {
@@ -183,7 +183,20 @@ describe("getSignedUrl", () => {
 
     await getSignedUrl(CHECKLIST_BUCKET, "profile-1/x.pdf", 60);
 
-    expect(mockCreateSignedUrl).toHaveBeenCalledWith("profile-1/x.pdf", 60);
+    expect(mockCreateSignedUrl).toHaveBeenCalledWith("profile-1/x.pdf", 60, undefined);
+  });
+
+  it("asks Storage to save the file under an SLU name when given one", async () => {
+    mockCreateSignedUrl.mockResolvedValue({
+      data: { signedUrl: "https://signed.example/x" },
+      error: null,
+    });
+
+    await getSignedUrl(CHECKLIST_BUCKET, "weekly/p/wr.pdf", 300, "WWR01 DelaCruzJuan.pdf");
+
+    expect(mockCreateSignedUrl).toHaveBeenCalledWith("weekly/p/wr.pdf", 300, {
+      download: "WWR01 DelaCruzJuan.pdf",
+    });
   });
 
   it("throws InvalidFileError when Storage returns an error", async () => {
