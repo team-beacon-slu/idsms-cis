@@ -8,6 +8,7 @@ import { CheckCircle2, CircleDashed, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { generatePdfInBackground, ReportPdfActions } from "../weekly-reports/report-pdf-actions";
+import { JournalEditor, MIN_JOURNAL_CHARS } from "./journal-editor";
 
 // FR-WR-08 — Owner: AndresBonifaci0 (Matt)
 // Requirement: eligibility status, a submit action, and a read-only rollup
@@ -32,6 +33,7 @@ export interface MonthRollup {
   calendarMonth: string; // "YYYY-MM"
   eligible: boolean;
   submitted: { id: string; status: string } | null;
+  narrative: string; // the month's saved Journal on Learning Experience
   weeklyReports: {
     id: string;
     weekStart: string;
@@ -62,10 +64,12 @@ export function MonthlyReportView({
   studentProfileId,
   months,
   canSubmit,
+  office,
 }: {
   studentProfileId: string;
   months: MonthRollup[];
   canSubmit: boolean;
+  office: string;
 }) {
   const router = useRouter();
   const [pendingMonth, setPendingMonth] = useState<string | null>(null);
@@ -81,7 +85,7 @@ export function MonthlyReportView({
       toast.error(res.error);
       return;
     }
-    toast.success(`${monthLabel(calendarMonth)} monthly report submitted`);
+    toast.success(`${monthLabel(calendarMonth)} journal submitted`);
     router.refresh();
     // Module 8: render the PDF in the background; a failure shows as
     // "Regenerate PDF" instead of failing the submission.
@@ -98,7 +102,7 @@ export function MonthlyReportView({
         className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground"
       >
         <CircleDashed className="size-5" aria-hidden="true" />
-        <p>No weekly reports yet — monthly reports roll up approved weekly reports.</p>
+        <p>No weekly reports yet. Each month you report for duty gets a journal here.</p>
       </div>
     );
   }
@@ -135,17 +139,23 @@ export function MonthlyReportView({
               ) : canSubmit ? (
                 <Button
                   size="sm"
-                  disabled={!month.eligible || pendingMonth === month.calendarMonth}
+                  disabled={
+                    !month.eligible ||
+                    month.narrative.trim().length < MIN_JOURNAL_CHARS ||
+                    pendingMonth === month.calendarMonth
+                  }
                   onClick={() => submit(month.calendarMonth)}
                   title={
-                    month.eligible
-                      ? undefined
-                      : "Every week this month needs an Approved or Regarded weekly report first"
+                    !month.eligible
+                      ? "Every week this month needs an Approved or Regarded weekly report first"
+                      : month.narrative.trim().length < MIN_JOURNAL_CHARS
+                        ? "Write and save this month's journal first"
+                        : undefined
                   }
                   className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
                 >
                   <Send className="size-3.5" aria-hidden="true" />
-                  {pendingMonth === month.calendarMonth ? "Submitting..." : "Submit monthly report"}
+                  {pendingMonth === month.calendarMonth ? "Submitting..." : "Submit journal"}
                 </Button>
               ) : null}
             </div>
@@ -156,6 +166,14 @@ export function MonthlyReportView({
                 weekly report in it approved or regarded by your faculty adviser.
               </p>
             )}
+
+            <JournalEditor
+              studentProfileId={studentProfileId}
+              calendarMonth={month.calendarMonth}
+              initialNarrative={month.narrative}
+              initialOffice={office}
+              readOnly={!canSubmit || month.submitted !== null}
+            />
 
             <ul className="divide-y rounded-md border text-sm">
               {month.weeklyReports.map((report) => (

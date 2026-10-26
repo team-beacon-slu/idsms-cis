@@ -209,10 +209,8 @@ describe("generateMonthlyReportPdf", () => {
       calendarMonth: "2026-09",
       referenceCode: "MR-202609-ABCD1234",
       generatedAt: new Date("2026-10-11T02:00:00Z"),
-      student: submitted.student,
-      company: null,
-      weeks: [],
-      approvedHours: 0,
+      student: { name: "Dela Cruz, Juan P.", office: null },
+      narrative: "I learned.",
     });
     render.mockResolvedValue(Buffer.from("%PDF"));
     upload.mockResolvedValue("monthly/p-1/2026-09.pdf");

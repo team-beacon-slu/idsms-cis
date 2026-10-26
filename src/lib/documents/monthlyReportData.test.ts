@@ -3,40 +3,32 @@ import { loadMonthlyReportDocumentData } from "@/lib/documents/monthlyReportData
 
 beforeEach(() => resetPrismaMock());
 
-const day = (iso: string) => ({
-  reportDate: new Date(`${iso}T00:00:00Z`),
-  creditedHours: 8,
-  actualHours: 8,
-  scheduledHours: 8,
-  attendanceStatus: "PRESENT",
+const doc = (fullName: string | null) => ({
+  id: "doc-1",
+  periodLabel: "2026-07",
+  studentProfileId: "p-1",
+  studentProfile: { fullName, office: "IT Office", user: { email: "juan.delacruz@slu.edu.ph" } },
 });
 
-it("counts only the days inside the month for a week that straddles two months", async () => {
-  prismaMock.generatedDocument.findUnique.mockResolvedValue({
-    id: "doc-1",
-    periodLabel: "2026-07",
-    studentProfileId: "p-1",
-    studentProfile: {
-      studentNumber: "2026-00123",
-      program: "BSIT",
-      positionTitle: null,
-      requiredHours: 486,
-      user: { email: "intern@slu.edu.ph" },
-      company: null,
-    },
-  } as never);
-  prismaMock.weeklyReport.findMany.mockResolvedValue([
-    {
-      weekStart: new Date("2026-06-29T00:00:00Z"),
-      weekEnd: new Date("2026-07-05T00:00:00Z"),
-      status: "APPROVED",
-      totalHours: 40,
-      dailyEntries: ["2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03"].map(day),
-    },
-  ] as never);
+it("loads the month's journal, name and office", async () => {
+  prismaMock.generatedDocument.findUnique.mockResolvedValue(doc("Dela Cruz, Juan P.") as never);
+  prismaMock.learningJournal.findUnique.mockResolvedValue({ narrative: "I learned." } as never);
 
-  const data = await loadMonthlyReportDocumentData("doc-1", "MR-1");
+  const data = (await loadMonthlyReportDocumentData("doc-1", "MR-1"))!;
 
-  // Jul 1-3 at 8 hours each; the two June days belong to June's report.
-  expect(data?.approvedHours).toBe(24);
+  expect(data.narrative).toBe("I learned.");
+  expect(data.student).toEqual({ name: "Dela Cruz, Juan P.", office: "IT Office" });
+  expect(prismaMock.learningJournal.findUnique).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { studentProfileId_month: { studentProfileId: "p-1", month: "2026-07" } },
+    })
+  );
+});
+
+it("names the intern from the school email when no full name is set", async () => {
+  prismaMock.generatedDocument.findUnique.mockResolvedValue(doc(null) as never);
+  prismaMock.learningJournal.findUnique.mockResolvedValue(null);
+  const data = (await loadMonthlyReportDocumentData("doc-1", "MR-1"))!;
+  expect(data.student.name).toBe("Delacruz, Juan");
+  expect(data.narrative).toBe("");
 });

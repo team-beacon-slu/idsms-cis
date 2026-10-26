@@ -138,6 +138,17 @@ export async function submitMonthlyReport(
       return { generatedDocumentId: existing.id, calendarMonth };
     }
 
+    // The monthly report is SLU's Journal on Learning Experience: no journal, nothing to submit.
+    const journal = await tx.learningJournal.findUnique({
+      where: { studentProfileId_month: { studentProfileId, month: calendarMonth } },
+      select: { narrative: true },
+    });
+    if ((journal?.narrative.trim().length ?? 0) < MIN_JOURNAL_CHARS) {
+      throw new LearningJournalError(
+        `Write your Journal on Learning Experience for this month first (at least ${MIN_JOURNAL_CHARS} characters)`
+      );
+    }
+
     const generatedDocument = await tx.generatedDocument.create({
       data: {
         studentProfileId,
@@ -159,6 +170,50 @@ export async function submitMonthlyReport(
     );
 
     return { generatedDocumentId: generatedDocument.id, calendarMonth };
+  });
+}
+
+export const MIN_JOURNAL_CHARS = 200;
+
+export class LearningJournalError extends Error {}
+
+// SLU JLE (OJT Documentation Guidelines): the intern's own narrative for a month, plus
+// the office it prints under (kept on the profile, shared with the technical report).
+// Editable until the month's report is submitted.
+export async function saveLearningJournal(
+  studentProfileId: string,
+  calendarMonth: string,
+  input: { narrative: string; office: string }
+) {
+  const submitted = await prisma.generatedDocument.findFirst({
+    where: {
+      studentProfileId,
+      documentType: DocumentType.MONTHLY_REPORT,
+      periodLabel: calendarMonth,
+    },
+    select: { id: true },
+  });
+  if (submitted) {
+    throw new LearningJournalError("This month's journal is already submitted");
+  }
+  const [journal] = await prisma.$transaction([
+    prisma.learningJournal.upsert({
+      where: { studentProfileId_month: { studentProfileId, month: calendarMonth } },
+      create: { studentProfileId, month: calendarMonth, narrative: input.narrative },
+      update: { narrative: input.narrative },
+    }),
+    prisma.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { office: input.office || null },
+    }),
+  ]);
+  return journal;
+}
+
+export async function listLearningJournals(studentProfileId: string) {
+  return prisma.learningJournal.findMany({
+    where: { studentProfileId },
+    select: { month: true, narrative: true },
   });
 }
 
