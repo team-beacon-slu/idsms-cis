@@ -35,6 +35,32 @@ import {
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
+function RatingList({
+  title,
+  items,
+  start,
+}: {
+  title: string;
+  items: { label: string; average: number }[];
+  start: number;
+}) {
+  return (
+    <div className="space-y-1">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase">{title}</h3>
+      <dl className="divide-y rounded-lg border border-border">
+        {items.map((a, i) => (
+          <div key={i} className="flex items-start justify-between gap-4 p-3">
+            <dt className="text-sm">
+              {start + i}. {a.label}
+            </dt>
+            <dd className="text-sm font-semibold tabular-nums">{a.average}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3">
@@ -253,24 +279,41 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
               {feedback.ratings ? (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Average of {feedback.ratings.count} evaluations, 1 (very poor) to 5 (very good).
+                    Averages of {feedback.ratings.count} FM-VAA-052 evaluations, 4 (advanced /
+                    highly satisfactory) to 1 (low / not satisfactory).
                   </p>
-                  <dl className="divide-y rounded-lg border border-border">
-                    {feedback.ratings.averages.map((a) => (
-                      <div key={a.key} className="flex items-center justify-between gap-4 p-3">
-                        <dt className="text-sm">{a.label}</dt>
-                        <dd className="text-sm font-semibold tabular-nums">{a.average}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {feedback.ratings.comments.length > 0 && (
-                    <ul className="space-y-2">
-                      {feedback.ratings.comments.map((c, i) => (
-                        <li key={i} className="rounded-lg bg-muted/40 p-3 text-sm">
-                          {c}
-                        </li>
-                      ))}
-                    </ul>
+                  <RatingList
+                    title="Obligations as per CMO No. 104 S. 2017"
+                    items={feedback.ratings.obligations}
+                    start={1}
+                  />
+                  <RatingList
+                    title="Internship quality"
+                    items={feedback.ratings.quality}
+                    start={17}
+                  />
+                  {(
+                    [
+                      ["What interns liked most", feedback.ratings.comments.liked],
+                      ["What the company could improve", feedback.ratings.comments.improve],
+                      ["Other comments", feedback.ratings.comments.comment],
+                    ] as const
+                  ).map(
+                    ([title, list]) =>
+                      list.length > 0 && (
+                        <div key={title} className="space-y-2">
+                          <h3 className="text-xs font-semibold text-muted-foreground uppercase">
+                            {title}
+                          </h3>
+                          <ul className="space-y-2">
+                            {list.map((c, i) => (
+                              <li key={i} className="rounded-lg bg-muted/40 p-3 text-sm">
+                                {c}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )
                   )}
                 </>
               ) : (
