@@ -30,6 +30,8 @@ import {
   PanelLeftOpen,
   X,
   type LucideIcon,
+  Inbox,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark, BrandTile } from "@/components/brand-mark";
@@ -97,7 +99,14 @@ export function getNavGroups(role: Role): NavGroup[] {
   }
   if (role === "FACULTY_ADVISER") {
     return [
-      { items: [...home.items, { href: "/my-students", label: "My students", icon: Users }] },
+      {
+        items: [
+          ...home.items,
+          { href: "/my-students", label: "My students", icon: Users },
+          { href: "/review-queue", label: "Review queue", icon: Inbox },
+          { href: "/search", label: "Search entries", icon: Search },
+        ],
+      },
       REFERENCE,
     ];
   }
@@ -110,6 +119,7 @@ export function getNavGroups(role: Role): NavGroup[] {
         { href: "/class-groups", label: "Class groups", icon: UsersRound },
         { href: "/semesters", label: "Semesters", icon: CalendarRange },
         { href: "/final-reports", label: "Final reports", icon: BookOpenCheck },
+        { href: "/search", label: "Search entries", icon: Search },
       ],
     },
   ];
@@ -249,9 +259,11 @@ export function DashboardNav({
   role,
   name,
   email,
+  aiAssist,
   initialCollapsed = false,
 }: {
   role: Role;
+  aiAssist: boolean;
   /** displayName(): legal name, display name, or email. */
   name: string;
   email: string;
@@ -282,7 +294,10 @@ export function DashboardNav({
         </div>
         <NavLinks id="sidebar-nav" groups={groups} pathname={pathname} rail={rail} />
         <div className="flex flex-col gap-1 border-t border-sidebar-border p-3">
-          <AccountMenu identity={{ name, email, roleLabel: ROLE_LABEL[role] }} rail={rail} />
+          <AccountMenu
+            identity={{ name, email, roleLabel: ROLE_LABEL[role], aiAssist }}
+            rail={rail}
+          />
           <button
             type="button"
             onClick={toggleRail}

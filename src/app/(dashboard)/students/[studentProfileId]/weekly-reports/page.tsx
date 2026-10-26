@@ -23,6 +23,8 @@ import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, toDateKey } from "@/lib/utils/reportDeadline";
 import { ClipboardCheck, Hash, MessageSquareWarning } from "lucide-react";
 import { WeeklyReportForm } from "./weekly-report-form";
+import { jobsOnFor } from "@/lib/ai/jobs";
+import type { AiHints as AiHintsData } from "@/lib/ai/processing";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
 import type { Metadata } from "next";
@@ -64,7 +66,7 @@ export default async function WeeklyReportsPage(props: {
   }
 
   // Independent reads, loaded together rather than one after another.
-  const [reports, documents, conduct, shift, holidayList] = await Promise.all([
+  const [reports, documents, conduct, shift, holidayList, aiJobs] = await Promise.all([
     prisma.weeklyReport.findMany({
       where: { studentProfileId: params.studentProfileId },
       orderBy: { weekStart: "desc" },
@@ -81,6 +83,7 @@ export default async function WeeklyReportsPage(props: {
     }),
     loadShift(params.studentProfileId),
     getHolidayCalendarForStudent(params.studentProfileId),
+    jobsOnFor(user),
   ]);
   const holidays = Object.fromEntries(
     holidayList
@@ -96,6 +99,10 @@ export default async function WeeklyReportsPage(props: {
     ) / 100;
   const isOwner = user.role === "STUDENT_INTERN";
   const canReview = !isOwner;
+  // R5: interns see their own plan-coverage pointers (the newest week that has them).
+  const coverage = aiJobs.has("coverage")
+    ? reports.map((r) => (r.aiHints as AiHintsData | null)?.coverage).find((c) => c?.missing.length)
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -112,6 +119,27 @@ export default async function WeeklyReportsPage(props: {
             documents are never uploaded to IDSMS.
           </p>
         </details>
+      )}
+
+      {isOwner && coverage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Planned tasks not found in your entries</CardTitle>
+            <CardDescription>
+              AI assist compared your approved work plan with your last {coverage.weeks} weeks of
+              entries. &ldquo;Not found&rdquo; is not &ldquo;not done&rdquo;: if you did these,
+              describe them in your entries; if the company hasn&apos;t given you the work, raise it
+              with them. Disagree? Ask for a correction under Account settings › Your data.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc space-y-0.5 pl-5 text-sm text-foreground/85">
+              {coverage.missing.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
       {isOwner && (
@@ -254,6 +282,7 @@ export default async function WeeklyReportsPage(props: {
                       holidays={holidays}
                       weekEnd={report.weekEnd.toISOString()}
                       priorAccomplishments={priorAccomplishments}
+                      clarityAi={editable && aiJobs.has("clarity")}
                       totals={{
                         totalHours: Number(report.totalHours),
                         runningTotal: Number(report.runningTotal),

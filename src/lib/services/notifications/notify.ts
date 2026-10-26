@@ -28,7 +28,8 @@ export type NotificationTrigger =
   | "DSAR_REQUESTED"
   | "DSAR_FULFILLED"
   | "DSAR_DUE"
-  | "RETENTION_REVIEW";
+  | "RETENTION_REVIEW"
+  | "AI_JOB_OFF";
 
 export interface NotifyInput {
   userIds: string[];

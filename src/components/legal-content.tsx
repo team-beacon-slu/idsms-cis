@@ -90,9 +90,18 @@ export function PrivacyNoticeBody() {
         </p>
         <p>
           Service providers process data on SLU&apos;s behalf only to run the system: the server and
-          database host, and the email service that sends notifications. Optional AI checks on
-          report similarity are off unless the department turns them on after approving their
-          privacy basis; their results are advisory only and never decide a grade or approval.
+          database host, and the email service that sends notifications.
+        </p>
+        <p>
+          <strong>AI assist.</strong> When the department turns it on, AI reads the text of weekly
+          reports to give your adviser hints: a day very similar to an earlier one, planned tasks
+          not found in your entries, a short set of your own sentences, a phrase worth a look. It
+          never decides a grade, an approval or a deduction, and it never rewrites what you wrote.
+          Names, emails and phone numbers are removed before any text is sent. On the test (beta)
+          version, the text goes to Google Gemini; on SLU&apos;s own server, it stays on SLU
+          hardware. You can see your own plan-coverage pointers, ask for a correction through Your
+          data, and anyone can turn AI assist off for themselves under Account settings. Hints are
+          deleted with the report.
         </p>
       </Section>
       <Section title="Cookies and storage">
@@ -188,8 +197,9 @@ export function TermsBody() {
             upload harmful files.
           </li>
           <li>
-            AI checks, when turned on, only flag reports for a human to look at. They never decide a
-            grade, an approval or a penalty.
+            AI assist, when turned on, only points a human to what was written. It never decides a
+            grade, an approval or a penalty. Don&apos;t write instructions to the AI in your
+            entries: it ignores them and your adviser is shown that it happened.
           </li>
           <li>
             Misuse can lead to your account being suspended and to action under SLU policy and

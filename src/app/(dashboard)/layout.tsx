@@ -59,6 +59,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             studentName: profile?.fullName,
           })}
           email={user.email}
+          aiAssist={user.aiAssist}
           initialCollapsed={collapsed}
         />
       </div>

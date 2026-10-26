@@ -192,6 +192,8 @@ model User {
   privacyConsentVersion String?   @map("privacy_consent_version")
   // Display name for staff (students' legal name lives on student_profiles.full_name).
   fullName              String?   @map("full_name")
+  // ai-assist-plan step 6: each person can turn AI hints off for themselves.
+  aiAssist              Boolean   @default(true) @map("ai_assist")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   deletedAt             DateTime? @map("deleted_at")
@@ -207,6 +209,7 @@ model User {
   coordinatedWorkPlans   WorkPlan[]                   @relation("WorkPlanCoordinator")
   dataRequests           DataRequest[]                @relation("DataRequestRequester")
   fulfilledDataRequests  DataRequest[]                @relation("DataRequestFulfiller")
+  aiFeedback             AiFeedback[]
 
   @@map("users")
 }
@@ -455,6 +458,8 @@ model WeeklyReport {
   sentimentConfidence Decimal?           @map("sentiment_confidence") @db.Decimal(4, 3)
   sentimentReasoning  String?            @map("sentiment_reasoning") @db.Text // FR-AI-03 brief reasoning
   aiProcessedAt       DateTime?          @map("ai_processed_at")
+  // Nightly AI hints (lib/ai/hints.ts AiHints): similar day, tone quote, summary, coverage.
+  aiHints             Json?              @map("ai_hints")
 
   studentProfile StudentProfile     @relation(fields: [studentProfileId], references: [id])
   dailyEntries   DailyReportEntry[]
@@ -734,6 +739,23 @@ model HolidayCalendarEntry {
   @@index([companyId])
   @@index([createdById])
   @@map("holiday_calendar")
+}
+
+// R2: advisers' Correct / Not right ratings; 30% Not right of the last 50 switches a job off.
+model AiFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  job       String
+  targetId  String   @map("target_id")
+  userId    String   @map("user_id") @db.Uuid
+  correct   Boolean
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([job, targetId, userId])
+  @@index([job, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("ai_feedback")
 }
 
 model SystemConfig {

@@ -11,6 +11,7 @@ declare module "next-auth" {
       mustResetPassword: boolean;
       fullName: string | null;
       privacyConsentVersion: string | null;
+      aiAssist: boolean;
     };
   }
 
@@ -22,5 +23,6 @@ declare module "next-auth" {
     mustResetPassword: boolean;
     fullName?: string | null;
     privacyConsentVersion?: string | null;
+    aiAssist?: boolean;
   }
 }

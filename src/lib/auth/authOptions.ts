@@ -127,6 +127,7 @@ export const authOptions: NextAuthOptions = {
       session.user.mustResetPassword = user.mustResetPassword;
       // Already loaded with the session row, so the layout needs no extra query for them.
       session.user.fullName = user.fullName ?? null;
+      session.user.aiAssist = user.aiAssist !== false; // the person's own AI switch
       session.user.privacyConsentVersion = user.privacyConsentVersion ?? null;
       return session;
     },
