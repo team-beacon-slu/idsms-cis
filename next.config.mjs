@@ -34,6 +34,10 @@ const nextConfig = {
   // (hiberfil.sys, pagefile.sys, etc.), throwing noisy EINVAL Watchpack errors
   // on every `next dev` start. Pinning the root here stops the upward walk.
   outputFileTracingRoot: __dirname,
+  // Print fonts are read from disk by src/lib/documents/fonts.ts, which tracing can't see.
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@fontsource/{carlito,caladea,didact-gothic}/files/*-latin-*.woff2"],
+  },
   // Keep the headless-browser packages as runtime requires so webpack doesn't
   // try to bundle Chromium's binary/ESM internals.
   serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium"],

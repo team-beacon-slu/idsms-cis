@@ -1,16 +1,7 @@
-import { escapeHtml, formatInstant, PRINT_CSS } from "@/lib/documents/html";
+import { escapeHtml, formatInstant } from "@/lib/documents/html";
+import { samcisDocument, supervisorSignature } from "@/lib/documents/slu";
 import { clock } from "@/lib/utils/schedule";
 import { formatHrsMins } from "@/lib/utils/timeMath";
-
-// An OT or UT request printed in the report's optional sections.
-export interface TimeRow {
-  date: Date;
-  startTime: string | null;
-  endTime: string | null;
-  minutes: number;
-  reason: string;
-  pending?: boolean; // filed but not yet approved by the adviser
-}
 
 export interface WeeklyReportDocumentData {
   weeklyReportId: string;
@@ -45,8 +36,6 @@ export interface WeeklyReportDocumentData {
     holidayName: string | null;
     companyHoliday: boolean; // the host company's own day off, not a PH holiday
   }[];
-  overtime: TimeRow[];
-  undertime: TimeRow[];
   totals: {
     totalHours: number;
     runningTotal: number;
@@ -57,149 +46,101 @@ export interface WeeklyReportDocumentData {
   };
 }
 
-const HEADER = [
-  "School of Accountancy, Management, Computing and Information Studies",
-  "IT-MMA/CS-CAD Department",
-  "Saint Louis University, Baguio City",
-];
-
 const shortDate = (d: Date) =>
   d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-const dayLabel = (d: Date) =>
+export const dayLabel = (d: Date) =>
   `${shortDate(d)} (${d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })})`;
-const range = (a: string | null, b: string | null) =>
+export const timeRange = (a: string | null, b: string | null) =>
   a && b ? `${escapeHtml(clock(a))} – ${escapeHtml(clock(b))}` : "—";
 
-function signatureLine(supervisor: string | undefined) {
-  return `
-  <section class="signatures">
-    <div>${escapeHtml(supervisor)}<br />Supervisor (name and signature)</div>
-    <div>&nbsp;<br />Date signed</div>
-  </section>`;
-}
-
-// SLU Weekly Work Report layout (Workstream L1). Pure: same input → same HTML.
+// SLU Weekly Work Report (SAMCIS template, long bond). Pure: same input → same HTML.
+// Overtime, under time and absences print as their own reports (timeReportTemplate.ts).
 export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
   const isPreview = data.referenceCode === null;
-  const supervisor = data.company?.supervisorName;
 
   const rows = data.entries
     .map((e) => {
       let times: string;
       let hours: string;
       if (e.attendanceStatus === "HOLIDAY") {
-        times = `Holiday (${e.companyHoliday ? "Company" : "PH Calendar"})${e.holidayName ? `<br />${escapeHtml(e.holidayName)}` : ""}`;
-        hours = formatHrsMins(0);
+        times = `<strong>Holiday (${e.companyHoliday ? "Company" : "PH Calendar"})</strong>${e.holidayName ? `<br />${escapeHtml(e.holidayName)}` : ""}`;
+        hours = "0";
       } else if (e.attendanceStatus === "ABSENT") {
-        times = "Absent";
-        hours = formatHrsMins(0);
+        times = "<strong>Absent</strong>";
+        hours = "0";
       } else {
-        const second = e.timeIn2 && e.timeOut2 ? `<br />${range(e.timeIn2, e.timeOut2)}` : "";
-        times = `${range(e.timeIn, e.timeOut)}${second}`;
+        const second = e.timeIn2 && e.timeOut2 ? `<br />${timeRange(e.timeIn2, e.timeOut2)}` : "";
+        times = `${timeRange(e.timeIn, e.timeOut)}${second}`;
         hours = e.creditedHours == null ? "—" : formatHrsMins(e.creditedHours);
       }
       return `
       <tr>
         <td>${escapeHtml(dayLabel(e.reportDate))}</td>
         <td>${times}</td>
-        <td>${escapeHtml(hours)}</td>
+        <td class="num">${escapeHtml(hours)}</td>
         <td class="text">${escapeHtml(e.accomplishments)}</td>
       </tr>`;
     })
     .join("");
 
-  const timeRows = (list: TimeRow[]) =>
-    list
-      .map(
-        (r) => `
-      <tr>
-        <td>${escapeHtml(dayLabel(r.date))}</td>
-        <td>${range(r.startTime, r.endTime)}</td>
-        <td>${escapeHtml(formatHrsMins(r.minutes / 60))}</td>
-        <td class="text">${escapeHtml(r.pending ? `${r.reason} (pending adviser approval)` : r.reason)}</td>
-      </tr>`
-      )
-      .join("");
+  const total = (label: string, value: number, minus = false) => `
+      <tr class="total">
+        <td colspan="2" class="label">${label}</td>
+        <td class="num">${minus ? "−" : ""}${escapeHtml(formatHrsMins(value))}</td>
+        <td class="blank"></td>
+      </tr>`;
 
-  const overtime = data.overtime.length
-    ? `
-  <h2>Report on Overtime Hours</h2>
-  <table>
-    <thead><tr><th>Date</th><th>Time in – Time out</th><th>Hours Rendered</th><th>Remarks</th></tr></thead>
-    <tbody>${timeRows(data.overtime)}</tbody>
-  </table>
-  ${signatureLine(supervisor)}`
-    : "";
+  return samcisDocument(
+    `Weekly Work Report ${data.referenceCode ?? "Preview"}`,
+    `
+  <style>
+    tr.total td.label { border: none; text-align: right; }
+    tr.total td.blank { border: none; }
+    col.date { width: 1.6in; } col.times { width: 2.1in; } col.hours { width: 1.25in; }
+  </style>
+  <div class="title">
+    <h1>Weekly Work Report</h1>
+    <p>Week No. ${escapeHtml(data.weekNumber)} (${escapeHtml(shortDate(data.weekStart))} – ${escapeHtml(shortDate(data.weekEnd))}, ${data.weekEnd.getUTCFullYear()})</p>
+    ${isPreview ? '<p class="watermark">PREVIEW — NOT YET SUBMITTED</p>' : ""}
+  </div>
 
-  const utTotal = data.undertime.reduce((sum, r) => sum + r.minutes, 0);
-  const undertime = data.undertime.length
-    ? `
-  <h2>Report on UNDER TIME Hours</h2>
-  <table>
-    <thead><tr><th>Date</th><th>UNDERTIME HOURS</th><th>Total UT Hours</th><th>Remarks</th></tr></thead>
-    <tbody>${timeRows(data.undertime)}
-      <tr><td colspan="2"><strong>TOTAL UT Hours</strong></td><td><strong>${escapeHtml(formatHrsMins(utTotal / 60))}</strong></td><td></td></tr>
+  <div class="who">
+    <p>Name: <strong>${escapeHtml(data.student.name)}</strong></p>
+    <p><strong>Company</strong>: ${escapeHtml(data.company?.name)}</p>
+  </div>
+
+  <p style="margin-bottom: 0.25in">Detailed Time Record:</p>
+  <table class="grid">
+    <colgroup><col class="date" /><col class="times" /><col class="hours" /><col /></colgroup>
+    <thead><tr><th>Date (Day)</th><th>Actual Work Times</th><th>Hours Rendered</th><th>Work Accomplishment</th></tr></thead>
+    <tbody>${rows}
+      ${total("Total work-hours rendered", data.totals.totalHours)}
+      ${total("TOTAL work-hours (<u>beginning</u>)", data.totals.beginning)}
+      ${total("TOTAL rendered so far (<u>ending</u>)", data.totals.ending)}
+      ${data.totals.conductDeductions > 0 ? total("Less conduct deductions (to date)", data.totals.conductDeductions, true) : ""}
     </tbody>
   </table>
-  ${signatureLine(supervisor)}`
-    : "";
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Weekly Work Report ${escapeHtml(data.referenceCode ?? "Preview")}</title>
-<style>${PRINT_CSS}</style>
-</head>
-<body>
-  <header>
-    ${HEADER.map((line) => `<p class="eyebrow">${line}</p>`).join("")}
-    <h1>Weekly Work Report</h1>
-    <p class="period">Week No. ${escapeHtml(data.weekNumber)} (${escapeHtml(shortDate(data.weekStart))} – ${escapeHtml(shortDate(data.weekEnd))}, ${data.weekEnd.getUTCFullYear()})</p>
-    ${isPreview ? '<p class="watermark">PREVIEW — NOT YET SUBMITTED</p>' : ""}
-  </header>
-
-  <p>Name: ${escapeHtml(data.student.name)}</p>
-  <p>Company: ${escapeHtml(data.company?.name)}</p>
-  <p>Reference code: ${isPreview ? "Issued on submission" : escapeHtml(data.referenceCode)}</p>
-
-  <h2>Detailed Time Record</h2>
-  <table>
-    <thead><tr><th>Date (Day)</th><th>Actual Work Times</th><th>Hours Rendered</th><th>Work Accomplishment</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-
-  <dl class="totals">
-    <div><dt>Total work-hours rendered</dt><dd>${escapeHtml(formatHrsMins(data.totals.totalHours))}</dd></div>
-    <div><dt>TOTAL work-hours (beginning)</dt><dd>${escapeHtml(formatHrsMins(data.totals.beginning))}</dd></div>
-    <div><dt>TOTAL rendered so far (ending)</dt><dd>${escapeHtml(formatHrsMins(data.totals.ending))}</dd></div>
-    ${
-      data.totals.conductDeductions > 0
-        ? `<div><dt>Less conduct deductions (to date)</dt><dd>−${escapeHtml(formatHrsMins(data.totals.conductDeductions))}</dd></div>`
-        : ""
-    }
-  </dl>
 
   ${
     data.reasonForDelay
-      ? `<p><strong>Reason for late submission:</strong> ${escapeHtml(data.reasonForDelay)}</p>`
+      ? `<p style="margin-top: 0.2in"><strong>Reason for late submission:</strong> ${escapeHtml(data.reasonForDelay)}</p>`
       : ""
   }
 
-  ${signatureLine(supervisor)}
-  ${overtime}
-  ${undertime}
+  <div class="note" style="margin-top: 0.3in">
+    <p><strong><u>Note:</u></strong></p>
+    <ul style="margin: 0">
+      <li>An overtime is credited when the Intern has incurred at least 30 minutes of off-duty time. Less than the minimum time will not be credited.</li>
+      <li>Extending the hours to compensate for tardiness is impermissible.</li>
+    </ul>
+  </div>
 
-  <p class="note">An overtime is credited when the Intern has incurred at least 30 minutes of off-duty time. Less than the minimum time will not be credited.</p>
-  <p class="note">Extending the hours to compensate for tardiness is impermissible.</p>
+  ${supervisorSignature(data.company?.supervisorName)}
 
-  <footer>
-    ${
-      isPreview
-        ? "Preview generated by IDSMS-CIS"
-        : `${escapeHtml(data.referenceCode)} · submitted ${escapeHtml(formatInstant(data.submittedAt!))} · IDSMS-CIS`
-    }
-  </footer>
-</body>
-</html>`;
+  <p class="ref">${
+    isPreview
+      ? "Reference code: Issued on submission · Preview generated by IDSMS-CIS"
+      : `${escapeHtml(data.referenceCode)} · submitted ${escapeHtml(formatInstant(data.submittedAt!))} · IDSMS-CIS`
+  }</p>`
+  );
 }

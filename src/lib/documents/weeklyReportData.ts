@@ -1,4 +1,3 @@
-import { DeviationType, ValidationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
@@ -8,9 +7,32 @@ import {
 import { entryCreditedHours } from "@/lib/utils/creditedHours";
 import { displayNameFromEmail } from "@/lib/utils/displayName";
 import { getWeeklyReportDueDate, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";
-import type { TimeRow, WeeklyReportDocumentData } from "@/lib/documents/weeklyReportTemplate";
+import type { WeeklyReportDocumentData } from "@/lib/documents/weeklyReportTemplate";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Week 1 is faculty-defined per term; without it, the student's first report week is
+// Week 1. A week before the faculty's Week 1 (early starter) still prints as Week 1.
+export async function weekNumberOf(
+  studentProfileId: string,
+  weekStart: Date,
+  weekOneStart: Date | null
+): Promise<number> {
+  const weekOne =
+    weekOneStart ??
+    (
+      await prisma.weeklyReport.findFirst({
+        where: { studentProfileId },
+        orderBy: { weekStart: "asc" },
+        select: { weekStart: true },
+      })
+    )?.weekStart ??
+    weekStart;
+  return Math.max(
+    1,
+    Math.floor((weekStart.getTime() - getWeekStartMonday(weekOne).getTime()) / WEEK_MS) + 1
+  );
+}
 
 // Single read path for everything the weekly report document shows — used
 // by both the preview page and server PDF generation so they can't drift.
@@ -66,57 +88,16 @@ export async function loadWeeklyReportDocumentData(
   const submission = getConfirmedSubmission(report);
   const profile = report.studentProfile;
 
-  // Week 1 is faculty-defined per term; without it, the student's first
-  // report week is Week 1.
-  const weekOne =
-    profile.semester.weekOneStart ??
-    (
-      await prisma.weeklyReport.findFirst({
-        where: { studentProfileId: report.studentProfileId },
-        orderBy: { weekStart: "asc" },
-        select: { weekStart: true },
-      })
-    )?.weekStart ??
-    report.weekStart;
-  // A week before the faculty's Week 1 (early starter) still prints as Week 1.
-  const weekNumber = Math.max(
-    1,
-    Math.floor((report.weekStart.getTime() - getWeekStartMonday(weekOne).getTime()) / WEEK_MS) + 1
+  const weekNumber = await weekNumberOf(
+    report.studentProfileId,
+    report.weekStart,
+    profile.semester.weekOneStart
   );
 
-  const [requests, holidays] = await Promise.all([
-    prisma.deviationReport.findMany({
-      where: {
-        studentProfileId: report.studentProfileId,
-        deviationType: { in: [DeviationType.OVERTIME, DeviationType.UNDERTIME] },
-        validationStatus: { not: ValidationStatus.REJECTED },
-        date: { gte: report.weekStart, lte: report.weekEnd },
-      },
-      orderBy: { date: "asc" },
-      select: {
-        deviationType: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        requestedMinutes: true,
-        reason: true,
-        validationStatus: true,
-      },
-    }),
-    report.dailyEntries.some((e) => e.attendanceStatus === "HOLIDAY")
-      ? getHolidayCalendarForStudent(report.studentProfileId)
-      : Promise.resolve([]),
-  ]);
+  const holidays = report.dailyEntries.some((e) => e.attendanceStatus === "HOLIDAY")
+    ? await getHolidayCalendarForStudent(report.studentProfileId)
+    : [];
   const holidayByDate = new Map(holidays.map((h) => [toDateKey(h.date), h]));
-  const toRow = (r: (typeof requests)[number]): TimeRow => ({
-    date: r.date,
-    startTime: r.startTime,
-    endTime: r.endTime,
-    minutes: r.requestedMinutes ?? 0,
-    reason: r.reason,
-    pending: r.validationStatus === ValidationStatus.PENDING,
-  });
-
   const totalHours = Number(report.totalHours);
   const runningTotal = Number(report.runningTotal);
   const conductDeductions = await getConductDeductions(report.studentProfileId, report.weekEnd);
@@ -154,8 +135,6 @@ export async function loadWeeklyReportDocumentData(
       holidayName: holidayByDate.get(toDateKey(e.reportDate))?.name ?? null,
       companyHoliday: holidayByDate.get(toDateKey(e.reportDate))?.holidayType === "COMPANY",
     })),
-    overtime: requests.filter((r) => r.deviationType === DeviationType.OVERTIME).map(toRow),
-    undertime: requests.filter((r) => r.deviationType === DeviationType.UNDERTIME).map(toRow),
     totals: {
       totalHours,
       runningTotal,
