@@ -69,13 +69,14 @@ Each item is one branch and one PR into `develop`; merge only on Jay's OK, after
 
 - `npm audit`: high severity in `zod` (memory exhaustion on oversized input), also via `puppeteer-core` → `chromium-bidi`. Upgrade zod, run the full suite, check the API routes' error mapping (`src/lib/utils/apiError.ts` catches `ZodError`).
 
-### F. AI assist build
+### F. AI assist build (done: PRs #155, #157)
 
 - Follow `docs/plans/ai-assist-plan.md` §14 build order; its open questions (§13: lab machine, DPO, model licence, golden set) are still Jay's / SLU's.
 
-### G. Close Phase 4
+### G. Close Phase 4 (done 26 Oct)
 
-- Re-run the four-role live sweep on changed screens only, then ask Jay to sync `main` with `develop`.
+- Beta live at https://idsms-beta.vercel.app (PRs #156, #158: Vercel config, Gmail SMTP); Jay called Phase 4 finished and `main` was synced with `develop`.
+- Next: the SLU template gaps in `docs/plans/slu-template-alignment.md` (outside this archive), then Phase 5.
 
 ## 4. Open decisions for Jay
 

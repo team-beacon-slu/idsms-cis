@@ -23,6 +23,7 @@ These are the plans, designs and trackers the team wrote **before** building eac
 | 21 Oct 2026 | [Workstream L2: deductions](plans/2026-10-21-phase4-deductions-L2.md)               | Conduct records, deduction matrix and tally                                       | Built (#88)                 |
 | 21 Oct 2026 | [Workstream H: final report](plans/2026-10-21-phase4-final-report-H.md)             | Final technical report                                                            | Built (#89)                 |
 | 23 Oct 2026 | [Completeness and identity](plans/2026-10-23-completeness-identity-plan.md)         | Research and plan for names, account menu, legal pages, help, laws-of-UX pass     | Built (#107–#112)           |
+| 25 Oct 2026 | [UI and next steps](plans/2026-10-25-ui-and-next-steps-plan.md)                     | The rest of Phase 4: UI audit, coast, /about, speed, zod, AI assist, beta         | Done (#146–#158)            |
 
 ## Designs
 
