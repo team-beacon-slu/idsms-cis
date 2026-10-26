@@ -9,21 +9,20 @@ import { calculateRenderedHours } from "@/lib/services/attendance/attendanceServ
 import { CompanyStateError } from "@/lib/services/predeployment/companyService";
 import {
   getCompanyFeedback,
+  getOwnEvaluationForm,
   setCompanyReply,
   submitCompanyEvaluation,
 } from "@/lib/services/predeployment/companyEvaluationService";
 
 const student = { id: "student-1", role: Role.STUDENT_INTERN };
-const ratings = {
-  supervision: 5,
-  learning: 4,
-  safety: 5,
-  communication: 3,
-  integration: 4,
-  resources: 2,
-  recommend: 4,
-};
-const evaluation = (comment: string | null) => ({ ...ratings, comment });
+// An FM-VAA-052: 16 obligations and 6 quality items, each 1-4.
+const ratings = { obligations: Array(16).fill(3), quality: Array(6).fill(4) };
+const evaluation = (comment: string | null) => ({
+  ...ratings,
+  liked: null,
+  improve: null,
+  comment,
+});
 
 beforeEach(() => {
   resetPrismaMock();
@@ -45,10 +44,17 @@ beforeEach(() => {
 describe("submitCompanyEvaluation", () => {
   it("records the evaluation against the intern's company once hours are complete", async () => {
     await expect(
-      submitCompanyEvaluation("profile-1", { ...ratings, comment: "  " }, student)
+      submitCompanyEvaluation("profile-1", { ...ratings, comment: "  ", liked: "Mentors" }, student)
     ).resolves.toEqual({ id: "ev-1" });
     expect(prismaMock.companyEvaluation.create).toHaveBeenCalledWith({
-      data: { studentProfileId: "profile-1", companyId: "c-1", ...ratings, comment: null },
+      data: {
+        studentProfileId: "profile-1",
+        companyId: "c-1",
+        ...ratings,
+        liked: "Mentors",
+        improve: null,
+        comment: null,
+      },
       select: { id: true },
     });
     expect(prismaMock.auditLog.create).toHaveBeenCalled();
@@ -71,12 +77,22 @@ describe("submitCompanyEvaluation", () => {
     );
   });
 
+  it("needs every item rated on the 1-4 scale", async () => {
+    await expect(
+      submitCompanyEvaluation("profile-1", { ...ratings, quality: [4, 4, 4] }, student)
+    ).rejects.toThrow("Rate all 6 internship-quality items");
+    await expect(
+      submitCompanyEvaluation("profile-1", { ...ratings, obligations: Array(16).fill(5) }, student)
+    ).rejects.toThrow();
+    expect(prismaMock.companyEvaluation.create).not.toHaveBeenCalled();
+  });
+
   it("rejects staff and out-of-range ratings", async () => {
     await expect(
       submitCompanyEvaluation("profile-1", ratings, { id: "f-1", role: Role.FACULTY_ADVISER })
     ).rejects.toThrow(ForbiddenError);
     await expect(
-      submitCompanyEvaluation("profile-1", { ...ratings, safety: 6 }, student)
+      submitCompanyEvaluation("profile-1", { ...ratings, quality: Array(6).fill(0) }, student)
     ).rejects.toThrow();
   });
 });
@@ -110,7 +126,7 @@ describe("getCompanyFeedback", () => {
     prismaMock.deviationReport.count.mockResolvedValueOnce(3).mockResolvedValueOnce(1);
     prismaMock.companyEvaluation.findMany.mockResolvedValue([
       ...Array.from({ length: 4 }, () => evaluation(null)),
-      { ...evaluation("Too few laptops"), resources: 1 },
+      { ...evaluation("Too few laptops"), quality: [1, 4, 4, 4, 4, 4] },
     ] as never);
 
     const view = await getCompanyFeedback("c-1");
@@ -121,8 +137,14 @@ describe("getCompanyFeedback", () => {
       absences: 1,
     });
     expect(view.ratings?.count).toBe(5);
-    expect(view.ratings?.averages.find((a) => a.key === "resources")?.average).toBe(1.8);
-    expect(view.ratings?.comments).toEqual(["Too few laptops"]);
+    expect(view.ratings?.quality[0].average).toBe(3.4); // (4*4 + 1) / 5
+    expect(view.ratings?.quality[0].label).toMatch(/^Quality of supervision/);
+    expect(view.ratings?.obligations).toHaveLength(16);
+    expect(view.ratings?.comments).toEqual({
+      liked: [],
+      improve: [],
+      comment: ["Too few laptops"],
+    });
   });
 });
 
@@ -147,5 +169,37 @@ describe("setCompanyReply", () => {
         { id: "f-1", role: Role.FACULTY_ADVISER }
       )
     ).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe("getOwnEvaluationForm", () => {
+  it("lets only the intern print their own FM-VAA-052", async () => {
+    await expect(
+      getOwnEvaluationForm("profile-1", { id: "f-1", role: Role.FACULTY_ADVISER })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("dates the internship from the start date to the last report week", async () => {
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      userId: "student-1",
+      classGroupId: "cg-1",
+      semesterId: "s-1",
+      fullName: null,
+      internshipStartDate: null,
+      user: { email: "juan.delacruz@slu.edu.ph" },
+      companyEvaluation: {
+        ...evaluation(null),
+        createdAt: new Date("2026-08-29T00:00:00Z"),
+        company: { name: "Acme", address: "Baguio", supervisorName: "Maria" },
+      },
+      weeklyReports: [
+        { weekStart: new Date("2026-06-01T00:00:00Z"), weekEnd: new Date("2026-06-07T00:00:00Z") },
+        { weekStart: new Date("2026-08-24T00:00:00Z"), weekEnd: new Date("2026-08-30T00:00:00Z") },
+      ],
+    } as never);
+    const form = (await getOwnEvaluationForm("profile-1", student))!;
+    expect(form.name).toBe("Delacruz, Juan");
+    expect(form.from).toEqual(new Date("2026-06-01T00:00:00Z"));
+    expect(form.to).toEqual(new Date("2026-08-30T00:00:00Z"));
   });
 });

@@ -378,14 +378,12 @@ model CompanyEvaluation {
   id               String   @id @default(uuid()) @db.Uuid
   studentProfileId String   @unique @map("student_profile_id") @db.Uuid
   companyId        String   @map("company_id") @db.Uuid
-  supervision      Int      @db.SmallInt
-  learning         Int      @db.SmallInt
-  safety           Int      @db.SmallInt
-  communication    Int      @db.SmallInt
-  integration      Int      @db.SmallInt
-  resources        Int      @db.SmallInt
-  recommend        Int      @db.SmallInt
-  comment          String?
+  // FM-VAA-052 (022): 16 CMO 104 obligations and 6 internship-quality items, each 1-4.
+  obligations      Int[]    @db.SmallInt
+  quality          Int[]    @db.SmallInt
+  liked            String? // A. what they liked most
+  improve          String? // B. what the HTE could improve
+  comment          String? // C. other comments or suggestions
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])

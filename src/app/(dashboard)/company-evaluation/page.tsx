@@ -3,12 +3,12 @@ import { CheckCircle2, Lock } from "lucide-react";
 import { Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import {
-  CRITERIA,
-  getEvaluationState,
-} from "@/lib/services/predeployment/companyEvaluationService";
+import { getEvaluationState } from "@/lib/services/predeployment/companyEvaluationService";
 import { formatCalendarDate } from "@/lib/documents/html";
 import { Card, CardContent } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+import { FileDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { CompanyEvaluationForm } from "./company-evaluation-form";
 import type { Metadata } from "next";
@@ -31,14 +31,24 @@ export default async function CompanyEvaluationPage() {
     <div className="space-y-6">
       <PageHeader
         title="Company evaluation"
-        description="Rate your host company once your internship hours are done. Only SLU staff see the results, and never per intern: a company's ratings appear only once 5 interns have rated it."
+        description="SLU's Host Training Establishment (HTE) Evaluation Form (FM-VAA-052), once your internship hours are done. Staff see results only pooled across 5 or more interns; you download your own copy for Google Classroom and your technical report's appendix."
       />
       {state.submittedAt ? (
         <Card>
-          <CardContent className="flex items-center gap-3 p-6 text-sm">
+          <CardContent className="flex flex-wrap items-center gap-3 p-6 text-sm">
             <CheckCircle2 className="size-5 text-green-700" aria-hidden="true" />
-            Thank you. You evaluated {state.companyName} on{" "}
-            {formatCalendarDate(new Date(state.submittedAt))}.
+            <span className="flex-1">
+              Thank you. You evaluated {state.companyName} on{" "}
+              {formatCalendarDate(new Date(state.submittedAt))}.
+            </span>
+            <a
+              href={`/api/students/${profile.id}/company-evaluation/pdf`}
+              download
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+            >
+              <FileDown className="size-3.5" aria-hidden="true" />
+              Download FM-VAA-052
+            </a>
           </CardContent>
         </Card>
       ) : !state.open ? (
@@ -51,11 +61,7 @@ export default async function CompanyEvaluationPage() {
           </CardContent>
         </Card>
       ) : (
-        <CompanyEvaluationForm
-          studentProfileId={profile.id}
-          companyName={state.companyName!}
-          criteria={CRITERIA.map(({ key, label }) => ({ key, label }))}
-        />
+        <CompanyEvaluationForm studentProfileId={profile.id} companyName={state.companyName!} />
       )}
     </div>
   );
