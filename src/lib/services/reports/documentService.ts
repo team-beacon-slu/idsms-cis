@@ -30,6 +30,7 @@ import { renderHtmlToPdf } from "@/lib/pdf/renderHtmlToPdf";
 import {
   GENERATED_DOCUMENTS_BUCKET,
   PdfTooLargeError,
+  deleteObject,
   getSignedUrl,
   uploadPdfBuffer,
 } from "@/lib/storage";
@@ -262,6 +263,49 @@ export async function getGeneratedDocumentDownloadUrl(doc: GeneratedDocument): P
     throw new DocumentNotReadyError("This PDF has not been generated yet");
   }
   return getSignedUrl(GENERATED_DOCUMENTS_BUCKET, doc.fileUrl);
+}
+
+// Weekly and monthly PDFs are re-rendered from the database on request (same
+// reference code), so storage only caches recent ones: every submission makes
+// one, which would outgrow the free plan's 1 GB within a term. Letters, covers
+// and final reports are few per student and are kept.
+export const REPORT_PDF_KEEP_DAYS = 14;
+const PRUNE_BATCH = 500;
+
+export async function pruneOldReportPdfs(now: Date): Promise<{ pruned: number; failed: number }> {
+  const cutoff = new Date(now.getTime() - REPORT_PDF_KEEP_DAYS * 24 * 60 * 60 * 1000);
+  const old = await prisma.generatedDocument.findMany({
+    where: {
+      documentType: { in: [DocumentType.WEEKLY_REPORT, DocumentType.MONTHLY_REPORT] },
+      status: DocumentStatus.GENERATED,
+      fileUrl: { not: null },
+      generatedAt: { lt: cutoff },
+    },
+    select: { id: true, fileUrl: true, generatedAt: true },
+    take: PRUNE_BATCH,
+  });
+
+  let pruned = 0;
+  let failed = 0;
+  for (const doc of old) {
+    try {
+      // Row first, guarded on generatedAt, so a PDF regenerated since the query
+      // is left alone and a failed delete never leaves a "Download" that 404s.
+      // shortcut: a regenerate landing between this update and the delete loses
+      // its file (the user just clicks Generate again); lock the row if that bites.
+      const { count } = await prisma.generatedDocument.updateMany({
+        where: { id: doc.id, generatedAt: doc.generatedAt },
+        data: { status: DocumentStatus.PENDING_DRAFT, fileUrl: null, generatedAt: null },
+      });
+      if (count === 0) continue;
+      await deleteObject(GENERATED_DOCUMENTS_BUCKET, doc.fileUrl!);
+      pruned++;
+    } catch (error) {
+      console.error("Pruning an old report PDF failed", { documentId: doc.id, error });
+      failed++;
+    }
+  }
+  return { pruned, failed };
 }
 
 export function generateMonthlyReportReferenceCode(calendarMonth: string): string {

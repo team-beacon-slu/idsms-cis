@@ -22,10 +22,14 @@ export type NotificationTrigger =
   | "DEVIATION_VALIDATED"
   | "REQUEST_RETURNED"
   | "CONDUCT_RECORD_ISSUED"
+  | "DEDUCTION_DISPUTED"
+  | "DEDUCTION_DISPUTE_RESOLVED"
+  | "COMPANY_DAY_ADDED"
   | "DSAR_REQUESTED"
   | "DSAR_FULFILLED"
   | "DSAR_DUE"
-  | "RETENTION_REVIEW";
+  | "RETENTION_REVIEW"
+  | "AI_JOB_OFF";
 
 export interface NotifyInput {
   userIds: string[];
@@ -40,8 +44,12 @@ export interface NotifyInput {
   textOverrides?: Record<string, string>; // plain-text twin of emailOverrides
 }
 
-function isResendConfigured(): boolean {
-  return !!process.env.RESEND_API_KEY && !!process.env.RESEND_FROM_EMAIL;
+// Two ways out: Resend (needs a verified domain), or any SMTP account, e.g. the team
+// Gmail with an app password (about 500 emails a day), which needs no domain.
+const smtpConfigured = () => !!process.env.SMTP_USER && !!process.env.SMTP_PASS;
+
+export function isEmailConfigured(): boolean {
+  return smtpConfigured() || (!!process.env.RESEND_API_KEY && !!process.env.RESEND_FROM_EMAIL);
 }
 
 // Migration 006 puts a unique index on (user, trigger, dedupeKey) for IN_APP
@@ -59,6 +67,29 @@ export async function sendEmail(
   react: ReactElement,
   text?: string
 ): Promise<boolean> {
+  if (smtpConfigured()) {
+    const [{ default: nodemailer }, { renderToStaticMarkup }] = await Promise.all([
+      import("nodemailer"),
+      import("react-dom/server"),
+    ]);
+    const user = process.env.SMTP_USER!;
+    // Gmail only sends as the signed-in account, so "from" defaults to it.
+    await nodemailer
+      .createTransport({
+        host: process.env.SMTP_HOST || "smtp.gmail.com",
+        port: Number(process.env.SMTP_PORT || 465),
+        secure: true,
+        auth: { user, pass: process.env.SMTP_PASS! },
+      })
+      .sendMail({
+        from: process.env.EMAIL_FROM || `IDSMS <${user}>`,
+        to,
+        subject,
+        html: `<!doctype html>${renderToStaticMarkup(react)}`,
+        text,
+      });
+    return true;
+  }
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
   if (!apiKey || !from) return false;
@@ -93,13 +124,13 @@ export async function notify(
   // D4 state; in production it means a password reset (email-only) would
   // vanish without trace, so record it as FAILED and say so in the logs.
   const emailUnavailable =
-    !!input.email && !isResendConfigured() && process.env.NODE_ENV === "production";
+    !!input.email && !isEmailConfigured() && process.env.NODE_ENV === "production";
   if (emailUnavailable) {
-    console.error("Email requested but Resend is not configured", { trigger: input.trigger });
+    console.error("Email requested but no email service is configured", { trigger: input.trigger });
   }
 
   const appUrl = process.env.NEXTAUTH_URL;
-  if (input.email && input.link && !appUrl && isResendConfigured()) {
+  if (input.email && input.link && !appUrl && isEmailConfigured()) {
     console.error("NEXTAUTH_URL is not set — emailed links will be relative", {
       trigger: input.trigger,
     });
@@ -127,7 +158,7 @@ export async function notify(
         counts.inApp += 1;
       }
 
-      if (input.email && (isResendConfigured() || emailUnavailable)) {
+      if (input.email && (isEmailConfigured() || emailUnavailable)) {
         let status: NotificationStatus = NotificationStatus.SENT;
         if (emailUnavailable) {
           status = NotificationStatus.FAILED;

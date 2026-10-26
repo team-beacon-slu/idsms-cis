@@ -53,7 +53,7 @@ it("merges all department milestones with Phase 2 MOA expirations, colored and s
   expect(
     events.map(({ type, color, label, studentProfileId }) => [type, color, label, studentProfileId])
   ).toEqual([
-    ["DEADLINE", "red", "Weekly report due — week of 2026-10-05", undefined],
+    ["DEADLINE", "red", "Weekly report due — week of Oct 5", undefined],
     ["COMPLETION", "green", "Projected OJT Completion Date", "p-2"],
     ["DEADLINE", "red", "MOA expiry — Acme", undefined],
     ["COMPLETION", "green", "Projected OJT Completion Date", "p-1"],

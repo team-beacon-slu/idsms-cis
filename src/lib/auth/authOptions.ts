@@ -6,6 +6,13 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { decode as defaultDecode, encode as defaultEncode } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { verifyCredentials } from "@/lib/services/accounts/userService";
+import { logEvent } from "@/lib/services/accounts/auditService";
+import {
+  betaGoogleEnabled,
+  betaGoogleProvider,
+  isAllowedGoogleProfile,
+  withBetaGoogleUsers,
+} from "@/lib/auth/betaGoogle";
 
 const SESSION_MAX_AGE_SECONDS = 30 * 60; // FR-UM-06 idle timeout
 const SESSION_UPDATE_AGE_SECONDS = 5 * 60;
@@ -27,7 +34,7 @@ function getIpFromRequest(req: Pick<RequestInternal, "headers">): string | null 
 // "encoded" cookie value instead of an actual JWT. Every request after that is
 // a normal database-session lookup — nothing else needs to know this happened.
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: betaGoogleEnabled() ? withBetaGoogleUsers(PrismaAdapter(prisma)) : PrismaAdapter(prisma),
   session: {
     strategy: "database",
     maxAge: SESSION_MAX_AGE_SECONDS,
@@ -35,6 +42,8 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/login",
+    // Refused or failed OAuth sign-ins come back here with ?error=, not to next-auth's page.
+    error: "/login",
   },
   providers: [
     CredentialsProvider({
@@ -88,8 +97,22 @@ export const authOptions: NextAuthOptions = {
         throw new Error("unused-oauth-placeholder should never be reached");
       },
     },
+    ...(betaGoogleEnabled() ? [betaGoogleProvider()] : []),
   ],
   callbacks: {
+    // Beta Google sign-in: verified SLU accounts only, and never a deactivated, deleted or
+    // locked one (the same gates verifyCredentials applies to passwords).
+    async signIn({ account, profile }) {
+      if (account?.provider !== "google") return true;
+      if (!isAllowedGoogleProfile(profile)) return false;
+      const existing = await prisma.user.findUnique({
+        where: { email: String(profile?.email).toLowerCase() },
+        select: { isActive: true, deletedAt: true, lockedUntil: true },
+      });
+      if (!existing) return true;
+      const locked = existing.lockedUntil !== null && existing.lockedUntil > new Date();
+      return existing.isActive && existing.deletedAt === null && !locked;
+    },
     async jwt({ token, user, account }) {
       if (account?.provider === "credentials" && user) {
         token.credentials = true;
@@ -104,8 +127,21 @@ export const authOptions: NextAuthOptions = {
       session.user.mustResetPassword = user.mustResetPassword;
       // Already loaded with the session row, so the layout needs no extra query for them.
       session.user.fullName = user.fullName ?? null;
+      session.user.aiAssist = user.aiAssist !== false; // the person's own AI switch
       session.user.privacyConsentVersion = user.privacyConsentVersion ?? null;
       return session;
+    },
+  },
+  events: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        await logEvent({
+          userId: user.id,
+          action: "LOGIN_GOOGLE",
+          entityType: "User",
+          entityId: user.id,
+        });
+      }
     },
   },
   jwt: {

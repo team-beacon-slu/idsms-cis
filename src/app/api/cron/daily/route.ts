@@ -2,6 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runDailyNotifications } from "@/lib/services/notifications/scheduledNotifications";
 import { processPendingAiReports } from "@/lib/ai/batch";
+import { pruneOldReportPdfs } from "@/lib/services/reports/documentService";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -22,10 +23,21 @@ export async function GET(req: NextRequest) {
   if (!secret || !isAuthorized(req.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const result = await runDailyNotifications(new Date());
+  const now = new Date();
+  const result = await runDailyNotifications(now);
   // Workstream D: catch up AI advisories (no-op while AI is disabled).
   const ai = await processPendingAiReports();
+  // null when the prune step threw.
+  const pdfs = await pruneOldReportPdfs(now).catch((error) => {
+    console.error("Report PDF prune failed", { error });
+    return null;
+  });
+  const errors = [...result.errors];
+  if (!pdfs || pdfs.failed > 0) errors.push("pdf-prune");
   // Partial failure still delivered what it could; 500 makes the scheduler
   // (Vercel Cron logs / host cron exit code) surface it instead of a green run.
-  return NextResponse.json({ ...result, ai }, { status: result.errors.length > 0 ? 500 : 200 });
+  return NextResponse.json(
+    { ...result, ai, pdfs, errors },
+    { status: errors.length > 0 ? 500 : 200 }
+  );
 }

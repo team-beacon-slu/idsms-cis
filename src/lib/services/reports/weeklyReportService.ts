@@ -430,6 +430,17 @@ export async function saveDailyAccomplishment(
     if (!isWeeklyReportEditable(entry.weeklyReport)) {
       throw new WeeklyReportLockedError();
     }
+    // Holiday days count 0 hours with no deduction, so only a real holiday on this intern's
+    // list may be one; any other day off is an absence (with its request).
+    if (status === "HOLIDAY") {
+      const day = toDateKey(entry.reportDate);
+      const holidays = await getHolidayCalendarForStudent(entry.weeklyReport.studentProfileId);
+      if (!holidays.some((h) => h.applicable && toDateKey(h.date) === day)) {
+        throw new DailyEntryDateError(
+          "That day isn't a holiday on your calendar. Mark it Absent and file an absence request, or add your company's day off on the Attendance page."
+        );
+      }
+    }
 
     // Workstream L1: store the SLU-credited hours with the row (undefined
     // details keep the stored times, matching the update below).

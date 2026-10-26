@@ -385,6 +385,12 @@ stateDiagram-v2
     [*] --> Auto
     Auto --> Excused: staff excuses (HTE-attested or<br/>beyond intern's control)
     Excused --> Auto: excuse withdrawn
+    state "Disputed (intern's reason)" as Disputed
+    Auto --> Disputed: intern disputes
+    Active --> Disputed: intern disputes
+    Disputed --> Excused: staff excuses (accepts)
+    Disputed --> Revoked: staff revokes (accepts)
+    Disputed --> Auto: staff keeps it, with a note
 ```
 
 ## 4. Key sequences

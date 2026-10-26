@@ -1,6 +1,7 @@
 // Attendance & schedule configuration, deviation reports, hour computation,
 // mid-internship schedule changes. See PRD Module 5 (FR-AT-*).
 import {
+  HolidayType,
   Prisma,
   PrismaClient,
   Program,
@@ -11,7 +12,7 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
-import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
+import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
 import { requestCache } from "@/lib/utils/requestCache";
@@ -151,6 +152,9 @@ export interface HolidayCalendarEntryDTO {
   date: Date;
   name: string;
   applicable: boolean;
+  holidayType: HolidayType;
+  // Who added a company day (null for the published PH holidays).
+  createdById: string | null;
 }
 
 // FR-AT-02 — Owner: 2215428-sys (Gillian)
@@ -178,15 +182,15 @@ export interface HolidayCalendarEntryDTO {
 // `date` as the system-wide holiday it overrides, `studentProfileId` set,
 // and `semesterId` null — "this holiday does not apply to me" (e.g. the host
 // company works through it). A system-wide holiday is `applicable` unless
-// such a marker exists for its date. No schema change needed. Company-
-// specific *extra* non-working days are not modelled yet (no source for them
-// in the schema), so they stay out of scope here.
+// such a marker exists for its date. A host company's own non-working days
+// (holidayType COMPANY, `companyId` set) join the list for every intern placed
+// there, and can be opted out of the same way.
 export async function getHolidayCalendarForStudent(
   studentProfileId: string
 ): Promise<HolidayCalendarEntryDTO[]> {
   const studentProfile = await prisma.studentProfile.findUnique({
     where: { id: studentProfileId },
-    select: { semesterId: true },
+    select: { semesterId: true, companyId: true },
   });
   if (!studentProfile) {
     return [];
@@ -194,7 +198,7 @@ export async function getHolidayCalendarForStudent(
 
   const [systemHolidays, optOuts] = await Promise.all([
     prisma.holidayCalendarEntry.findMany({
-      where: { semesterId: studentProfile.semesterId, studentProfileId: null },
+      where: { studentProfileId: null, OR: holidayScope(studentProfile) },
       orderBy: { date: "asc" },
     }),
     prisma.holidayCalendarEntry.findMany({
@@ -209,7 +213,138 @@ export async function getHolidayCalendarForStudent(
     date: holiday.date,
     name: holiday.name,
     applicable: !optedOutDates.has(holiday.date.getTime()),
+    holidayType: holiday.holidayType,
+    createdById: holiday.createdById,
   }));
+}
+
+// The holidays that reach one intern: their semester's PH holidays and their company's own days.
+function holidayScope(profile: { semesterId: string; companyId: string | null }) {
+  return [
+    { semesterId: profile.semesterId },
+    ...(profile.companyId ? [{ companyId: profile.companyId }] : []),
+  ];
+}
+
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+export class CompanyHolidayError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CompanyHolidayError";
+  }
+}
+
+// FR-AT-02: a host company's own non-working day. Interns add their own company's days and
+// staff add any they can see; it applies at once to every intern placed there, with no
+// approval step (advisers see it named in the weekly reports they already review).
+export async function addCompanyHoliday(
+  studentProfileId: string,
+  input: { date: Date; name: string },
+  actingUser: { id: string; role: Role },
+  now: Date = new Date()
+): Promise<{ id: string }> {
+  await assertCanAccessStudent(actingUser, studentProfileId);
+  // Interns may only add upcoming days: a past day would retroactively excuse absences.
+  // Staff can still record one that already happened.
+  const today = new Date(now.getTime() + MANILA_OFFSET_MS).toISOString().slice(0, 10);
+  if (actingUser.role === Role.STUDENT_INTERN && input.date.toISOString().slice(0, 10) < today) {
+    throw new CompanyHolidayError(
+      "Pick today or a later date; ask your adviser to record a past day off"
+    );
+  }
+  const { companyId } = await prisma.studentProfile.findUniqueOrThrow({
+    where: { id: studentProfileId },
+    select: { companyId: true },
+  });
+  if (!companyId) {
+    throw new CompanyHolidayError("Add the host company first; company days belong to a company");
+  }
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.holidayCalendarEntry.findFirst({
+      where: { companyId, date: input.date },
+      select: { id: true },
+    });
+    if (existing) throw new CompanyHolidayError("This company already has a day off on that date");
+    const created = await tx.holidayCalendarEntry.create({
+      data: {
+        date: input.date,
+        name: input.name,
+        holidayType: HolidayType.COMPANY,
+        companyId,
+        createdById: actingUser.id,
+      },
+      select: { id: true },
+    });
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "COMPANY_HOLIDAY_ADDED",
+        entityType: "HolidayCalendarEntry",
+        entityId: created.id,
+        detail: { companyId, name: input.name, date: input.date.toISOString().slice(0, 10) },
+      },
+      tx
+    );
+    return created;
+  });
+  if (actingUser.role === Role.STUDENT_INTERN) {
+    // Loaded here, not at the top: the email client it pulls in would load into every importer
+    // of this widely used module (and break its jsdom tests).
+    const { notifyCompanyDayAdded } =
+      await import("@/lib/services/notifications/notificationEvents");
+    await notifyCompanyDayAdded({
+      companyId,
+      name: input.name,
+      date: input.date,
+      addedByStudentProfileId: studentProfileId,
+    });
+  }
+  return result;
+}
+
+// Staff may remove any company day they can see; an intern only one they added.
+export async function removeCompanyHoliday(
+  studentProfileId: string,
+  holidayEntryId: string,
+  actingUser: { id: string; role: Role }
+): Promise<void> {
+  await assertCanAccessStudent(actingUser, studentProfileId);
+  const { companyId } = await prisma.studentProfile.findUniqueOrThrow({
+    where: { id: studentProfileId },
+    select: { companyId: true },
+  });
+  const holiday = companyId
+    ? await prisma.holidayCalendarEntry.findFirst({
+        where: { id: holidayEntryId, companyId, studentProfileId: null },
+        select: { id: true, date: true, name: true, createdById: true },
+      })
+    : null;
+  if (!holiday) throw new HolidayNotFoundError();
+  if (actingUser.role === Role.STUDENT_INTERN && holiday.createdById !== actingUser.id) {
+    throw new ForbiddenError("Only the person who added this day, or staff, can remove it");
+  }
+  await prisma.$transaction(async (tx) => {
+    // Interns' "doesn't apply to me" markers for this day go with it.
+    await tx.holidayCalendarEntry.deleteMany({
+      where: {
+        date: holiday.date,
+        holidayType: HolidayType.COMPANY,
+        studentProfile: { companyId },
+      },
+    });
+    await tx.holidayCalendarEntry.delete({ where: { id: holiday.id } });
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "COMPANY_HOLIDAY_REMOVED",
+        entityType: "HolidayCalendarEntry",
+        entityId: holiday.id,
+        detail: { companyId, name: holiday.name },
+      },
+      tx
+    );
+  });
 }
 
 export class HolidayNotFoundError extends Error {
@@ -240,12 +375,12 @@ export async function markHolidayApplicable(
   return prisma.$transaction(async (tx) => {
     const studentProfile = await tx.studentProfile.findUniqueOrThrow({
       where: { id: studentProfileId },
-      select: { semesterId: true },
+      select: { semesterId: true, companyId: true },
     });
-    // Only a system-wide holiday in this student's own semester can be
+    // Only a holiday that reaches this student (their semester's, or their company's) can be
     // toggled — never another student's opt-out row, never an arbitrary id.
     const holiday = await tx.holidayCalendarEntry.findFirst({
-      where: { id: holidayEntryId, semesterId: studentProfile.semesterId, studentProfileId: null },
+      where: { id: holidayEntryId, studentProfileId: null, OR: holidayScope(studentProfile) },
     });
     if (!holiday) {
       throw new HolidayNotFoundError();

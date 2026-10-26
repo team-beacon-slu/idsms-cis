@@ -119,11 +119,11 @@ Surfaces use light frosted glass (`glass` utilities) over a soft coloured backdr
 
 ## 9. Role dashboards
 
-| Role                      | Layout                                                                                                                                                                                                                                                                 |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Student                   | Greeting hero; when every required hour is confirmed it says so and offers **Submit final report**; confirmed-hours ring; "Your weeks" track; next deadline; submission streak; **Waiting on you** list; pre-deployment requirements; recent weeks; final report cover |
-| Faculty                   | Greeting hero; stat cards; charts of where interns stand and weekly report status; My students table; Export to Excel and Weekly summary; bulk endorsement per class group                                                                                             |
-| Coordinator / Super Admin | Greeting hero; stat cards per program; charts (where interns stand, weekly reports over 8 weeks, hours completed); host-company cards; filters (semester, program, status); all-students compliance table; exports                                                     |
+| Role                      | Layout                                                                                                                                                                                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Student                   | Greeting hero; when every required hour is confirmed it says so and offers **Submit final report**; confirmed-hours ring; "Your weeks" track; next deadline; submission streak; **Needs attention** list; pre-deployment requirements; recent weeks; final report cover |
+| Faculty                   | Greeting hero; stat cards; charts of where interns stand and weekly report status; My students table; Export to Excel and Weekly summary; bulk endorsement per class group                                                                                              |
+| Coordinator / Super Admin | Greeting hero; stat cards per program; charts (where interns stand, weekly reports over 8 weeks, hours completed); host-company cards; filters (semester, program, status); all-students compliance table; exports                                                      |
 
 ## 10. Accessibility
 

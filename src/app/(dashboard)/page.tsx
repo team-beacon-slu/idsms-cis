@@ -15,6 +15,7 @@ import { getUserProfile } from "@/lib/services/accounts/userService";
 import { getChecklistProgress } from "@/lib/services/predeployment/checklistService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { greeting } from "@/lib/utils/greeting";
 import { FacultyDashboard } from "./_components/faculty-dashboard";
@@ -25,6 +26,7 @@ import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
 import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
 import { InternshipTrack, MiniTrack } from "@/components/internship-track";
 import { BeaconRing } from "@/components/beacon-ring";
+import { CountUp } from "@/components/count-up";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -127,13 +129,25 @@ export default async function DashboardHomePage(props: {
         },
         {
           count: attention.pendingDeviations,
-          label: "Leave & time requests awaiting review",
+          label: "Leave & time requests waiting for your adviser",
           href: "/leave-requests",
         },
         {
           count: attention.incompleteChecklistItems,
           label: "Checklist items not yet approved",
           href: "/checklist",
+        },
+        {
+          // Company view: open once every required hour is confirmed, until the intern sends it.
+          count:
+            studentProfile?.companyId &&
+            requiredHours > 0 &&
+            confirmedHours >= requiredHours &&
+            !attention.companyEvaluated
+              ? 1
+              : 0,
+          label: "Evaluate your host company",
+          href: "/company-evaluation",
         },
       ].filter((row) => row.count > 0)
     : [];
@@ -198,7 +212,7 @@ export default async function DashboardHomePage(props: {
             <BeaconRing value={confirmedHours} max={requiredHours} />
             <div>
               <p className="text-[40px] leading-none font-bold tracking-tight text-white tabular-nums">
-                {confirmedHours}
+                <CountUp value={confirmedHours} />
               </p>
               <p className="mt-1 text-sm text-white/80">of {requiredHours} hrs</p>
               <p className="mt-3 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-sm font-semibold text-white tabular-nums">
@@ -285,17 +299,24 @@ export default async function DashboardHomePage(props: {
           )}
         </Link>
 
-        <div className="flex flex-col justify-between rounded-3xl border border-mint-200 bg-mint-100 p-5 text-mint-900 md:col-span-3 xl:col-span-2">
+        <div
+          className={cn(
+            "flex flex-col justify-between rounded-3xl border p-5 md:col-span-3 xl:col-span-2",
+            streak === 0
+              ? "border-border bg-muted text-foreground"
+              : "border-mint-200 bg-mint-100 text-mint-900"
+          )}
+        >
           <span className="text-sm font-medium">Submission streak</span>
           <span>
             <span className="block text-4xl font-bold tracking-tight tabular-nums">{streak}</span>
-            <span className="mt-1 block text-sm text-mint-900/80">
+            <span className="mt-1 block text-sm opacity-80">
               {streak === 1 ? "week in a row" : "weeks in a row"}
             </span>
           </span>
           {recentKinds.length > 0 && (
             <span className="block">
-              <span className="mb-1.5 block text-xs font-medium text-mint-900/80">
+              <span className="mb-1.5 block text-xs font-medium opacity-80">
                 Last {recentKinds.length} weeks
               </span>
               <MiniTrack kinds={recentKinds} />
@@ -305,11 +326,13 @@ export default async function DashboardHomePage(props: {
 
         <Card className="flex flex-col md:col-span-6 xl:col-span-3">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-brand-900">Waiting on you</CardTitle>
+            <CardTitle className="text-lg text-brand-900">Needs attention</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col">
             {attentionRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing is waiting on you right now.</p>
+              <p className="text-sm text-muted-foreground">
+                Nothing needs your attention right now.
+              </p>
             ) : (
               <ul className="-mx-2">
                 {attentionRows.map((row) => (

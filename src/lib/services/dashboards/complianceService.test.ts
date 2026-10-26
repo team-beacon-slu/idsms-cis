@@ -286,6 +286,30 @@ describe("getComplianceRows", () => {
     expect(rows.map((r) => r.status)).toEqual(["NEEDS_ATTENTION", "NEEDS_ATTENTION"]);
   });
 
+  it.each([1, 50])(
+    "loads %i interns with one student query and no per-intern follow-ups",
+    async (n) => {
+      prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+        { classGroupId: "cg-1", semesterId: "sem-1" },
+      ] as never);
+      prismaMock.studentProfile.findMany.mockResolvedValue(
+        Array.from({ length: n }, (_, i) => profile({ id: `sp-${i}` })) as never
+      );
+      const rows = await getComplianceRows({ kind: "faculty", facultyId: "f-1" }, NOW);
+
+      expect(rows).toHaveLength(n);
+      expect(prismaMock.studentProfile.findMany).toHaveBeenCalledTimes(1);
+      for (const model of [
+        "weeklyReport",
+        "dailyReportEntry",
+        "preDeploymentChecklistItem",
+        "conductRecord",
+      ] as const) {
+        expect(prismaMock[model].findMany).not.toHaveBeenCalled();
+      }
+    }
+  );
+
   it("returns [] without querying students when a faculty has no class-group pairs", async () => {
     prismaMock.facultyClassGroup.findMany.mockResolvedValue([] as never);
     const rows = await getComplianceRows({ kind: "faculty", facultyId: "f-1" }, NOW);

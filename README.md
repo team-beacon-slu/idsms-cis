@@ -9,7 +9,7 @@
 - **Compliance Gating**: Blocks the endorsement letter until every required pre-deployment item is approved (tracked by status; the files stay in Google Classroom).
 - **Automated Tracking**: Real-time hour computation, deviation report validation, and projected completion dates.
 - **Unified Calendar**: Role-specific views for deadlines, holidays, and OJT milestones.
-- **AI-Assisted Reviews**: Optional similarity and sentiment hints for faculty (Gemini embeddings + pgvector), advisory only and switched off until approved.
+- **AI Assist**: Advisory hints for faculty (similar days, planned tasks not found, the intern's own sentences, a review queue, topic search, a clarity coach and help answers) through a plug-in provider port (Gemini today; any OpenAI-compatible server later). Every user can switch it off; it never decides anything.
 - **Document Generation**: Server-side Puppeteer rendering for traceable PDFs (Endorsement Letters, Weekly/Monthly Reports).
 - **Role-Based Dashboards**: Tailored views for Student Interns, Faculty Advisers, Department Coordinators, and Super Admins.
 - **Data Privacy**: Built for RA 10173: privacy notice and terms agreement, append-only audit log, "Request my data", file retention review, and scoped, time-limited file access.
@@ -18,18 +18,18 @@
 
 ## 🛠️ Tech Stack
 
-| Layer              | Technology                                                 |
-| :----------------- | :--------------------------------------------------------- |
-| **Framework**      | Next.js 16 (App Router)                                    |
-| **Language**       | TypeScript                                                 |
-| **Styling**        | Tailwind CSS 4, shadcn/ui, light and dark themes           |
-| **Database**       | PostgreSQL 15 via Supabase (with `pgvector` extension)     |
-| **ORM**            | Prisma 7                                                   |
-| **Authentication** | NextAuth.js v4.24.x                                        |
-| **AI Services**    | Google Gemini API (models set by env vars; off by default) |
-| **Document Gen**   | Puppeteer (`@sparticuz/chromium`)                          |
-| **Email**          | Resend + React Email                                       |
-| **Deployment**     | Vercel + Supabase today; SAMCIS lab computer in Phase 5    |
+| Layer              | Technology                                                    |
+| :----------------- | :------------------------------------------------------------ |
+| **Framework**      | Next.js 16 (App Router)                                       |
+| **Language**       | TypeScript                                                    |
+| **Styling**        | Tailwind CSS 4, shadcn/ui, light and dark themes              |
+| **Database**       | PostgreSQL 15 via Supabase (with `pgvector` extension)        |
+| **ORM**            | Prisma 7                                                      |
+| **Authentication** | NextAuth.js v4.24.x                                           |
+| **AI Services**    | Google Gemini API (on for the beta; provider set in Settings) |
+| **Document Gen**   | Puppeteer (`@sparticuz/chromium`)                             |
+| **Email**          | React Email over Gmail SMTP, or Resend with a domain          |
+| **Deployment**     | Beta on Vercel + Supabase; SAMCIS lab computer in Phase 5     |
 
 ---
 
@@ -47,7 +47,7 @@ Double-click **`scripts/start-idsms.cmd`**. It installs what is missing on the f
 - npm
 - A Supabase project with the `vector` extension enabled
 - Google Gemini API key (optional; only for the AI hints)
-- Resend API key (optional; only for email)
+- A Gmail app password or a Resend API key (optional; only for email)
 
 ### Installation
 

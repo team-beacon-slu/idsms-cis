@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 // Workstream L2 — conduct records, automatic deduction items and the ADVISER /
-// WWR points tally. Interns see it read-only; staff issue, revoke and excuse.
+// WWR points tally. Staff issue, revoke and excuse; interns may dispute an item
+// that counts, and staff accept (Excuse / Revoke) or keep it with a note.
 
 export interface ConductCardData {
   tally: {
@@ -36,6 +37,14 @@ export interface ConductCardData {
     excused: { id: string; reasonCode: string; note: string } | null;
   }>;
   categories: Array<{ key: string; label: string }>; // manual categories staff can issue
+  disputes: Array<{
+    id: string;
+    itemType: string;
+    itemKey: string;
+    reason: string;
+    outcome: string | null; // null while open
+    resolutionNote: string | null;
+  }>; // newest first
 }
 
 const SELECT_CLASS =
@@ -146,6 +155,77 @@ function InlineReason({
   );
 }
 
+// The intern's side of a deduction that still counts: the latest dispute and
+// what happened to it, with Dispute (intern) or Keep deduction (staff).
+function DisputeLine({
+  studentProfileId,
+  isStaff,
+  itemType,
+  itemKey,
+  what,
+  disputes,
+  onDone,
+}: {
+  studentProfileId: string;
+  isStaff: boolean;
+  itemType: string;
+  itemKey: string;
+  what: string;
+  disputes: ConductCardData["disputes"];
+  onDone: () => void;
+}) {
+  const family = (t: string) => (t.endsWith("_WWR") ? "WWR" : t);
+  const latest = disputes.find(
+    (d) => family(d.itemType) === family(itemType) && d.itemKey === itemKey
+  );
+  const open = latest && !latest.outcome ? latest : null;
+  // Fragment, not a full-width box: the Dispute button sits at the row's right end; notes go last so they never push the buttons down.
+  return (
+    <>
+      {open && (
+        <p className="order-last w-full text-xs text-amber-800 dark:text-amber-300">
+          {isStaff ? "The intern disputes this: " : "You disputed this: "}
+          {open.reason}
+          {!isStaff && " — waiting for your adviser."}
+        </p>
+      )}
+      {!open && latest?.outcome === "DECLINED" && (
+        <p className="order-last w-full text-xs text-muted-foreground">
+          Dispute declined: {latest.resolutionNote}
+        </p>
+      )}
+      {open && isStaff && (
+        <InlineReason
+          label={`Keep ${what} and tell the intern why`}
+          submitLabel="Keep deduction"
+          onSubmit={(text) =>
+            send(
+              `/api/deduction-disputes/${open.id}/decline`,
+              { note: text },
+              "Dispute declined — the intern is notified",
+              onDone
+            )
+          }
+        />
+      )}
+      {!open && !isStaff && (
+        <InlineReason
+          label={`Dispute ${what}`}
+          submitLabel="Dispute"
+          onSubmit={(text) =>
+            send(
+              `/api/students/${studentProfileId}/deductions/disputes`,
+              { itemType, itemKey, reason: text },
+              "Dispute sent to your adviser",
+              onDone
+            )
+          }
+        />
+      )}
+    </>
+  );
+}
+
 export function ConductCard({
   studentProfileId,
   isStaff,
@@ -245,6 +325,17 @@ export function ConductCard({
                   </p>
                   <p className="text-sm">{r.reason}</p>
                 </div>
+                {!r.revokedAt && (
+                  <DisputeLine
+                    studentProfileId={studentProfileId}
+                    isStaff={isStaff}
+                    itemType="CONDUCT"
+                    itemKey={r.id}
+                    what={`${label(r.categoryKey)} of ${fmtDate(r.date)}`}
+                    disputes={data.disputes}
+                    onDone={refresh}
+                  />
+                )}
                 {r.revokedAt ? (
                   <p className="w-full text-xs text-muted-foreground">Revoked: {r.revokeReason}</p>
                 ) : (
@@ -296,6 +387,17 @@ export function ConductCard({
                     </p>
                   )}
                 </div>
+                {!i.excused && (
+                  <DisputeLine
+                    studentProfileId={studentProfileId}
+                    isStaff={isStaff}
+                    itemType={i.itemType}
+                    itemKey={i.itemKey}
+                    what={i.detail}
+                    disputes={data.disputes}
+                    onDone={refresh}
+                  />
+                )}
                 {isStaff &&
                   (i.excused ? (
                     <Button

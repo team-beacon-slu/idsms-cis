@@ -117,4 +117,5 @@ The bell shows unread notifications: report submitted, report returned (with the
 
 - The first time you open IDSMS you'll see the **privacy notice and terms of use**. Tick the box to confirm you have read them, then choose **I agree** to continue; **I disagree** signs you out (talk to your coordinator). If the notice changes, you'll be asked again.
 - When you register your company, IDSMS lists companies already registered under a similar name. If yours is there, choose **This is my company** instead of adding a copy.
+- **Disputing a deduction:** on your Attendance page, under **Conduct & deductions**, choose **Dispute** next to any item that counts against you and say why (keep proof in Google Classroom). Your adviser is notified and either removes the deduction or keeps it with a note; either way you're notified.
 - On each weekly report, **Running total (worked)** is the hours you've worked; **Conduct deductions** are shown separately, and **Remaining** takes them into account.

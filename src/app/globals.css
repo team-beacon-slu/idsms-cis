@@ -190,6 +190,16 @@
       radial-gradient(62rem 42rem at 78% 112%, rgb(31 78 121 / 0.45), transparent 62%),
       hsl(var(--background));
   }
+
+  /* The logo's lamp breathes like a lit lantern. */
+  .beacon-lamp {
+    animation: beacon-lamp 3.6s ease-in-out infinite;
+  }
+  @keyframes beacon-lamp {
+    50% {
+      opacity: 0.72;
+    }
+  }
 }
 
 @layer base {
@@ -255,7 +265,7 @@
     --secondary: 214 36% 17%;
     --secondary-foreground: 212 38% 93%;
     --muted: 214 36% 17%;
-    --muted-foreground: 213 20% 68%;
+    --muted-foreground: 213 20% 82%; /* 68% failed 4.5:1 over dark glass (3.9:1 on the sign-in card) */
     --accent: 214 36% 17%;
     --accent-foreground: 212 38% 93%;
     /* Mid-tone, not light: these two carry white text (delete buttons, the calendar's today). */

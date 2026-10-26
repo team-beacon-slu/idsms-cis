@@ -56,7 +56,7 @@ export function AiSettingsForm({ settings }: { settings: AiSettings }) {
         <p className="text-muted-foreground">
           {settings.lastEval
             ? `Last evaluation at ${settings.lastEval.threshold}: precision ${pct(settings.lastEval.precision)}, recall ${pct(settings.lastEval.recall)} on ${settings.lastEval.pairCount} pairs — ${settings.lastEval.passes ? "passes" : "does not pass"}.`
-            : "No golden-set evaluation yet. Run scripts/ai-golden-eval.ts with the adviser's labelled pairs."}
+            : "No copy-detection test yet: run it below."}
         </p>
       </div>
 
@@ -115,7 +115,7 @@ export function AiSettingsForm({ settings }: { settings: AiSettings }) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ai-privacy">Privacy basis approved by (adviser, D5)</Label>
+        <Label htmlFor="ai-privacy">Privacy basis approved by (DPO or adviser, D5)</Label>
         <Input
           id="ai-privacy"
           value={approvedBy}
@@ -130,13 +130,13 @@ export function AiSettingsForm({ settings }: { settings: AiSettings }) {
             onClick={() =>
               run(async () => {
                 if (await send("PATCH", { enabled: true, privacyApprovedBy: approvedBy || null })) {
-                  toast.success("AI advisories enabled");
+                  toast.success("AI assist is on");
                   router.refresh();
                 }
               })
             }
           >
-            Enable AI advisories
+            Turn AI on
           </Button>
           <Button
             variant="outline"
@@ -145,13 +145,13 @@ export function AiSettingsForm({ settings }: { settings: AiSettings }) {
             onClick={() =>
               run(async () => {
                 if (await send("PATCH", { enabled: false, privacyApprovedBy: null })) {
-                  toast.success("AI advisories disabled");
+                  toast.success("AI assist is off");
                   router.refresh();
                 }
               })
             }
           >
-            Disable
+            Turn AI off
           </Button>
         </div>
       </div>

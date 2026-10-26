@@ -41,9 +41,11 @@ import {
 import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
 import { AttendanceExportButton } from "./export-button";
 import { HolidayList } from "./holiday-list";
+import { prisma } from "@/lib/prisma";
 import { ConductCard, type ConductCardData } from "./conduct-card";
 import { listConductRecords } from "@/lib/services/conduct/conductService";
 import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/conduct/deductionService";
+import { listDisputes } from "@/lib/services/conduct/disputeService";
 import { tallyDeductions } from "@/lib/utils/deductionMatrix";
 import type { Metadata } from "next";
 
@@ -72,21 +74,26 @@ export default async function AttendancePage(props: {
 
   // getHoursSummary is read-only (no StudentProfile.renderedHours write) —
   // a page view shouldn't persist hours; approvals already do.
-  const [deviationReports, workPlan, holidays, summary, projectedCompletionDate] =
+  const [deviationReports, workPlan, holidays, summary, projectedCompletionDate, placement] =
     await Promise.all([
       listDeviationReportsForStudent(params.studentProfileId),
       getLatestApprovedWorkPlanForStudent(params.studentProfileId),
       getHolidayCalendarForStudent(params.studentProfileId),
       getHoursSummary(params.studentProfileId),
       computeProjectedCompletionDate(params.studentProfileId),
+      prisma.studentProfile.findUnique({
+        where: { id: params.studentProfileId },
+        select: { company: { select: { name: true } } },
+      }),
     ]);
 
   const isOwner = user.role === "STUDENT_INTERN";
   // Workstream L2: conduct records, automatic deduction items and the tally.
-  const [matrix, conductRecords, automaticItems] = await Promise.all([
+  const [matrix, conductRecords, automaticItems, disputes] = await Promise.all([
     getDeductionMatrix(),
     listConductRecords(params.studentProfileId),
     listAutomaticItems(params.studentProfileId),
+    listDisputes(params.studentProfileId),
   ]);
   const conduct: ConductCardData = {
     tally: tallyDeductions(
@@ -105,6 +112,14 @@ export default async function AttendancePage(props: {
       revokeReason: r.revokeReason,
     })),
     items: automaticItems.map((i) => ({ ...i, date: i.date.toISOString() })),
+    disputes: disputes.map((d) => ({
+      id: d.id,
+      itemType: d.itemType,
+      itemKey: d.itemKey,
+      reason: d.reason,
+      outcome: d.outcome,
+      resolutionNote: d.resolutionNote,
+    })),
     categories: matrix
       .filter((c) => c.source === "MANUAL")
       .map(({ key, label }) => ({ key, label })),
@@ -273,8 +288,8 @@ export default async function AttendancePage(props: {
         <CardHeader>
           <CardTitle>Holidays</CardTitle>
           <CardDescription>
-            Philippine holidays this semester. Uncheck one your host company works through so it
-            appears on your weekly report.
+            Philippine holidays this semester and the host company&apos;s own days off. Uncheck one
+            the company works through so it appears on the weekly report.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -285,8 +300,12 @@ export default async function AttendancePage(props: {
               date: h.date.toISOString(),
               name: h.name,
               applicable: h.applicable,
+              company: h.holidayType === "COMPANY",
+              // Staff may remove any company day; an intern only one they added.
+              removable: h.holidayType === "COMPANY" && (!isOwner || h.createdById === user.id),
             }))}
             canEdit={isOwner}
+            companyName={placement?.company?.name ?? null}
           />
         </CardContent>
       </Card>

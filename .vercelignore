@@ -1,0 +1,12 @@
+# CLI deploys upload from this folder: never send local secrets or working files.
+.env
+.env.*
+!.env.example
+TEST_ACCOUNTS.md
+.hallmark
+.blender
+.claude
+.remember
+node_modules
+.next
+coverage

@@ -1,11 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { FieldError, errorProps } from "@/components/field-error";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signIn } from "next-auth/react";
+import { getProviders, signIn } from "next-auth/react";
 import { AlertCircle, Loader2, Lock, Mail } from "lucide-react";
 import { loginSchema } from "@/lib/validators/auth";
 import { safeInternalPath } from "@/lib/utils/safeInternalPath";
@@ -22,7 +22,19 @@ const ERROR_MESSAGES: Record<string, string> = {
   ACCOUNT_LOCKED:
     "This account is locked due to too many failed attempts. Try again later or reset your password.",
   ACCOUNT_INACTIVE: "This account has been deactivated. Contact a Department Coordinator.",
+  // next-auth's code when the beta Google sign-in refuses an account (authOptions signIn).
+  AccessDenied:
+    "Use your SLU Google account (@slu.edu.ph). If it is yours and still refused, it may be deactivated or locked.",
 };
+
+// Own keys only: a crafted ?error=__proto__ must not reach React as an object. Any other
+// code (a failed OAuth exchange, a dropped database) still gets a plain message.
+function messageFor(code: string | null): string | null {
+  if (!code) return null;
+  return Object.hasOwn(ERROR_MESSAGES, code)
+    ? ERROR_MESSAGES[code]
+    : "Sign-in did not complete. Please try again.";
+}
 
 export default function LoginPage() {
   return (
@@ -38,7 +50,16 @@ function LoginForm() {
   // Only same-site paths, so a crafted link can't send a signed-in user to another site.
   const callbackUrl = safeInternalPath(searchParams.get("callbackUrl")) ?? "/";
 
-  const [error, setError] = useState<string | null>(null);
+  // Redirects arrive with ?error= (an inactive session, a refused Google account): show it.
+  const [error, setError] = useState<string | null>(() => messageFor(searchParams.get("error")));
+  // Beta only (lib/auth/betaGoogle): the button shows when the server really has Google on.
+  const [google, setGoogle] = useState(false);
+  useEffect(() => {
+    getProviders().then(
+      (p) => setGoogle(!!p?.google),
+      () => {}
+    );
+  }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -60,7 +81,7 @@ function LoginForm() {
     setIsSubmitting(false);
 
     if (result?.error) {
-      setError(ERROR_MESSAGES[result.error] ?? "Something went wrong. Please try again.");
+      setError(messageFor(result.error));
       return;
     }
 
@@ -125,6 +146,16 @@ function LoginForm() {
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
           </form>
+          {google && (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3 w-full cursor-pointer"
+              onClick={() => signIn("google", { callbackUrl })}
+            >
+              Sign in with your SLU Google account
+            </Button>
+          )}
           <p className="mt-4 text-center text-sm text-muted-foreground">
             <Link
               href="/auth/reset-password"
@@ -135,7 +166,8 @@ function LoginForm() {
           </p>
         </CardContent>
       </Card>
-      <p className="mt-4 text-center text-xs text-muted-foreground">
+      {/* Text over the painted scene sits on glass (the plan's scene rule). */}
+      <p className="mx-auto mt-4 w-fit rounded-lg glass px-3 py-1.5 text-center text-xs text-muted-foreground">
         <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
           Privacy notice
         </Link>

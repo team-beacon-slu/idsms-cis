@@ -8,11 +8,13 @@ import { ChevronsUpDown, FileText, LogOut, ShieldCheck, UserCog } from "lucide-r
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/avatar";
 import { ThemeChoice } from "@/components/theme-toggle";
+import { AiAssistSwitch } from "@/components/ai/ai-assist-switch";
 
 export interface AccountIdentity {
   name: string;
   email: string;
   roleLabel: string;
+  aiAssist: boolean;
 }
 
 const itemClass =
@@ -105,6 +107,7 @@ export function AccountMenu({ identity, rail }: { identity: AccountIdentity; rai
             <p className="px-1.5 pb-1.5 text-xs text-muted-foreground">Theme</p>
             <ThemeChoice compact />
           </div>
+          <AiAssistSwitch initial={identity.aiAssist} compact />
           <div className="border-t border-border pt-1">
             <Link href="/privacy" className={itemClass}>
               <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />

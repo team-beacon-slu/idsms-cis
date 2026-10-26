@@ -65,7 +65,7 @@ export interface AutomaticItemsInput {
 const covers = (r: AutomaticItemsInput["requests"][number], key: string) =>
   toDateKey(r.date) <= key && key <= toDateKey(r.endDate ?? r.date);
 
-const history = (report: { revisionHistory: unknown } | undefined) =>
+export const history = (report: { revisionHistory: unknown } | undefined) =>
   Array.isArray(report?.revisionHistory) ? (report!.revisionHistory as HistoryEntry[]) : [];
 
 export function findAutomaticItems(input: AutomaticItemsInput): AutomaticItem[] {

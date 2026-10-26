@@ -137,6 +137,7 @@ enum NotificationStatus {
 enum HolidayType {
   NATIONAL
   REGIONAL
+  COMPANY // a host company's own non-working day (FR-AT-02)
 }
 
 // ── NextAuth (database session strategy — FR-UM-11) ────────────────────────
@@ -177,6 +178,7 @@ model Session {
 // ── Core domain tables ──────────────────────────────────────────────────
 
 model User {
+  holidaysAdded HolidayCalendarEntry[] @relation("HolidayCreatedBy")
   id                    String    @id @default(uuid()) @db.Uuid
   email                 String    @unique
   hashedPassword        String    @map("hashed_password")
@@ -190,6 +192,8 @@ model User {
   privacyConsentVersion String?   @map("privacy_consent_version")
   // Display name for staff (students' legal name lives on student_profiles.full_name).
   fullName              String?   @map("full_name")
+  // ai-assist-plan step 6: each person can turn AI hints off for themselves.
+  aiAssist              Boolean   @default(true) @map("ai_assist")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   deletedAt             DateTime? @map("deleted_at")
@@ -205,6 +209,7 @@ model User {
   coordinatedWorkPlans   WorkPlan[]                   @relation("WorkPlanCoordinator")
   dataRequests           DataRequest[]                @relation("DataRequestRequester")
   fulfilledDataRequests  DataRequest[]                @relation("DataRequestFulfiller")
+  aiFeedback             AiFeedback[]
 
   @@map("users")
 }
@@ -261,6 +266,8 @@ model StudentProfile {
   deviationReports     DeviationReport[]
   conductRecords       ConductRecord[]
   deductionExceptions  DeductionException[]
+  deductionDisputes    DeductionDispute[]
+  companyEvaluation    CompanyEvaluation?
   finalTechnicalReport FinalTechnicalReport?
   weeklyReports        WeeklyReport[]
   generatedDocuments   GeneratedDocument[]
@@ -335,11 +342,40 @@ model Company {
   isVerified         Boolean      @default(false) @map("is_verified")
   isForeign          Boolean      @default(false) @map("is_foreign") // proof of corporate legitimacy applies
   deletedAt          DateTime?    @map("deleted_at")
+  // The company's reply to intern feedback, entered by the coordinator (migration 019).
+  hteReply           String?      @map("hte_reply")
+  hteReplyAt         DateTime?    @map("hte_reply_at") @db.Timestamptz(3)
+  hteReplyBy         String?      @map("hte_reply_by") @db.Uuid
 
-  students   StudentProfile[]
-  moaRecords MoaRecord[]
+  students    StudentProfile[]
+  moaRecords  MoaRecord[]
+  holidays    HolidayCalendarEntry[]
+  evaluations CompanyEvaluation[]
 
   @@map("companies")
+}
+
+// The intern's evaluation of their host company, one per intern, opened once
+// all required hours are confirmed (migration 019). Ratings are 1–5.
+model CompanyEvaluation {
+  id               String   @id @default(uuid()) @db.Uuid
+  studentProfileId String   @unique @map("student_profile_id") @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  supervision      Int      @db.SmallInt
+  learning         Int      @db.SmallInt
+  safety           Int      @db.SmallInt
+  communication    Int      @db.SmallInt
+  integration      Int      @db.SmallInt
+  resources        Int      @db.SmallInt
+  recommend        Int      @db.SmallInt
+  comment          String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  company        Company        @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@map("company_evaluations")
 }
 
 model MoaRecord {
@@ -422,6 +458,8 @@ model WeeklyReport {
   sentimentConfidence Decimal?           @map("sentiment_confidence") @db.Decimal(4, 3)
   sentimentReasoning  String?            @map("sentiment_reasoning") @db.Text // FR-AI-03 brief reasoning
   aiProcessedAt       DateTime?          @map("ai_processed_at")
+  // Nightly AI hints (lib/ai/hints.ts AiHints): similar day, tone quote, summary, coverage.
+  aiHints             Json?              @map("ai_hints")
 
   studentProfile StudentProfile     @relation(fields: [studentProfileId], references: [id])
   dailyEntries   DailyReportEntry[]
@@ -556,6 +594,26 @@ model DeductionException {
   @@map("deduction_exceptions")
 }
 
+// Go-live item 5: an intern disputes a deduction. Staff accept it by excusing
+// the item or revoking the record, or decline it with a note (migration 018).
+model DeductionDispute {
+  id               String    @id @default(uuid()) @db.Uuid
+  studentProfileId String    @map("student_profile_id") @db.Uuid
+  itemType         String    @map("item_type") // LATE_WWR | MISSING_WWR | UNSUPPORTED_UT | CONDUCT
+  itemKey          String    @map("item_key") // week start / day, or the conduct record id
+  reason           String
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz(3)
+  resolvedById     String?   @map("resolved_by_id") @db.Uuid
+  outcome          String? // ACCEPTED | DECLINED
+  resolutionNote   String?   @map("resolution_note")
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@index([studentProfileId])
+  @@map("deduction_disputes")
+}
+
 model GeneratedDocument {
   id               String         @id @default(uuid()) @db.Uuid
   studentProfileId String         @map("student_profile_id") @db.Uuid
@@ -668,12 +726,36 @@ model HolidayCalendarEntry {
   name             String
   holidayType      HolidayType @map("holiday_type")
   semesterId       String?     @map("semester_id") @db.Uuid
-  studentProfileId String?     @map("student_profile_id") @db.Uuid // nullable — company-specific override
+  studentProfileId String?     @map("student_profile_id") @db.Uuid // set = this intern's opt-out marker
+  // Set = a host company's own non-working day, shared by every intern placed there.
+  companyId        String?     @map("company_id") @db.Uuid
+  createdById      String?     @map("created_by") @db.Uuid
 
   semester       Semester?       @relation(fields: [semesterId], references: [id])
   studentProfile StudentProfile? @relation(fields: [studentProfileId], references: [id])
+  company        Company?        @relation(fields: [companyId], references: [id])
+  createdBy      User?           @relation("HolidayCreatedBy", fields: [createdById], references: [id])
 
+  @@index([companyId])
+  @@index([createdById])
   @@map("holiday_calendar")
+}
+
+// R2: advisers' Correct / Not right ratings; 30% Not right of the last 50 switches a job off.
+model AiFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  job       String
+  targetId  String   @map("target_id")
+  userId    String   @map("user_id") @db.Uuid
+  correct   Boolean
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([job, targetId, userId])
+  @@index([job, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("ai_feedback")
 }
 
 model SystemConfig {

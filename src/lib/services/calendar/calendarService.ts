@@ -108,7 +108,7 @@ function buildStudentEvents(studentProfileId: string, sources: EventSources): Ca
     events.push({
       type: "DEADLINE",
       date: getWeeklyReportDueDate(report.weekEnd),
-      label: `Weekly report due — week of ${report.weekStart.toISOString().slice(0, 10)}`,
+      label: `Weekly report due — week of ${report.weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`,
       studentProfileId,
     });
   }
@@ -169,7 +169,13 @@ async function getCalendarEventsForStudents(ids: string[]): Promise<CalendarEven
   const [profiles, reports, optOuts, deviations, plans] = await Promise.all([
     prisma.studentProfile.findMany({
       where: { id: { in: ids } },
-      select: { id: true, semesterId: true, requiredHours: true, renderedHours: true },
+      select: {
+        id: true,
+        semesterId: true,
+        companyId: true,
+        requiredHours: true,
+        renderedHours: true,
+      },
     }),
     prisma.weeklyReport.findMany({
       where,
@@ -190,10 +196,15 @@ async function getCalendarEventsForStudents(ids: string[]): Promise<CalendarEven
     }),
   ]);
   const semesterIds = [...new Set(profiles.map((p) => p.semesterId))];
+  const companyIds = [...new Set(profiles.flatMap((p) => (p.companyId ? [p.companyId] : [])))];
+  // The semesters' PH holidays plus each host company's own days off.
   const systemHolidays = await prisma.holidayCalendarEntry.findMany({
-    where: { semesterId: { in: semesterIds }, studentProfileId: null },
+    where: {
+      studentProfileId: null,
+      OR: [{ semesterId: { in: semesterIds } }, { companyId: { in: companyIds } }],
+    },
     orderBy: { date: "asc" },
-    select: { semesterId: true, date: true, name: true },
+    select: { semesterId: true, companyId: true, date: true, name: true },
   });
 
   return profiles.flatMap((profile) => {
@@ -205,7 +216,9 @@ async function getCalendarEventsForStudents(ids: string[]): Promise<CalendarEven
     return buildStudentEvents(profile.id, {
       weeklyReports: reports.filter((r) => r.studentProfileId === profile.id),
       holidays: systemHolidays
-        .filter((h) => h.semesterId === profile.semesterId)
+        .filter((h) =>
+          h.companyId ? h.companyId === profile.companyId : h.semesterId === profile.semesterId
+        )
         .map((h) => ({ ...h, applicable: !optedOut.has(h.date.getTime()) })),
       deviations: deviations.filter((d) => d.studentProfileId === profile.id),
       completionDate: projectCompletionDate(

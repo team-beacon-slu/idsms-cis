@@ -1,0 +1,368 @@
+/* The living beacon: the 2.5D coast behind the dashboard (coast-scene.tsx), after
+   Firewatch and Alto's Adventure. Day is a clear spring afternoon in the app's own
+   blues (cornflower sky, blue-grey ranges, green hills, a sea deepening to the BEACON
+   navy); night is a navy-to-teal sky with stars and a crescent moon. Every animation is
+   transform or opacity, so the compositor runs it; the reduced-motion rule at the end
+   of globals.css leaves the scene still. */
+.coast-scene {
+  --cs-sky-1: #6fa9dc;
+  --cs-sky-2: #9cc8ee;
+  --cs-sky-3: #cfe5f6;
+  --cs-sky-4: #e9f3fb;
+  --cs-glow: #ffffff;
+  --cs-sun: #fffbe8;
+  --cs-moon: transparent;
+  --cs-star: transparent;
+  --cs-cloud: #ffffff;
+  --cs-cloud-shade: #dbe8f4;
+  --cs-cloud-alpha: 0.72; /* a clear sky with soft, thin cloud */
+  --cs-ridge-0: #cddff0; /* the farthest range, almost sky */
+  --cs-ridge-1: #aac7e0;
+  --cs-ridge-2: #86abc6;
+  --cs-ridge-3: #6f9b8e;
+  --cs-ridge-4: #5a8a6c;
+  --cs-ridge-lit: #f3faff; /* sunlight on the faces turned to the sun */
+  --cs-snow: #ffffff;
+  --cs-treeline: #4f7d5e;
+  --cs-treeline-lit: #7eaa83;
+  --cs-mist: #e3effa;
+  --cs-sea-1: #a6d3ee;
+  --cs-sea-2: #4f93c4;
+  --cs-sea-3: #1f4e79;
+  --cs-glint: #ffffff;
+  --cs-hull: #1f4e79;
+  --cs-sail: #ffffff;
+  --cs-rim: #dcecf7;
+  --cs-head: #5b7584;
+  --cs-head-deep: #2f4553;
+  --cs-rock-lit: #7f95a4;
+  --cs-rock-mid: #6a8191;
+  --cs-rock-dark: #586f80;
+  --cs-crack: rgb(20 36 50 / 0.28);
+  --cs-grass: #6fa36a;
+  --cs-grass-dark: #4e8350;
+  --cs-pine: #2f6249;
+  --cs-pine-lit: #4f8c63;
+  --cs-shore: #264d3c;
+  --cs-shore-pine: #1f4535;
+  --cs-shore-pine-lit: #3a6f52;
+  --cs-stone: #8a9aa6;
+  --cs-tower: #1f4e79;
+  --cs-tower-lit: #3a73a6;
+  --cs-tower-dark: #143656;
+  --cs-band: #ffffff;
+  --cs-band-dark: #c9d6e2;
+  --cs-door: #143656;
+  --cs-window: #fff1bd;
+  --cs-wall: #f4efe6;
+  --cs-wall-shade: #d3cbbd;
+  --cs-roof: #a4503f;
+  --cs-lamp: #fff6cf;
+  --cs-bird: #3a5a7a;
+  --cs-beam: #fff8dc;
+  --cs-beam-core: #fffdf2;
+  --cs-wave-far: rgb(255 255 255 / 0.45);
+  --cs-wave-mid: rgb(255 255 255 / 0.3);
+  --cs-wave-near: rgb(16 52 92 / 0.35);
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  /* Sky and sea beyond the frame on very wide windows; the horizon is 67.8% down. */
+  background: linear-gradient(
+    var(--cs-sky-1) 0%,
+    var(--cs-sky-3) 60%,
+    var(--cs-sky-4) 67.8%,
+    var(--cs-sea-1) 67.8%,
+    var(--cs-sea-3) 100%
+  );
+}
+.dark .coast-scene {
+  --cs-sky-1: #040817;
+  --cs-sky-2: #0b1b42;
+  --cs-sky-3: #134a63;
+  --cs-sky-4: #2a8a86;
+  --cs-glow: #4fc4b2;
+  --cs-sun: transparent;
+  --cs-moon: #eef3ff;
+  --cs-star: #e6eeff;
+  --cs-cloud: #3a5a78; /* moonlit vapour */
+  --cs-cloud-shade: #1c3550;
+  --cs-cloud-alpha: 0.45;
+  --cs-ridge-0: #24546c;
+  --cs-ridge-1: #1d4a64;
+  --cs-ridge-2: #153a55;
+  --cs-ridge-3: #0e2a42;
+  --cs-ridge-4: #0a1f33;
+  --cs-ridge-lit: #9cc4dc; /* cool moonlight on the faces turned to the moon */
+  --cs-snow: #cfe0ee;
+  --cs-treeline: #071726;
+  --cs-treeline-lit: #12304a;
+  --cs-mist: #2f8d8a;
+  --cs-sea-1: #1b5b6a;
+  --cs-sea-2: #0d2c45;
+  --cs-sea-3: #040b18;
+  --cs-glint: #dfeaff; /* moonlight on the water is cool, not gold */
+  --cs-hull: #050c18;
+  --cs-sail: #3d6a86;
+  --cs-rim: #2e6f8a;
+  --cs-head: #0b1a2b;
+  --cs-head-deep: #040a14;
+  --cs-rock-lit: #1a3349;
+  --cs-rock-mid: #132a3f;
+  --cs-rock-dark: #0e2234;
+  --cs-crack: rgb(0 0 0 / 0.35);
+  --cs-grass: #16352c;
+  --cs-grass-dark: #0d241e;
+  --cs-pine: #061410;
+  --cs-pine-lit: #10302a;
+  --cs-shore: #02060d;
+  --cs-shore-pine: #01040a;
+  --cs-shore-pine-lit: #0a1d22;
+  --cs-stone: #1f2f3e;
+  --cs-tower: #142a44;
+  --cs-tower-lit: #24466a;
+  --cs-tower-dark: #08111f;
+  --cs-band: #dce6f2;
+  --cs-band-dark: #8fa2b6;
+  --cs-door: #050c18;
+  --cs-window: #ffd97a; /* lamplight in the windows */
+  --cs-wall: #6f7f92;
+  --cs-wall-shade: #46546a;
+  --cs-roof: #2a2430;
+  --cs-lamp: #ffe9a3;
+  --cs-bird: transparent;
+  --cs-beam: #ffe9a6;
+  --cs-beam-core: #fff8dc;
+  --cs-wave-far: rgb(140 225 215 / 0.16);
+  --cs-wave-mid: rgb(140 225 215 / 0.1);
+  --cs-wave-near: rgb(0 0 0 / 0.45);
+}
+
+/* The frame: 3200×900 units at the window's full height (355.56vh wide), anchored
+   bottom-right. */
+.coast-frame {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 355.56vh;
+  height: 100vh;
+}
+.coast-still,
+.coast-twinkle,
+.coast-glints,
+.coast-birds {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.coast-clouds svg,
+.coast-wave svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Drifting clouds and rolling waves: strips twice as wide as their band, slid by half
+   their width so the loop is seamless. */
+.coast-clouds,
+.coast-wave {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  will-change: transform;
+}
+.coast-clouds {
+  top: 4%;
+  height: 33%;
+  animation: coast-slide 180s linear infinite;
+}
+.coast-band-far,
+.coast-band-mid {
+  position: absolute;
+  left: 0;
+  overflow: hidden;
+}
+.coast-band-far {
+  top: 68.6%;
+  height: 3.6%;
+  width: calc(100% - 61.7vh); /* ends at the cliff face */
+}
+.coast-band-mid {
+  top: 75.5%;
+  height: 4.6%;
+  width: calc(100% - 65.3vh);
+}
+.coast-band-far .coast-wave,
+.coast-band-mid .coast-wave {
+  top: 0;
+  height: 100%;
+}
+.coast-band-far .coast-wave {
+  animation: coast-slide 30s linear infinite;
+}
+.coast-band-mid .coast-wave {
+  animation: coast-slide-back 22s linear infinite;
+}
+.coast-wave-near {
+  top: 88%;
+  height: 6.7%;
+  animation: coast-slide 16s linear infinite;
+}
+@keyframes coast-slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes coast-slide-back {
+  from {
+    transform: translateX(-50%);
+  }
+}
+
+/* Glints shimmer in turn, drifting a little with the swell. */
+.coast-glints {
+  will-change: transform, opacity;
+  animation: coast-shimmer 5s ease-in-out infinite;
+}
+.coast-glints-b {
+  animation-delay: -2.5s;
+}
+@keyframes coast-shimmer {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateX(-0.4%);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(0.4%);
+  }
+}
+.coast-twinkle {
+  will-change: opacity;
+  animation: coast-twinkle 4.5s ease-in-out infinite alternate;
+}
+@keyframes coast-twinkle {
+  from {
+    opacity: 0.2;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The flock drifts across the sun and bobs as it goes. */
+.coast-birds {
+  will-change: transform;
+  animation: coast-flock 40s ease-in-out infinite alternate;
+}
+@keyframes coast-flock {
+  0% {
+    transform: translate(-1.5%, 0.6%);
+  }
+  50% {
+    transform: translate(0.5%, -0.4%);
+  }
+  100% {
+    transform: translate(2.5%, 0.4%);
+  }
+}
+
+/* The lighthouse turning, seen from the side: the beam reaches out to the left, swings
+   in towards the viewer (shrinking to the lamp, which flares), reaches out to the right,
+   then swings away (dimmer) and back. scaleX runs 1, 0, -1, 0, 1. */
+.coast-light {
+  position: absolute;
+  left: 92.5%;
+  top: 31.78%;
+  width: 0;
+  height: 0;
+}
+.coast-beam {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 190vh; /* reaches most of the way across the coast */
+  height: 30vh;
+  translate: 0 -50%;
+  transform-origin: 100% 50%;
+  will-change: transform, opacity;
+  animation: coast-turn 12s linear infinite;
+}
+.coast-beam svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Round light at the lantern: a bright core and a wide bloom, both flaring as the beam
+   swings towards the viewer. */
+.coast-halo,
+.coast-bloom {
+  position: absolute;
+  border-radius: 9999px;
+  will-change: transform, opacity;
+  animation: coast-flare 12s linear infinite;
+}
+.coast-halo {
+  left: -8vh;
+  top: -8vh;
+  width: 16vh;
+  height: 16vh;
+  background: radial-gradient(closest-side, var(--cs-beam-core), var(--cs-lamp) 35%, transparent);
+}
+.coast-bloom {
+  left: -28vh;
+  top: -28vh;
+  width: 56vh;
+  height: 56vh;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--cs-beam) 45%, transparent),
+    transparent
+  );
+}
+@keyframes coast-turn {
+  0% {
+    transform: scaleX(1);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  }
+  25% {
+    transform: scaleX(0.02);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  }
+  50% {
+    transform: scaleX(-1);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  }
+  75% {
+    transform: scaleX(-0.02);
+    opacity: 0.35;
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+@keyframes coast-flare {
+  0%,
+  50%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  25% {
+    transform: scale(2);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(0.6);
+    opacity: 0.3;
+  }
+}

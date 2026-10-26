@@ -45,9 +45,9 @@ export function ComplianceTable({
           <TableRow>
             <TableHead>Student</TableHead>
             {showProgram && <TableHead>Program</TableHead>}
-            <TableHead>Hours</TableHead>
-            <TableHead>Docs</TableHead>
-            {deductions && <TableHead>Deductions (ADVISER / WWR)</TableHead>}
+            <TableHead className="text-right">Hours</TableHead>
+            <TableHead className="text-right">Docs</TableHead>
+            {deductions && <TableHead className="text-right">Deductions (ADVISER / WWR)</TableHead>}
             <TableHead>Weekly report</TableHead>
             <TableHead>AI flag</TableHead>
             <TableHead>Status</TableHead>
@@ -68,7 +68,7 @@ export function ComplianceTable({
                 {showProgram && <TableCell>{row.program}</TableCell>}
                 <TableCell>
                   <div className="min-w-32">
-                    <p className="text-xs text-foreground">
+                    <p className="text-right text-xs text-foreground tabular-nums">
                       {row.confirmedHours} / {row.requiredHours}
                     </p>
                     <div
@@ -87,11 +87,11 @@ export function ComplianceTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-right tabular-nums">
                   {row.checklistApproved}/{row.checklistTotal}
                 </TableCell>
                 {deductions && (
-                  <TableCell>
+                  <TableCell className="text-right tabular-nums">
                     {deductions[row.studentProfileId]
                       ? `−${deductions[row.studentProfileId].adviser} / −${deductions[row.studentProfileId].wwr}`
                       : "—"}

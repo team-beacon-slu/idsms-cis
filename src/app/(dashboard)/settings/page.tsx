@@ -16,6 +16,8 @@ import { NotificationSettingsForm } from "../users/notification-settings-form";
 import { RequiredHoursForm } from "../users/required-hours-form";
 import { ChecklistSettingsForm } from "../users/checklist-settings-form";
 import { AiSettingsForm } from "../users/ai-settings-form";
+import { AiPanel } from "./ai-panel";
+import { getAiPanel } from "@/lib/ai/jobs";
 import { DeductionSettingsForm } from "../users/deduction-settings-form";
 import type { Metadata } from "next";
 
@@ -27,7 +29,7 @@ export default async function SettingsPage() {
   const user = await requireUserPage();
   if (user.role !== Role.SUPER_ADMIN) redirect("/");
 
-  const [notificationSettings, requiredHours, aiSettings, matrix, defaultHours, required] =
+  const [notificationSettings, requiredHours, aiSettings, matrix, defaultHours, required, aiPanel] =
     await Promise.all([
       getNotificationSettings(),
       Promise.all(
@@ -40,6 +42,7 @@ export default async function SettingsPage() {
       getDeductionMatrix(),
       getDefaultConductHours(),
       getRequiredChecklistTypes(),
+      getAiPanel(),
     ]);
 
   return (
@@ -110,16 +113,19 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="ai" className="scroll-mt-20">
           <CardHeader>
-            <CardTitle className="text-lg text-brand-900">AI advisories</CardTitle>
+            <CardTitle className="text-lg text-brand-900">AI assist</CardTitle>
             <CardDescription>
-              Advisory-only similarity and sentiment signals on weekly reports (PRD Module 9). Off
-              until the adviser approves the privacy basis and the golden-set evaluation passes.
+              Hints that point staff to what interns wrote; they never decide anything. Turn AI on
+              once the privacy basis is approved; each job then runs only while its connection
+              works, its test passes and its ratings stay good. Anyone can turn AI assist off for
+              themselves.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-8">
             <AiSettingsForm settings={aiSettings} />
+            <AiPanel panel={aiPanel} />
           </CardContent>
         </Card>
       </div>

@@ -4,6 +4,7 @@ import { requestPasswordResetSchema } from "@/lib/validators/auth";
 import { requestPasswordReset } from "@/lib/services/accounts/userService";
 import { notifyPasswordReset } from "@/lib/services/notifications/notificationEvents";
 import { handleApiError } from "@/lib/utils/apiError";
+import { isEmailConfigured } from "@/lib/services/notifications/notify";
 
 // Looks up the account, issues the token and emails it. Runs after the response.
 async function issueReset(email: string, ipAddress: string | null) {
@@ -11,11 +12,10 @@ async function issueReset(email: string, ipAddress: string | null) {
   if (!result) return;
   // FR-NT-01 #2 — email only; the token lives only in the email body.
   await notifyPasswordReset(result.userId, result.token);
-  // Without Resend configured (decision D4) there is no email, so in dev
+  // Without email configured (decision D4) there is no email, so in dev
   // log the link locally — never in production; the raw token is otherwise
   // unrecoverable (only its hash is ever persisted).
-  const emailConfigured = !!process.env.RESEND_API_KEY && !!process.env.RESEND_FROM_EMAIL;
-  if (!emailConfigured && process.env.NODE_ENV !== "production") {
+  if (!isEmailConfigured() && process.env.NODE_ENV !== "production") {
     console.log(`[dev] password reset link for ${email}: /auth/reset-password/${result.token}`);
   }
 }

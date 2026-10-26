@@ -12,16 +12,12 @@ import { WeeklyReportForm } from "../../weekly-report-form";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
-import { ClipboardList, Copy, Sparkles } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { WeeklyReportReviewActions } from "./review-actions";
 import { getAdvisoryView } from "@/lib/ai/display";
 import { getAiSettings } from "@/lib/ai/settings";
-
-const SENTIMENT_LABEL: Record<string, string> = {
-  POSITIVE: "Positive",
-  NEUTRAL: "Neutral",
-  NEGATIVE: "Negative",
-};
+import { jobsOnFor } from "@/lib/ai/jobs";
+import { AiHints } from "@/components/ai/ai-hints";
 
 // Ownership note (pre-flight fix): a role check alone isn't enough — a
 // Faculty Adviser must also be assigned to this specific student (same
@@ -58,9 +54,24 @@ export default async function WeeklyReportReviewPage(props: {
   });
   const awaitingReview = isAwaitingReview(report!);
 
-  // FR-AI-05/07: cached columns only, with NFR-AI-04's confidence floor.
-  const view = getAdvisoryView(report!, await getAiSettings());
-  const hasAiSignal = Boolean(view.similarity || view.sentiment || view.pending);
+  // FR-AI-05/07: cached hints only, shown while their job is on and the adviser's AI
+  // assist switch is on.
+  const [on, { similarityThreshold }] = await Promise.all([jobsOnFor(user), getAiSettings()]);
+  const view = getAdvisoryView(report!, { on, similarityThreshold });
+  const texts: Record<string, string> = Object.fromEntries(
+    report!.dailyEntries.map((e) => [e.id, e.accomplishments ?? ""])
+  );
+  if (view.similar) {
+    // The earlier day belongs to this same intern (the nightly job only compares within one intern).
+    const prev = await prisma.dailyReportEntry.findFirst({
+      where: {
+        id: view.similar.prevEntryId,
+        weeklyReport: { studentProfileId: params.studentProfileId },
+      },
+      select: { accomplishments: true },
+    });
+    texts[view.similar.prevEntryId] = prev?.accomplishments ?? "";
+  }
 
   return (
     <div className="space-y-6">
@@ -83,46 +94,9 @@ export default async function WeeklyReportReviewPage(props: {
           </p>
         </CardHeader>
 
-        {hasAiSignal && (
-          <CardContent className="space-y-3 pt-0">
-            {view.pending && (
-              <p className="text-sm text-muted-foreground">
-                AI advisory pending — processed within 24 hours.
-              </p>
-            )}
-            {view.similarity && (
-              <div className="flex gap-3 rounded-lg border bg-muted/50 p-4 text-sm">
-                <Copy className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div className="space-y-0.5">
-                  <p className="font-medium text-foreground">Similarity advisory</p>
-                  <p className="text-muted-foreground">
-                    This week resembles the student&apos;s earlier reports (similarity score{" "}
-                    {view.similarity.score.toFixed(2)}). This is a signal for your review, not a
-                    determination — use your judgment.
-                  </p>
-                </div>
-              </div>
-            )}
-            {view.sentiment && (
-              <div className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-                <Sparkles className="mt-0.5 size-4 shrink-0 text-slate-600" aria-hidden="true" />
-                <div className="space-y-0.5">
-                  <p className="font-medium text-slate-900">
-                    Sentiment advisory —{" "}
-                    {SENTIMENT_LABEL[view.sentiment.label] ?? view.sentiment.label}
-                  </p>
-                  {view.sentiment.reasoning && (
-                    <p className="text-slate-700/90">{view.sentiment.reasoning}</p>
-                  )}
-                  <p className="text-slate-700/90">
-                    Confidence {(view.sentiment.confidence * 100).toFixed(0)}%. AI-assisted,
-                    advisory only — it never decides the outcome of this review.
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        )}
+        <CardContent className="pt-0 empty:hidden">
+          <AiHints view={view} reportId={report!.id} texts={texts} />
+        </CardContent>
 
         {/* The report itself, so the adviser decides with the entries in front of them. */}
         <CardContent className="pt-0">

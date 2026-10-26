@@ -9,6 +9,7 @@ import { FullNameForm } from "./full-name-form";
 import { DataRequestCard } from "./data-request-card";
 import { SignOutOthersButton } from "./sign-out-others-button";
 import { ThemeChoice } from "@/components/theme-toggle";
+import { AiAssistSwitch } from "@/components/ai/ai-assist-switch";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,7 @@ const fmtDate = (d: Date) =>
 // protected, what you agreed to, and your data. Each has an anchor so it can be linked.
 const SECTIONS = [
   { id: "profile", label: "Profile" },
-  { id: "appearance", label: "Appearance" },
+  { id: "appearance", label: "Appearance and AI" },
   { id: "security", label: "Security" },
   { id: "privacy", label: "Privacy" },
   { id: "data", label: "Your data" },
@@ -122,14 +123,16 @@ export default async function AccountSettingsPage() {
 
       <Card id="appearance" className="scroll-mt-20">
         <CardHeader>
-          <CardTitle>Appearance</CardTitle>
+          <CardTitle>Appearance and AI</CardTitle>
           <CardDescription>
-            Saved on this device. Match device follows your computer or phone&apos;s setting. The
-            sidebar remembers whether you collapsed it.
+            The theme is saved on this device. Match device follows your computer or phone&apos;s
+            setting. The sidebar remembers whether you collapsed it.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <ThemeChoice />
+          {/* Saved on your account, on every device. */}
+          <AiAssistSwitch initial={user.aiAssist} />
         </CardContent>
       </Card>
 
