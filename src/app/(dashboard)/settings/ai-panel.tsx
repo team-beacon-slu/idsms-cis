@@ -65,7 +65,7 @@ function ConnectionFields({
                     name: "Gemini",
                     keyEnv: "GEMINI_API_KEY",
                     embeddingModel: "gemini-embedding-001",
-                    chatModel: "gemini-3.8-flash",
+                    chatModel: "gemini-3.5-flash-lite",
                   }
                 : null
             )
@@ -91,7 +91,7 @@ function ConnectionFields({
           {c.provider === "openai" && field("baseUrl", "Base URL", "http://ollama:11434/v1")}
           {field("keyEnv", "Key's variable on the server", "GEMINI_API_KEY (blank for Ollama)")}
           {field("embeddingModel", "Embedding model (768 dims)", "gemini-embedding-001")}
-          {field("chatModel", "Chat model", "gemini-3.8-flash")}
+          {field("chatModel", "Chat model", "gemini-3.5-flash-lite")}
         </div>
       )}
     </fieldset>

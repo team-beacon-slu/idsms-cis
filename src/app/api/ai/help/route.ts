@@ -3,12 +3,12 @@ import { z } from "zod";
 import { requireUserApi } from "@/lib/auth/session";
 import { connectionFor, runJob } from "@/lib/ai/jobs";
 import { chatJson } from "@/lib/services/ai/aiService";
-import { buildPrompt } from "@/lib/ai/guard";
+import { buildPrompt, entryId, oneObject } from "@/lib/ai/guard";
 import { scrubPii } from "@/lib/ai/scrubPii";
 import { helpQuestionsFor } from "@/app/(dashboard)/help/faq";
 import { handleApiError } from "@/lib/utils/apiError";
 
-const answerSchema = z.object({ id: z.number().int().nullable() });
+const answerSchema = oneObject(z.object({ id: entryId.nullable() }));
 
 // Job 9: which help question (for this person's role) answers theirs, or none. It only
 // points to existing help text; it never writes an answer.
