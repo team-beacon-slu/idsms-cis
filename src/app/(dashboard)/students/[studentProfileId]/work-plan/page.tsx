@@ -9,24 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkPlanSubmitForm } from "./work-plan-submit-form";
+import { asWorkPlanRows } from "@/lib/validators/workPlan";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { FileDown } from "lucide-react";
 import { WorkPlanReviewActions } from "./work-plan-review-actions";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Work plan" };
 
 const REVIEW_ROLES: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
-
-function isTaskList(value: unknown): value is { description: string }[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (task) =>
-        typeof task === "object" &&
-        task !== null &&
-        typeof (task as { description?: unknown }).description === "string"
-    )
-  );
-}
 
 export default async function WorkPlanPage(props: {
   params: Promise<{ studentProfileId: string }>;
@@ -45,6 +37,7 @@ export default async function WorkPlanPage(props: {
 
   const history = await getWorkPlanHistory(params.studentProfileId);
   const latest = history[0];
+  const rows = latest ? asWorkPlanRows(latest.plannedTasks) : [];
   const isOwner = user.role === Role.STUDENT_INTERN;
   const canReview = REVIEW_ROLES.includes(user.role);
   const canSubmitNew = isOwner && (!latest || latest.status !== "SUBMITTED");
@@ -85,23 +78,45 @@ export default async function WorkPlanPage(props: {
               </div>
             )}
 
-            {isTaskList(latest.plannedTasks) ? (
-              <ul className="space-y-2">
-                {latest.plannedTasks.map((task, index) => (
-                  <li
-                    key={index}
-                    className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
-                  >
-                    <span className="mt-0.5 shrink-0 text-muted-foreground">{index + 1}.</span>
-                    <span>{task.description}</span>
-                  </li>
-                ))}
-              </ul>
+            {rows.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[40rem] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="p-2 font-medium">Period</th>
+                      <th className="p-2 font-medium">Area/Topic</th>
+                      <th className="p-2 font-medium">Specific tasks</th>
+                      <th className="p-2 font-medium">Expected output</th>
+                      <th className="p-2 text-right font-medium">Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, index) => (
+                      <tr key={index} className="border-b align-top last:border-0">
+                        <td className="p-2">{row.period ?? "—"}</td>
+                        <td className="p-2">{row.area ?? "—"}</td>
+                        <td className="p-2 whitespace-pre-line">{row.description}</td>
+                        <td className="p-2">{row.output ?? "—"}</td>
+                        <td className="p-2 text-right tabular-nums">{row.hours ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
                 {JSON.stringify(latest.plannedTasks, null, 2)}
               </pre>
             )}
+
+            <a
+              href={`/api/students/${params.studentProfileId}/work-plans/pdf`}
+              download
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+            >
+              <FileDown className="size-3.5" aria-hidden="true" />
+              Download work plan PDF
+            </a>
 
             {canReview && latest.status === "SUBMITTED" && (
               <WorkPlanReviewActions workPlanId={latest.id} />

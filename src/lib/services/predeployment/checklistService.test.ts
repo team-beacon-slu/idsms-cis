@@ -57,7 +57,12 @@ const rows = (
 ) => types.map((requirementType, i) => baseItem({ id: `item-${i}`, requirementType, status }));
 
 describe("checklistRequirements", () => {
-  const ctx = { isForeignCompany: false, classType: "Regular", startBeforeMoaAllowed: false };
+  const ctx = {
+    isForeignCompany: false,
+    isPartnerCompany: false,
+    classType: "Regular",
+    startBeforeMoaAllowed: false,
+  };
 
   it("hides the conditional items when they don't apply", () => {
     const { applicable, gate } = checklistRequirements(NINE, ctx);
@@ -66,14 +71,30 @@ describe("checklistRequirements", () => {
     expect(gate.size).toBe(9);
   });
 
-  it("applies proof to foreign-owned companies and the agreement to irregular students", () => {
-    const { applicable } = checklistRequirements(NINE, {
+  it("asks a non-partner abroad for proof of legitimacy instead of DTI/SEC; irregulars sign the agreement", () => {
+    const { applicable, gate } = checklistRequirements(NINE, {
       ...ctx,
       isForeignCompany: true,
       classType: "Irregular",
     });
     expect(applicable.has(ChecklistRequirementType.PROOF_OF_CORPORATE_LEGITIMACY)).toBe(true);
+    expect(applicable.has(ChecklistRequirementType.GOVERNMENT_COMPANY_PERMIT)).toBe(false);
+    expect(gate.has(ChecklistRequirementType.GOVERNMENT_COMPANY_PERMIT)).toBe(false);
     expect(applicable.has(ChecklistRequirementType.INTERNSHIP_AGREEMENT)).toBe(true);
+  });
+
+  it("needs neither DTI/SEC nor proof of legitimacy for a partner HTE (active MOA)", () => {
+    for (const isForeignCompany of [false, true]) {
+      const { applicable, gate } = checklistRequirements(NINE, {
+        ...ctx,
+        isForeignCompany,
+        isPartnerCompany: true,
+      });
+      expect(applicable.has(ChecklistRequirementType.GOVERNMENT_COMPANY_PERMIT)).toBe(false);
+      expect(applicable.has(ChecklistRequirementType.PROOF_OF_CORPORATE_LEGITIMACY)).toBe(false);
+      expect(gate.has(ChecklistRequirementType.WORK_PLAN)).toBe(true); // always required
+      expect(gate.size).toBe(8);
+    }
   });
 
   it("takes the MOA out of the gate when the intern may start before MOA approval", () => {

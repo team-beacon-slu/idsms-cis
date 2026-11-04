@@ -114,7 +114,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
             <VerificationPill isVerified={company.isVerified} />
             {company.isForeign && (
               <span className="inline-flex items-center rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-900">
-                Foreign-owned
+                Outside the Philippines
               </span>
             )}
           </CardTitle>

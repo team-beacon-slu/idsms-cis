@@ -21,5 +21,6 @@ describe("SLU file names (OJT Documentation Guidelines)", () => {
     expect(sluFileName({ kind: "UT" }, name)).toBe("UnderTimeHours DelaCruzJuan.pdf");
     expect(sluFileName({ kind: "ABSENCE" }, name)).toBe("AbsenceReport DelaCruzJuan.pdf");
     expect(sluFileName({ kind: "HTE_EVALUATION" }, name)).toBe("FM-VAA-052 DelaCruzJuan.pdf");
+    expect(sluFileName({ kind: "WORK_PLAN" }, name)).toBe("WorkPlan DelaCruzJuan.pdf");
   });
 });

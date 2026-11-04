@@ -96,7 +96,8 @@ export function sluFileName(
     | { kind: "JLE"; month: string } // "YYYY-MM"
     | { kind: "TECHNICAL_REPORT" }
     | { kind: "OT" | "UT" | "ABSENCE"; week?: number }
-    | { kind: "HTE_EVALUATION" },
+    | { kind: "HTE_EVALUATION" }
+    | { kind: "WORK_PLAN" },
   fullName: string
 ): string {
   const { last, first } = nameParts(fullName);
@@ -111,6 +112,8 @@ export function sluFileName(
       return `${last}_OJTTechnicalReport.pdf`;
     case "HTE_EVALUATION":
       return `FM-VAA-052 ${who}.pdf`;
+    case "WORK_PLAN":
+      return `WorkPlan ${who}.pdf`;
     default: {
       const label = { OT: "OffDutyHours", UT: "UnderTimeHours", ABSENCE: "AbsenceReport" }[
         doc.kind
