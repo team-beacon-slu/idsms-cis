@@ -37,6 +37,13 @@ const complete = {
   studentProfileId: "profile-1",
   status: "DRAFT",
   sections: Object.fromEntries(SECTION_KEYS.map((k) => [k, `Text ${k}`])),
+  assessment: {
+    work: Array(10).fill(3),
+    others: [],
+    supervisorGuidance: 4,
+    coworkers: 4,
+    self: Array(10).fill(3),
+  },
   supervisorScore: 4.5,
   supervisorScale: 5,
   peerScore: 90,
@@ -74,7 +81,7 @@ describe("gate (FR-FT-01)", () => {
       expect.objectContaining({ unlocked: false, renderedHours: 480, threshold: 500, report: null })
     );
     await expect(
-      saveFinalReportDraft("profile-1", { sections: { introduction: "Hi" } }, student)
+      saveFinalReportDraft("profile-1", { sections: { companyDescription: "Hi" } }, student)
     ).rejects.toThrow(FinalReportLockedError);
   });
 });
@@ -85,14 +92,14 @@ describe("saveFinalReportDraft", () => {
     prismaMock.finalTechnicalReport.create.mockResolvedValue({ id: "fr-1" } as never);
     await saveFinalReportDraft(
       "profile-1",
-      { sections: { introduction: "Hello" }, attachments: { attendanceProof: true } },
+      { sections: { companyDescription: "Hello" }, attachments: { signedWeeklyReports: true } },
       student
     );
     expect(prismaMock.finalTechnicalReport.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         studentProfileId: "profile-1",
-        sections: { introduction: "Hello" },
-        attachments: { attendanceProof: { attached: true, confirmed: false } },
+        sections: { companyDescription: "Hello" },
+        attachments: { signedWeeklyReports: { attached: true, confirmed: false } },
       }),
       select: { id: true },
     });
@@ -103,16 +110,19 @@ describe("saveFinalReportDraft", () => {
 
   it("updates an editable report with a status guard; a submitted one is refused", async () => {
     prismaMock.finalTechnicalReport.findUnique.mockResolvedValue(complete as never);
-    await saveFinalReportDraft("profile-1", { sections: { learnings: "New" } }, student);
+    await saveFinalReportDraft("profile-1", { sections: { officeCulture: "New" } }, student);
     expect(prismaMock.finalTechnicalReport.updateMany).toHaveBeenCalledWith({
       where: { id: "fr-1", status: { in: ["DRAFT", "RETURNED"] } },
       data: expect.objectContaining({
-        sections: expect.objectContaining({ learnings: "New", introduction: "Text introduction" }),
+        sections: expect.objectContaining({
+          officeCulture: "New",
+          companyDescription: "Text companyDescription",
+        }),
       }),
     });
     prismaMock.finalTechnicalReport.updateMany.mockResolvedValue({ count: 0 } as never);
     await expect(
-      saveFinalReportDraft("profile-1", { sections: { learnings: "x" } }, student)
+      saveFinalReportDraft("profile-1", { sections: { officeCulture: "x" } }, student)
     ).rejects.toThrow(FinalReportStateError);
   });
 
@@ -138,7 +148,7 @@ describe("review-fix rules", () => {
       status: "RETURNED",
     } as never);
     await expect(
-      saveFinalReportDraft("profile-1", { sections: { learnings: "Fixed" } }, student)
+      saveFinalReportDraft("profile-1", { sections: { officeCulture: "Fixed" } }, student)
     ).resolves.toBeUndefined();
   });
 
@@ -155,7 +165,7 @@ describe("review-fix rules", () => {
       new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "6" })
     );
     await expect(
-      saveFinalReportDraft("profile-1", { sections: { introduction: "Hi" } }, student)
+      saveFinalReportDraft("profile-1", { sections: { companyDescription: "Hi" } }, student)
     ).rejects.toThrow(FinalReportStateError);
   });
 });
@@ -224,7 +234,11 @@ describe("reviewFinalReport (FR-FT-03)", () => {
 
   it("refuses to approve with an unconfirmed attachment", async () => {
     await expect(
-      reviewFinalReport("fr-1", { action: "APPROVE", confirmed: ["attendanceProof"] }, coordinator)
+      reviewFinalReport(
+        "fr-1",
+        { action: "APPROVE", confirmed: ["signedWeeklyReports"] },
+        coordinator
+      )
     ).rejects.toThrow(FinalReportLockedError);
   });
 

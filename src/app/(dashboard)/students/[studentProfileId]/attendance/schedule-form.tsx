@@ -40,7 +40,7 @@ export interface PendingScheduleChange {
 
 const PENDING_LABEL: Record<string, string> = {
   PENDING_FACULTY: "Awaiting faculty adviser",
-  PENDING_COORDINATOR: "Awaiting department coordinator",
+  PENDING_COORDINATOR: "Awaiting internship coordinator",
 };
 
 // Spec answer 1: per-student shift, defaulting to 08:00–17:00 with a 1 h break.

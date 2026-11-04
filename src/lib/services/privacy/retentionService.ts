@@ -7,9 +7,9 @@ import { getSuperAdminIds } from "@/lib/services/notifications/notificationRecip
 import { ComplianceNotFoundError, RetentionStateError } from "@/lib/errors/compliance";
 import { CHECKLIST_BUCKET, GENERATED_DOCUMENTS_BUCKET, deleteObject } from "@/lib/storage";
 
-// NFR-DP-08 / NFR-DP-06: files more than 3 years past their semester are
+// NFR-DP-08 / NFR-DP-06: files more than 2 years past their semester are
 // flagged for Super Admin review. The scan only flags; it never deletes.
-export const RETENTION_YEARS = 3;
+export const RETENTION_YEARS = 2; // the adviser's rule, Nov 2026 (was 3)
 export const RETENTION_SCAN_INTERVAL_DAYS = 90;
 export const RETENTION_LAST_SCAN_KEY = "retention:last_scan_at";
 const DAY_MS = 24 * 60 * 60 * 1000;

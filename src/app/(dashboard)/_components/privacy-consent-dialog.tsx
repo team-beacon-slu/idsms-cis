@@ -49,8 +49,8 @@ export function PrivacyConsentDialog() {
         <DialogHeader>
           <DialogTitle>Privacy notice and terms of use</DialogTitle>
           <DialogDescription>
-            Please read these before using IDSMS-CIS. They follow the Data Privacy Act of 2012 (RA
-            10173).
+            Please read these before using IDSMS-CIS. In accordance with the Data Privacy Act of
+            2012 (RA 10173).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm text-foreground">

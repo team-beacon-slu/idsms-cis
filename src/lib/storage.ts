@@ -80,15 +80,19 @@ export function validateUpload(file: File): void {
 // upsert:true so a Return -> re-upload cycle overwrites in place rather than
 // accumulating orphaned versions against the 1GB free-tier cap.
 export async function uploadFile(bucket: string, path: string, file: File): Promise<string> {
+  await assertUploadable(file);
+  await putObject(bucket, path, file, file.type);
+  return path;
+}
+
+// Type, size and the real first bytes, for a file that is stored or sent anywhere.
+export async function assertUploadable(file: File): Promise<void> {
   validateUpload(file);
   const signature = SIGNATURES[file.type];
   const head = new Uint8Array(await file.slice(0, signature.length).arrayBuffer());
   if (!signature.every((byte, i) => head[i] === byte)) {
     throw new InvalidFileError("The file's contents don't match its type");
   }
-
-  await putObject(bucket, path, file, file.type);
-  return path;
 }
 
 // Both drivers overwrite in place (Supabase upsert:true; S3 PutObject always does).

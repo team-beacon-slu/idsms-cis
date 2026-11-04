@@ -441,6 +441,8 @@ model WorkPlan {
   studentProfileId      String         @map("student_profile_id") @db.Uuid
   status                WorkPlanStatus @default(SUBMITTED)
   plannedTasks          Json           @map("planned_tasks")
+  // The uploaded work plan PDF, in the company's own template (024).
+  filePath              String?        @map("file_path")
   scheduleConfig        Json?          @map("schedule_config")
   scheduleChangeHistory Json           @default("[]") @map("schedule_change_history")
   approvalMetadata      Json?          @map("approval_metadata")
@@ -550,6 +552,8 @@ model FinalTechnicalReport {
   studentProfileId String            @unique @map("student_profile_id") @db.Uuid
   status           FinalReportStatus @default(DRAFT)
   sections         Json              @default("{}")
+  // SLU work assessment and self-assessment ratings, 1-4 (023).
+  assessment       Json              @default("{}")
   supervisorScore  Decimal?          @map("supervisor_score") @db.Decimal(5, 2)
   supervisorScale  Int?              @map("supervisor_scale")
   peerScore        Decimal?          @map("peer_score") @db.Decimal(5, 2)

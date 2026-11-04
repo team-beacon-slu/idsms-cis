@@ -7,7 +7,7 @@ import { Globe2 } from "lucide-react";
 import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 
-// Foreign-owned host companies need a proof of corporate legitimacy on each intern's checklist.
+// An HTE outside the Philippines needs a proof of legitimacy instead of DTI and SEC (SAMCIS advisory).
 export function CompanyForeignToggle({
   companyId,
   isForeign,
@@ -29,7 +29,7 @@ export function CompanyForeignToggle({
       toast.error(res.error);
       return;
     }
-    toast.success(isForeign ? "Marked as locally owned" : "Marked as foreign-owned");
+    toast.success(isForeign ? "Marked as in the Philippines" : "Marked as outside the Philippines");
     router.refresh();
   }
 
@@ -42,7 +42,11 @@ export function CompanyForeignToggle({
       className="cursor-pointer gap-1.5"
     >
       <Globe2 className="size-3.5" aria-hidden="true" />
-      {pending ? "Saving..." : isForeign ? "Mark as local" : "Mark as foreign-owned"}
+      {pending
+        ? "Saving..."
+        : isForeign
+          ? "Mark as in the Philippines"
+          : "Mark as outside the Philippines"}
     </Button>
   );
 }

@@ -3,6 +3,7 @@ import { formatCalendarDate } from "@/lib/documents/html";
 import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import Link from "next/link";
 import { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { MapPin, Briefcase, User, Phone, ShieldCheck, Plus, Lock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import {
@@ -96,6 +97,13 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
   if (!company) {
     notFound();
   }
+  if (user.role === Role.STUDENT_INTERN) {
+    const own = await prisma.studentProfile.findUnique({
+      where: { userId: user.id },
+      select: { companyId: true },
+    });
+    if (own?.companyId !== company.id) notFound(); // students see only their own company
+  }
 
   const isStaff = STAFF_ROLES.includes(user.role);
   // FR-MOA-07: MOA records are restricted to staff — never fetched or shown
@@ -114,7 +122,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
             <VerificationPill isVerified={company.isVerified} />
             {company.isForeign && (
               <span className="inline-flex items-center rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-900">
-                Foreign-owned
+                Outside the Philippines
               </span>
             )}
           </CardTitle>

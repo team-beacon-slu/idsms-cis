@@ -1,4 +1,4 @@
-# 05. User guide: department coordinator
+# 05. User guide: internship coordinator
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 

@@ -32,7 +32,7 @@ const PAGE_SIZE = 25;
 const ROLE_OPTIONS: Array<{ value: Role; label: string }> = [
   { value: Role.STUDENT_INTERN, label: "Student intern" },
   { value: Role.FACULTY_ADVISER, label: "Faculty adviser" },
-  { value: Role.DEPARTMENT_COORDINATOR, label: "Department coordinator" },
+  { value: Role.DEPARTMENT_COORDINATOR, label: "Internship coordinator" },
   { value: Role.SUPER_ADMIN, label: "Super admin" },
 ];
 const roleLabel = (role: Role) => ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role;

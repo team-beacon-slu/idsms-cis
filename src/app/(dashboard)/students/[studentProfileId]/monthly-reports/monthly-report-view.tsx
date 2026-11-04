@@ -162,8 +162,8 @@ export function MonthlyReportView({
 
             {!month.submitted && !month.eligible && (
               <p className="text-xs text-amber-700">
-                Not yet eligible. The month must be over (unless your hours are complete) and every
-                weekly report in it approved or regarded by your faculty adviser.
+                You can submit this journal once the month is over (or your hours are complete) and
+                your faculty adviser has approved all of this month&apos;s weekly reports.
               </p>
             )}
 

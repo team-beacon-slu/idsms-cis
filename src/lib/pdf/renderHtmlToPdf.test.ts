@@ -8,7 +8,7 @@ jest.mock("@sparticuz/chromium", () => ({
 
 import puppeteer from "puppeteer-core";
 import Chromium from "@sparticuz/chromium";
-import { renderHtmlToPdf, resolveBrowserLaunch } from "@/lib/pdf/renderHtmlToPdf";
+import { countPdfPages, renderHtmlToPdf, resolveBrowserLaunch } from "@/lib/pdf/renderHtmlToPdf";
 
 const launch = puppeteer.launch as jest.Mock;
 const chromiumPath = Chromium.executablePath as jest.Mock;
@@ -16,6 +16,7 @@ const chromiumPath = Chromium.executablePath as jest.Mock;
 function fakeBrowser(pdfBytes = new Uint8Array([37, 80, 68, 70])) {
   const page = {
     setContent: jest.fn().mockResolvedValue(undefined),
+    evaluate: jest.fn().mockResolvedValue([]), // no table of contents
     pdf: jest.fn().mockResolvedValue(pdfBytes),
   };
   const browser = { newPage: jest.fn().mockResolvedValue(page), close: jest.fn() };
@@ -109,4 +110,11 @@ describe("renderHtmlToPdf", () => {
 
     expect(launch).toHaveBeenCalledWith(expect.objectContaining({ timeout: 15_000 }));
   });
+});
+
+it("counts the pages of a printed PDF, not its page tree", () => {
+  const pdf = Buffer.from(
+    "1 0 obj << /Type /Pages /Kids [2 0 R 3 0 R] >> 2 0 obj << /Type /Page >> 3 0 obj <</Type/Page/Parent 1 0 R>>"
+  );
+  expect(countPdfPages(pdf)).toBe(2);
 });

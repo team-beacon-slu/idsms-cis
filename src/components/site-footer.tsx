@@ -92,6 +92,7 @@ export function SiteFooter({
           <p className="border-t border-border/70 py-3 text-center text-xs text-foreground/80">
             © {new Date().getFullYear()} Saint Louis University · School of Accountancy, Management,
             Computing and Information Studies · Built by Team BEACON
+            {process.env.NEXT_PUBLIC_APP_VERSION && ` · v${process.env.NEXT_PUBLIC_APP_VERSION}`}
           </p>
         </div>
       </div>

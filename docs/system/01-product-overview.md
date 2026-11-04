@@ -41,7 +41,7 @@ IDSMS has four roles. Every screen and every server action checks the role, and 
 | -------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **Student intern**         | BSIT, BSCS or BMMA student on internship            | Checklist status, work plan, schedule, daily time record, weekly and monthly reports, PDFs, data request               |
 | **Faculty adviser**        | Faculty member assigned to one or more class groups | Review checklist items and weekly reports, validate deviation reports, generate endorsement letters, exports           |
-| **Department coordinator** | SAMCIS internship coordinator                       | Department dashboard, users and bulk import, companies and MOAs, work plan approval, schedule-change approval, exports |
+| **Internship coordinator** | SAMCIS internship coordinator                       | Department dashboard, users and bulk import, companies and MOAs, work plan approval, schedule-change approval, exports |
 | **Super Admin**            | System administrator                                | Everything the coordinator does, plus settings, semesters, audit log, Export Center, data requests and file retention  |
 
 Host companies (HTE supervisors) have **no account** in IDSMS. This is out of scope in the PRD. Their signatures go on paper copies, which are kept in Google Classroom (decision D2).

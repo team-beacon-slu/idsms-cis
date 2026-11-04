@@ -36,7 +36,7 @@ export function ScheduleChangeReview({
       action === "REJECT"
         ? "Schedule change rejected"
         : stage === "faculty"
-          ? "Approved. It now goes to the department coordinator."
+          ? "Approved. It now goes to the internship coordinator."
           : "Schedule change approved. It applies from today."
     );
     // Keep the buttons busy until the refreshed status arrives, so nobody clicks twice.

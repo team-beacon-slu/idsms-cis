@@ -5,10 +5,10 @@ const REQUIREMENT_LABELS: Record<string, string> = {
   COMPANY_REPLY_FORM: "Company reply form",
   DATA_PRIVACY_ORIENTATION: "Data privacy orientation",
   INTERNSHIP_ORIENTATION: "Internship orientation",
-  GOVERNMENT_COMPANY_PERMIT: "Government or company permit",
+  GOVERNMENT_COMPANY_PERMIT: "DTI and SEC registration",
   WORK_PLAN: "Work plan",
   MOA: "Memorandum of Agreement (MOA)",
-  PROOF_OF_CORPORATE_LEGITIMACY: "Proof of corporate legitimacy",
+  PROOF_OF_CORPORATE_LEGITIMACY: "Proof of legitimacy (HTE outside the Philippines)",
   INTERNSHIP_AGREEMENT: "Internship agreement",
 };
 
