@@ -37,6 +37,19 @@ const nextConfig = {
   // Keep the headless-browser packages as runtime requires so webpack doesn't
   // try to bundle Chromium's binary/ESM internals.
   serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium"],
+  // Chromium's compressed binaries are read from disk at launch, which tracing can't see:
+  // without this every PDF on Vercel failed with "@sparticuz/chromium/bin does not exist".
+  // Only the routes that print, since the binaries are 67 MB.
+  outputFileTracingIncludes: Object.fromEntries(
+    [
+      "/api/**/pdf",
+      "/api/**/preview",
+      "/api/**/endorsement-letter",
+      "/api/**/endorsement-letters",
+      "/api/**/final-cover",
+      "/api/**/time-reports/**",
+    ].map((route) => [route, ["./node_modules/@sparticuz/chromium/bin/**"]])
+  ),
 };
 
 export default nextConfig;

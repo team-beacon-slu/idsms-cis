@@ -493,6 +493,22 @@ describe("saveDailyAccomplishment", () => {
     expect(prismaMock.dailyReportEntry.update).not.toHaveBeenCalled();
   });
 
+  it("reads the holiday list before opening the transaction (one pooled connection)", async () => {
+    mockEntry(WeeklyReportStatus.PENDING);
+    mockHolidayOn("2026-10-05T00:00:00Z");
+    prismaMock.dailyReportEntry.update.mockResolvedValue({
+      id: "entry-1",
+      actualHours: 0,
+      accomplishments: "",
+    } as never);
+    await saveDailyAccomplishment("entry-1", 0, "", "student-1", undefined, {
+      attendanceStatus: "HOLIDAY",
+    });
+    const holidaysRead = prismaMock.holidayCalendarEntry.findMany.mock.invocationCallOrder[0];
+    const transactionOpened = prismaMock.$transaction.mock.invocationCallOrder[0];
+    expect(holidaysRead).toBeLessThan(transactionOpened);
+  });
+
   it("clears stale tools, times and text when a day is marked non-PRESENT", async () => {
     mockEntry(WeeklyReportStatus.PENDING);
     mockHolidayOn("2026-10-05T00:00:00Z");
