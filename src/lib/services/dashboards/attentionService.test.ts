@@ -57,6 +57,7 @@ it("counts returned reports, drafts due within 48h, pending deviations, open che
     pendingDeviations: 2,
     incompleteChecklistItems: 3, // 9 required − 6 approved
     companyEvaluated: false,
+    certificateAttached: false,
   });
 });
 

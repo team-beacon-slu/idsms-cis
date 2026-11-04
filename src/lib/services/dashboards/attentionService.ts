@@ -13,28 +13,35 @@ export interface AttentionItems {
   pendingDeviations: number;
   incompleteChecklistItems: number;
   companyEvaluated: boolean;
+  certificateAttached: boolean; // the HTE's certificate of completion, on the final report
 }
 
 export async function getAttentionItems(
   studentProfileId: string,
   now: Date = new Date()
 ): Promise<AttentionItems> {
-  const [openReports, pendingDeviations, approvedChecklist, evaluations] = await Promise.all([
-    prisma.weeklyReport.findMany({
-      where: {
-        studentProfileId,
-        status: { in: [WeeklyReportStatus.PENDING, WeeklyReportStatus.RETURNED] },
-      },
-      select: { status: true, weekEnd: true, revisionHistory: true },
-    }),
-    prisma.deviationReport.count({
-      where: { studentProfileId, validationStatus: ValidationStatus.PENDING },
-    }),
-    prisma.preDeploymentChecklistItem.count({
-      where: { studentProfileId, status: ChecklistStatus.APPROVED },
-    }),
-    prisma.companyEvaluation.count({ where: { studentProfileId } }),
-  ]);
+  const [openReports, pendingDeviations, approvedChecklist, evaluations, finalReport] =
+    await Promise.all([
+      prisma.weeklyReport.findMany({
+        where: {
+          studentProfileId,
+          status: { in: [WeeklyReportStatus.PENDING, WeeklyReportStatus.RETURNED] },
+        },
+        select: { status: true, weekEnd: true, revisionHistory: true },
+      }),
+      prisma.deviationReport.count({
+        where: { studentProfileId, validationStatus: ValidationStatus.PENDING },
+      }),
+      prisma.preDeploymentChecklistItem.count({
+        where: { studentProfileId, status: ChecklistStatus.APPROVED },
+      }),
+      prisma.companyEvaluation.count({ where: { studentProfileId } }),
+      prisma.finalTechnicalReport.findUnique({
+        where: { studentProfileId },
+        select: { attachments: true },
+      }),
+    ]);
+  const attachments = (finalReport?.attachments ?? {}) as Record<string, { attached?: boolean }>;
 
   const returnedReports = openReports.filter(
     (r) => r.status === WeeklyReportStatus.RETURNED
@@ -52,6 +59,7 @@ export async function getAttentionItems(
     pendingDeviations,
     incompleteChecklistItems: Math.max(0, CHECKLIST_ITEM_COUNT - approvedChecklist),
     companyEvaluated: evaluations > 0,
+    certificateAttached: Boolean(attachments.certificateOfCompletion?.attached),
   };
 }
 

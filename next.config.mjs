@@ -58,6 +58,8 @@ const nextConfig = {
         "/api/**/endorsement-letters",
         "/api/**/final-cover",
         "/api/**/time-reports/**",
+        "/api/**/notice",
+        "/api/**/waiver",
       ].map((route) => [route, ["./node_modules/@sparticuz/chromium/bin/**"]])
     ),
   },

@@ -210,6 +210,7 @@ model User {
   dataRequests           DataRequest[]                @relation("DataRequestRequester")
   fulfilledDataRequests  DataRequest[]                @relation("DataRequestFulfiller")
   aiFeedback             AiFeedback[]
+  companyVisits          CompanyVisit[]               @relation("CompanyVisitor")
 
   @@map("users")
 }
@@ -275,6 +276,7 @@ model StudentProfile {
   generatedDocuments   GeneratedDocument[]
   holidayOverrides     HolidayCalendarEntry[]
   learningJournals     LearningJournal[]
+  placements           CompanyPlacement[]
 
   // classGroupId/semesterId are pre-existing Phase 0 gaps (Postgres never
   // auto-indexes FK columns) left alone here; companyId and classGroupId are
@@ -354,6 +356,8 @@ model Company {
   moaRecords  MoaRecord[]
   holidays    HolidayCalendarEntry[]
   evaluations CompanyEvaluation[]
+  placements  CompanyPlacement[]
+  visits      CompanyVisit[]
 
   @@map("companies")
 }
@@ -372,6 +376,48 @@ model LearningJournal {
 
   @@unique([studentProfileId, month])
   @@map("learning_journals")
+}
+
+// An intern's time at one host company (025). Ends through a notification of retraction,
+// filed by the intern and noted by SAMCIS, or on completion.
+model CompanyPlacement {
+  id                  String    @id @default(uuid()) @db.Uuid
+  studentProfileId    String    @map("student_profile_id") @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  positionTitle       String?   @map("position_title")
+  startedOn           DateTime  @map("started_on") @db.Date
+  endedOn             DateTime? @map("ended_on") @db.Date
+  endReason           String?   @map("end_reason") // RETRACTED | COMPLETED
+  retractionLastDay   DateTime? @map("retraction_last_day") @db.Date
+  retractionReason    String?   @map("retraction_reason")
+  retractionFiledAt   DateTime? @map("retraction_filed_at") @db.Timestamptz(3)
+  retractionNotedAt   DateTime? @map("retraction_noted_at") @db.Timestamptz(3)
+  retractionNotedById String?   @map("retraction_noted_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  company        Company        @relation(fields: [companyId], references: [id])
+
+  @@index([studentProfileId])
+  @@index([companyId])
+  @@map("company_placements")
+}
+
+// SAMCIS's company visit before the internship ends (025).
+model CompanyVisit {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  visitedOn DateTime @map("visited_on") @db.Date
+  visitedBy String   @map("visited_by") @db.Uuid
+  mode      String   @default("ON_SITE") // ON_SITE | ONLINE
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  visitor User    @relation("CompanyVisitor", fields: [visitedBy], references: [id])
+
+  @@index([companyId])
+  @@map("company_visits")
 }
 
 model CompanyEvaluation {
