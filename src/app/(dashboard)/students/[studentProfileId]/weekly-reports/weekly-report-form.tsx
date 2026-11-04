@@ -898,9 +898,13 @@ export function WeeklyReportForm({
           className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
         >
           <Send className="size-3.5" aria-hidden="true" />
-          {isPending ? "Submitting..." : "Submit for review"}
+          {isPending ? "Submitting..." : "Submit and generate PDF"}
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Next: download the PDF, have your HTE supervisor sign it and upload it to Google Classroom.
+        Your faculty adviser approves it from there.
+      </p>
     </div>
   );
 }

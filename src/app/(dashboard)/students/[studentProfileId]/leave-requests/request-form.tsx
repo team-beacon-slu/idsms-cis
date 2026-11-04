@@ -35,20 +35,25 @@ const EMPTY: RequestFormValues = {
   proofType: "",
 };
 
+// "No duty" (the company had no work, or its own day off) files as an absence the adviser
+// excuses, so the day isn't deducted. The prefix lets the absence report name it.
+export const NO_DUTY_PREFIX = "No duty: ";
+
 const SELECT_CLASS =
   "flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-2 text-sm disabled:cursor-not-allowed";
 
-function toBody(v: RequestFormValues) {
-  const isLeave = v.deviationType === "ABSENCE";
+export function toBody(v: RequestFormValues) {
+  const noDuty = v.deviationType === "NO_DUTY";
+  const isLeave = v.deviationType === "ABSENCE" || noDuty;
   return {
-    deviationType: v.deviationType,
+    deviationType: noDuty ? "ABSENCE" : v.deviationType,
     requestKind: v.requestKind,
     date: v.date,
     endDate: isLeave && v.endDate && !v.startTime ? v.endDate : undefined,
     startTime: v.startTime || undefined,
     endTime: v.endTime || undefined,
-    reason: v.reason,
-    proofType: isLeave ? v.proofType || undefined : undefined,
+    reason: noDuty && !v.reason.startsWith(NO_DUTY_PREFIX) ? NO_DUTY_PREFIX + v.reason : v.reason,
+    proofType: noDuty ? "WRITTEN_NOTICE" : isLeave ? v.proofType || undefined : undefined,
   };
 }
 
@@ -64,10 +69,17 @@ export function RequestForm({
   onDone?: () => void;
 }) {
   const router = useRouter();
-  const [v, setV] = useState<RequestFormValues>({ ...EMPTY, ...initial });
+  const [v, setV] = useState<RequestFormValues>(() => {
+    const start = { ...EMPTY, ...initial };
+    // Editing a no-duty request shows it as one again, without the stored prefix.
+    return start.deviationType === "ABSENCE" && start.reason.startsWith(NO_DUTY_PREFIX)
+      ? { ...start, deviationType: "NO_DUTY", reason: start.reason.slice(NO_DUTY_PREFIX.length) }
+      : start;
+  });
   const [pending, setPending] = useState(false);
   const set = (patch: Partial<RequestFormValues>) => setV((prev) => ({ ...prev, ...patch }));
-  const isLeave = v.deviationType === "ABSENCE";
+  const noDuty = v.deviationType === "NO_DUTY";
+  const isLeave = v.deviationType === "ABSENCE" || noDuty; // both take a date range
   const idp = requestId ?? "new";
 
   async function submit(e: React.FormEvent) {
@@ -103,6 +115,7 @@ export function RequestForm({
             onChange={(e) => set({ deviationType: e.target.value })}
           >
             <option value="ABSENCE">Leave (absence)</option>
+            <option value="NO_DUTY">No duty (no work / company day off)</option>
             <option value="OVERTIME">Overtime</option>
             <option value="UNDERTIME">Undertime (late / early leave)</option>
           </select>
@@ -120,7 +133,13 @@ export function RequestForm({
             <option value="EMERGENCY">Emergency</option>
           </select>
         </div>
-        {isLeave && (
+        {noDuty && (
+          <p className="self-end text-xs text-muted-foreground">
+            Your adviser excuses these days, so no hours are deducted. Upload the company&apos;s
+            notice in Google Classroom.
+          </p>
+        )}
+        {isLeave && !noDuty && (
           <div className="space-y-1">
             <Label htmlFor={`${idp}-proof`}>Proof you will attach</Label>
             <select

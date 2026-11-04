@@ -14,7 +14,8 @@ export const workPlanRowSchema = z.object({
 export type WorkPlanRow = z.infer<typeof workPlanRowSchema>;
 
 export const submitWorkPlanSchema = z.object({
-  plannedTasks: z.array(workPlanRowSchema).min(1, "At least one planned task is required"),
+  // May be empty when the company's own work plan is uploaded (the route checks one is there).
+  plannedTasks: z.array(workPlanRowSchema).default([]),
   // The same shape as the attendance schedule: an approved plan's schedule drives the
   // projected-completion loop, so an impossible day or zero hours would never finish.
   scheduleConfig: scheduleConfigSchema.optional(),

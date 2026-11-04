@@ -441,6 +441,8 @@ model WorkPlan {
   studentProfileId      String         @map("student_profile_id") @db.Uuid
   status                WorkPlanStatus @default(SUBMITTED)
   plannedTasks          Json           @map("planned_tasks")
+  // The uploaded work plan PDF, in the company's own template (024).
+  filePath              String?        @map("file_path")
   scheduleConfig        Json?          @map("schedule_config")
   scheduleChangeHistory Json           @default("[]") @map("schedule_change_history")
   approvalMetadata      Json?          @map("approval_metadata")

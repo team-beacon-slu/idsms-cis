@@ -103,7 +103,7 @@ export function renderTimeReportHtml(data: TimeReportDocumentData): string {
         (a) => `
       <tr>
         <td>${days(a)}${a.startTime ? `<br />${timeRange(a.startTime, a.endTime)}` : ""}</td>
-        <td>${a.kind === "ANTICIPATED" ? "Leave (filed ahead)" : a.kind === "EMERGENCY" ? "Emergency leave" : "Absent (no leave filed)"}</td>
+        <td>${a.reason?.startsWith("No duty: ") ? "No duty" : a.kind === "ANTICIPATED" ? "Leave (filed ahead)" : a.kind === "EMERGENCY" ? "Emergency leave" : "Absent (no leave filed)"}</td>
         <td class="text">${remarks(a)}</td>
         <td>${escapeHtml(a.proof ? (PROOF[a.proof] ?? a.proof) : null)}</td>
       </tr>`

@@ -137,8 +137,17 @@ export async function embedText(
 // JSON mode at temperature 0. The prompt is built by lib/ai/guard.ts (fenced data,
 // fixed format); the caller validates the result against its own schema and drops
 // anything else (R4).
-export async function chatJson(conn: AiConnection, prompt: string): Promise<unknown> {
+export async function chatJson(
+  conn: AiConnection,
+  prompt: string,
+  // A document the model reads with the prompt (the uploaded work plan). Gemini only:
+  // OpenAI-compatible servers have no common way to take a PDF.
+  file?: { mimeType: string; data: Buffer }
+): Promise<unknown> {
   let raw: string | undefined;
+  if (file && conn.provider === "openai") {
+    throw new AiProviderError(`${conn.chatModel} on this connection can't read files`, 400);
+  }
   if (conn.provider === "openai") {
     const json = (await openAi(
       conn,
@@ -158,7 +167,21 @@ export async function chatJson(conn: AiConnection, prompt: string): Promise<unkn
       conn.chatModel,
       "generateContent",
       {
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [
+          {
+            role: "user",
+            parts: [
+              ...(file
+                ? [
+                    {
+                      inline_data: { mime_type: file.mimeType, data: file.data.toString("base64") },
+                    },
+                  ]
+                : []),
+              { text: prompt },
+            ],
+          },
+        ],
         generationConfig: { responseMimeType: "application/json", temperature: 0 },
       },
       CHAT_TIMEOUT_MS

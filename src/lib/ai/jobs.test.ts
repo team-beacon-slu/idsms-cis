@@ -25,6 +25,14 @@ beforeEach(() => {
 });
 
 describe("jobStatus (plug and play)", () => {
+  it("reads uploaded work plans only on a connection that takes files", () => {
+    expect(jobStatus("workplan", ctx()).on).toBe(true);
+    const local = { ...gemini, provider: "openai" as const, baseUrl: "http://lab:8000/v1" };
+    const s = jobStatus("workplan", ctx({ connections: { general: gemini, private: local } }));
+    expect(s.on).toBe(false);
+    expect(s.reason).toMatch(/can't read uploaded files/);
+  });
+
   it("runs a job whose connection is set, keyed, tested and unrated", () => {
     expect(jobStatus("copy", ctx()).on).toBe(true);
     expect(jobStatus("help", ctx()).on).toBe(true);

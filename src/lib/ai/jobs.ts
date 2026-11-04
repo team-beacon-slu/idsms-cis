@@ -23,6 +23,7 @@ export const JOBS = {
   clarity: { label: "Clarity coach", reads: "intern", kind: "chat" },
   help: { label: "Help assistant", reads: "public", kind: "chat" },
   companies: { label: "Duplicate companies", reads: "public", kind: "chat" },
+  workplan: { label: "Work plan reading", reads: "intern", kind: "chat" },
 } as const;
 export type JobId = keyof typeof JOBS;
 export const JOB_IDS = Object.keys(JOBS) as JobId[];
@@ -102,6 +103,9 @@ export function jobStatus(
     );
   }
   if (!keyIsSet(connection)) return off(`${connection.keyEnv} is not set on the server`);
+  if (job === "workplan" && connection.provider !== "gemini") {
+    return off("This connection can't read uploaded files");
+  }
   const state = ctx.states[job] ?? {};
   if (state.offReason) return off(state.offReason);
   if (state.pausedUntil && new Date(state.pausedUntil) > (ctx.now ?? new Date())) {

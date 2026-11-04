@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkPlanSubmitForm } from "./work-plan-submit-form";
+import { connectionFor } from "@/lib/ai/jobs";
 import { asWorkPlanRows } from "@/lib/validators/workPlan";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -54,7 +55,12 @@ export default async function WorkPlanPage(props: {
         description="Planned deployment tasks, reviewed by the coordinator. A returned plan can be revised and resubmitted."
       />
 
-      {canSubmitNew && <WorkPlanSubmitForm studentProfileId={params.studentProfileId} />}
+      {canSubmitNew && (
+        <WorkPlanSubmitForm
+          studentProfileId={params.studentProfileId}
+          aiRead={canSubmitNew && (await connectionFor("workplan", user)) !== null}
+        />
+      )}
 
       {latest && (
         <Card>
@@ -109,6 +115,17 @@ export default async function WorkPlanPage(props: {
               </pre>
             )}
 
+            {latest.filePath && (
+              <a
+                href={`/api/work-plans/${latest.id}/file`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mr-2 gap-1.5")}
+              >
+                <FileDown className="size-3.5" aria-hidden="true" />
+                Uploaded work plan
+              </a>
+            )}
             <a
               href={`/api/students/${params.studentProfileId}/work-plans/pdf`}
               download

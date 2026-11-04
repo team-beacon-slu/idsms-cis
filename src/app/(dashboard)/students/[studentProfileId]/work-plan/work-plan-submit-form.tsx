@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
-import { Plus, Send, X } from "lucide-react";
+import { CalendarPlus, Plus, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,12 +14,77 @@ import { Label } from "@/components/ui/label";
 type Row = { period: string; area: string; description: string; output: string; hours: string };
 const blank = (): Row => ({ period: "", area: "", description: "", output: "", hours: "" });
 
-// SAMCIS's sample work plan: a roadmap aligning the trainee's daily/weekly tasks with the
-// HTE's expectations, one row per period.
-export function WorkPlanSubmitForm({ studentProfileId }: { studentProfileId: string }) {
+const toRow = (r: {
+  period?: string;
+  area?: string;
+  description: string;
+  output?: string;
+  hours?: number;
+}): Row => ({
+  period: r.period ?? "",
+  area: r.area ?? "",
+  description: r.description,
+  output: r.output ?? "",
+  hours: r.hours == null ? "" : String(r.hours),
+});
+
+// The work plan in the company's own template (the adviser: every company has one), as an
+// uploaded PDF, with its rows typed in or read from it by AI assist. The rows feed plan
+// coverage; days off the plan marks can go straight onto the intern's calendar.
+export function WorkPlanSubmitForm({
+  studentProfileId,
+  aiRead,
+}: {
+  studentProfileId: string;
+  aiRead: boolean; // AI assist can read uploaded files for this intern
+}) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([blank()]);
+  const [file, setFile] = useState<File | null>(null);
+  const [reading, setReading] = useState(false);
+  const [daysOff, setDaysOff] = useState<{ date: string; name: string; added?: boolean }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function readWithAi() {
+    if (!file) return;
+    setReading(true);
+    const form = new FormData();
+    form.set("file", file);
+    try {
+      const res = await fetch(`/api/students/${studentProfileId}/work-plans/read`, {
+        method: "POST",
+        body: form,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "AI assist couldn't read the file");
+        return;
+      }
+      if (body.rows?.length) setRows(body.rows.map(toRow));
+      setDaysOff(body.daysOff ?? []);
+      toast.success(
+        `Read ${body.rows?.length ?? 0} rows and ${body.daysOff?.length ?? 0} days off. Check them before you submit.`
+      );
+    } catch {
+      toast.error("Could not reach the server — check your connection and try again");
+    } finally {
+      setReading(false);
+    }
+  }
+
+  async function addDayOff(i: number) {
+    const d = daysOff[i];
+    const res = await sendJson(`/api/students/${studentProfileId}/holidays`, {
+      method: "POST",
+      body: { date: d.date, name: d.name },
+    });
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    setDaysOff((list) => list.map((x, j) => (j === i ? { ...x, added: true } : x)));
+    toast.success(`${d.name} added to your calendar`);
+  }
   const set = (i: number, key: keyof Row, value: string) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
   const total = rows.reduce((sum, r) => sum + (Number(r.hours) || 0), 0);
@@ -36,26 +101,35 @@ export function WorkPlanSubmitForm({ studentProfileId }: { studentProfileId: str
         ...(r.hours.trim() && { hours: Number(r.hours) }),
       }));
 
-    if (plannedTasks.length === 0) {
-      toast.error("Add at least one row with its specific tasks");
+    if (!file && plannedTasks.length === 0) {
+      toast.error("Upload your work plan or add at least one row with its tasks");
       return;
     }
 
     setIsSubmitting(true);
-    const res = await sendJson(`/api/students/${studentProfileId}/work-plans`, {
-      method: "POST",
-      body: { plannedTasks },
-    });
-    setIsSubmitting(false);
-
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
+    const form = new FormData();
+    form.set("plan", JSON.stringify({ plannedTasks }));
+    if (file) form.set("file", file);
+    try {
+      const res = await fetch(`/api/students/${studentProfileId}/work-plans`, {
+        method: "POST",
+        body: form,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not submit the work plan");
+        return;
+      }
+      toast.success("Work plan submitted");
+      setRows([blank()]);
+      setFile(null);
+      setDaysOff([]);
+      router.refresh();
+    } catch {
+      toast.error("Could not reach the server — check your connection and try again");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    toast.success("Work plan submitted");
-    setRows([blank()]);
-    router.refresh();
   }
 
   return (
@@ -63,13 +137,65 @@ export function WorkPlanSubmitForm({ studentProfileId }: { studentProfileId: str
       <CardHeader>
         <CardTitle>Submit a work plan</CardTitle>
         <CardDescription>
-          A roadmap of your daily or weekly tasks with your host company, one row per period. Follow
-          your company&apos;s own template if it has one; this is the SAMCIS sample&apos;s layout.
-          The committee reviews it before your MOA is processed.
+          Upload the work plan in your company&apos;s own template (PDF, up to 5 MB). Add its rows
+          below so IDSMS can track your planned tasks; no template? The rows print as the SAMCIS
+          sample. The committee reviews it before your MOA is processed.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit}>
+          <div className="space-y-2 rounded-lg border border-dashed p-3">
+            <Label htmlFor="wp-file">Work plan (PDF)</Label>
+            <Input
+              id="wp-file"
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null);
+                setDaysOff([]);
+              }}
+            />
+            {aiRead && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!file || reading}
+                onClick={readWithAi}
+                className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="size-3.5" aria-hidden="true" />
+                {reading ? "Reading..." : "Fill the rows with AI assist"}
+              </Button>
+            )}
+            {daysOff.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-sm font-medium">Days off in your work plan</p>
+                <p className="text-xs text-muted-foreground">
+                  Add the ones that are right to your calendar; your adviser sees them too.
+                </p>
+                <ul className="space-y-1">
+                  {daysOff.map((d, i) => (
+                    <li key={d.date + d.name} className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="tabular-nums">{d.date}</span>
+                      <span className="flex-1">{d.name}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={d.added}
+                        onClick={() => addDayOff(i)}
+                        className="cursor-pointer gap-1.5"
+                      >
+                        <CalendarPlus className="size-3.5" aria-hidden="true" />
+                        {d.added ? "Added" : "Add to calendar"}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
           {rows.map((r, i) => (
             <fieldset key={i} className="space-y-3 rounded-lg border p-3">
               <legend className="flex items-center gap-2 px-1 text-sm font-medium">

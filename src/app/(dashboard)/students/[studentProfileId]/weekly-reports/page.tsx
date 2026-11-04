@@ -27,6 +27,7 @@ import { jobsOnFor } from "@/lib/ai/jobs";
 import type { AiHints as AiHintsData } from "@/lib/ai/processing";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
+import { QuickApprove } from "./quick-approve";
 import { TimeReportLinks } from "./time-report-links";
 import { timeReportKindsFor, timeReportWeeks } from "@/lib/documents/timeReportData";
 import type { Metadata } from "next";
@@ -232,6 +233,7 @@ export default async function WeeklyReportsPage(props: {
                         weeklyReportId={report.id}
                         kinds={timeReportKindsFor(report, timeRecords)}
                       />
+                      {canReview && awaitingReview && <QuickApprove weeklyReportId={report.id} />}
                       {canReview && (
                         <Link
                           href={`/students/${params.studentProfileId}/weekly-reports/${report.id}/review`}
