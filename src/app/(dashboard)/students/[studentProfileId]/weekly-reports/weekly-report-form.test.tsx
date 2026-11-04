@@ -66,3 +66,33 @@ it("drops the draft once the report is no longer editable", async () => {
 
   expect(localStorage.getItem("idsms:weekly-draft:wr-1")).toBeNull();
 });
+
+const day = (id: string, date: string): DailyEntryRow => ({ ...entry, id, reportDate: date });
+const week = [
+  day("tue", "2026-10-20T00:00:00.000Z"),
+  day("wed", "2026-10-21T00:00:00.000Z"),
+  day("thu", "2026-10-22T00:00:00.000Z"),
+];
+const timeIn = (id: string) => document.getElementById(`in-${id}`) as HTMLInputElement;
+const timeOut = (id: string) => document.getElementById(`out-${id}`) as HTMLInputElement;
+
+it("prefills new days with the intern's usual times when the schedule has none", () => {
+  const usualTimes = { timeIn: "08:30", timeOut: "17:30", timeIn2: "", timeOut2: "" };
+  render(<WeeklyReportForm {...props} entries={week} editable usualTimes={usualTimes} />);
+
+  expect(timeIn("wed")).toHaveValue("08:30");
+  expect(timeOut("thu")).toHaveValue("17:30");
+});
+
+it("copies times typed on one day to the later untouched days, but not to edited ones", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable />);
+  fireEvent.change(timeIn("thu"), { target: { value: "10:00" } }); // Thursday is edited
+
+  fireEvent.change(timeIn("tue"), { target: { value: "09:00" } });
+  fireEvent.change(timeOut("tue"), { target: { value: "17:00" } });
+  fireEvent.change(timeIn("tue"), { target: { value: "09:30" } }); // hour, then minutes
+
+  expect(timeIn("wed")).toHaveValue("09:30");
+  expect(timeOut("wed")).toHaveValue("17:00");
+  expect(timeIn("thu")).toHaveValue("10:00");
+});

@@ -57,6 +57,14 @@ export interface DailyEntryRow {
   timeOut2: string | null;
 }
 
+// A day's clock times; the intern's usual ones prefill days the schedule gives no times for.
+export interface DayTimes {
+  timeIn: string;
+  timeOut: string;
+  timeIn2: string;
+  timeOut2: string;
+}
+
 export interface WeeklyTotals {
   totalHours: number;
   runningTotal: number; // hours worked, before deductions
@@ -74,6 +82,8 @@ interface RowState {
   accomplishments: string;
   toolsUsed: string;
   dirty: boolean;
+  // Copying the times typed on an earlier day of this week (until the intern edits this day).
+  follows?: boolean;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -229,23 +239,51 @@ function AddDayControl({
   );
 }
 
-function rowFromEntry(e: DailyEntryRow, shift: Shift | null = null): RowState {
-  // An unfilled scheduled day starts as Present at the schedule's times (the adviser: fewer
-  // things to type); the intern changes them if the day was different.
-  const from = shift && e.scheduledHours > 0 && e.actualHours == null && !e.timeIn ? shift : null;
-  const prefill = from !== null;
-  return {
+function rowFromEntry(
+  e: DailyEntryRow,
+  shift: Shift | null = null,
+  usual: DayTimes | null = null
+): RowState {
+  // An unfilled scheduled day starts as Present at the schedule's times, else at the times
+  // of the intern's last worked day (the adviser: fewer things to type); the intern changes
+  // them if the day was different.
+  const unfilled = e.scheduledHours > 0 && e.actualHours == null && !e.timeIn;
+  const base: RowState = {
     // An unfilled (SCHEDULED) day starts as Present.
     status: isAttendanceStatus(e.attendanceStatus) ? e.attendanceStatus : "PRESENT",
-    hours: from ? String(from.scheduledHours) : e.actualHours == null ? "" : String(e.actualHours),
-    timeIn: from ? toHHMM(from.startMin) : (e.timeIn ?? ""),
-    timeOut: from ? toHHMM(from.endMin) : (e.timeOut ?? ""),
+    hours: e.actualHours == null ? "" : String(e.actualHours),
+    timeIn: e.timeIn ?? "",
+    timeOut: e.timeOut ?? "",
     timeIn2: e.timeIn2 ?? "",
     timeOut2: e.timeOut2 ?? "",
     accomplishments: e.accomplishments ?? "",
     toolsUsed: e.toolsUsed ?? "",
-    dirty: prefill, // so Save sends the defaulted times
+    dirty: false,
   };
+  if (!unfilled || base.status !== "PRESENT") return base;
+  if (shift) {
+    return {
+      ...base,
+      hours: String(shift.scheduledHours),
+      timeIn: toHHMM(shift.startMin),
+      timeOut: toHHMM(shift.endMin),
+      dirty: true, // so Save sends the defaulted times
+    };
+  }
+  if (usual) return { ...base, ...withAutoHours({ ...base, ...usual }), dirty: true };
+  return base;
+}
+
+// A later day follows the times just typed while the intern hasn't touched it: still as
+// loaded (blank or prefilled), Present, and nothing written yet.
+function followsTypedTimes(row: RowState | undefined, loaded: RowState | undefined) {
+  if (!row || !loaded || row.status !== "PRESENT" || row.accomplishments.trim()) return false;
+  return (
+    row.timeIn === loaded.timeIn &&
+    row.timeOut === loaded.timeOut &&
+    row.timeIn2 === loaded.timeIn2 &&
+    row.timeOut2 === loaded.timeOut2
+  );
 }
 
 export function WeeklyReportForm({
@@ -256,6 +294,7 @@ export function WeeklyReportForm({
   weekEnd,
   priorAccomplishments,
   shift = null,
+  usualTimes = null,
   holidays = {},
   clarityAi = false,
 }: {
@@ -266,6 +305,7 @@ export function WeeklyReportForm({
   weekEnd: string;
   priorAccomplishments: string[];
   shift?: Shift | null;
+  usualTimes?: DayTimes | null;
   // This intern's applicable holidays by date (YYYY-MM-DD): PH holidays and company days off.
   holidays?: Record<string, { name: string; company: boolean }>;
   // AI assist's clarity coach can take a second look (lib/ai/jobs.ts "clarity" is on).
@@ -278,7 +318,7 @@ export function WeeklyReportForm({
     return h ? `${h.name} (${h.company ? "company day off" : "PH holiday"})` : "Holiday";
   };
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
-    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift)]))
+    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)]))
   );
   // A day added with "Add a day" arrives after a refresh; give it a row without
   // dropping the unsaved edits on the other days.
@@ -286,7 +326,7 @@ export function WeeklyReportForm({
   if (missing.length > 0) {
     setRows((prev) => ({
       ...prev,
-      ...Object.fromEntries(missing.map((e) => [e.id, rowFromEntry(e, shift)])),
+      ...Object.fromEntries(missing.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)])),
     }));
   }
   const [totals, setTotals] = useState(initialTotals);
@@ -295,8 +335,8 @@ export function WeeklyReportForm({
 
   // Each day as the server last sent it; drafts restore only over an unchanged day.
   const serverRows = useMemo(
-    () => Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift)])),
-    [entries, shift]
+    () => Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)])),
+    [entries, shift, usualTimes]
   );
   // Read after mount (the server render has no localStorage), once per report.
   const [draftChecked, setDraftChecked] = useState(false);
@@ -365,11 +405,34 @@ export function WeeklyReportForm({
   }
 
   function updateRow(id: string, patch: Partial<RowState>) {
-    setRows((prev) => ({ ...prev, [id]: { ...prev[id], ...patch, dirty: true } }));
+    setRows((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], ...patch, dirty: true, follows: false },
+    }));
+  }
+
+  // A time typed on one day also fills the later days that are still blank, so a regular
+  // week is typed once; any of them can still be changed.
+  function updateTimes(id: string, next: RowState) {
+    const patch = withAutoHours(next);
+    setRows((prev) => {
+      const out = { ...prev, [id]: { ...prev[id], ...patch, dirty: true, follows: false } };
+      const later = entries.slice(entries.findIndex((e) => e.id === id) + 1);
+      if (next.timeIn && next.timeOut) {
+        for (const e of later) {
+          const row = prev[e.id];
+          const follows = row?.follows ?? followsTypedTimes(row, serverRows[e.id]);
+          if (e.scheduledHours > 0 && follows) {
+            out[e.id] = { ...row, ...patch, dirty: true, follows: true };
+          }
+        }
+      }
+      return out;
+    });
   }
 
   function rowProblem(entry: DailyEntryRow): string | null {
-    const row = rows[entry.id] ?? rowFromEntry(entry, shift);
+    const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes);
     // Absent and holiday days count 0 hours and need no description.
     if (row.status !== "PRESENT") return null;
     if (row.hours === "" || Number.isNaN(Number(row.hours))) return "Enter hours worked";
@@ -595,7 +658,7 @@ export function WeeklyReportForm({
 
       <div className="space-y-3">
         {entries.map((entry) => {
-          const row = rows[entry.id] ?? rowFromEntry(entry, shift);
+          const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes);
           const flag = copyPasteFlags[entry.id];
           return (
             <div
@@ -686,9 +749,7 @@ export function WeeklyReportForm({
                         type="time"
                         value={row.timeIn}
                         disabled={isPending}
-                        onChange={(e) =>
-                          updateRow(entry.id, withAutoHours({ ...row, timeIn: e.target.value }))
-                        }
+                        onChange={(e) => updateTimes(entry.id, { ...row, timeIn: e.target.value })}
                       />
                     </div>
                     <div className="space-y-1">
@@ -700,9 +761,7 @@ export function WeeklyReportForm({
                         type="time"
                         value={row.timeOut}
                         disabled={isPending}
-                        onChange={(e) =>
-                          updateRow(entry.id, withAutoHours({ ...row, timeOut: e.target.value }))
-                        }
+                        onChange={(e) => updateTimes(entry.id, { ...row, timeOut: e.target.value })}
                       />
                     </div>
                     <div className="space-y-1">
@@ -714,9 +773,7 @@ export function WeeklyReportForm({
                         type="time"
                         value={row.timeIn2}
                         disabled={isPending}
-                        onChange={(e) =>
-                          updateRow(entry.id, withAutoHours({ ...row, timeIn2: e.target.value }))
-                        }
+                        onChange={(e) => updateTimes(entry.id, { ...row, timeIn2: e.target.value })}
                       />
                     </div>
                     <div className="space-y-1">
@@ -729,7 +786,7 @@ export function WeeklyReportForm({
                         value={row.timeOut2}
                         disabled={isPending}
                         onChange={(e) =>
-                          updateRow(entry.id, withAutoHours({ ...row, timeOut2: e.target.value }))
+                          updateTimes(entry.id, { ...row, timeOut2: e.target.value })
                         }
                       />
                     </div>
