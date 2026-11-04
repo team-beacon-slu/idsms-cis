@@ -74,7 +74,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         signedIn
         className="md:pl-60 md:transition-[padding] md:duration-200 md:group-has-[aside[data-collapsed=true]]/shell:pl-[72px]"
       />
-      {consent?.privacyConsentVersion !== PRIVACY_NOTICE_VERSION && <PrivacyConsentDialog />}
+      {consent?.privacyConsentVersion !== PRIVACY_NOTICE_VERSION && (
+        <PrivacyConsentDialog staff={user.role !== Role.STUDENT_INTERN} />
+      )}
     </div>
   );
 }

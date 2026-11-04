@@ -11,6 +11,15 @@ export const PRIVACY_KEY_POINTS = [
   "You can ask for a copy or a correction of your data at any time using the Account Settings.",
 ];
 
+// What staff (advisers, coordinators, admins) agree to: their own account data, and how they
+// may use the interns' records they see.
+export const STAFF_PRIVACY_KEY_POINTS = [
+  "SLU SAMCIS keeps your name, email and role, and logs what you review and change, to run the internship program.",
+  "You see the records of the interns assigned to you only to monitor and assess their internship.",
+  "Interns' records are only kept for two years after the semester, then deleted.",
+  "You can ask for a copy or a correction of your own data at any time using the Account Settings.",
+];
+
 export const TERMS_KEY_POINTS = [
   "Your account is yours alone: don't share your password or sign in for someone else.",
   "Reports must be true; falsifying them is handled under SLU's student handbook.",
