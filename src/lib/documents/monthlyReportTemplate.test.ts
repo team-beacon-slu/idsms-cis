@@ -6,33 +6,23 @@ const data = {
   calendarMonth: "2026-09",
   referenceCode: "MR-202609-ABCD1234",
   generatedAt: new Date("2026-10-11T02:00:00Z"),
-  student: {
-    email: "s@x",
-    studentNumber: "1",
-    program: "BSIT",
-    positionTitle: null,
-    requiredHours: 600,
-  },
-  company: { name: "Acme <Corp>", supervisorName: "J" },
-  weeks: [
-    {
-      weekStart: new Date("2026-09-28T00:00:00Z"),
-      weekEnd: new Date("2026-10-04T00:00:00Z"),
-      status: "APPROVED",
-      totalHours: 40,
-    },
-  ],
-  approvedHours: 40,
+  student: { name: "Dela Cruz, Juan P.", office: "IT Department <HQ>" },
+  narrative: "First week: onboarding.\nMet the team.\n\nSecond topic: I learned Git.",
 };
 
-it("renders the month, reference code, weeks, approved hours, and signatures", () => {
+it("prints SLU's Journal on Learning Experience: month, name, office, narrative", () => {
   const html = renderMonthlyReportHtml(data);
-  expect(html).toContain("September 2026");
+  expect(html).toContain("Journal on Learning Experience");
+  expect(html).toContain("Month: September 2026");
+  expect(html).toContain("Name: <strong>Dela Cruz, Juan P.</strong>");
+  expect(html).toContain("IT Department &lt;HQ&gt;");
+  expect(html).toContain("size: 8.5in 13in");
   expect(html).toContain("MR-202609-ABCD1234");
-  expect(html).toContain("40 hrs");
-  expect(html).toContain("Company supervisor signature");
 });
 
-it("escapes interpolated text", () => {
-  expect(renderMonthlyReportHtml(data)).toContain("Acme &lt;Corp&gt;");
+it("keeps the intern's paragraphs and has no supervisor signature", () => {
+  const html = renderMonthlyReportHtml(data);
+  expect(html.match(/<p class="para">/g)).toHaveLength(2);
+  expect(html).toContain("First week: onboarding.\nMet the team.");
+  expect(html).not.toContain('class="sign"');
 });

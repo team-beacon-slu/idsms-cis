@@ -8,6 +8,8 @@ import {
   getGeneratedDocumentDownloadUrl,
 } from "@/lib/services/reports/documentService";
 import { handleApiError } from "@/lib/utils/apiError";
+import { sluFileName } from "@/lib/documents/slu";
+import { displayNameFromEmail } from "@/lib/utils/displayName";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -31,7 +33,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         { status: 404 }
       );
     }
-    return NextResponse.redirect(await getGeneratedDocumentDownloadUrl(doc));
+    const profile = await prisma.studentProfile.findUnique({
+      where: { id: doc.studentProfileId },
+      select: { fullName: true, user: { select: { email: true } } },
+    });
+    const name = profile && (profile.fullName?.trim() || displayNameFromEmail(profile.user.email));
+    const fileName = name && sluFileName({ kind: "JLE", month: doc.periodLabel ?? "" }, name);
+    return NextResponse.redirect(await getGeneratedDocumentDownloadUrl(doc, fileName || undefined));
   } catch (error) {
     return handleApiError(error);
   }

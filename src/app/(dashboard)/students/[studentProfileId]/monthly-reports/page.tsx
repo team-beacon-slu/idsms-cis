@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { requireUserPage } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import {
   checkMonthlyAggregationEligibility,
+  listLearningJournals,
   listMonthlyReportsForStudent,
 } from "@/lib/services/reports/monthlyReportService";
 import { listWeeklyReportsForStudent } from "@/lib/services/reports/weeklyReportService";
@@ -36,9 +38,14 @@ export default async function MonthlyReportsPage(props: {
     throw error;
   }
 
-  const [weeklyReports, monthlyReports] = await Promise.all([
+  const [weeklyReports, monthlyReports, journals, profile] = await Promise.all([
     listWeeklyReportsForStudent(params.studentProfileId),
     listMonthlyReportsForStudent(params.studentProfileId),
+    listLearningJournals(params.studentProfileId),
+    prisma.studentProfile.findUnique({
+      where: { id: params.studentProfileId },
+      select: { office: true },
+    }),
   ]);
 
   const byMonth = new Map<string, MonthRollup["weeklyReports"]>();
@@ -66,6 +73,7 @@ export default async function MonthlyReportsPage(props: {
           ? true
           : await checkMonthlyAggregationEligibility(params.studentProfileId, calendarMonth),
         submitted: submitted ? { id: submitted.id, status: submitted.status } : null,
+        narrative: journals.find((j) => j.month === calendarMonth)?.narrative ?? "",
         weeklyReports: (byMonth.get(calendarMonth) ?? []).sort((a, b) =>
           a.weekStart.localeCompare(b.weekStart)
         ),
@@ -77,7 +85,7 @@ export default async function MonthlyReportsPage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Monthly reports"
-        description="Each month rolls up its weekly reports. It can be submitted once every week in it is approved or regarded."
+        description="SLU's Journal on Learning Experience (JLE), one per month since you started reporting for duty. Submit it once every week in the month is approved or regarded, then upload the PDF to Google Classroom."
       />
 
       <Card>
@@ -90,6 +98,7 @@ export default async function MonthlyReportsPage(props: {
             studentProfileId={params.studentProfileId}
             months={months}
             canSubmit={user.role === "STUDENT_INTERN"}
+            office={profile?.office ?? ""}
           />
         </CardContent>
       </Card>

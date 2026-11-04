@@ -1,5 +1,5 @@
-// Company view (docs/plans/ai-assist-plan.md §10). The intern rates their host
-// company once all required hours are confirmed; staff see the company's facts
+// Company view (docs/plans/ai-assist-plan.md §10). The intern evaluates their host
+// company on SLU's FM-VAA-052 once all required hours are confirmed; staff see the company's facts
 // and pooled ratings only once 5 interns are behind them, so no single intern
 // can be singled out. The coordinator records the company's reply (CMO 104).
 import { DeviationType, Prisma, Role, ValidationStatus, WeeklyReportStatus } from "@prisma/client";
@@ -10,40 +10,13 @@ import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/
 import { calculateRenderedHours } from "@/lib/services/attendance/attendanceService";
 import { CompanyStateError } from "@/lib/services/predeployment/companyService";
 import { history } from "@/lib/utils/automaticDeductions";
+import { displayNameFromEmail } from "@/lib/utils/displayName";
+import { hteEvaluationSchema, OBLIGATIONS, QUALITY } from "@/lib/validators/hteEvaluation";
 
 type ActingUser = { id: string; role: Role };
 
 // The research's minimum group size: no aggregate below 5 interns, pooled across terms.
 export const MIN_GROUP = 5;
-
-export const CRITERIA = [
-  { key: "supervision", label: "Supervision and mentoring" },
-  { key: "learning", label: "Learning and relevance to my program" },
-  { key: "safety", label: "Safety and welfare" },
-  { key: "communication", label: "Communication and onboarding" },
-  { key: "integration", label: "Integration and treatment" },
-  { key: "resources", label: "Resources and equipment" },
-  { key: "recommend", label: "I would recommend this company to other interns" },
-] as const;
-
-export type CriterionKey = (typeof CRITERIA)[number]["key"];
-
-const rating = z.number().int().min(1).max(5);
-const evaluationSchema = z.object({
-  supervision: rating,
-  learning: rating,
-  safety: rating,
-  communication: rating,
-  integration: rating,
-  resources: rating,
-  recommend: rating,
-  comment: z
-    .string()
-    .trim()
-    .max(1000)
-    .optional()
-    .transform((c) => c || null),
-});
 
 const replySchema = z.object({ reply: z.string().trim().min(10).max(2000) });
 
@@ -78,7 +51,7 @@ export async function submitCompanyEvaluation(
 ): Promise<{ id: string }> {
   if (actingUser.role !== Role.STUDENT_INTERN) throw new ForbiddenError();
   await assertCanAccessStudent(actingUser, studentProfileId);
-  const data = evaluationSchema.parse(input);
+  const data = hteEvaluationSchema.parse(input);
   const state = await getEvaluationState(studentProfileId);
   if (!state?.companyName) throw new CompanyStateError("You have no host company to evaluate");
   if (!state.open) {
@@ -187,12 +160,20 @@ export async function getCompanyFeedback(companyId: string) {
     evaluations.length >= MIN_GROUP
       ? {
           count: evaluations.length,
-          averages: CRITERIA.map((c) => ({
-            ...c,
-            average: average(evaluations.map((e) => e[c.key])),
+          obligations: OBLIGATIONS.map((label, i) => ({
+            label,
+            average: average(evaluations.map((e) => e.obligations[i])),
+          })),
+          quality: QUALITY.map((label, i) => ({
+            label,
+            average: average(evaluations.map((e) => e.quality[i])),
           })),
           // Alphabetical, not newest first, so the order doesn't hint at who wrote what.
-          comments: evaluations.flatMap((e) => (e.comment ? [e.comment] : [])).sort(),
+          comments: {
+            liked: evaluations.flatMap((e) => (e.liked ? [e.liked] : [])).sort(),
+            improve: evaluations.flatMap((e) => (e.improve ? [e.improve] : [])).sort(),
+            comment: evaluations.flatMap((e) => (e.comment ? [e.comment] : [])).sort(),
+          },
         }
       : null;
 
@@ -205,6 +186,52 @@ export async function getCompanyFeedback(companyId: string) {
     reply: company?.hteReply ? { text: company.hteReply, at: company.hteReplyAt } : null,
   };
 }
+
+// The intern's own filled-in FM-VAA-052, for the PDF they hand in on Google Classroom.
+// Only the intern may print it: staff see evaluations pooled, never one intern's.
+export async function getOwnEvaluationForm(studentProfileId: string, actingUser: ActingUser) {
+  if (actingUser.role !== Role.STUDENT_INTERN) throw new ForbiddenError();
+  await assertCanAccessStudent(actingUser, studentProfileId);
+  const profile = await prisma.studentProfile.findUnique({
+    where: { id: studentProfileId },
+    select: {
+      fullName: true,
+      internshipStartDate: true,
+      user: { select: { email: true } },
+      companyEvaluation: {
+        select: {
+          obligations: true,
+          quality: true,
+          liked: true,
+          improve: true,
+          comment: true,
+          createdAt: true,
+          company: { select: { name: true, address: true, supervisorName: true } },
+        },
+      },
+      weeklyReports: { orderBy: { weekStart: "asc" }, select: { weekStart: true, weekEnd: true } },
+    },
+  });
+  const evaluation = profile?.companyEvaluation;
+  if (!profile || !evaluation) return null;
+  const weeks = profile.weeklyReports;
+  return {
+    name: profile.fullName?.trim() || displayNameFromEmail(profile.user.email),
+    email: profile.user.email,
+    company: evaluation.company,
+    // Dates of internship: the start date on record (else the first report week) to the last report week.
+    from: profile.internshipStartDate ?? weeks[0]?.weekStart ?? null,
+    to: weeks.at(-1)?.weekEnd ?? null,
+    obligations: evaluation.obligations,
+    quality: evaluation.quality,
+    liked: evaluation.liked,
+    improve: evaluation.improve,
+    comment: evaluation.comment,
+    submittedAt: evaluation.createdAt,
+  };
+}
+
+export type OwnEvaluationForm = NonNullable<Awaited<ReturnType<typeof getOwnEvaluationForm>>>;
 
 export async function setCompanyReply(
   companyId: string,
