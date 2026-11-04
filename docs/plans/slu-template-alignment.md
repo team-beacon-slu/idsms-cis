@@ -1,49 +1,48 @@
-# SLU template alignment: what IDSMS still differs on
+# SLU template alignment
 
-Compared on 26 Oct 2026 against the SAMCIS IT-MMA/CS-CAD templates Jay shared (Drive folder
-`templates`): OJT Documentation Guidelines, Weekly Work Report & JLE Templates, Technical Report
-(IT 421/CS 331/MMA 421), Parental Consent / Waiver, and FM-VAA-052 HTE Evaluation Form.
+Compared against the SAMCIS IT-MMA/CS-CAD templates Jay shared (Drive folder `templates`,
+"final version"): OJT Documentation Guidelines, Weekly Work Report & JLE Templates, Technical
+Report (IT 421/CS 331/MMA 421), Parental Consent / Waiver, FM-VAA-052 HTE Evaluation Form, the
+SAMCIS advisory on non-partner HTEs and SAMPLE WORKPLAN.pdf. Page sizes and fonts were read
+from the PDFs with pdfplumber.
 
-## Already matches
+## Built (PRs #161-#165, stacked)
 
-| SLU document                                                                                                                          | IDSMS                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Weekly Work Report: Week No. + dates, daily times, hours, accomplishments, totals rendered / beginning / ending, supervisor signature | `weeklyReportTemplate.ts` has all of these                                   |
-| Report on Off-duty (OT) Hours and on Under Time Hours                                                                                 | Same PDF, own tables and signature lines                                     |
-| Parental Consent / Waiver and Undertaking                                                                                             | Checklist item `PARENT_CONSENT_UNDERTAKING` (file stays in Google Classroom) |
-| Required hours: BSIT 600, BSCS 240-320, BMMA 500                                                                                      | Per-program setting (`/settings`, required hours)                            |
+| SLU document                                                                               | IDSMS                                                                                                    | PR   |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ---- |
+| Weekly Work Report (8.5x13 in, Calibri 11)                                                 | SLU layout, totals inside the time record, supervisor signature                                          | #161 |
+| Report on Off-duty (OT) Hours, Report on Under Time Hours                                  | Separate PDFs, per week or for the whole internship                                                      | #161 |
+| Absence Report (optional, no SLU template)                                                 | Separate PDF in the same style: leave requests plus Absent days with no leave filed                      | #161 |
+| File names (`WWR01 LastnameFirstname.pdf`, `JLEJan ...`, `Surname_OJTTechnicalReport.pdf`) | Every download; OT/UT/absence, FM-VAA-052 and work plan follow the same pattern                          | #161 |
+| Journal on Learning Experience (monthly, not noted by supervisor)                          | Intern writes it in IDSMS; SLU's JLE page, no signature; office kept on the profile                      | #162 |
+| FM-VAA-052 (A4, Century Gothic)                                                            | The intern's company evaluation, item for item; printable 5 pages with the document-control box          | #163 |
+| Technical Report (8.5x13 in, Cambria 12, 1.5 spacing)                                      | SLU's outline and title page, exact table of contents, both assessments, appendix checklist              | #164 |
+| Advisory: DTI, SEC, work plan for a non-partner HTE; legitimacy proof abroad               | Checklist applies DTI/SEC or proof of legitimacy only to a non-partner HTE                               | #165 |
+| SAMPLE WORKPLAN                                                                            | Work plan rows (period, area, tasks, output, hours) and a printable default with the certification block | #165 |
 
-## Gaps, largest first
+Stand-in fonts: Carlito for Calibri and Caladea for Cambria (same widths), Didact Gothic for
+Century Gothic (closest free face). Vercel's Chromium has none of SLU's fonts.
 
-1. **Journal on Learning Experience (JLE), monthly.** SLU wants a narrative: observations,
-   problems and solutions, accomplishments, mistakes, skills learned. It is _not_ noted by the
-   supervisor. IDSMS's monthly report is a table of weekly hours with student and supervisor
-   signature lines. Fix: replace it with a JLE narrative (student writes, adviser reads), no
-   supervisor signature.
-2. **Technical Report (final).** IDSMS has five free-text sections (company overview,
-   introduction, work accomplished, learnings, recommendations). SLU's structure:
-   - Company profile: basic info table (company, department, supervisors and designations,
-     start/end dates), description, office environment/culture.
-   - Company resources: hardware (company-wide, at work); software used (OS, productivity,
-     development tools, others).
-   - Internship program: task list, main accomplishments, challenges faced (A, B, C rows),
-     learning/growth (personality/social, technical, other professional, professional work).
-   - Assessment: work assessment (12 items, Extensive 4 to Rare/None 1) and self-assessment
-     (10 items, Very Good 4 to Poor 1), each with remarks.
-   - Miscellany: areas for improvement; program (helpful courses, wished-for skills).
-   - Appendix: signed WWRs, proof of attendance, photos, certificate of completion,
-     DPO certificate of participation, FM-VAA-052.
-   - Format: legal paper, Times New Roman or Cambria 12, 1-inch margins, 1.5 spacing, each
-     section on a new page, SLU title page.
-3. **HTE evaluation.** IDSMS asks 7 research-based criteria on 1-5. SLU's form FM-VAA-052 has
-   16 CMO 104 obligations (4-level implementation scale), 6 internship-quality items
-   (Highly Satisfactory to Not Satisfactory) and comments A-C. The AI plan already said to use
-   SLU's own form when one exists; existing ratings would need a mapping or a cut-over.
-4. **File names.** SLU: `WWR01 LastnameFirstname.pdf`, `JLEJan LastnameFirstname.pdf`,
-   `Surname_OJTTechnicalReport.pdf`. IDSMS serves PDFs inline under storage keys. Fix: a
-   `Content-Disposition` filename on the download route.
-5. **Absence report** (optional in SLU's guidelines): IDSMS records absences as leave
-   requests but prints no absence table on the weekly report.
+## Decisions taken on SLU's behalf (check with the coordinator)
 
-Each of these changes a document students hand in, so the coordinator should confirm the
-template version for the term before it is built.
+- The technical report's title page copies SLU's template word for word, including "the School
+  of Accountancy, Business, Computing and Information Studies" and "St. Louis University".
+  Department names by program (Information Technology, Computer Science, Multimedia Arts) and
+  course numbers (IT 421, CS 331, MMA 421) come from the template's header line.
+- "Partner HTE" = a company with an MOA that is approved and active or expiring.
+- The company flag `isForeign` now means "outside the Philippines" (the advisory's wording)
+  rather than "foreign-owned".
+- The JLE keeps the old monthly gate: every week in the month approved or regarded.
+
+## Still outside IDSMS (could be built next)
+
+1. **Parental Consent / Waiver and Undertaking**: a prefilled PDF (US Letter, Calibri) with
+   the student's name, program, term, and the HTE's name and address, two copies per SLU's
+   note. Today the checklist only records that it was handed in.
+2. **Notification of retraction**: the guidelines require one (noted by SAMCIS) when an
+   intern stops working at the HTE. IDSMS has no retraction or transfer record.
+3. **Company visit**: SAMCIS must visit before the internship ends. IDSMS has no visit record
+   for the adviser.
+4. **Certificate of completion within two weeks** (FM-VAA-052 item 16): tracked only as an
+   appendix checkbox; a reminder to the coordinator two weeks after completion is possible.
+5. Google Classroom stays the place for signed copies and announcements (decision D7).
