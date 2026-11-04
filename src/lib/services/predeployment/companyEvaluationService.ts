@@ -94,8 +94,8 @@ const average = (values: number[]) =>
   values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : 0;
 
 // Staff view of one company. Facts and ratings each need MIN_GROUP interns behind them.
-// shortcut: placements are each intern's current company only (no placement history),
-// so an intern moved to another company counts there; add a history table if moves become common.
+// Interns are counted from the placement history (025), so an intern who moved on still
+// counts for the company they were placed at, and a transfer doesn't move their record.
 export async function getCompanyFeedback(companyId: string) {
   const [company, interns, evaluations] = await Promise.all([
     prisma.company.findUnique({
@@ -103,7 +103,7 @@ export async function getCompanyFeedback(companyId: string) {
       select: { hteReply: true, hteReplyAt: true },
     }),
     prisma.studentProfile.findMany({
-      where: { companyId, deletedAt: null },
+      where: { deletedAt: null, placements: { some: { companyId } } },
       select: { id: true, semester: { select: { name: true } } },
     }),
     prisma.companyEvaluation.findMany({

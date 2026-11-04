@@ -3,6 +3,7 @@ import { Company, MoaRecord, MoaStatus, Prisma, PrismaClient, Role } from "@pris
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
 import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
+import { placeIntern } from "@/lib/services/predeployment/placementService";
 
 export class InvalidMoaTransitionError extends Error {
   constructor(from: MoaStatus, to: MoaStatus) {
@@ -67,10 +68,7 @@ export async function createCompany(
     });
 
     if (targetStudentProfileId) {
-      await tx.studentProfile.update({
-        where: { id: targetStudentProfileId },
-        data: { companyId: company.id, positionTitle: input.positionTitle },
-      });
+      await placeIntern(tx, targetStudentProfileId, company.id, input.positionTitle);
     }
 
     await logEvent(
@@ -153,11 +151,11 @@ export async function joinCompany(
   });
   if (!company || company.deletedAt) throw new CompanyStateError("That company no longer exists");
   await prisma.$transaction(async (tx) => {
-    const profile = await tx.studentProfile.update({
+    const profile = await tx.studentProfile.findUniqueOrThrow({
       where: { userId: studentUserId },
-      data: { companyId, positionTitle },
       select: { id: true },
     });
+    await placeIntern(tx, profile.id, companyId, positionTitle);
     await logEvent(
       {
         userId: studentUserId,
@@ -216,6 +214,14 @@ export async function mergeCompanies(
       data: { companyId: keepId },
     });
     await tx.companyEvaluation.updateMany({
+      where: { companyId: { in: ids } },
+      data: { companyId: keepId },
+    });
+    await tx.companyPlacement.updateMany({
+      where: { companyId: { in: ids } },
+      data: { companyId: keepId },
+    });
+    await tx.companyVisit.updateMany({
       where: { companyId: { in: ids } },
       data: { companyId: keepId },
     });

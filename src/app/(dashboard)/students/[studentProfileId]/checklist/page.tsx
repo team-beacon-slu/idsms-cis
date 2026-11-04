@@ -143,6 +143,15 @@ export default async function ChecklistPage(props: {
                   <TableRow key={item.id} className="transition-colors">
                     <TableCell className="font-medium text-foreground">
                       {requirementLabel(item.requirementType)}
+                      {item.requirementType === "PARENT_CONSENT_UNDERTAKING" && (
+                        <a
+                          href={`/api/students/${params.studentProfileId}/waiver`}
+                          download
+                          className="ml-2 text-xs font-normal text-primary underline"
+                        >
+                          Print the form
+                        </a>
+                      )}
                       {!item.required && (
                         <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                           optional

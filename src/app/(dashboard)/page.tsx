@@ -149,6 +149,18 @@ export default async function DashboardHomePage(props: {
           label: "Evaluate your host company",
           href: "/company-evaluation",
         },
+        {
+          // FM-VAA-052 item 16: the HTE issues it within two weeks of completion.
+          count:
+            studentProfile?.companyId &&
+            requiredHours > 0 &&
+            confirmedHours >= requiredHours &&
+            !attention.certificateAttached
+              ? 1
+              : 0,
+          label: "Ask your host company for your certificate of completion (due within two weeks)",
+          href: "/final-report",
+        },
       ].filter((row) => row.count > 0)
     : [];
 
