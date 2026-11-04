@@ -165,7 +165,35 @@ async function tellAdmins(title: string, body: string) {
 }
 
 // R2, broken connection: 3 failed calls in a row pause the job until the next night.
+// Provider calls per day and job, so the admin sees what the free tier is spent on (and
+// whether caching and the local text work are paying off). Last 14 days kept.
+const USAGE_KEY = "ai:usage";
+type Usage = Record<string, Partial<Record<JobId, number>>>; // "YYYY-MM-DD" -> job -> calls
+
+async function countCall(job: JobId, now = new Date()) {
+  try {
+    const row = await prisma.systemConfig.findUnique({ where: { configKey: USAGE_KEY } });
+    const usage = { ...((row?.configValue as Usage | undefined) ?? {}) };
+    const day = new Date(now.getTime() + 8 * 3_600_000).toISOString().slice(0, 10); // Manila
+    usage[day] = { ...usage[day], [job]: (usage[day]?.[job] ?? 0) + 1 };
+    const kept = Object.fromEntries(Object.entries(usage).sort().slice(-14));
+    await prisma.systemConfig.upsert({
+      where: { configKey: USAGE_KEY },
+      create: { configKey: USAGE_KEY, configValue: kept },
+      update: { configValue: kept },
+    });
+  } catch (error) {
+    console.error("Could not count an AI call", error); // a count never blocks the feature
+  }
+}
+
+export async function getAiUsage(): Promise<Usage> {
+  const row = await prisma.systemConfig.findUnique({ where: { configKey: USAGE_KEY } });
+  return (row?.configValue as Usage | undefined) ?? {};
+}
+
 export async function runJob<T>(job: JobId, call: () => Promise<T>): Promise<T> {
+  await countCall(job);
   try {
     const result = await call();
     const state = (await getJobStates())[job];
@@ -328,6 +356,7 @@ export async function getAiPanel() {
   });
   return {
     rows,
+    usage: await getAiUsage(),
     connections,
     embeddedWith,
     lastEval: settings.lastEval,

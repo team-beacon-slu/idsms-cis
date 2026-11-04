@@ -52,7 +52,27 @@ async function post(
   return json;
 }
 
-function gemini(
+// Gemini's free tier allows 15 chat and 100 embedding requests a minute. Spacing the calls
+// one function instance makes keeps the nightly batch under that instead of failing on 429
+// (instances don't share this, but the batch is one instance).
+const MIN_GAP_MS = { generateContent: 4_100, batchEmbedContents: 650 } as Record<string, number>;
+const lastCall = new Map<string, number>();
+
+export async function paceGemini(
+  method: string,
+  now = Date.now,
+  sleep = defaultSleep,
+  // Unit tests of the provider calls run back to back; pacing has its own test.
+  gap = process.env.NODE_ENV === "test" ? 0 : (MIN_GAP_MS[method] ?? 0)
+) {
+  const wait = (lastCall.get(method) ?? -Infinity) + gap - now();
+  if (wait > 0) await sleep(wait);
+  lastCall.set(method, now());
+}
+
+const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function gemini(
   conn: AiConnection,
   model: string,
   method: string,
@@ -61,6 +81,7 @@ function gemini(
 ) {
   const key = keyOf(conn);
   if (!key) throw new AiProviderError(`${conn.keyEnv ?? "The API key variable"} is not set`);
+  await paceGemini(method);
   return post(
     `${GEMINI_BASE}/${model}:${method}`,
     { "x-goog-api-key": key }, // a header, never the URL (URLs get logged)
