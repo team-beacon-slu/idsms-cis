@@ -100,6 +100,14 @@
   ::file-selector-button {
     border-color: var(--color-border, currentcolor);
   }
+  /* Native dropdown lists: the selects are transparent, so their options inherited the page's
+     light ink in dark mode while Chrome on Windows still drew the list white (unreadable).
+     Options take the popover colours in both themes. */
+  option,
+  optgroup {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+  }
 }
 
 @utility text-balance {
