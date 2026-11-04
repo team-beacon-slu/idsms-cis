@@ -52,7 +52,7 @@ export function OnboardingForm({
         </CardDescription>
         {/* Google newcomers become student accounts; staff accounts are made by an admin. */}
         <p className="text-sm text-foreground/80">
-          Faculty or staff? Don&apos;t continue: ask the department coordinator to set up your
+          Faculty or staff? Don&apos;t continue: ask the internship coordinator to set up your
           account.
         </p>
       </CardHeader>

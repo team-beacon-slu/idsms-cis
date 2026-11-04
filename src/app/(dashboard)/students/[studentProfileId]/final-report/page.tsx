@@ -78,7 +78,7 @@ export default async function FinalReportPage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Final report"
-        description={`SLU's Technical Report. Opens at ${state.threshold} confirmed hours (${state.renderedHours} so far); reviewed by the department coordinator.`}
+        description={`SLU's Technical Report. Opens at ${state.threshold} confirmed hours (${state.renderedHours} so far); reviewed by the internship coordinator.`}
       />
 
       {!state.unlocked && !report ? (

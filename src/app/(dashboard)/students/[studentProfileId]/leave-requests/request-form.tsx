@@ -135,6 +135,9 @@ export function RequestForm({
               <option value="PROOF_OF_LEAVE">Proof of leave</option>
               <option value="WRITTEN_NOTICE">Written notice</option>
             </select>
+            <p className="text-xs text-muted-foreground">
+              Upload the attachment in Google Classroom.
+            </p>
           </div>
         )}
       </div>

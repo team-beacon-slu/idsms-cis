@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { CoastScene } from "@/components/coast-scene";
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +8,6 @@ import { displayName } from "@/lib/utils/displayName";
 import { SiteFooter } from "@/components/site-footer";
 import { DashboardNav } from "./_components/dashboard-nav";
 import { PrivacyConsentDialog } from "./_components/privacy-consent-dialog";
-import { BetaNotice } from "@/components/beta-notice";
 import { OfflineBanner } from "./_components/offline-banner";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -40,7 +38,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="group/shell app-backdrop isolate min-h-dvh bg-fixed">
-      <CoastScene />
       {/* First stop for keyboard users: past the sidebar, straight to the page. */}
       <a
         href="#main"
@@ -70,7 +67,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       >
         {/* Fluid: the canvas follows the window, capped only on very wide screens. */}
         <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8 xl:px-12 print:max-w-none print:p-0">
-          <BetaNotice className="mb-6 print:hidden" />
           {children}
         </div>
       </main>

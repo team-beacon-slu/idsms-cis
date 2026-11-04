@@ -3,6 +3,7 @@ import { formatCalendarDate } from "@/lib/documents/html";
 import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import Link from "next/link";
 import { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { MapPin, Briefcase, User, Phone, ShieldCheck, Plus, Lock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import {
@@ -95,6 +96,13 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
   const company = await getCompany(params.id);
   if (!company) {
     notFound();
+  }
+  if (user.role === Role.STUDENT_INTERN) {
+    const own = await prisma.studentProfile.findUnique({
+      where: { userId: user.id },
+      select: { companyId: true },
+    });
+    if (own?.companyId !== company.id) notFound(); // students see only their own company
   }
 
   const isStaff = STAFF_ROLES.includes(user.role);

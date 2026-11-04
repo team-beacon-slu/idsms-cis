@@ -19,7 +19,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/validators/report";
 import { addDays, toDateKey } from "@/lib/utils/reportDeadline";
-import { dayGaps, formatHrsMins, timeOfDay, type Shift } from "@/lib/utils/timeMath";
+import { dayGaps, formatHrsMins, timeOfDay, toHHMM, type Shift } from "@/lib/utils/timeMath";
 import { sendJson } from "@/lib/utils/sendJson";
 import { clearDraft, loadDraft, saveDraft } from "@/lib/utils/reportDraft";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
@@ -198,7 +198,7 @@ function AddDayControl({
   return (
     <div className="space-y-2 rounded-lg border border-dashed p-4">
       <Label htmlFor={`add-day-${weeklyReportId}`} className="text-xs">
-        Add a day you worked outside your schedule
+        Overtime: add a day you worked outside your schedule
       </Label>
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -229,18 +229,22 @@ function AddDayControl({
   );
 }
 
-function rowFromEntry(e: DailyEntryRow): RowState {
+function rowFromEntry(e: DailyEntryRow, shift: Shift | null = null): RowState {
+  // An unfilled scheduled day starts as Present at the schedule's times (the adviser: fewer
+  // things to type); the intern changes them if the day was different.
+  const from = shift && e.scheduledHours > 0 && e.actualHours == null && !e.timeIn ? shift : null;
+  const prefill = from !== null;
   return {
     // An unfilled (SCHEDULED) day starts as Present.
     status: isAttendanceStatus(e.attendanceStatus) ? e.attendanceStatus : "PRESENT",
-    hours: e.actualHours == null ? "" : String(e.actualHours),
-    timeIn: e.timeIn ?? "",
-    timeOut: e.timeOut ?? "",
+    hours: from ? String(from.scheduledHours) : e.actualHours == null ? "" : String(e.actualHours),
+    timeIn: from ? toHHMM(from.startMin) : (e.timeIn ?? ""),
+    timeOut: from ? toHHMM(from.endMin) : (e.timeOut ?? ""),
     timeIn2: e.timeIn2 ?? "",
     timeOut2: e.timeOut2 ?? "",
     accomplishments: e.accomplishments ?? "",
     toolsUsed: e.toolsUsed ?? "",
-    dirty: false,
+    dirty: prefill, // so Save sends the defaulted times
   };
 }
 
@@ -274,7 +278,7 @@ export function WeeklyReportForm({
     return h ? `${h.name} (${h.company ? "company day off" : "PH holiday"})` : "Holiday";
   };
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
-    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e)]))
+    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift)]))
   );
   // A day added with "Add a day" arrives after a refresh; give it a row without
   // dropping the unsaved edits on the other days.
@@ -282,7 +286,7 @@ export function WeeklyReportForm({
   if (missing.length > 0) {
     setRows((prev) => ({
       ...prev,
-      ...Object.fromEntries(missing.map((e) => [e.id, rowFromEntry(e)])),
+      ...Object.fromEntries(missing.map((e) => [e.id, rowFromEntry(e, shift)])),
     }));
   }
   const [totals, setTotals] = useState(initialTotals);
@@ -291,8 +295,8 @@ export function WeeklyReportForm({
 
   // Each day as the server last sent it; drafts restore only over an unchanged day.
   const serverRows = useMemo(
-    () => Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e)])),
-    [entries]
+    () => Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift)])),
+    [entries, shift]
   );
   // Read after mount (the server render has no localStorage), once per report.
   const [draftChecked, setDraftChecked] = useState(false);
@@ -365,7 +369,7 @@ export function WeeklyReportForm({
   }
 
   function rowProblem(entry: DailyEntryRow): string | null {
-    const row = rows[entry.id] ?? rowFromEntry(entry);
+    const row = rows[entry.id] ?? rowFromEntry(entry, shift);
     // Absent and holiday days count 0 hours and need no description.
     if (row.status !== "PRESENT") return null;
     if (row.hours === "" || Number.isNaN(Number(row.hours))) return "Enter hours worked";
@@ -591,7 +595,7 @@ export function WeeklyReportForm({
 
       <div className="space-y-3">
         {entries.map((entry) => {
-          const row = rows[entry.id] ?? rowFromEntry(entry);
+          const row = rows[entry.id] ?? rowFromEntry(entry, shift);
           const flag = copyPasteFlags[entry.id];
           return (
             <div
@@ -777,6 +781,23 @@ export function WeeklyReportForm({
                 <p className="text-sm text-muted-foreground">
                   {row.status === "HOLIDAY" ? holidayLabel(entry.reportDate) : "Absent"} — counts 0
                   hours; no accomplishments needed.
+                  {row.status === "ABSENT" && (
+                    <>
+                      {" "}
+                      Give the reason in an{" "}
+                      <Link
+                        href={`/leave-requests?${new URLSearchParams({
+                          deviationType: "ABSENCE",
+                          date: entry.reportDate.slice(0, 10),
+                        })}`}
+                        className="underline"
+                      >
+                        absence request
+                      </Link>
+                      , and upload its attachments (medical certificate, letter) to Google
+                      Classroom.
+                    </>
+                  )}
                 </p>
               )}
               {flag && (

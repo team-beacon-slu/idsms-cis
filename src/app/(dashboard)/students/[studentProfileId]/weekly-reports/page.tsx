@@ -111,7 +111,7 @@ export default async function WeeklyReportsPage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Weekly reports"
-        description="Daily accomplishments for each week. Due the Tuesday after the week ends."
+        description="Daily accomplishments for each week. Due every Tuesday."
       />
       {isOwner && (
         <details className="rounded-lg border bg-card px-4 py-3 text-sm">

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { Search, Building2, ShieldCheck, Plus } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import {
@@ -46,11 +48,23 @@ function VerificationPill({ isVerified }: { isVerified: boolean }) {
   );
 }
 
-// Companies aren't sensitive on their own (only MOA records are, FR-MOA-07),
-// so every role can browse this list.
+// The adviser: students should not see the company directory, only their own host company.
+async function studentCompanyId(userId: string) {
+  const profile = await prisma.studentProfile.findUnique({
+    where: { userId },
+    select: { companyId: true },
+  });
+  return profile?.companyId ?? null;
+}
+
+// Staff browse every host company; a student is sent to their own (or to registration).
 export default async function CompaniesPage(props: { searchParams: Promise<{ search?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUserPage();
+  if (user.role === "STUDENT_INTERN") {
+    const own = await studentCompanyId(user.id);
+    redirect(own ? `/companies/${own}` : "/companies/new");
+  }
   const canMerge = user.role === "DEPARTMENT_COORDINATOR" || user.role === "SUPER_ADMIN";
   const [companies, duplicates, aiOn] = await Promise.all([
     listCompanies({ search: searchParams.search }),

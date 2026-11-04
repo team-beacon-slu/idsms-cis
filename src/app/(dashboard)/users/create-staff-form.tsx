@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 
 const STAFF_ROLES = [
   { value: "FACULTY_ADVISER", label: "Faculty adviser" },
-  { value: "DEPARTMENT_COORDINATOR", label: "Department coordinator" },
+  { value: "DEPARTMENT_COORDINATOR", label: "Internship coordinator" },
   { value: "SUPER_ADMIN", label: "Super admin" },
 ] as const;
 

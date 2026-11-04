@@ -55,7 +55,7 @@ type NavGroup = { label?: string; items: NavItem[] };
 export const ROLE_LABEL: Record<Role, string> = {
   STUDENT_INTERN: "Student intern",
   FACULTY_ADVISER: "Faculty adviser",
-  DEPARTMENT_COORDINATOR: "Department coordinator",
+  DEPARTMENT_COORDINATOR: "Internship coordinator",
   SUPER_ADMIN: "Super admin",
 };
 
@@ -94,7 +94,12 @@ export function getNavGroups(role: Role): NavGroup[] {
           { href: "/final-report", label: "Final report", icon: BookOpenCheck },
         ],
       },
-      REFERENCE,
+      {
+        ...REFERENCE,
+        items: REFERENCE.items.map((i) =>
+          i.href === "/companies" ? { ...i, label: "My company" } : i
+        ),
+      },
     ];
   }
   if (role === "FACULTY_ADVISER") {

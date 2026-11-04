@@ -66,7 +66,7 @@ Exports never include passwords, tokens or storage file paths. Cells that a spre
 
 ### File retention review
 
-- Stored files (deviation proofs, legacy checklist files and generated PDFs) from semesters that ended more than **3 years** ago are flagged by a scan that runs every 90 days.
+- Stored files (deviation proofs, legacy checklist files and generated PDFs) from semesters that ended more than **2 years** ago are flagged by a scan that runs every 90 days.
 - For each flagged file you see the student, file type, semester end and when it was flagged. Choose **Keep** or **Delete** (password required). **Nothing is deleted automatically.**
 
 ## 6. Everything else

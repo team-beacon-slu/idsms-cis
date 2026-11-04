@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCompanySchema, listCompaniesQuerySchema } from "@/lib/validators/company";
 import { createCompany, listCompanies } from "@/lib/services/predeployment/companyService";
-import { requireUserApi } from "@/lib/auth/session";
+import { Role } from "@prisma/client";
+import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 
-// Companies aren't sensitive on their own — only MOA records are (FR-MOA-07)
-// — so any authenticated user can list/search them.
+// Staff list/search the company directory; students see only their own company (the
+// adviser) and find it through /api/companies/similar when registering.
 export async function GET(req: NextRequest) {
   try {
-    await requireUserApi();
+    const user = await requireUserApi();
+    requireRole(user, [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);
     const { search } = listCompaniesQuerySchema.parse({
       search: req.nextUrl.searchParams.get("search") ?? undefined,
     });

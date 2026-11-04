@@ -56,7 +56,12 @@ export function InternCharts({
       {/* Cards stretch to the row; flex columns let each body fill it instead of leaving a blank band. */}
       <Card className="flex flex-col">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Where interns stand</CardTitle>
+          <CardTitle className="text-base">
+            Where interns stand{" "}
+            <span className="font-normal text-muted-foreground tabular-nums">
+              · {rows.length} {rows.length === 1 ? "intern" : "interns"}
+            </span>
+          </CardTitle>
           <CardDescription>
             {counts.NEEDS_ATTENTION > 0
               ? `${counts.NEEDS_ATTENTION} of ${rows.length} need attention.`

@@ -45,7 +45,7 @@ async function contactsFor(userId: string, role: Role): Promise<Contact[]> {
   if (role !== Role.DEPARTMENT_COORDINATOR && role !== Role.SUPER_ADMIN) {
     out.push(
       ...(await people({ role: Role.DEPARTMENT_COORDINATOR })).map(
-        toContact("Department coordinator")
+        toContact("Internship coordinator")
       )
     );
   } else {
