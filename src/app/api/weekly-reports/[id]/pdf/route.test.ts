@@ -14,6 +14,12 @@ jest.mock("@/lib/services/reports/documentService", () => {
     getGeneratedDocumentDownloadUrl: jest.fn(),
   };
 });
+jest.mock("@/lib/documents/weeklyReportData", () => ({
+  loadWeeklyReportDocumentData: jest.fn(async () => ({
+    weekNumber: 3,
+    student: { name: "Dela Cruz, Juan P." },
+  })),
+}));
 jest.mock("@/lib/utils/apiError", () => ({
   handleApiError: (error: Error) =>
     Response.json(
@@ -70,6 +76,11 @@ describe("GET /api/weekly-reports/[id]/pdf", () => {
     const res = await GET(req("GET"), params);
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://signed.example/doc.pdf");
+    // Saved under SLU's name, not the storage key.
+    expect(getGeneratedDocumentDownloadUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      "WWR03 DelaCruzJuan.pdf"
+    );
   });
 
   it("returns 404 with the current status when not generated", async () => {

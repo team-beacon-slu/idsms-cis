@@ -45,8 +45,6 @@ function sample(overrides: Partial<WeeklyReportDocumentData> = {}): WeeklyReport
     },
     company: { name: "Acme Corp", supervisorName: "Maria Santos" },
     entries: [entry()],
-    overtime: [],
-    undertime: [],
     totals: {
       totalHours: 8,
       runningTotal: 48,
@@ -80,8 +78,8 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(html).toContain("Saint Louis University, Baguio City");
     expect(html).toContain("Weekly Work Report");
     expect(html).toContain("Week No. 3 (Oct 5 – Oct 11, 2026)");
-    expect(html).toContain("Name: Dela Cruz, Juan P.");
-    expect(html).toContain("Company: Acme Corp");
+    expect(html).toContain("Name: <strong>Dela Cruz, Juan P.</strong>");
+    expect(html).toContain("<strong>Company</strong>: Acme Corp");
   });
 
   it("prints the detailed time record with both ranges and N hrs M mins", () => {
@@ -141,8 +139,8 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(data.totals.beginning + data.totals.totalHours).toBe(data.totals.ending);
     const html = renderWeeklyReportHtml(data);
     expect(html).toContain("Total work-hours rendered");
-    expect(html).toContain("TOTAL work-hours (beginning)");
-    expect(html).toContain("TOTAL rendered so far (ending)");
+    expect(html).toContain("TOTAL work-hours (<u>beginning</u>)");
+    expect(html).toContain("TOTAL rendered so far (<u>ending</u>)");
     expect(html).toContain("40 hrs");
     expect(html).toContain("48 hrs");
   });
@@ -154,68 +152,21 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(renderWeeklyReportHtml(data)).toContain("Less conduct deductions (to date)");
   });
 
-  it("omits the OT and UT sections when empty", () => {
+  it("leaves OT and UT to their own reports but keeps SLU's notes", () => {
     const html = renderWeeklyReportHtml(sample());
     expect(html).not.toContain("Report on Overtime Hours");
     expect(html).not.toContain("Report on UNDER TIME Hours");
-  });
-
-  it("prints the OT and UT sections with a TOTAL UT row when present", () => {
-    const html = renderWeeklyReportHtml(
-      sample({
-        overtime: [
-          {
-            date: new Date("2026-10-10T00:00:00Z"),
-            startTime: "08:00",
-            endTime: "12:00",
-            minutes: 240,
-            reason: "In lieu of the holiday",
-          },
-        ],
-        undertime: [
-          {
-            date: new Date("2026-10-06T00:00:00Z"),
-            startTime: "13:00",
-            endTime: "17:00",
-            minutes: 240,
-            reason: "Submit my waiver",
-          },
-          {
-            date: new Date("2026-10-09T00:00:00Z"),
-            startTime: "08:00",
-            endTime: "08:30",
-            minutes: 30,
-            reason: "Woke up late",
-          },
-        ],
-      })
-    );
-    expect(html).toContain("Report on Overtime Hours");
-    expect(html).toContain("Oct 10 (Saturday)");
-    expect(html).toContain("In lieu of the holiday");
-    expect(html).toContain("Report on UNDER TIME Hours");
-    expect(html).toContain("TOTAL UT Hours");
-    expect(html).toContain("4 hrs 30 mins");
     expect(html).toContain("at least 30 minutes of off-duty time");
     expect(html).toContain("Extending the hours to compensate for tardiness is impermissible.");
   });
 
-  it("labels an OT request still awaiting the adviser", () => {
-    const html = renderWeeklyReportHtml(
-      sample({
-        overtime: [
-          {
-            date: new Date("2026-10-10T00:00:00Z"),
-            startTime: "08:00",
-            endTime: "12:00",
-            minutes: 240,
-            reason: "Release",
-            pending: true,
-          },
-        ],
-      })
-    );
-    expect(html).toContain("Release (pending adviser approval)");
+  it("prints on SLU long bond in Calibri, with the totals inside the time record", () => {
+    const html = renderWeeklyReportHtml(sample());
+    expect(html).toContain("size: 8.5in 13in");
+    expect(html).toContain('font-family: "Calibri"');
+    expect(html).toContain("IT-MMA/CS-CAD Department");
+    expect(html).toMatch(/TOTAL work-hours \(<u>beginning<\/u>\)/);
+    expect(html).toMatch(/TOTAL rendered so far \(<u>ending<\/u>\)/);
   });
 
   it("keeps the reference code, Manila timestamp and supervisor signature line", () => {
@@ -233,15 +184,6 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
         student: { ...sample().student, name: "<b>Name</b>" },
         company: { name: "A&B <Corp>", supervisorName: "O'Neil" },
         reasonForDelay: "<img src=x onerror=alert(1)>",
-        undertime: [
-          {
-            date: new Date("2026-10-06T00:00:00Z"),
-            startTime: "13:00",
-            endTime: "17:00",
-            minutes: 240,
-            reason: "<script>x</script>",
-          },
-        ],
       })
     );
     expect(html).not.toContain("<script>");

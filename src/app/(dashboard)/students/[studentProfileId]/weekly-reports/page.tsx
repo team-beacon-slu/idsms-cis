@@ -27,6 +27,8 @@ import { jobsOnFor } from "@/lib/ai/jobs";
 import type { AiHints as AiHintsData } from "@/lib/ai/processing";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
+import { TimeReportLinks } from "./time-report-links";
+import { timeReportKindsFor, timeReportWeeks } from "@/lib/documents/timeReportData";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Weekly reports" };
@@ -66,7 +68,7 @@ export default async function WeeklyReportsPage(props: {
   }
 
   // Independent reads, loaded together rather than one after another.
-  const [reports, documents, conduct, shift, holidayList, aiJobs] = await Promise.all([
+  const [reports, documents, conduct, shift, holidayList, aiJobs, timeRecords] = await Promise.all([
     prisma.weeklyReport.findMany({
       where: { studentProfileId: params.studentProfileId },
       orderBy: { weekStart: "desc" },
@@ -84,6 +86,7 @@ export default async function WeeklyReportsPage(props: {
     loadShift(params.studentProfileId),
     getHolidayCalendarForStudent(params.studentProfileId),
     jobsOnFor(user),
+    timeReportWeeks(params.studentProfileId),
   ]);
   const holidays = Object.fromEntries(
     holidayList
@@ -114,8 +117,10 @@ export default async function WeeklyReportsPage(props: {
         <details className="rounded-lg border bg-card px-4 py-3 text-sm">
           <summary className="cursor-pointer font-medium">How signing works</summary>
           <p className="mt-2 text-muted-foreground">
-            After submitting, download the PDF and have your supervisor sign it. Upload the signed
-            copy to <span className="font-medium text-foreground">Google Classroom</span>; signed
+            After submitting, download the PDF and have your supervisor sign it, with the
+            week&apos;s overtime, under time or absence report if it has one. Upload the signed
+            copies to <span className="font-medium text-foreground">Google Classroom</span> under
+            the file names IDSMS gives them (for example WWR01 LastnameFirstname.pdf); signed
             documents are never uploaded to IDSMS.
           </p>
         </details>
@@ -222,6 +227,11 @@ export default async function WeeklyReportsPage(props: {
                           canGenerate
                         />
                       )}
+                      <TimeReportLinks
+                        studentProfileId={params.studentProfileId}
+                        weeklyReportId={report.id}
+                        kinds={timeReportKindsFor(report, timeRecords)}
+                      />
                       {canReview && (
                         <Link
                           href={`/students/${params.studentProfileId}/weekly-reports/${report.id}/review`}

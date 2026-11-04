@@ -75,23 +75,6 @@ describe("SLU Weekly Work Report fields", () => {
     expect((await loadWeeklyReportDocumentData("wr-1"))!.weekNumber).toBe(1);
   });
 
-  it("marks requests the adviser hasn't approved yet", async () => {
-    prismaMock.weeklyReport.findUnique.mockResolvedValue(row as never);
-    prismaMock.deviationReport.findMany.mockResolvedValue([
-      {
-        deviationType: "OVERTIME",
-        date: new Date("2026-10-10T00:00:00Z"),
-        startTime: "08:00",
-        endTime: "12:00",
-        requestedMinutes: 240,
-        reason: "Release",
-        validationStatus: "PENDING",
-      },
-    ] as never);
-    const data = (await loadWeeklyReportDocumentData("wr-1"))!;
-    expect(data.overtime[0].pending).toBe(true);
-  });
-
   it("falls back to the student's first report week as Week 1", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue(row as never);
     const data = await loadWeeklyReportDocumentData("wr-1");
@@ -117,51 +100,17 @@ describe("SLU Weekly Work Report fields", () => {
     expect(totals.beginning + totals.totalHours).toBe(totals.ending);
   });
 
-  it("credits each day by SLU rules and lists the week's non-returned OT and UT", async () => {
+  it("credits each day by SLU rules and leaves OT and UT to their own reports", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue({
       ...row,
       dailyEntries: [
         { ...row.dailyEntries[0], actualHours: 9, scheduledHours: 8, creditedHours: null },
       ],
     } as never);
-    prismaMock.deviationReport.findMany.mockResolvedValue([
-      {
-        deviationType: "OVERTIME",
-        date: new Date("2026-10-10T00:00:00Z"),
-        startTime: "08:00",
-        endTime: "12:00",
-        requestedMinutes: 240,
-        reason: "In lieu of the holiday",
-      },
-      {
-        deviationType: "UNDERTIME",
-        date: new Date("2026-10-06T00:00:00Z"),
-        startTime: "08:00",
-        endTime: "08:30",
-        requestedMinutes: 30,
-        reason: "Woke up late",
-      },
-    ] as never);
-
     const data = (await loadWeeklyReportDocumentData("wr-1"))!;
 
     expect(data.entries[0].creditedHours).toBe(8);
-    expect(data.overtime).toEqual([
-      expect.objectContaining({ startTime: "08:00", endTime: "12:00", minutes: 240 }),
-    ]);
-    expect(data.undertime).toEqual([
-      expect.objectContaining({ minutes: 30, reason: "Woke up late" }),
-    ]);
-    expect(prismaMock.deviationReport.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          studentProfileId: "p-1",
-          deviationType: { in: ["OVERTIME", "UNDERTIME"] },
-          validationStatus: { not: "REJECTED" },
-          date: { gte: row.weekStart, lte: row.weekEnd },
-        }),
-      })
-    );
+    expect(prismaMock.deviationReport.findMany).not.toHaveBeenCalled();
   });
 });
 

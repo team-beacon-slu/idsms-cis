@@ -258,11 +258,14 @@ export async function getWeeklyReportDocument(
   return doc && doc.referenceCode === submission.referenceCode ? doc : null;
 }
 
-export async function getGeneratedDocumentDownloadUrl(doc: GeneratedDocument): Promise<string> {
+export async function getGeneratedDocumentDownloadUrl(
+  doc: GeneratedDocument,
+  downloadAs?: string
+): Promise<string> {
   if (doc.status !== DocumentStatus.GENERATED || !doc.fileUrl) {
     throw new DocumentNotReadyError("This PDF has not been generated yet");
   }
-  return getSignedUrl(GENERATED_DOCUMENTS_BUCKET, doc.fileUrl);
+  return getSignedUrl(GENERATED_DOCUMENTS_BUCKET, doc.fileUrl, 300, downloadAs);
 }
 
 // Weekly and monthly PDFs are re-rendered from the database on request (same

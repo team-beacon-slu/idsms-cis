@@ -34,7 +34,13 @@ export async function renderHtmlToPdf(html: string, timeoutMs = 15_000): Promise
     // setContent, not goto — the HTML is already rendered server-side, so no
     // session cookies ever need to be handed to the headless browser.
     await page.setContent(html, { waitUntil: "load", timeout: timeoutMs });
-    const pdf = await page.pdf({ format: "A4", printBackground: true, timeout: timeoutMs });
+    // A template's @page size wins (SLU long bond 8.5x13in, A4 for VPAA forms); A4 otherwise.
+    const pdf = await page.pdf({
+      format: "A4",
+      preferCSSPageSize: true,
+      printBackground: true,
+      timeout: timeoutMs,
+    });
     return Buffer.from(pdf);
   } finally {
     // A crashed or hung Chrome must neither replace the real error nor
