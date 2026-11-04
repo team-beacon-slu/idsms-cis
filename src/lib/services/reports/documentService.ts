@@ -543,7 +543,6 @@ export async function generateFinalCoverPdf(
       fullName: true,
       studentNumber: true,
       company: { select: { name: true } },
-      semester: { select: { name: true, academicYear: true } },
     },
   });
   const renderedHours = await calculateRenderedHours(studentProfileId);
@@ -588,6 +587,7 @@ export async function generateFinalCoverPdf(
     documentId = created.id;
   }
 
+  const adviserName = await practicumAdviserName(studentProfileId);
   const status = await renderAndStoreDocument({
     documentId,
     path: `final-cover/${studentProfileId}.pdf`,
@@ -598,10 +598,7 @@ export async function generateFinalCoverPdf(
         generatedAt: now,
         student: { fullName, studentNumber: profile.studentNumber, program: profile.program },
         company: profile.company,
-        renderedHours,
-        requiredHours: profile.requiredHours,
-        academicYear: profile.semester.academicYear,
-        semesterName: profile.semester.name,
+        adviserName,
       }),
     actingUserId,
     detail: { studentProfileId, referenceCode: code },
@@ -618,19 +615,25 @@ export async function generateFinalTechnicalReportPdf(
   actingUserId: string,
   opts: { sleep?: Sleep } = {}
 ): Promise<GenerationResult> {
-  const [profile, report] = await Promise.all([
+  const [profile, report, adviserName, weeks] = await Promise.all([
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: studentProfileId },
       select: {
-        requiredHours: true,
         fullName: true,
         studentNumber: true,
         program: true,
+        office: true,
+        internshipStartDate: true,
         company: { select: { name: true } },
-        semester: { select: { name: true, academicYear: true } },
       },
     }),
     prisma.finalTechnicalReport.findUnique({ where: { studentProfileId } }),
+    practicumAdviserName(studentProfileId),
+    prisma.weeklyReport.findMany({
+      where: { studentProfileId },
+      orderBy: { weekStart: "asc" },
+      select: { weekStart: true, weekEnd: true },
+    }),
   ]);
   if (!report || report.status !== "APPROVED") {
     throw new DocumentNotReadyError(
@@ -662,8 +665,6 @@ export async function generateFinalTechnicalReportPdf(
           },
         })
       ).id;
-  const renderedHours = await calculateRenderedHours(studentProfileId);
-
   const status = await renderAndStoreDocument({
     documentId,
     path: `final-report/${studentProfileId}.pdf`,
@@ -678,18 +679,39 @@ export async function generateFinalTechnicalReportPdf(
             program: profile.program,
           },
           company: profile.company,
-          renderedHours,
-          requiredHours: profile.requiredHours,
-          academicYear: profile.semester.academicYear,
-          semesterName: profile.semester.name,
+          adviserName,
         },
-        ...content,
+        // Start: the date on record, else the first report week; end: the last report week.
+        basics: {
+          office: profile.office,
+          start: profile.internshipStartDate ?? weeks[0]?.weekStart ?? null,
+          end: weeks.at(-1)?.weekEnd ?? null,
+        },
+        sections: content.sections,
+        assessment: content.assessment,
+        attachments: content.attachments,
       }),
     actingUserId,
     detail: { studentProfileId, referenceCode: code },
     sleep: opts.sleep,
   });
   return { generatedDocumentId: documentId, status };
+}
+
+// "Submitted to: <Name of Practicum Adviser>": the faculty adviser holding the intern's
+// class group this semester (the first, if several share it).
+async function practicumAdviserName(studentProfileId: string): Promise<string | null> {
+  const profile = await prisma.studentProfile.findUnique({
+    where: { id: studentProfileId },
+    select: { classGroupId: true, semesterId: true },
+  });
+  if (!profile) return null;
+  const link = await prisma.facultyClassGroup.findFirst({
+    where: { classGroupId: profile.classGroupId, semesterId: profile.semesterId },
+    orderBy: { id: "asc" },
+    select: { faculty: { select: { fullName: true, email: true } } },
+  });
+  return link ? link.faculty.fullName?.trim() || link.faculty.email : null;
 }
 
 export async function getFinalTechnicalReportDocument(studentProfileId: string) {

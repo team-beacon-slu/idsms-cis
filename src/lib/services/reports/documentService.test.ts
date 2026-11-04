@@ -611,7 +611,8 @@ describe("generateFinalTechnicalReportPdf (WS-H)", () => {
     prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue(profile as never);
     prismaMock.finalTechnicalReport.findUnique.mockResolvedValue({
       status: "APPROVED",
-      sections: { introduction: "Hi" },
+      sections: { companyDescription: "Hi" },
+      assessment: {},
       supervisorScore: 4.5,
       supervisorScale: 5,
       peerScore: 90,
@@ -632,7 +633,8 @@ describe("generateFinalTechnicalReportPdf (WS-H)", () => {
         referenceCode: expect.stringMatching(/^FTR-/),
       }),
     });
-    expect(render.mock.calls[0][0]).toContain("Evaluation Scores");
+    expect(render.mock.calls[0][0]).toContain("Company Profile");
+    expect(render.mock.calls[0][0]).not.toContain("Evaluation Scores"); // grading data, not SLU's
   });
 });
 
