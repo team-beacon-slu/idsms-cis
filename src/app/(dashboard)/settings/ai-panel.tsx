@@ -191,6 +191,34 @@ export function AiPanel({ panel }: { panel: Panel }) {
             )}
           </div>
         </div>
+        {Object.keys(panel.usage).length > 0 && (
+          <details className="rounded-md border px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-medium">
+              Provider calls, last {Object.keys(panel.usage).length} days
+            </summary>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Gemini&apos;s free tier allows 15 chat and 100 embedding requests a minute. Summaries
+              are picked without the model, tone is asked only when a cue word appears, and texts
+              already embedded reuse their vectors.
+            </p>
+            <table className="mt-2 w-full text-xs tabular-nums">
+              <tbody>
+                {Object.entries(panel.usage)
+                  .sort(([a], [b]) => b.localeCompare(a))
+                  .map(([day, jobs]) => (
+                    <tr key={day} className="border-t">
+                      <td className="py-1 pr-3">{day}</td>
+                      <td className="py-1">
+                        {Object.entries(jobs)
+                          .map(([job, n]) => `${job} ${n}`)
+                          .join(" · ")}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </details>
+        )}
         {panel.searchEval && (
           <p className="text-sm text-muted-foreground">
             Search test on {panel.searchEval.model}: {pct(panel.searchEval.precisionAt5)} of the top

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
-import { connectionFor } from "@/lib/ai/jobs";
+import { connectionFor, runJob } from "@/lib/ai/jobs";
 import { readWorkPlan } from "@/lib/ai/workPlanReader";
 import { assertUploadable, InvalidFileError } from "@/lib/storage";
 import { handleApiError } from "@/lib/utils/apiError";
@@ -29,7 +29,8 @@ export async function POST(
       throw new InvalidFileError("Choose the work plan as a PDF");
     }
     await assertUploadable(file);
-    const suggestions = await readWorkPlan(conn, Buffer.from(await file.arrayBuffer()));
+    const pdf = Buffer.from(await file.arrayBuffer());
+    const suggestions = await runJob("workplan", () => readWorkPlan(conn, pdf));
     return NextResponse.json(suggestions);
   } catch (error) {
     return handleApiError(error);
