@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
+import { useFormDraft } from "@/lib/utils/formDraft";
 import { Download, FileDown, Plus, Save, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,6 +133,34 @@ export function FinalReportEditor({
   );
   const [pending, setPending] = useState<"save" | "submit" | "pdf" | null>(null);
   const locked = !editable || pending !== null;
+  // Up to 10,000 characters a section: a timeout or closed tab must not lose it.
+  const dirty = useFormDraft(
+    `final-report:${studentProfileId}`,
+    { sections, assessment, office, scores, attachments },
+    {
+      sections: Object.fromEntries(SECTIONS.map((s) => [s.key, content.sections[s.key] ?? ""])),
+      assessment: content.assessment,
+      office: initialOffice,
+      scores: {
+        supervisorScore: content.supervisorScore?.toString() ?? "",
+        supervisorScale: content.supervisorScale?.toString() ?? "5",
+        peerScore: content.peerScore?.toString() ?? "",
+        peerScale: content.peerScale?.toString() ?? "100",
+      },
+      attachments: Object.fromEntries(
+        ATTACHMENT_KEYS.map((k) => [k, Boolean(content.attachments[k])])
+      ),
+    },
+    (draft) => {
+      setSections(draft.sections);
+      setAssessment(draft.assessment);
+      setOffice(draft.office);
+      setScores(draft.scores);
+      setAttachments(draft.attachments);
+      toast.info("Restored your unsaved report text. Press Save draft to keep it.");
+    },
+    editable
+  );
 
   async function call(url: string, method: string, body?: unknown) {
     const res = await sendJson(url, { method, body });
@@ -417,7 +446,11 @@ export function FinalReportEditor({
               className="cursor-pointer gap-1.5"
             >
               <Save className="size-3.5" aria-hidden="true" />
-              {pending === "save" ? "Saving…" : "Save draft"}
+              {pending === "save"
+                ? "Saving…"
+                : dirty
+                  ? "Save draft (unsaved changes)"
+                  : "Save draft"}
             </Button>
             <Button
               onClick={onSubmit}

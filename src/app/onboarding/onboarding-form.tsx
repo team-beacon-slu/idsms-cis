@@ -21,7 +21,7 @@ export function OnboardingForm({
 }) {
   const router = useRouter();
   const [studentNumber, setStudentNumber] = useState("");
-  const [classGroupId, setClassGroupId] = useState(groups[0]?.id ?? "");
+  const [classGroupId, setClassGroupId] = useState(groups.length === 1 ? groups[0].id : "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -83,6 +83,9 @@ export function OnboardingForm({
                 required
                 className={selectClass}
               >
+                <option value="" disabled>
+                  Choose your section
+                </option>
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.label}

@@ -93,6 +93,7 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
                 <li key={item.key}>
                   <Link
                     href={item.href}
+                    prefetch={false}
                     className="flex min-h-11 items-center gap-3 rounded-md px-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
                   >
                     <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>

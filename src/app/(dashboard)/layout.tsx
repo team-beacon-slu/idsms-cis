@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     user.role === Role.STUDENT_INTERN
       ? prisma.studentProfile.findUnique({
           where: { userId: user.id },
-          select: { fullName: true },
+          select: { id: true, fullName: true },
         })
       : null,
     cookies(),
@@ -58,12 +58,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
           email={user.email}
           aiAssist={user.aiAssist}
           initialCollapsed={collapsed}
+          studentProfileId={profile?.id}
         />
       </div>
       {/* The padding follows the sidebar's own data-collapsed, so folding it needs no re-render here. */}
       <main
         id="main"
-        className="md:pl-60 md:transition-[padding] md:duration-200 md:group-has-[aside[data-collapsed=true]]/shell:pl-[72px] print:pl-0"
+        className="min-h-dvh md:pl-60 md:transition-[padding] md:duration-200 md:group-has-[aside[data-collapsed=true]]/shell:pl-[72px] print:pl-0"
       >
         {/* Fluid: the canvas follows the window, capped only on very wide screens. */}
         <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8 xl:px-12 print:max-w-none print:p-0">

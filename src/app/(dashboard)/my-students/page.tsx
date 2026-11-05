@@ -114,6 +114,7 @@ export default async function MyStudentsPage() {
                     <TableCell>
                       <Link
                         href={`/students/${student.id}/weekly-reports`}
+                        prefetch={false}
                         className="block font-medium text-foreground underline-offset-4 hover:underline"
                       >
                         {student.fullName || student.user.email}
@@ -133,6 +134,8 @@ export default async function MyStudentsPage() {
                           <Link
                             key={suffix}
                             href={`/students/${student.id}/${suffix}`}
+                            // 6 links x every intern: prefetching re-ran each page ~200 times per view.
+                            prefetch={false}
                             className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                           >
                             {label}

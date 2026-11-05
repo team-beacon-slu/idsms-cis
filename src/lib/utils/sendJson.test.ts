@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import {
   OFFLINE_MESSAGE,
+  SESSION_MESSAGE,
   REQUEST_TIMEOUT_MS,
   TIMEOUT_MESSAGE,
   sendJson,
@@ -60,4 +61,29 @@ it("returns the parsed body on success", async () => {
     status: 200,
     body: { id: "wr-1" },
   });
+});
+
+it("says the session timed out on a bare 401, but keeps specific 401 messages", async () => {
+  fetchMock.mockResolvedValueOnce(
+    new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+  );
+  await expect(sendJson("/api/x", { method: "PUT", body: {} })).resolves.toEqual(
+    expect.objectContaining({ ok: false, status: 401, error: SESSION_MESSAGE })
+  );
+  fetchMock.mockResolvedValueOnce(
+    new Response(JSON.stringify({ error: "Password confirmation failed" }), { status: 401 })
+  );
+  await expect(sendJson("/api/x", { method: "PUT", body: {} })).resolves.toEqual(
+    expect.objectContaining({ error: "Password confirmation failed" })
+  );
+});
+
+it("sends FormData as multipart, without a JSON content type", async () => {
+  fetchMock.mockResolvedValue(new Response(JSON.stringify({ id: "1" }), { status: 201 }));
+  const form = new FormData();
+  form.set("file", "x");
+  await sendJson("/api/upload", { method: "POST", body: form });
+  const init = fetchMock.mock.calls[0][1] as RequestInit;
+  expect(init.body).toBe(form);
+  expect(init.headers).toBeUndefined();
 });

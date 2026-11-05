@@ -115,6 +115,11 @@ export default async function WeeklyReportsPage(props: {
         .reduce((sum, c) => sum + Number(c.hoursDeducted), 0) * 100
     ) / 100;
   const isOwner = user.role === "STUDENT_INTERN";
+  // This week already has its form below: the start card folds away (it is for other weeks).
+  const now = new Date().getTime();
+  const hasThisWeek = reports.some(
+    (r) => r.weekStart.getTime() <= now && now < r.weekEnd.getTime() + 24 * 60 * 60 * 1000
+  );
   const canReview = !isOwner;
   // R5: interns see their own plan-coverage pointers (the newest week that has them).
   const coverage = aiJobs.has("coverage")
@@ -161,7 +166,7 @@ export default async function WeeklyReportsPage(props: {
         </Card>
       )}
 
-      {isOwner && (
+      {isOwner && !hasThisWeek && (
         <Card>
           <CardHeader>
             <CardTitle>Start a weekly report</CardTitle>
@@ -174,6 +179,16 @@ export default async function WeeklyReportsPage(props: {
             <GenerateWeekButton studentProfileId={params.studentProfileId} />
           </CardContent>
         </Card>
+      )}
+
+      {isOwner && hasThisWeek && (
+        <details className="rounded-lg border bg-card px-4 py-3 text-sm">
+          <summary className="cursor-pointer font-medium">Start a report for another week</summary>
+          <p className="mt-2 mb-3 text-muted-foreground">
+            This week&apos;s report is below. For a missed week, pick any day in it.
+          </p>
+          <GenerateWeekButton studentProfileId={params.studentProfileId} />
+        </details>
       )}
 
       <Card>

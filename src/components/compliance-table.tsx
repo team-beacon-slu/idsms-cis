@@ -114,12 +114,14 @@ export function ComplianceTable({
                   <div className="flex flex-wrap gap-x-3 gap-y-1">
                     <Link
                       href={`/students/${row.studentProfileId}/weekly-reports`}
+                      prefetch={false}
                       className={linkClass}
                     >
                       Reports<span className="sr-only"> for {name}</span>
                     </Link>
                     <Link
                       href={`/students/${row.studentProfileId}/checklist`}
+                      prefetch={false}
                       className={linkClass}
                     >
                       Checklist<span className="sr-only"> for {name}</span>

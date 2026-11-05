@@ -234,7 +234,7 @@ export default async function DashboardHomePage(props: {
           </div>
           <dl className="mt-auto grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-2xl bg-white/10 px-3 py-2.5">
-              <dt className="text-white/70">Pending review</dt>
+              <dt className="text-white/70">Hours awaiting review</dt>
               <dd className="mt-0.5 font-semibold text-white tabular-nums">
                 {pendingHours > 0 ? `+${pendingHours} hrs` : "—"}
               </dd>

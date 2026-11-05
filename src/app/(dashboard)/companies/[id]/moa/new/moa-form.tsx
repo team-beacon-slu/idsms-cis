@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { OFFLINE_MESSAGE } from "@/lib/utils/sendJson";
+import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,20 +34,16 @@ export function MoaForm({ companyId }: { companyId: string }) {
 
     setIsSubmitting(true);
     // The wet-signed MOA stays with the department; IDSMS keeps its status, dates and a Drive link.
-    const res: Response | null = await fetch(`/api/companies/${companyId}/moa`, {
+    // sendJson shows the server's reason (e.g. the end date is before the start).
+    const res = await sendJson(`/api/companies/${companyId}/moa`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ documentUrl, validFrom, validTo, programsCovered }),
-    }).catch(() => null);
+      body: { documentUrl, validFrom, validTo, programsCovered },
+    });
 
     setIsSubmitting(false);
 
-    if (!res) {
-      toast.error(OFFLINE_MESSAGE);
-      return;
-    }
     if (!res.ok) {
-      toast.error("Failed to create MOA record");
+      toast.error(res.error);
       return;
     }
 
