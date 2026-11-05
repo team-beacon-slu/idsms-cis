@@ -41,9 +41,16 @@ export const scheduleChangeRequestSchema = z.object({
   supportingDocumentPath: z.string().min(1).optional(),
 });
 
-export const scheduleChangeReviewSchema = z.object({
-  action: z.enum(["APPROVE", "REJECT"]),
-});
+export const scheduleChangeReviewSchema = z
+  .object({
+    action: z.enum(["APPROVE", "REJECT"]),
+    reason: z.string().trim().min(1).max(1000).optional(),
+  })
+  // A rejected intern needs to know why (same rule as leave requests).
+  .refine((d) => d.action !== "REJECT" || Boolean(d.reason), {
+    message: "Give the intern a reason for rejecting",
+    path: ["reason"],
+  });
 
 export const holidayApplicableSchema = z.object({
   holidayEntryId: z.uuid(),

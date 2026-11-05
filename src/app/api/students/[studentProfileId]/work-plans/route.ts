@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
+import { notifySubmittedForReview } from "@/lib/services/notifications/notificationEvents";
 import { Prisma } from "@prisma/client";
 import { submitWorkPlanSchema } from "@/lib/validators/workPlan";
 import { getWorkPlanHistory, submitWorkPlan } from "@/lib/services/predeployment/workPlanService";
@@ -69,6 +71,15 @@ export async function POST(
       user,
       ipAddress,
       filePath
+    );
+    // Work plans are reviewed by the coordinator (workPlanService.reviewWorkPlan).
+    waitUntil(
+      notifySubmittedForReview({
+        studentProfileId: params.studentProfileId,
+        reviewer: "coordinator",
+        what: "a work plan",
+        link: `/students/${params.studentProfileId}/work-plan`,
+      })
     );
     return NextResponse.json(workPlan, { status: 201 });
   } catch (error) {

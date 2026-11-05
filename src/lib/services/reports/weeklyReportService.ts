@@ -856,10 +856,18 @@ async function logReview(
   facultyId: string,
   weeklyReportId: string,
   action: string,
-  ipAddress?: string | null
+  ipAddress?: string | null,
+  detail?: Prisma.InputJsonValue
 ) {
   await logEvent(
-    { userId: facultyId, action, entityType: "WeeklyReport", entityId: weeklyReportId, ipAddress },
+    {
+      userId: facultyId,
+      action,
+      entityType: "WeeklyReport",
+      entityId: weeklyReportId,
+      ipAddress,
+      detail,
+    },
     tx
   );
 }
@@ -992,13 +1000,22 @@ export async function reviewWeeklyReport_Regard(
 export async function reviewWeeklyReport_Disregard(
   weeklyReportId: string,
   facultyId: string,
-  ipAddress?: string | null
+  ipAddress?: string | null,
+  notes?: string
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
   return prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
     await tx.dailyReportEntry.deleteMany({ where: { weeklyReportId } });
     await tx.weeklyReport.delete({ where: { id: weeklyReportId } });
-    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_DISREGARDED", ipAddress);
+    // The row is gone, so the reason lives in the audit trail.
+    await logReview(
+      tx,
+      facultyId,
+      weeklyReportId,
+      "WEEKLY_REPORT_DISREGARDED",
+      ipAddress,
+      notes ? { notes } : undefined
+    );
 
     return { id: weeklyReportId, status: WeeklyReportStatus.DISREGARDED };
   });

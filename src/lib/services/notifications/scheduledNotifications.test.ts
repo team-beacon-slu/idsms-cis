@@ -21,6 +21,7 @@ import {
   notificationSettingsSchema,
   remindDueDataRequests,
   runDailyNotifications,
+  sendReviewDigests,
 } from "@/lib/services/notifications/scheduledNotifications";
 
 beforeEach(() => {
@@ -34,6 +35,58 @@ beforeEach(() => {
   prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
   // No open data requests unless a test says so.
   prismaMock.dataRequest.findMany.mockResolvedValue([] as never);
+  // No adviser assignments (so no review digests) unless a test says so.
+  prismaMock.facultyClassGroup.findMany.mockResolvedValue([] as never);
+  prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+});
+
+describe("sendReviewDigests (decision D1)", () => {
+  const submitted = (at: string) => ({
+    status: "PENDING",
+    revisionHistory: [{ type: "SUBMITTED", timestamp: at }],
+    studentProfile: { classGroupId: "cg-1", semesterId: "sem-1" },
+  });
+
+  it("emails each adviser once with what waits and how old the oldest week is", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+      { facultyId: "f-1", classGroupId: "cg-1", semesterId: "sem-1" },
+    ] as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      submitted("2026-10-07T00:00:00Z"),
+      submitted("2026-10-10T00:00:00Z"),
+    ] as never);
+    prismaMock.deviationReport.findMany.mockResolvedValue([
+      { studentProfile: { classGroupId: "cg-1", semesterId: "sem-1" } },
+    ] as never);
+    prismaMock.notification.findFirst.mockResolvedValue(null);
+
+    expect(await sendReviewDigests(NOW)).toBe(1);
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: ["f-1"],
+        trigger: "REVIEW_DIGEST",
+        title: "Waiting for your review: 2 weekly reports and 1 time request",
+        body: "The oldest week has waited 5 days (overdue).",
+        email: true,
+        dedupeKey: "digest:f-1:2026-10-12",
+      })
+    );
+  });
+
+  it("sends nothing when nothing waits, and nothing twice a day", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+      { facultyId: "f-1", classGroupId: "cg-1", semesterId: "sem-1" },
+    ] as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    expect(await sendReviewDigests(NOW)).toBe(0);
+
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      submitted("2026-10-11T00:00:00Z"),
+    ] as never);
+    prismaMock.notification.findFirst.mockResolvedValue({ id: "n-1" } as never);
+    expect(await sendReviewDigests(NOW)).toBe(0);
+    expect(notify).not.toHaveBeenCalled();
+  });
 });
 
 const NOW = new Date("2026-10-12T00:00:00Z"); // Mon 08:00 Manila

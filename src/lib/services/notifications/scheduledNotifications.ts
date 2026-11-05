@@ -1,4 +1,4 @@
-import { DataRequestStatus, Prisma, WeeklyReportStatus } from "@prisma/client";
+import { DataRequestStatus, Prisma, ValidationStatus, WeeklyReportStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
@@ -10,7 +10,7 @@ import {
 import { runRetentionScan } from "@/lib/services/privacy/retentionService";
 import { getExpiringMoaRecords } from "@/lib/services/predeployment/companyService";
 import { formatManilaDate, manilaDayDiff } from "@/lib/utils/excelExport";
-import { isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
+import { getLatestSubmission, isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import {
   addDays,
   getWeekStartMonday,
@@ -145,6 +145,91 @@ export async function remindDueDataRequests(now: Date): Promise<number> {
   return sent;
 }
 
+// Decision D1 (5 Nov 2026): one 08:00 email per adviser instead of one per submission.
+// Counts what waits on them (submitted weeks, time requests) and how long the oldest
+// week has waited; nothing is sent when nothing waits. Once per adviser per day.
+export const OVERDUE_REVIEW_DAYS = 3;
+
+export async function sendReviewDigests(now: Date): Promise<number> {
+  const pairs = await prisma.facultyClassGroup.findMany({
+    where: { semester: { archivedAt: null }, faculty: { isActive: true, deletedAt: null } },
+    select: { facultyId: true, classGroupId: true, semesterId: true },
+  });
+  if (pairs.length === 0) return 0;
+  const groupKey = (classGroupId: string | null, semesterId: string | null) =>
+    `${classGroupId}:${semesterId}`;
+  const advisersOf = new Map<string, string[]>();
+  for (const p of pairs) {
+    const key = groupKey(p.classGroupId, p.semesterId);
+    advisersOf.set(key, [...(advisersOf.get(key) ?? []), p.facultyId]);
+  }
+  const inGroups = {
+    deletedAt: null,
+    OR: pairs.map((p) => ({ classGroupId: p.classGroupId, semesterId: p.semesterId })),
+  };
+  const [reports, requests] = await Promise.all([
+    prisma.weeklyReport.findMany({
+      where: { status: WeeklyReportStatus.PENDING, studentProfile: inGroups },
+      select: {
+        status: true,
+        revisionHistory: true,
+        studentProfile: { select: { classGroupId: true, semesterId: true } },
+      },
+    }),
+    prisma.deviationReport.findMany({
+      where: { validationStatus: ValidationStatus.PENDING, studentProfile: inGroups },
+      select: { studentProfile: { select: { classGroupId: true, semesterId: true } } },
+    }),
+  ]);
+
+  const tally = new Map<string, { weeks: number; requests: number; oldest: Date | null }>();
+  const bump = (
+    profile: { classGroupId: string | null; semesterId: string | null },
+    add: (t: { weeks: number; requests: number; oldest: Date | null }) => void
+  ) => {
+    for (const facultyId of advisersOf.get(groupKey(profile.classGroupId, profile.semesterId)) ??
+      []) {
+      const t = tally.get(facultyId) ?? { weeks: 0, requests: 0, oldest: null };
+      add(t);
+      tally.set(facultyId, t);
+    }
+  };
+  for (const r of reports.filter(isAwaitingReview)) {
+    const stamp = getLatestSubmission(r.revisionHistory)?.timestamp;
+    const submitted = stamp ? new Date(stamp) : null;
+    bump(r.studentProfile, (t) => {
+      t.weeks += 1;
+      if (submitted && (!t.oldest || submitted < t.oldest)) t.oldest = submitted;
+    });
+  }
+  for (const r of requests) bump(r.studentProfile, (t) => (t.requests += 1));
+
+  let sent = 0;
+  for (const [facultyId, t] of tally) {
+    const dedupeKey = `digest:${facultyId}:${toDateKey(now)}`;
+    if (await alreadySent("REVIEW_DIGEST", dedupeKey, facultyId)) continue;
+    const days = t.oldest ? Math.floor((now.getTime() - t.oldest.getTime()) / DAY_MS) : 0;
+    const parts = [
+      t.weeks && `${t.weeks} weekly report${t.weeks === 1 ? "" : "s"}`,
+      t.requests && `${t.requests} time request${t.requests === 1 ? "" : "s"}`,
+    ].filter(Boolean);
+    const result = await notify({
+      userIds: [facultyId],
+      trigger: "REVIEW_DIGEST",
+      title: `Waiting for your review: ${parts.join(" and ")}`,
+      body:
+        t.weeks > 0
+          ? `The oldest week has waited ${days} day${days === 1 ? "" : "s"}${days >= OVERDUE_REVIEW_DAYS ? " (overdue)" : ""}.`
+          : "Open your review queue to decide them.",
+      link: "/review-queue",
+      email: true,
+      dedupeKey,
+    });
+    if (result.inApp > 0) sent += 1;
+  }
+  return sent;
+}
+
 interface ReminderTarget {
   profileId: string;
   userId: string;
@@ -165,6 +250,7 @@ export async function runDailyNotifications(now: Date) {
     deadlineReminders: 0,
     moaWarnings: 0,
     dsarReminders: 0,
+    reviewDigests: 0,
     // null when the scan step threw.
     retention: null as { ran: boolean; flagged: number } | null,
     errors: [] as string[],
@@ -269,6 +355,13 @@ export async function runDailyNotifications(now: Date) {
   } catch (error) {
     console.error("MOA expiry warning failed", { error });
     result.errors.push("moa");
+  }
+
+  try {
+    result.reviewDigests = await sendReviewDigests(now);
+  } catch (error) {
+    console.error("Review digest failed", { error });
+    result.errors.push("digest");
   }
 
   try {

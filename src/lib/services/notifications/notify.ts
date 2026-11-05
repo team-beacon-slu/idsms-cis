@@ -31,7 +31,9 @@ export type NotificationTrigger =
   | "RETENTION_REVIEW"
   | "AI_JOB_OFF"
   | "RETRACTION_FILED"
-  | "RETRACTION_NOTED";
+  | "RETRACTION_NOTED"
+  | "SUBMITTED_FOR_REVIEW"
+  | "REVIEW_DIGEST";
 
 export interface NotifyInput {
   userIds: string[];

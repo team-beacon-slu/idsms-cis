@@ -8,6 +8,11 @@ jest.mock("@/lib/services/attendance/timeRequestService", () => ({
   createTimeRequest: jest.fn(),
   listTimeRequests: jest.fn(),
 }));
+jest.mock("@vercel/functions", () => ({ waitUntil: (p: Promise<unknown>) => p }));
+jest.mock("@/lib/services/notifications/notificationEvents", () => ({
+  ...jest.requireActual("@/lib/services/notifications/notificationEvents"),
+  notifySubmittedForReview: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock("@/lib/services/accounts/userService", () => ({
   ...jest.requireActual("@/lib/services/accounts/userService"),
   assertCanAccessStudent: jest.fn(),
@@ -18,6 +23,7 @@ import { requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { createTimeRequest, listTimeRequests } from "@/lib/services/attendance/timeRequestService";
 import { GET, POST } from "@/app/api/students/[studentProfileId]/time-requests/route";
+import { notifySubmittedForReview } from "@/lib/services/notifications/notificationEvents";
 
 const params = { params: Promise.resolve({ studentProfileId: "p-1" }) };
 const post = (body: BodyInit, contentType = "application/json") =>
@@ -33,7 +39,7 @@ const post = (body: BodyInit, contentType = "application/json") =>
 beforeEach(() => {
   jest.resetAllMocks();
   (requireUserApi as jest.Mock).mockResolvedValue({ id: "s-1", role: "STUDENT_INTERN" });
-  (createTimeRequest as jest.Mock).mockResolvedValue({ id: "tr-1" });
+  (createTimeRequest as jest.Mock).mockResolvedValue({ id: "tr-1", deviationType: "OVERTIME" });
   (listTimeRequests as jest.Mock).mockResolvedValue([]);
 });
 
@@ -46,6 +52,16 @@ it("creates a request for the intern with 201", async () => {
     expect.anything(),
     null
   );
+});
+
+it("tells the adviser an overtime request is waiting, with a direct link", async () => {
+  await post(JSON.stringify({ deviationType: "OVERTIME" }));
+  expect(notifySubmittedForReview).toHaveBeenCalledWith({
+    studentProfileId: "p-1",
+    reviewer: "adviser",
+    what: "an overtime request",
+    link: "/students/p-1/leave-requests",
+  });
 });
 
 it("rejects staff filing with 401", async () => {

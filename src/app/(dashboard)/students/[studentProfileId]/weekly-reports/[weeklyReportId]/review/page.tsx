@@ -18,6 +18,7 @@ import { getAdvisoryView } from "@/lib/ai/display";
 import { getAiSettings } from "@/lib/ai/settings";
 import { allJobStatuses, jobsOnFor, type JobId } from "@/lib/ai/jobs";
 import { AiHints } from "@/components/ai/ai-hints";
+import { getReviewQueue, queueReasons } from "@/lib/ai/reviewQueue";
 
 // Ownership note (pre-flight fix): a role check alone isn't enough — a
 // Faculty Adviser must also be assigned to this specific student (same
@@ -58,6 +59,18 @@ export default async function WeeklyReportReviewPage(props: {
   // assist switch is on.
   const [on, { similarityThreshold }] = await Promise.all([jobsOnFor(user), getAiSettings()]);
   const view = getAdvisoryView(report!, { on, similarityThreshold });
+  // Approve & next: the queue's next week, so the adviser never goes back to the list.
+  // Flags are the same ones the queue shows; approving a flagged week asks once more.
+  const queue = awaitingReview ? await getReviewQueue(user.id, { on, similarityThreshold }) : [];
+  const nextItem = queue.find((q) => q.id !== report!.id);
+  const next = nextItem
+    ? {
+        href: `/students/${nextItem.studentProfileId}/weekly-reports/${nextItem.id}/review`,
+        intern: nextItem.intern,
+        left: queue.filter((q) => q.id !== report!.id).length,
+      }
+    : null;
+  const flags = queueReasons(report!, { on, similarityThreshold });
   // Hints vanish while a job is paused (provider limit): say so, so "no copy warning" is not
   // read as "no copying". Looked up only when no report hint job is on.
   const REPORT_JOBS: JobId[] = ["copy", "coverage", "tone", "summary"];
@@ -150,7 +163,11 @@ export default async function WeeklyReportReviewPage(props: {
 
         <CardContent className="pt-0">
           {awaitingReview ? (
-            <WeeklyReportReviewActions weeklyReportId={params.weeklyReportId} />
+            <WeeklyReportReviewActions
+              weeklyReportId={params.weeklyReportId}
+              next={next}
+              flags={flags}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
               Nothing to review: this report isn&apos;t waiting for a decision.

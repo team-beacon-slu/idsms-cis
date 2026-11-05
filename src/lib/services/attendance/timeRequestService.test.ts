@@ -117,7 +117,7 @@ describe("createTimeRequest", () => {
         proofType: null,
         submittedAt: expect.any(Date),
       }),
-      select: { id: true },
+      select: { id: true, deviationType: true },
     });
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({

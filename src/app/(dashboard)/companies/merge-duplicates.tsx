@@ -28,8 +28,16 @@ export function MergeDuplicates({ group }: { group: Member[] }) {
       )[0].id
   );
   const [pending, setPending] = useState(false);
+  // A merge can't be undone: the first click arms it (the app's "click again" pattern).
+  const [armed, setArmed] = useState(false);
+  const keepName = group.find((c) => c.id === keepId)?.name ?? "";
 
   async function merge() {
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    setArmed(false);
     setPending(true);
     const mergeIds = group.filter((c) => c.id !== keepId).map((c) => c.id);
     const res = await sendJson("/api/companies/merge", {
@@ -56,7 +64,10 @@ export function MergeDuplicates({ group }: { group: Member[] }) {
             type="radio"
             name={`keep-${group[0].id}`}
             checked={keepId === c.id}
-            onChange={() => setKeepId(c.id)}
+            onChange={() => {
+              setKeepId(c.id);
+              setArmed(false);
+            }}
             className="size-4 cursor-pointer accent-primary"
           />
           <span className="min-w-0">
@@ -73,13 +84,17 @@ export function MergeDuplicates({ group }: { group: Member[] }) {
       <Button
         type="button"
         size="sm"
-        variant="outline"
+        variant={armed ? "default" : "outline"}
         disabled={pending}
         onClick={() => void merge()}
         className="cursor-pointer gap-1.5"
       >
         <GitMerge className="size-4" aria-hidden="true" />
-        {pending ? "Merging..." : "Merge into the selected one"}
+        {pending
+          ? "Merging..."
+          : armed
+            ? `Click again to merge into ${keepName} (can't be undone)`
+            : "Merge into the selected one"}
       </Button>
     </fieldset>
   );
