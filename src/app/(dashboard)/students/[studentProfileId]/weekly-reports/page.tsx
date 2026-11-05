@@ -94,6 +94,19 @@ export default async function WeeklyReportsPage(props: {
       .filter((h) => h.applicable)
       .map((h) => [toDateKey(h.date), { name: h.name, company: h.holidayType === "COMPANY" }])
   );
+  // The intern's last worked day's times prefill new days when the schedule has none.
+  const lastWorked = reports
+    .flatMap((r) => r.dailyEntries)
+    .filter((e) => e.attendanceStatus === "PRESENT" && e.timeIn && e.timeOut)
+    .sort((a, b) => b.reportDate.getTime() - a.reportDate.getTime())[0];
+  const usualTimes = lastWorked
+    ? {
+        timeIn: lastWorked.timeIn ?? "",
+        timeOut: lastWorked.timeOut ?? "",
+        timeIn2: lastWorked.timeIn2 ?? "",
+        timeOut2: lastWorked.timeOut2 ?? "",
+      }
+    : null;
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const deductionsAsOf = (weekEnd: Date) =>
     Math.round(
@@ -291,6 +304,7 @@ export default async function WeeklyReportsPage(props: {
                       weeklyReportId={report.id}
                       editable={editable}
                       shift={shift}
+                      usualTimes={usualTimes}
                       holidays={holidays}
                       weekEnd={report.weekEnd.toISOString()}
                       priorAccomplishments={priorAccomplishments}

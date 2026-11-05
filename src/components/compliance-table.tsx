@@ -28,7 +28,7 @@ export function ComplianceTable({
   // Workstream L2: ADVISER / WWR deduction totals per studentProfileId.
   deductions?: Record<string, { adviser: number; wwr: number }>;
 }) {
-  const columnCount = (showProgram ? 8 : 7) + (deductions ? 1 : 0);
+  const columnCount = (showProgram ? 7 : 6) + (deductions ? 1 : 0);
 
   return (
     <div
@@ -49,7 +49,6 @@ export function ComplianceTable({
             <TableHead className="text-right">Docs</TableHead>
             {deductions && <TableHead className="text-right">Deductions (ADVISER / WWR)</TableHead>}
             <TableHead>Weekly report</TableHead>
-            <TableHead>AI flag</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
@@ -107,12 +106,6 @@ export function ComplianceTable({
                       </span>
                     )}
                   </div>
-                </TableCell>
-                <TableCell>
-                  <span title="AI review not enabled" className="text-muted-foreground">
-                    <span aria-hidden="true">—</span>
-                    <span className="sr-only">AI review not enabled</span>
-                  </span>
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={row.status} />
