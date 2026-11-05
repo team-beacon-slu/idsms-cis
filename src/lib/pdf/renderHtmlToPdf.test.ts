@@ -18,6 +18,8 @@ function fakeBrowser(pdfBytes = new Uint8Array([37, 80, 68, 70])) {
     setContent: jest.fn().mockResolvedValue(undefined),
     evaluate: jest.fn().mockResolvedValue([]), // no table of contents
     pdf: jest.fn().mockResolvedValue(pdfBytes),
+    setRequestInterception: jest.fn().mockResolvedValue(undefined),
+    on: jest.fn(),
   };
   const browser = { newPage: jest.fn().mockResolvedValue(page), close: jest.fn() };
   return { browser, page };
@@ -79,6 +81,24 @@ describe("renderHtmlToPdf", () => {
       expect.objectContaining({ format: "A4", printBackground: true })
     );
     expect(browser.close).toHaveBeenCalled();
+  });
+
+  it("lets the page load only data: and about: URLs", async () => {
+    process.env.PUPPETEER_EXECUTABLE_PATH = "chrome";
+    const { browser, page } = fakeBrowser();
+    launch.mockResolvedValue(browser);
+    await renderHtmlToPdf("<p>hi</p>");
+
+    expect(page.setRequestInterception).toHaveBeenCalledWith(true);
+    const onRequest = page.on.mock.calls.find(([event]) => event === "request")![1];
+    const request = (url: string) => ({ url: () => url, continue: jest.fn(), abort: jest.fn() });
+    const font = request("data:font/woff2;base64,AAAA");
+    const internal = request("http://169.254.169.254/latest/meta-data");
+    onRequest(font);
+    onRequest(internal);
+    expect(font.continue).toHaveBeenCalled();
+    expect(internal.abort).toHaveBeenCalled();
+    expect(internal.continue).not.toHaveBeenCalled();
   });
 
   it("closes the browser even when printing throws", async () => {

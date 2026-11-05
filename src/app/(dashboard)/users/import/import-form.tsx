@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { OFFLINE_MESSAGE } from "@/lib/utils/sendJson";
@@ -40,11 +40,23 @@ export function BulkImportForm({
   semesters: Option[];
   defaultSemesterId?: string;
 }) {
-  const [classGroupId, setClassGroupId] = useState(classGroups[0]?.id ?? "");
+  const [classGroupId, setClassGroupId] = useState(
+    classGroups.length === 1 ? classGroups[0].id : ""
+  );
   const [semesterId, setSemesterId] = useState(defaultSemesterId ?? semesters[0]?.id ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<(BulkImportResult & { rowErrors: RowError[] }) | null>(null);
+  const [downloaded, setDownloaded] = useState(false);
+  // The temporary passwords live only in this tab (the welcome emails don't carry them):
+  // leaving before downloading would mean resetting every new account by hand.
+  const unsaved = Boolean(result && result.created > 0 && !downloaded);
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,6 +88,7 @@ export function BulkImportForm({
 
     const body = await res.json();
     setResult(body);
+    setDownloaded(false);
     toast.success(`Imported ${body.created} of ${body.totalRows} rows`);
   }
 
@@ -93,6 +106,7 @@ export function BulkImportForm({
     a.download = "student-credentials.csv";
     a.click();
     URL.revokeObjectURL(url);
+    setDownloaded(true);
   }
 
   return (
@@ -125,6 +139,9 @@ export function BulkImportForm({
                     required
                     className={selectClass}
                   >
+                    <option value="" disabled>
+                      Choose a class group
+                    </option>
                     {classGroups.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.label}
@@ -203,12 +220,22 @@ export function BulkImportForm({
               {result.rowErrors.length > 0 && `, ${result.rowErrors.length} invalid`}
             </CardTitle>
             {result.created > 0 && (
-              <Button onClick={downloadCsv} variant="outline" className="cursor-pointer gap-2">
+              <Button
+                onClick={downloadCsv}
+                variant={downloaded ? "outline" : "default"}
+                className="cursor-pointer gap-2"
+              >
                 <Download className="size-4" aria-hidden="true" />
-                Download credentials CSV
+                {downloaded ? "Download again" : "Download credentials CSV"}
               </Button>
             )}
           </CardHeader>
+          {unsaved && (
+            <p role="status" className="px-6 text-sm font-medium text-foreground">
+              The temporary passwords are shown only on this page. Download the CSV before you
+              leave.
+            </p>
+          )}
           <CardContent>
             <div className="overflow-x-auto rounded-lg border border-border">
               <Table>

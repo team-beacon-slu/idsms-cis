@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 
 type Row = { period: string; area: string; description: string; output: string; hours: string };
 const blank = (): Row => ({ period: "", area: "", description: "", output: "", hours: "" });
+const isBlank = (r: Row) => Object.values(r).every((v) => !v.trim());
 
 const toRow = (r: {
   period?: string;
@@ -44,40 +45,40 @@ export function WorkPlanSubmitForm({
   const [reading, setReading] = useState(false);
   const [daysOff, setDaysOff] = useState<{ date: string; name: string; added?: boolean }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [adding, setAdding] = useState<number | null>(null);
 
   async function readWithAi() {
     if (!file) return;
     setReading(true);
     const form = new FormData();
     form.set("file", file);
-    try {
-      const res = await fetch(`/api/students/${studentProfileId}/work-plans/read`, {
-        method: "POST",
-        body: form,
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(body.error ?? "AI assist couldn't read the file");
-        return;
-      }
-      if (body.rows?.length) setRows(body.rows.map(toRow));
-      setDaysOff(body.daysOff ?? []);
-      toast.success(
-        `Read ${body.rows?.length ?? 0} rows and ${body.daysOff?.length ?? 0} days off. Check them before you submit.`
-      );
-    } catch {
-      toast.error("Could not reach the server — check your connection and try again");
-    } finally {
-      setReading(false);
+    const res = await sendJson(`/api/students/${studentProfileId}/work-plans/read`, {
+      method: "POST",
+      body: form,
+    });
+    setReading(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
     }
+    const read = (res.body.rows as Parameters<typeof toRow>[0][] | undefined) ?? [];
+    const days = (res.body.daysOff as typeof daysOff | undefined) ?? [];
+    // Rows the intern already typed stay; the AI's rows go after them.
+    if (read.length) setRows((rs) => [...rs.filter((r) => !isBlank(r)), ...read.map(toRow)]);
+    setDaysOff(days);
+    toast.success(
+      `Read ${read.length} rows and ${days.length} days off. Check them before you submit.`
+    );
   }
 
   async function addDayOff(i: number) {
     const d = daysOff[i];
+    setAdding(i);
     const res = await sendJson(`/api/students/${studentProfileId}/holidays`, {
       method: "POST",
       body: { date: d.date, name: d.name },
     });
+    setAdding(null);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -110,26 +111,21 @@ export function WorkPlanSubmitForm({
     const form = new FormData();
     form.set("plan", JSON.stringify({ plannedTasks }));
     if (file) form.set("file", file);
-    try {
-      const res = await fetch(`/api/students/${studentProfileId}/work-plans`, {
-        method: "POST",
-        body: form,
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(body.error ?? "Could not submit the work plan");
-        return;
-      }
-      toast.success("Work plan submitted");
-      setRows([blank()]);
-      setFile(null);
-      setDaysOff([]);
-      router.refresh();
-    } catch {
-      toast.error("Could not reach the server — check your connection and try again");
-    } finally {
-      setIsSubmitting(false);
+    // sendJson shows the server's own reason (which field, which file problem).
+    const res = await sendJson(`/api/students/${studentProfileId}/work-plans`, {
+      method: "POST",
+      body: form,
+    });
+    setIsSubmitting(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
     }
+    toast.success("Work plan submitted");
+    setRows([blank()]);
+    setFile(null);
+    setDaysOff([]);
+    router.refresh();
   }
 
   return (
@@ -183,7 +179,7 @@ export function WorkPlanSubmitForm({
                         type="button"
                         size="sm"
                         variant="ghost"
-                        disabled={d.added}
+                        disabled={d.added || adding !== null}
                         onClick={() => addDayOff(i)}
                         className="cursor-pointer gap-1.5"
                       >

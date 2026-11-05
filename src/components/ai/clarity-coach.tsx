@@ -35,10 +35,10 @@ export function ClarityCoach({ days, aiOn }: { days: Day[]; aiOn: boolean }) {
       aria-labelledby="clarity-coach"
       className="space-y-2 rounded-lg border border-brand-200 bg-brand-50/60 p-3 text-sm"
     >
-      <h3 id="clarity-coach" className="flex items-center gap-2 font-medium text-foreground">
+      <h2 id="clarity-coach" className="flex items-center gap-2 font-medium text-foreground">
         <HelpCircle className="size-4 text-brand-700" aria-hidden="true" />
         Before you submit
-      </h3>
+      </h2>
       {flagged.length ? (
         <ul className="space-y-1.5">
           {flagged.map((d) => (

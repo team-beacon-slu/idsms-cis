@@ -119,7 +119,7 @@ export function AssignAdviserForm({
   defaultSemesterId?: string;
 }) {
   const { isPending, run } = useSubmit();
-  const [facultyId, setFacultyId] = useState(advisers[0]?.id ?? "");
+  const [facultyId, setFacultyId] = useState(advisers.length === 1 ? advisers[0].id : "");
   const [semesterId, setSemesterId] = useState(defaultSemesterId ?? semesters[0]?.id ?? "");
 
   if (advisers.length === 0 || semesters.length === 0) {
@@ -152,8 +152,12 @@ export function AssignAdviserForm({
           id={`adviser-${classGroupId}`}
           value={facultyId}
           onChange={(e) => setFacultyId(e.target.value)}
+          required
           className={selectClass}
         >
+          <option value="" disabled>
+            Choose an adviser
+          </option>
           {advisers.map((a) => (
             <option key={a.id} value={a.id}>
               {a.label}

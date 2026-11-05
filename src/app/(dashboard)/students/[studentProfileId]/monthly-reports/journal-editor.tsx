@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { sendJson } from "@/lib/utils/sendJson";
+import { useFormDraft } from "@/lib/utils/formDraft";
 
 export const MIN_JOURNAL_CHARS = 200; // same floor as monthlyReportService
 
@@ -32,6 +33,17 @@ export function JournalEditor({
   const [office, setOffice] = useState(initialOffice);
   const [saving, setSaving] = useState(false);
   const id = `jle-${calendarMonth}`;
+  const dirty = useFormDraft(
+    `jle:${studentProfileId}:${calendarMonth}`,
+    { narrative, office },
+    { narrative: initialNarrative, office: initialOffice },
+    (draft) => {
+      setNarrative(draft.narrative);
+      setOffice(draft.office);
+      toast.info("Restored your unsaved journal text. Press Save journal to keep it.");
+    },
+    !readOnly
+  );
 
   if (readOnly) {
     return initialNarrative ? (
@@ -99,7 +111,7 @@ export function JournalEditor({
         className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
       >
         <Save className="size-3.5" aria-hidden="true" />
-        {saving ? "Saving..." : "Save journal"}
+        {saving ? "Saving..." : dirty ? "Save journal (unsaved changes)" : "Save journal"}
       </Button>
     </div>
   );

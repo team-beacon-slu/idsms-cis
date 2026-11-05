@@ -46,6 +46,7 @@ export default async function ReviewQueuePage() {
                   <div className="min-w-0">
                     <Link
                       href={`/students/${r.studentProfileId}/weekly-reports/${r.id}/review`}
+                      prefetch={false}
                       className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
                     >
                       {r.intern}

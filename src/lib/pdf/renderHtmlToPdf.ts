@@ -72,6 +72,13 @@ export async function renderHtmlToPdf(html: string, timeoutMs = 15_000): Promise
   });
   try {
     const page = await browser.newPage();
+    // Templates are self-contained (fonts are data: URLs). Blocking everything else means a
+    // template that ever misses an escape still can't make the server fetch internal URLs.
+    await page.setRequestInterception(true);
+    page.on("request", (request) => {
+      if (/^(data|about):/.test(request.url())) void request.continue();
+      else void request.abort();
+    });
     // setContent, not goto — the HTML is already rendered server-side, so no
     // session cookies ever need to be handed to the headless browser.
     await page.setContent(html, { waitUntil: "load", timeout: timeoutMs });

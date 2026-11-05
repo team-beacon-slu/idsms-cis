@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
+import { clearFormDraft, useFormDraft } from "@/lib/utils/formDraft";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,8 @@ function Item({
   );
 }
 
+const EMPTY = { liked: "", improve: "", comment: "" };
+
 export function CompanyEvaluationForm({
   studentProfileId,
   companyName,
@@ -78,9 +81,24 @@ export function CompanyEvaluationForm({
   const [quality, setQuality] = useState<(number | undefined)[]>(
     Array(QUALITY.length).fill(undefined)
   );
-  const [comments, setComments] = useState({ liked: "", improve: "", comment: "" });
+  const [comments, setComments] = useState(EMPTY);
   const [pending, setPending] = useState(false);
   const left = [...obligations, ...quality].filter((v) => v === undefined).length;
+  // 22 ratings and 3 comments: a refresh or timeout must not lose them.
+  const draftKey = `company-evaluation:${studentProfileId}`;
+  const empty = (n: number) => Array<number | undefined>(n).fill(undefined);
+  useFormDraft(
+    draftKey,
+    { obligations, quality, comments },
+    { obligations: empty(OBLIGATIONS.length), quality: empty(QUALITY.length), comments: EMPTY },
+    (draft) => {
+      // JSON keeps an unanswered item as null.
+      setObligations(draft.obligations.map((v) => v ?? undefined));
+      setQuality(draft.quality.map((v) => v ?? undefined));
+      setComments(draft.comments);
+      toast.info("Restored your unsent answers.");
+    }
+  );
 
   const set = (list: typeof obligations, i: number, v: number) =>
     list.map((old, j) => (j === i ? v : old));
@@ -97,6 +115,7 @@ export function CompanyEvaluationForm({
       toast.error(res.error);
       return;
     }
+    clearFormDraft(draftKey);
     toast.success("Evaluation sent. Download the form for Google Classroom.");
     router.refresh();
   }

@@ -9,6 +9,7 @@ jest.mock("@/lib/pdf/renderHtmlToPdf", () => {
 jest.mock("@supabase/supabase-js", () => ({ createClient: jest.fn(() => ({ storage: {} })) }));
 
 import { handleApiError } from "@/lib/utils/apiError";
+import { AiProviderError } from "@/lib/services/ai/aiService";
 import { DocumentNotReadyError } from "@/lib/documents/errors";
 import {
   ComplianceNotFoundError,
@@ -48,4 +49,25 @@ it("maps a malformed JSON body to 400, not a server error", async () => {
   const res = handleApiError(parseError);
   expect(res.status).toBe(400);
   await expect(res.json()).resolves.toEqual({ error: "Malformed JSON body" });
+});
+
+it("gives an unexpected crash a reference that matches the log", async () => {
+  const log = jest.spyOn(console, "error").mockImplementation(() => {});
+  const res = handleApiError(new Error("boom"));
+  expect(res.status).toBe(500);
+  const body = await res.json();
+  expect(body.ref).toMatch(/^[0-9a-f]{8}$/);
+  expect(body.error).toContain(`ref ${body.ref}`);
+  expect(log.mock.calls[0][0]).toBe(`[error ${body.ref}]`);
+  log.mockRestore();
+});
+
+it("turns an AI quota or outage into a plain 'busy' message", async () => {
+  const log = jest.spyOn(console, "error").mockImplementation(() => {});
+  const busy = handleApiError(new AiProviderError("chat failed (429): quota", 429));
+  expect(busy.status).toBe(503);
+  expect((await busy.json()).error).toMatch(/AI assist is busy/);
+  const rejected = handleApiError(new AiProviderError("bad input", 400));
+  expect(rejected.status).toBe(502);
+  log.mockRestore();
 });

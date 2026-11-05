@@ -64,7 +64,7 @@ export const PasswordInput = React.forwardRef<
             setShown((s) => !s);
             setToggled(true);
           }}
-          className="absolute top-1/2 right-1 inline-flex h-9 -translate-y-1/2 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium text-brand-700 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden md:h-8"
+          className="absolute top-1/2 right-1 inline-flex h-9 -translate-y-1/2 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium text-brand-700 hover:bg-brand-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden md:h-8 dark:text-brand-900"
         >
           {shown ? (
             <EyeOff className="size-4" aria-hidden="true" />

@@ -310,7 +310,7 @@ export function ConductCard({
       </div>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold text-foreground">Conduct records</h3>
+        <h2 className="text-sm font-semibold text-foreground">Conduct records</h2>
         {data.records.length === 0 ? (
           <p className="text-sm text-muted-foreground">None on record.</p>
         ) : (

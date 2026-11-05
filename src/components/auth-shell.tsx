@@ -26,7 +26,7 @@ function Wordmark({ onNavy = false }: { onNavy?: boolean }) {
 // for "the simpler the better").
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative isolate min-h-dvh">
+    <main className="relative isolate min-h-dvh">
       {/* The way back to the public landing page for anyone who is not signed in yet. */}
       <Link
         href="/about"
@@ -43,6 +43,6 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

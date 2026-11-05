@@ -6,6 +6,7 @@ import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { CHECKLIST_BUCKET, uploadFile } from "@/lib/storage";
 
 export async function GET(
@@ -23,7 +24,7 @@ export async function GET(
   }
 }
 
-// Ownership (student self-only) is enforced inside submitWorkPlan. Multipart carries the
+// Access is checked before any file is stored (and again inside submitWorkPlan). Multipart carries the
 // company's own work plan PDF ("file") with the rows as JSON ("plan"); either may be empty,
 // not both.
 export async function POST(
@@ -33,6 +34,9 @@ export async function POST(
   const params = await props.params;
   try {
     const user = await requireUserApi();
+    // Before the upload: otherwise anyone signed in could leave files under another student.
+    z.uuid().parse(params.studentProfileId);
+    await assertCanAccessStudent(user, params.studentProfileId);
     let raw: unknown;
     let file: File | null = null;
     if (req.headers.get("content-type")?.startsWith("multipart/form-data")) {
