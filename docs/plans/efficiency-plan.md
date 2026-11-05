@@ -116,14 +116,13 @@ work plan and proof downloads; block network requests in the PDF renderer.
 40. Payload: mount weekly forms only for editable weeks; keep zod out of the login bundle;
     index the 11 unindexed foreign keys.
 
-## Decisions for Jay
+## Decisions (Jay, 5 Nov 2026)
 
-- **D1** Replace the per-submission adviser email with the daily digest (14)? Interns keep their receipt.
-- **D2** Rename Regard/Disregard (17), or keep SLU's words and only add the reason + confirm?
-- **D3** New checklist status "Uploaded to Classroom" (19) needs a migration on the beta DB.
-- **D4** Accept the privacy consent on the coordinator test account so its pages can be audited
-  (writes one consent row).
-- **D5** Order: phases 1 -> 2 -> 3 recommended; 4-6 after.
+- **D1** Daily adviser digest replaces the per-submission email (14). Interns keep their receipt.
+- **D2** Keep SLU's Regard/Disregard wording; add the reason and the confirm (17).
+- **D3** The "Uploaded to Classroom" checklist status (19): apply its migration to the beta DB when built.
+- **D4** Coordinator test account consent: still open (audit gap only).
+- **D5** Build all six phases in order, one PR per phase, stacked.
 
 ## Not checked
 
