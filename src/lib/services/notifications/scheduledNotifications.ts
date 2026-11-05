@@ -1,4 +1,10 @@
-import { DataRequestStatus, Prisma, ValidationStatus, WeeklyReportStatus } from "@prisma/client";
+import {
+  ChecklistStatus,
+  DataRequestStatus,
+  Prisma,
+  ValidationStatus,
+  WeeklyReportStatus,
+} from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
@@ -146,7 +152,7 @@ export async function remindDueDataRequests(now: Date): Promise<number> {
 }
 
 // Decision D1 (5 Nov 2026): one 08:00 email per adviser instead of one per submission.
-// Counts what waits on them (submitted weeks, time requests) and how long the oldest
+// Counts what waits on them (submitted weeks, time requests, checklist items marked uploaded) and how long the oldest
 // week has waited; nothing is sent when nothing waits. Once per adviser per day.
 export const OVERDUE_REVIEW_DAYS = 3;
 
@@ -167,7 +173,7 @@ export async function sendReviewDigests(now: Date): Promise<number> {
     deletedAt: null,
     OR: pairs.map((p) => ({ classGroupId: p.classGroupId, semesterId: p.semesterId })),
   };
-  const [reports, requests] = await Promise.all([
+  const [reports, requests, uploads] = await Promise.all([
     prisma.weeklyReport.findMany({
       where: { status: WeeklyReportStatus.PENDING, studentProfile: inGroups },
       select: {
@@ -180,16 +186,26 @@ export async function sendReviewDigests(now: Date): Promise<number> {
       where: { validationStatus: ValidationStatus.PENDING, studentProfile: inGroups },
       select: { studentProfile: { select: { classGroupId: true, semesterId: true } } },
     }),
+    prisma.preDeploymentChecklistItem.findMany({
+      where: {
+        status: ChecklistStatus.PENDING,
+        uploadedAt: { not: null },
+        archivedAt: null,
+        studentProfile: inGroups,
+      },
+      select: { studentProfile: { select: { classGroupId: true, semesterId: true } } },
+    }),
   ]);
 
-  const tally = new Map<string, { weeks: number; requests: number; oldest: Date | null }>();
+  type Tally = { weeks: number; requests: number; uploads: number; oldest: Date | null };
+  const tally = new Map<string, Tally>();
   const bump = (
     profile: { classGroupId: string | null; semesterId: string | null },
-    add: (t: { weeks: number; requests: number; oldest: Date | null }) => void
+    add: (t: Tally) => void
   ) => {
     for (const facultyId of advisersOf.get(groupKey(profile.classGroupId, profile.semesterId)) ??
       []) {
-      const t = tally.get(facultyId) ?? { weeks: 0, requests: 0, oldest: null };
+      const t = tally.get(facultyId) ?? { weeks: 0, requests: 0, uploads: 0, oldest: null };
       add(t);
       tally.set(facultyId, t);
     }
@@ -203,6 +219,7 @@ export async function sendReviewDigests(now: Date): Promise<number> {
     });
   }
   for (const r of requests) bump(r.studentProfile, (t) => (t.requests += 1));
+  for (const r of uploads) bump(r.studentProfile, (t) => (t.uploads += 1));
 
   let sent = 0;
   for (const [facultyId, t] of tally) {
@@ -212,11 +229,14 @@ export async function sendReviewDigests(now: Date): Promise<number> {
     const parts = [
       t.weeks && `${t.weeks} weekly report${t.weeks === 1 ? "" : "s"}`,
       t.requests && `${t.requests} time request${t.requests === 1 ? "" : "s"}`,
-    ].filter(Boolean);
+      t.uploads && `${t.uploads} checklist item${t.uploads === 1 ? "" : "s"}`,
+    ].filter(Boolean) as string[];
+    const list =
+      parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
     const result = await notify({
       userIds: [facultyId],
       trigger: "REVIEW_DIGEST",
-      title: `Waiting for your review: ${parts.join(" and ")}`,
+      title: `Waiting for your review: ${list}`,
       body:
         t.weeks > 0
           ? `The oldest week has waited ${days} day${days === 1 ? "" : "s"}${days >= OVERDUE_REVIEW_DAYS ? " (overdue)" : ""}.`

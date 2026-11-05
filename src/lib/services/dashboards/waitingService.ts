@@ -72,6 +72,7 @@ export async function getAdviserWaiting(facultyId: string) {
         date: true,
         reason: true,
         proofType: true,
+        proofUrl: true,
         studentProfileId: true,
         studentProfile: { select: profileSelect },
       },
@@ -95,6 +96,7 @@ export async function getAdviserWaiting(facultyId: string) {
       date: r.date,
       reason: r.reason,
       proofType: r.proofType,
+      hasProof: Boolean(r.proofUrl),
       href: `/students/${r.studentProfileId}/leave-requests`,
     })),
     scheduleChanges: changes.map((c): WaitingItem => ({

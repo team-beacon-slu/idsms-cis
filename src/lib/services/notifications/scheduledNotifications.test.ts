@@ -58,6 +58,9 @@ describe("sendReviewDigests (decision D1)", () => {
     prismaMock.deviationReport.findMany.mockResolvedValue([
       { studentProfile: { classGroupId: "cg-1", semesterId: "sem-1" } },
     ] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([
+      { studentProfile: { classGroupId: "cg-1", semesterId: "sem-1" } },
+    ] as never);
     prismaMock.notification.findFirst.mockResolvedValue(null);
 
     expect(await sendReviewDigests(NOW)).toBe(1);
@@ -65,7 +68,7 @@ describe("sendReviewDigests (decision D1)", () => {
       expect.objectContaining({
         userIds: ["f-1"],
         trigger: "REVIEW_DIGEST",
-        title: "Waiting for your review: 2 weekly reports and 1 time request",
+        title: "Waiting for your review: 2 weekly reports, 1 time request and 1 checklist item",
         body: "The oldest week has waited 5 days (overdue).",
         email: true,
         dedupeKey: "digest:f-1:2026-10-12",
@@ -78,6 +81,7 @@ describe("sendReviewDigests (decision D1)", () => {
       { facultyId: "f-1", classGroupId: "cg-1", semesterId: "sem-1" },
     ] as never);
     prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([] as never);
     expect(await sendReviewDigests(NOW)).toBe(0);
 
     prismaMock.weeklyReport.findMany.mockResolvedValue([
