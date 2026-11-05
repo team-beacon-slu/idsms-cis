@@ -8,7 +8,10 @@ import {
   getDeductionMatrix,
   getDefaultConductHours,
 } from "@/lib/services/conduct/deductionService";
-import { getNotificationSettings } from "@/lib/services/notifications/scheduledNotifications";
+import {
+  countFailedEmails,
+  getNotificationSettings,
+} from "@/lib/services/notifications/scheduledNotifications";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirementLabel } from "@/lib/utils/requirementLabel";
@@ -29,21 +32,30 @@ export default async function SettingsPage() {
   const user = await requireUserPage();
   if (user.role !== Role.SUPER_ADMIN) redirect("/");
 
-  const [notificationSettings, requiredHours, aiSettings, matrix, defaultHours, required, aiPanel] =
-    await Promise.all([
-      getNotificationSettings(),
-      Promise.all(
-        Object.values(Program).map(async (program) => ({
-          program,
-          hours: await getRequiredHoursConfig(program),
-        }))
-      ),
-      getAiSettings(),
-      getDeductionMatrix(),
-      getDefaultConductHours(),
-      getRequiredChecklistTypes(),
-      getAiPanel(),
-    ]);
+  const [
+    notificationSettings,
+    requiredHours,
+    aiSettings,
+    matrix,
+    defaultHours,
+    required,
+    aiPanel,
+    failedEmails,
+  ] = await Promise.all([
+    getNotificationSettings(),
+    Promise.all(
+      Object.values(Program).map(async (program) => ({
+        program,
+        hours: await getRequiredHoursConfig(program),
+      }))
+    ),
+    getAiSettings(),
+    getDeductionMatrix(),
+    getDefaultConductHours(),
+    getRequiredChecklistTypes(),
+    getAiPanel(),
+    countFailedEmails(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -96,6 +108,18 @@ export default async function SettingsPage() {
             </CardHeader>
             <CardContent>
               <NotificationSettingsForm initial={notificationSettings} />
+              {/* Efficiency item 34: failures are visible, and the daily job retries them. */}
+              <p
+                className={
+                  failedEmails > 0
+                    ? "mt-4 text-sm text-red-700"
+                    : "mt-4 text-sm text-muted-foreground"
+                }
+              >
+                {failedEmails === 0
+                  ? "No emails failed in the last 7 days."
+                  : `${failedEmails} ${failedEmails === 1 ? "email" : "emails"} failed in the last 7 days. The daily job sends them again; password resets are not resent.`}
+              </p>
             </CardContent>
           </Card>
         </div>

@@ -24,6 +24,11 @@ export const bulkImportRowSchema = z.object({
   email: emailSchema,
   program: z.enum(Program),
   requiredHours: z.coerce.number().int().positive(),
+  // Efficiency item 30: optional section name ("BSIT 4A"); overrides the class group picked.
+  classGroup: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().max(60).optional()
+  ),
 });
 
 export const bulkImportRequestSchema = z.object({

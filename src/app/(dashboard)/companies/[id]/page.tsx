@@ -213,10 +213,18 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                       <TableCell>{formatCalendarDate(new Date(moa.validTo))}</TableCell>
                       <TableCell>{moa.programsCovered.join(", ")}</TableCell>
                       <TableCell>
-                        <MoaStatusActions
-                          moaId={moa.id}
-                          nextStatuses={ALLOWED_MOA_TRANSITIONS[moa.status]}
-                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <MoaStatusActions
+                            moaId={moa.id}
+                            nextStatuses={ALLOWED_MOA_TRANSITIONS[moa.status]}
+                          />
+                          <Link
+                            href={`/companies/${company.id}/moa/new?renew=${moa.id}`}
+                            className="text-sm text-primary underline-offset-2 hover:underline"
+                          >
+                            Renew
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

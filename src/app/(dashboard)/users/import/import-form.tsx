@@ -46,11 +46,17 @@ export function BulkImportForm({
   const [semesterId, setSemesterId] = useState(defaultSemesterId ?? semesters[0]?.id ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<(BulkImportResult & { rowErrors: RowError[] }) | null>(null);
+  const [result, setResult] = useState<
+    (BulkImportResult & { rowErrors: RowError[]; preview?: boolean }) | null
+  >(null);
+  // Efficiency item 30: the first submit only checks the file ("N new / M skipped"); the
+  // second imports. Changing the file, group or semester checks again.
+  const previewed = Boolean(result?.preview);
+  const clearPreview = () => setResult((r) => (r?.preview ? null : r));
   const [downloaded, setDownloaded] = useState(false);
   // The temporary passwords live only in this tab (the welcome emails don't carry them):
   // leaving before downloading would mean resetting every new account by hand.
-  const unsaved = Boolean(result && result.created > 0 && !downloaded);
+  const unsaved = Boolean(result && !result.preview && result.created > 0 && !downloaded);
   useEffect(() => {
     if (!unsaved) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -70,6 +76,7 @@ export function BulkImportForm({
     formData.set("file", file);
     formData.set("classGroupId", classGroupId);
     formData.set("semesterId", semesterId);
+    if (!previewed) formData.set("preview", "1");
 
     const res = await fetch("/api/users/bulk-import", { method: "POST", body: formData }).catch(
       () => null
@@ -89,7 +96,7 @@ export function BulkImportForm({
     const body = await res.json();
     setResult(body);
     setDownloaded(false);
-    toast.success(`Imported ${body.created} of ${body.totalRows} rows`);
+    if (!body.preview) toast.success(`Imported ${body.created} of ${body.totalRows} rows`);
   }
 
   function downloadCsv() {
@@ -115,7 +122,8 @@ export function BulkImportForm({
         <CardHeader>
           <CardTitle>Upload class list</CardTitle>
           <CardDescription>
-            CSV or Excel. Columns: studentNumber, email, program, requiredHours.
+            CSV or Excel. Columns: studentNumber, email, program, requiredHours, and optionally
+            classGroup (e.g. BSIT 4A) to file each row into its own section.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,7 +143,10 @@ export function BulkImportForm({
                   <select
                     id="classGroupId"
                     value={classGroupId}
-                    onChange={(e) => setClassGroupId(e.target.value)}
+                    onChange={(e) => {
+                      setClassGroupId(e.target.value);
+                      clearPreview();
+                    }}
                     required
                     className={selectClass}
                   >
@@ -155,7 +166,10 @@ export function BulkImportForm({
                 <select
                   id="semesterId"
                   value={semesterId}
-                  onChange={(e) => setSemesterId(e.target.value)}
+                  onChange={(e) => {
+                    setSemesterId(e.target.value);
+                    clearPreview();
+                  }}
                   required
                   className={selectClass}
                 >
@@ -200,13 +214,22 @@ export function BulkImportForm({
                 type="file"
                 accept=".csv,.xlsx,.xls"
                 className="sr-only"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] ?? null);
+                  clearPreview();
+                }}
                 required
               />
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="cursor-pointer">
-              {isSubmitting ? "Importing..." : "Import"}
+              {isSubmitting
+                ? previewed
+                  ? "Importing..."
+                  : "Checking..."
+                : previewed
+                  ? `Import ${result?.created ?? 0} new ${result?.created === 1 ? "student" : "students"}`
+                  : "Check file"}
             </Button>
           </form>
         </CardContent>
@@ -216,10 +239,16 @@ export function BulkImportForm({
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>
-              Results: {result.created} created, {result.skipped} skipped
+              {result.preview ? "Check: " : "Results: "}
+              {result.created} {result.preview ? "new" : "created"}, {result.skipped} skipped
               {result.rowErrors.length > 0 && `, ${result.rowErrors.length} invalid`}
+              {result.preview && (
+                <span className="block text-sm font-normal text-muted-foreground">
+                  Nothing is saved yet. Import to create the accounts.
+                </span>
+              )}
             </CardTitle>
-            {result.created > 0 && (
+            {!result.preview && result.created > 0 && (
               <Button
                 onClick={downloadCsv}
                 variant={downloaded ? "outline" : "default"}
@@ -256,7 +285,7 @@ export function BulkImportForm({
                       <TableCell>{r.email}</TableCell>
                       <TableCell>
                         <Badge variant={r.status === "created" ? "outline" : "destructive"}>
-                          {r.status}
+                          {result.preview && r.status === "created" ? "new" : r.status}
                         </Badge>
                       </TableCell>
                       <TableCell>{r.reason ?? "—"}</TableCell>
@@ -269,7 +298,12 @@ export function BulkImportForm({
                       <TableCell>
                         <Badge variant="destructive">invalid</Badge>
                       </TableCell>
-                      <TableCell>Failed validation</TableCell>
+                      <TableCell>
+                        {Array.isArray(e.issues) &&
+                        typeof (e.issues[0] as { message?: unknown })?.message === "string"
+                          ? (e.issues[0] as { message: string }).message
+                          : "Failed validation"}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

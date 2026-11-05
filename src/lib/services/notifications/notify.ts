@@ -195,8 +195,18 @@ export async function notify(
             triggerType: input.trigger,
             channel: NotificationChannel.EMAIL,
             status,
-            // Never persist emailOverrides content — it may hold a reset link.
-            payload: { title: input.title, dedupeKey: input.dedupeKey ?? null },
+            // Never persist emailOverrides content — it may hold a reset link. A plain
+            // notification keeps its body and link so the daily cron can retry it (item 34).
+            payload: {
+              title: input.title,
+              dedupeKey: input.dedupeKey ?? null,
+              ...(status === NotificationStatus.FAILED && { failedAt: Date.now() }),
+              ...(status === NotificationStatus.FAILED &&
+                !input.emailOverrides?.[user.id] && {
+                  body: input.body,
+                  link: input.link ?? null,
+                }),
+            },
             sentAt: status === NotificationStatus.SENT ? new Date() : null,
           },
         });

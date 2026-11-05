@@ -1,28 +1,26 @@
 "use client";
 
-import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { downloadFromResponse, PasswordAction } from "./password-action";
 
 export function ExportCard({
   kind,
   title,
   description,
-  semesters,
+  semesterId,
+  semesterLabel,
   semesterAware,
 }: {
   kind: string;
   title: string;
   description: string;
-  semesters: Array<{ id: string; label: string }>;
+  semesterId: string | null; // the page's semester filter; null = all semesters
+  semesterLabel: string;
   semesterAware: boolean;
 }) {
   const router = useRouter();
-  const selectId = useId();
-  const [semesterId, setSemesterId] = useState("");
 
   async function onConfirm(password: string) {
     const res = await fetch(`/api/admin/exports/${kind}`, {
@@ -47,22 +45,7 @@ export function ExportCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {semesterAware && (
-          <div className="space-y-2">
-            <Label htmlFor={selectId}>Semester</Label>
-            <select
-              id={selectId}
-              value={semesterId}
-              onChange={(e) => setSemesterId(e.target.value)}
-              className="flex h-9 w-full cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
-            >
-              <option value="">All semesters</option>
-              {semesters.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <p className="text-sm text-muted-foreground">Semester: {semesterLabel}</p>
         )}
         <PasswordAction
           triggerLabel="Export"

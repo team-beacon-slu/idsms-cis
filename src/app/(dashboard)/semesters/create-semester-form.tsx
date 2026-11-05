@@ -7,9 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+// Efficiency item 33: the academic year follows the start date. SLU's year opens in
+// June-August, so a semester starting June or later is Y-(Y+1); earlier ones (2nd semester,
+// summer) belong to (Y-1)-Y.
+export function academicYearFor(startDate: string): string {
+  const [y, m] = startDate.split("-").map(Number);
+  if (!y || !m) return "";
+  return m >= 6 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+}
+
 export function CreateSemesterForm() {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
+  const [year, setYear] = useState("");
+  const [yearTyped, setYearTyped] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -34,6 +45,8 @@ export function CreateSemesterForm() {
       }
       toast.success("Semester created");
       form.reset();
+      setYear("");
+      setYearTyped(false);
       router.refresh();
     } catch {
       toast.error("Could not reach the server — check your connection and try again");
@@ -61,14 +74,27 @@ export function CreateSemesterForm() {
           pattern="\d{4}-\d{4}"
           placeholder="2026-2027"
           aria-describedby="semester-year-help"
+          value={year}
+          onChange={(e) => {
+            setYear(e.target.value);
+            setYearTyped(true);
+          }}
         />
         <p id="semester-year-help" className="text-xs text-muted-foreground">
-          Format: 2026-2027
+          Filled from the start date. Format: 2026-2027
         </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="semester-start">Start date</Label>
-        <Input id="semester-start" name="startDate" type="date" required />
+        <Input
+          id="semester-start"
+          name="startDate"
+          type="date"
+          required
+          onChange={(e) => {
+            if (!yearTyped) setYear(academicYearFor(e.target.value));
+          }}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="semester-end">End date</Label>
