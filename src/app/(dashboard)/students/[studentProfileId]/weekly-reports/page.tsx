@@ -45,7 +45,7 @@ const describeFacultyAction = (action: string) =>
   FACULTY_ACTION_TEXT[action.split(" ")[0]] ?? "Reviewed by your faculty adviser.";
 
 function formatDate(date: Date) {
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -221,10 +221,13 @@ export default async function WeeklyReportsPage(props: {
               const feedback = getWeeklyReportHistory(report.revisionHistory).filter(
                 (entry) => entry.type !== "SUBMITTED" && typeof entry.notes === "string"
               );
-              // Reports are sorted newest first, so the previous week is the next one.
-              const priorAccomplishments = (reports[index + 1]?.dailyEntries ?? [])
-                .map((e) => e.accomplishments ?? "")
-                .filter(Boolean);
+              // Reports are sorted newest first, so the previous week is the next one. Only an
+              // editable week runs the copy check, so only it is sent the text (item 40: payload).
+              const priorAccomplishments = editable
+                ? (reports[index + 1]?.dailyEntries ?? [])
+                    .map((e) => e.accomplishments ?? "")
+                    .filter(Boolean)
+                : [];
 
               return (
                 <div

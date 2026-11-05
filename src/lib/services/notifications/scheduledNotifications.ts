@@ -415,7 +415,7 @@ export async function runDailyNotifications(now: Date) {
       const sent = await notify({
         userIds: await getDepartmentStaffIds(),
         trigger: "MOA_EXPIRING",
-        title: `${expiring.length} MOA(s) expiring within ${settings.moaWarningDays} days`,
+        title: `${expiring.length} ${expiring.length === 1 ? "MOA" : "MOAs"} expiring within ${settings.moaWarningDays} days`,
         body: "Review the companies list to start renewals.",
         link: "/companies",
         email: true,

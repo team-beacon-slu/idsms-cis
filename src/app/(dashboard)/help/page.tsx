@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EVERYONE, GLOSSARY, ROLE_FAQ, faqId, type Faq } from "./faq";
 import { HelpAsk } from "./help-ask";
 import { connectionFor } from "@/lib/ai/jobs";
+import { displayName } from "@/lib/utils/displayName";
 
 export const metadata: Metadata = { title: "Help" };
 
@@ -24,7 +25,7 @@ async function contactsFor(userId: string, role: Role): Promise<Contact[]> {
     });
   const toContact = (label: string) => (u: { email: string; fullName: string | null }) => ({
     label,
-    name: u.fullName || u.email,
+    name: displayName(u),
     email: u.email,
   });
 

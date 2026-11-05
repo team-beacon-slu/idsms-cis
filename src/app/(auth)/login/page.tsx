@@ -4,10 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { FieldError, errorProps } from "@/components/field-error";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { getProviders, signIn } from "next-auth/react";
 import { AlertCircle, Loader2, Lock, Mail } from "lucide-react";
-import { loginSchema } from "@/lib/validators/auth";
 import { safeInternalPath } from "@/lib/utils/safeInternalPath";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,7 +64,9 @@ function LoginForm() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({ resolver: zodResolver(loginSchema) });
+    // Efficiency item 40: plain rules keep zod out of the login bundle. The server trims and
+    // lowercases the email (verifyCredentials), so the browser only checks the shape.
+  } = useForm<{ email: string; password: string }>();
 
   async function onSubmit(data: { email: string; password: string }) {
     setError(null);
@@ -112,7 +112,10 @@ function LoginForm() {
                   type="email"
                   autoComplete="email"
                   className="pl-9"
-                  {...register("email")}
+                  {...register("email", {
+                    required: "Enter your email",
+                    pattern: { value: /^\s*\S+@\S+\.\S+\s*$/, message: "Enter a valid email" },
+                  })}
                   {...errorProps("email", errors.email?.message)}
                 />
               </div>
@@ -130,7 +133,7 @@ function LoginForm() {
                     aria-hidden="true"
                   />
                 }
-                {...register("password")}
+                {...register("password", { required: "Password is required" })}
                 {...errorProps("password", errors.password?.message)}
               />
               <FieldError id="password-error" message={errors.password?.message} />

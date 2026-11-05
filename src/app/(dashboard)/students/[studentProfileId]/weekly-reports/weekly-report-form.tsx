@@ -124,7 +124,7 @@ function rowPayload(entryId: string, row: RowState) {
 }
 
 function formatDay(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString("en-PH", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -953,7 +953,7 @@ export function WeeklyReportForm({
         <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
           <Label htmlFor={`delay-${weeklyReportId}`} className="text-red-700">
             Reason for delay (required — due{" "}
-            {dueDate.toLocaleDateString(undefined, {
+            {dueDate.toLocaleDateString("en-PH", {
               weekday: "short",
               month: "short",
               day: "numeric",

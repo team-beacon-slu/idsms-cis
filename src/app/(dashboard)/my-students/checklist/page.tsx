@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChecklistGrid, type GridRow } from "./checklist-grid";
+import { displayName } from "@/lib/utils/displayName";
 
 export const metadata: Metadata = { title: "Class checklist" };
 
@@ -46,7 +47,7 @@ export default async function ClassChecklistPage() {
   const columns = Object.values(ChecklistRequirementType).filter((t) => present.has(t));
   const rows: GridRow[] = students.map((s) => ({
     studentId: s.id,
-    name: s.fullName || s.studentNumber || s.user.email,
+    name: displayName({ ...s, email: s.user.email }),
     items: Object.fromEntries(
       s.checklistItems.map((i) => [
         i.requirementType,

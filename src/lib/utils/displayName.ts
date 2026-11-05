@@ -13,14 +13,22 @@ export function displayNameFromEmail(email: string): string {
   return `${parts[parts.length - 1]}, ${parts.slice(0, -1).join(" ")}`;
 }
 
-// Who someone is, in one place: a student's legal name, else the account's display name,
-// else the email (staff created before names existed).
+// Who someone is, in one place (efficiency item 36): a student's legal name, else the
+// account's display name, else the student number, else the email (staff created before
+// names existed). A blank name never shows as blank.
 export function displayName(person: {
-  email: string;
+  email?: string | null;
   fullName?: string | null;
   studentName?: string | null;
+  studentNumber?: string | null;
 }): string {
-  return person.studentName?.trim() || person.fullName?.trim() || person.email;
+  return (
+    person.studentName?.trim() ||
+    person.fullName?.trim() ||
+    person.studentNumber?.trim() ||
+    person.email ||
+    "An intern"
+  );
 }
 
 // Two letters for the avatar: first and last word of a name ("Ana M. Cruz" -> "AC"),

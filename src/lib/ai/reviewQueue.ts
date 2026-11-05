@@ -3,6 +3,7 @@ import { isAwaitingReview, getLatestSubmission } from "@/lib/services/reports/we
 import { vagueDays } from "@/lib/ai/clarity";
 import type { AiHints } from "@/lib/ai/processing";
 import type { JobId } from "@/lib/ai/jobs";
+import { displayName } from "@/lib/utils/displayName";
 
 // Job 7: the adviser's review queue. Flagged weeks first, and every row says why. The
 // rules (vague days) work with no model; AI reasons join when their jobs are on.
@@ -23,7 +24,8 @@ export function queueReasons(
   if (hints.addressedToAi?.length) reasons.push("An entry is addressed to the AI");
   if (ctx.on.has("tone") && hints.tone) reasons.push("A phrase is worth a look");
   if (ctx.on.has("coverage") && hints.coverage?.missing.length) {
-    reasons.push(`${hints.coverage.missing.length} planned task(s) not found in entries`);
+    const n = hints.coverage.missing.length;
+    reasons.push(`${n} planned ${n === 1 ? "task" : "tasks"} not found in entries`);
   }
   const vague = vagueDays(
     report.dailyEntries.map((e) => ({
@@ -71,7 +73,7 @@ export async function getReviewQueue(
     .map((r) => ({
       id: r.id,
       studentProfileId: r.studentProfileId,
-      intern: r.studentProfile.fullName ?? r.studentProfile.studentNumber,
+      intern: displayName(r.studentProfile),
       weekStart: r.weekStart,
       submittedAt: getLatestSubmission(r.revisionHistory)?.timestamp ?? null,
       reasons: queueReasons(r, ctx),

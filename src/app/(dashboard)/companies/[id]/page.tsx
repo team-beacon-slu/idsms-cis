@@ -36,6 +36,7 @@ import {
   MIN_GROUP,
   REPLY_EDITORS,
 } from "@/lib/services/predeployment/companyEvaluationService";
+import { displayName } from "@/lib/utils/displayName";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
@@ -303,7 +304,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                           href={`/students/${p.studentProfile.id}/weekly-reports`}
                           className="font-medium underline-offset-2 hover:underline"
                         >
-                          {p.studentProfile.fullName ?? p.studentProfile.studentNumber}
+                          {displayName(p.studentProfile)}
                         </Link>
                         <span className="text-muted-foreground">
                           {" "}
@@ -337,8 +338,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                     <li key={v.id} className="p-3">
                       <span className="font-medium">{formatCalendarDate(v.visitedOn)}</span>{" "}
                       <span className="text-muted-foreground">
-                        · {v.mode === "ONLINE" ? "online" : "on site"} ·{" "}
-                        {v.visitor.fullName ?? v.visitor.email}
+                        · {v.mode === "ONLINE" ? "online" : "on site"} · {displayName(v.visitor)}
                       </span>
                       {v.notes && <p className="mt-1 text-muted-foreground">{v.notes}</p>}
                     </li>

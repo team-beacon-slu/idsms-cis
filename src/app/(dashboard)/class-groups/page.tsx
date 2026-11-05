@@ -13,6 +13,7 @@ import {
   RemoveAdviserButton,
 } from "./class-group-forms";
 import type { Metadata } from "next";
+import { displayName } from "@/lib/utils/displayName";
 
 export const metadata: Metadata = { title: "Class groups" };
 
@@ -104,7 +105,7 @@ export default async function ClassGroupsPage() {
                     >
                       <span className="min-w-0 text-sm">
                         <span className="font-medium text-foreground">
-                          {fg.faculty.fullName || fg.faculty.email}
+                          {displayName(fg.faculty)}
                         </span>
                         {fg.faculty.fullName && (
                           <span className="text-muted-foreground"> · {fg.faculty.email}</span>
@@ -114,10 +115,7 @@ export default async function ClassGroupsPage() {
                           · {fg.semester.name} ({fg.semester.academicYear})
                         </span>
                       </span>
-                      <RemoveAdviserButton
-                        assignmentId={fg.id}
-                        label={fg.faculty.fullName || fg.faculty.email}
-                      />
+                      <RemoveAdviserButton assignmentId={fg.id} label={displayName(fg.faculty)} />
                     </li>
                   ))}
                 </ul>

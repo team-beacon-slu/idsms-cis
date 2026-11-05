@@ -10,6 +10,7 @@ import {
   getDepartmentStaffIds,
   getStudentUserId,
 } from "@/lib/services/notifications/notificationRecipients";
+import { displayName } from "@/lib/utils/displayName";
 
 const weeklyReportsLink = (studentProfileId: string) =>
   `/students/${studentProfileId}/weekly-reports`;
@@ -240,7 +241,7 @@ export async function notifySubmittedForReview(args: {
       }),
     ]);
     if (userIds.length === 0) return;
-    const who = profile?.fullName || profile?.studentNumber || "An intern";
+    const who = displayName(profile ?? {});
     await notify({
       userIds,
       trigger: "SUBMITTED_FOR_REVIEW",

@@ -8,6 +8,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import type { Metadata } from "next";
+import { displayName } from "@/lib/utils/displayName";
 
 export const metadata: Metadata = { title: "Final reports" };
 
@@ -36,7 +37,7 @@ export default async function FinalReportsQueuePage() {
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {r.studentProfile.fullName ?? r.studentProfile.studentNumber}
+                      {displayName(r.studentProfile)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {r.studentProfile.program} · {r.studentProfile.user.email} · submitted{" "}
