@@ -47,7 +47,7 @@ export async function createTimeRequest(
   input: unknown,
   actingUser: ActingUser,
   ip?: string | null
-): Promise<{ id: string }> {
+): Promise<{ id: string; deviationType: string }> {
   if (actingUser.role !== Role.STUDENT_INTERN) {
     throw new ForbiddenError("Only the intern files their own requests");
   }
@@ -58,7 +58,7 @@ export async function createTimeRequest(
   return prisma.$transaction(async (tx) => {
     const created = await tx.deviationReport.create({
       data: { studentProfileId, ...data, submittedAt: now, updatedAt: now },
-      select: { id: true },
+      select: { id: true, deviationType: true },
     });
     await logEvent(
       {

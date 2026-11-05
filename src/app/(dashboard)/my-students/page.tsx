@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
-import { Role } from "@prisma/client";
+import { Role, WeeklyReportStatus } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,11 +16,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Metadata } from "next";
+import { ChevronDown } from "lucide-react";
+import { isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
+import { requestsAwaitingReviewByStudent } from "@/lib/services/dashboards/attentionService";
 
 export const metadata: Metadata = { title: "My students" };
 
 // Weekly reports open from the intern's name; these are the other records.
 const ACTION_LINKS = [
+  { suffix: "weekly-reports", label: "Weekly reports" },
   { suffix: "checklist", label: "Checklist" },
   { suffix: "work-plan", label: "Work plan" },
   { suffix: "attendance", label: "Attendance" },
@@ -60,6 +64,26 @@ export default async function MyStudentsPage() {
           orderBy: { studentNumber: "asc" },
         });
 
+  // What waits on the adviser per intern: submitted weeks and time requests.
+  const assigned = classGroups.map((g) => ({
+    classGroupId: g.classGroupId,
+    semesterId: g.semesterId,
+  }));
+  const ids = students.map((s) => s.id);
+  const [pendingWeeks, requests] = await Promise.all([
+    ids.length
+      ? prisma.weeklyReport.findMany({
+          where: { studentProfileId: { in: ids }, status: WeeklyReportStatus.PENDING },
+          select: { studentProfileId: true, status: true, revisionHistory: true },
+        })
+      : [],
+    requestsAwaitingReviewByStudent(assigned),
+  ]);
+  const waiting = new Map<string, number>(requests);
+  for (const r of pendingWeeks.filter(isAwaitingReview)) {
+    waiting.set(r.studentProfileId, (waiting.get(r.studentProfileId) ?? 0) + 1);
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -95,7 +119,34 @@ export default async function MyStudentsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          {/* Phones: one card per intern (the table was ~7,800 px tall at 390 px wide). */}
+          <ul className="space-y-2 sm:hidden">
+            {students.map((student) => (
+              <li key={student.id} className="space-y-2 rounded-lg border border-border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={`/students/${student.id}/weekly-reports`}
+                    prefetch={false}
+                    className="min-w-0 font-medium break-words text-foreground underline-offset-4 hover:underline"
+                  >
+                    {student.fullName || student.user.email}
+                  </Link>
+                  <WaitingBadge count={waiting.get(student.id) ?? 0} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {student.studentNumber} · {student.program} ·{" "}
+                  {student.company?.name ?? "No company yet"}
+                </p>
+                <OpenMenu studentId={student.id} />
+              </li>
+            ))}
+            {students.length === 0 && (
+              <li className="py-6 text-sm text-muted-foreground">
+                No interns yet. They appear here once assigned to one of your class groups.
+              </li>
+            )}
+          </ul>
+          <div className="hidden overflow-x-auto rounded-lg border border-border bg-card sm:block">
             <Table>
               <TableCaption className="sr-only">
                 Students in your assigned class groups
@@ -105,6 +156,7 @@ export default async function MyStudentsPage() {
                   <TableHead>Intern</TableHead>
                   <TableHead>Program</TableHead>
                   <TableHead>Company</TableHead>
+                  <TableHead>Waiting</TableHead>
                   <TableHead>Open</TableHead>
                 </TableRow>
               </TableHeader>
@@ -129,25 +181,16 @@ export default async function MyStudentsPage() {
                       {student.company?.name ?? "—"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1">
-                        {ACTION_LINKS.map(({ suffix, label }) => (
-                          <Link
-                            key={suffix}
-                            href={`/students/${student.id}/${suffix}`}
-                            // 6 links x every intern: prefetching re-ran each page ~200 times per view.
-                            prefetch={false}
-                            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                          >
-                            {label}
-                          </Link>
-                        ))}
-                      </div>
+                      <WaitingBadge count={waiting.get(student.id) ?? 0} />
+                    </TableCell>
+                    <TableCell>
+                      <OpenMenu studentId={student.id} />
                     </TableCell>
                   </TableRow>
                 ))}
                 {students.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-sm text-muted-foreground">
+                    <TableCell colSpan={5} className="py-6 text-sm text-muted-foreground">
                       No interns yet. They appear here once assigned to one of your class groups.
                     </TableCell>
                   </TableRow>
@@ -158,5 +201,44 @@ export default async function MyStudentsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function WaitingBadge({ count }: { count: number }) {
+  if (count === 0) return <span className="text-sm text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-brand-900 tabular-nums">
+      {count} waiting
+    </span>
+  );
+}
+
+// One menu instead of five inline links: no JavaScript, full-size targets (WCAG 2.5.8).
+// It opens in place (the table scrolls, which would clip a floating menu).
+function OpenMenu({ studentId }: { studentId: string }) {
+  return (
+    <details className="group">
+      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded-md border border-input px-3 text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden [&::-webkit-details-marker]:hidden">
+        Open
+        <ChevronDown
+          className="size-3.5 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        />
+      </summary>
+      <ul className="mt-1 w-48 rounded-md border border-border bg-popover p-1">
+        {ACTION_LINKS.map(({ suffix, label }) => (
+          <li key={suffix}>
+            <Link
+              href={`/students/${studentId}/${suffix}`}
+              // Every page is dynamic: prefetching each intern's records re-ran them on the server.
+              prefetch={false}
+              className="flex min-h-10 items-center rounded px-2.5 text-sm text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+            >
+              {label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

@@ -58,10 +58,17 @@ describe("weeklyReportSubmitSchema", () => {
 });
 
 describe("weeklyReportReviewSchema", () => {
-  it("accepts APPROVE, REGARD, and DISREGARD without notes", () => {
-    for (const action of ["APPROVE", "REGARD", "DISREGARD"] as const) {
+  it("accepts APPROVE and REGARD without notes", () => {
+    for (const action of ["APPROVE", "REGARD"] as const) {
       expect(weeklyReportReviewSchema.parse({ action }).action).toBe(action);
     }
+  });
+
+  it("needs a reason for DISREGARD, which deletes the week", () => {
+    expect(() => weeklyReportReviewSchema.parse({ action: "DISREGARD" })).toThrow();
+    expect(
+      weeklyReportReviewSchema.parse({ action: "DISREGARD", notes: "Wrong week" }).action
+    ).toBe("DISREGARD");
   });
 
   it("accepts RETURN with notes", () => {

@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Role } from "@prisma/client";
-import { Inbox } from "lucide-react";
+import { Eye, Inbox } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { getReviewQueue } from "@/lib/ai/reviewQueue";
 import { jobsOnFor } from "@/lib/ai/jobs";
 import { getAiSettings } from "@/lib/ai/settings";
@@ -70,7 +71,20 @@ export default async function ReviewQueuePage() {
                         ))
                       )}
                     </ul>
-                    <QuickApprove weeklyReportId={r.id} />
+                    {/* A flagged week is opened before it is approved; the rest stay one click. */}
+                    {r.reasons.length > 0 ? (
+                      <Button asChild size="sm" variant="outline" className="gap-1.5">
+                        <Link
+                          href={`/students/${r.studentProfileId}/weekly-reports/${r.id}/review`}
+                          prefetch={false}
+                        >
+                          <Eye className="size-3.5" aria-hidden="true" />
+                          Review
+                        </Link>
+                      </Button>
+                    ) : (
+                      <QuickApprove weeklyReportId={r.id} />
+                    )}
                   </div>
                 </li>
               ))}

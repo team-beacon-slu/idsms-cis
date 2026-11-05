@@ -90,6 +90,11 @@ export const weeklyReportReviewSchema = z
   .refine((data) => data.action !== "RETURN" || Boolean(data.notes), {
     message: "Notes are required when returning a report",
     path: ["notes"],
+  })
+  // Disregard deletes the week's report: the intern needs to know why.
+  .refine((data) => data.action !== "DISREGARD" || Boolean(data.notes), {
+    message: "Give the intern a reason when you disregard a week",
+    path: ["notes"],
   });
 
 export const learningJournalSchema = z.object({

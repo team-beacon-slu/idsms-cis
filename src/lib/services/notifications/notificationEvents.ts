@@ -84,7 +84,8 @@ export async function notifyPasswordReset(userId: string, token: string) {
   });
 }
 
-// 3 — the student and their assigned faculty.
+// 3 — the student (in-app + email receipt) and their assigned faculty (in-app only:
+// advisers get one daily digest email instead, decision D1).
 export async function notifyReportSubmitted(args: {
   studentUserId: string;
   studentProfileId: string;
@@ -93,14 +94,14 @@ export async function notifyReportSubmitted(args: {
 }) {
   try {
     const facultyIds = await getAssignedFacultyIds(args.studentProfileId);
-    await notify({
-      userIds: [args.studentUserId, ...facultyIds],
-      trigger: "REPORT_SUBMITTED",
+    const message = {
+      trigger: "REPORT_SUBMITTED" as const,
       title: `Weekly report submitted (${args.referenceCode})`,
       body: args.late ? "Submitted late — reason for delay included." : "Submitted on time.",
       link: weeklyReportsLink(args.studentProfileId),
-      email: true,
-    });
+    };
+    await notify({ userIds: [args.studentUserId], ...message, email: true });
+    if (facultyIds.length > 0) await notify({ userIds: facultyIds, ...message });
   } catch (error) {
     console.error("Notification recipient lookup failed", { trigger: "REPORT_SUBMITTED", error });
   }
@@ -133,6 +134,27 @@ export async function notifyChecklistReviewed(
   });
 }
 
+// A disregarded week is deleted; the intern starts it again.
+export async function notifyReportDisregarded(
+  studentProfileId: string,
+  weekStart: Date,
+  reason: string
+) {
+  const week = weekStart.toLocaleDateString("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  await toStudent(studentProfileId, {
+    trigger: "REPORT_RETURNED",
+    title: `Your report for the week of ${week} was disregarded`,
+    body: `Your adviser's reason: ${reason}\nStart that week's report again from Weekly reports.`,
+    link: weeklyReportsLink(studentProfileId),
+    email: true,
+  });
+}
+
 // 10
 export async function notifyWorkPlanReviewed(
   studentProfileId: string,
@@ -153,7 +175,8 @@ export async function notifyWorkPlanReviewed(
 // Schedule changes need two approvals; tell whoever acts next, then the intern.
 export async function notifyScheduleChange(
   studentProfileId: string,
-  stage: "REQUESTED" | "PENDING_COORDINATOR" | "APPROVED" | "REJECTED"
+  stage: "REQUESTED" | "PENDING_COORDINATOR" | "APPROVED" | "REJECTED",
+  reason?: string
 ) {
   const link = `/students/${studentProfileId}/attendance`;
   if (stage === "APPROVED" || stage === "REJECTED") {
@@ -163,7 +186,7 @@ export async function notifyScheduleChange(
       body:
         stage === "APPROVED"
           ? "Your new schedule applies from today. Earlier days keep the old one."
-          : "Your schedule change request was not approved. Your current schedule stays.",
+          : `Your schedule change request was not approved. Your current schedule stays.${reason ? `\nReason: ${reason}` : ""}`,
       link,
       email: true,
     });
@@ -196,6 +219,45 @@ const REQUEST_LABEL: Record<string, string> = {
   OVERTIME: "overtime",
   UNDERTIME: "undertime",
 };
+
+// Something now waits on a reviewer: the adviser (time requests, journals) or the
+// coordinator (work plans). In-app with a direct link; the adviser's email is the daily
+// digest (scheduledNotifications), so this adds no extra emails.
+export async function notifySubmittedForReview(args: {
+  studentProfileId: string;
+  reviewer: "adviser" | "coordinator";
+  what: string; // "a work plan", "an overtime request", ...
+  link: string;
+}) {
+  try {
+    const [userIds, profile] = await Promise.all([
+      args.reviewer === "adviser"
+        ? getAssignedFacultyIds(args.studentProfileId)
+        : getDepartmentStaffIds(),
+      prisma.studentProfile.findUnique({
+        where: { id: args.studentProfileId },
+        select: { fullName: true, studentNumber: true },
+      }),
+    ]);
+    if (userIds.length === 0) return;
+    const who = profile?.fullName || profile?.studentNumber || "An intern";
+    await notify({
+      userIds,
+      trigger: "SUBMITTED_FOR_REVIEW",
+      title: `${who} submitted ${args.what}`,
+      body: "It is waiting for your review.",
+      link: args.link,
+    });
+  } catch (error) {
+    console.error("Notification recipient lookup failed", {
+      trigger: "SUBMITTED_FOR_REVIEW",
+      error,
+    });
+  }
+}
+
+export const timeRequestLabel = (deviationType: string) =>
+  `${/^[AEIOU]/i.test(REQUEST_LABEL[deviationType] ?? "") ? "an" : "a"} ${REQUEST_LABEL[deviationType] ?? "time"} request`;
 
 // Workstream H: a final technical report awaits the coordinator's review.
 export async function notifyFinalReportSubmitted(studentProfileId: string) {

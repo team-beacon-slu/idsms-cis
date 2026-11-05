@@ -109,9 +109,16 @@ describe("scheduleChangeRequestSchema", () => {
 });
 
 describe("scheduleChangeReviewSchema", () => {
-  it("accepts APPROVE and REJECT", () => {
+  it("accepts APPROVE, and REJECT with a reason", () => {
     expect(scheduleChangeReviewSchema.parse({ action: "APPROVE" }).action).toBe("APPROVE");
-    expect(scheduleChangeReviewSchema.parse({ action: "REJECT" }).action).toBe("REJECT");
+    expect(
+      scheduleChangeReviewSchema.parse({ action: "REJECT", reason: "Clashes with your classes" })
+        .action
+    ).toBe("REJECT");
+  });
+
+  it("needs a reason to reject", () => {
+    expect(() => scheduleChangeReviewSchema.parse({ action: "REJECT" })).toThrow();
   });
 
   it("rejects an unknown action", () => {

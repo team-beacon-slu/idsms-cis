@@ -471,7 +471,14 @@ export function WeeklyReportForm({
     return true;
   }
 
+  // A day with saved text asks once more before it goes (the text goes with it).
+  const [removeArmed, setRemoveArmed] = useState<string | null>(null);
   async function removeAddedDay(entry: DailyEntryRow) {
+    if (entry.accomplishments?.trim() && removeArmed !== entry.id) {
+      setRemoveArmed(entry.id);
+      return;
+    }
+    setRemoveArmed(null);
     setIsPending(true);
     const res = await sendJson(
       `/api/weekly-reports/${weeklyReportId}/entries?entryId=${entry.id}`,
@@ -696,7 +703,9 @@ export function WeeklyReportForm({
                       aria-label={`Remove ${formatDay(entry.reportDate)} from this report`}
                       className="h-8 cursor-pointer px-2 text-xs text-red-700"
                     >
-                      Remove day
+                      {removeArmed === entry.id
+                        ? "Click again to remove (with its text)"
+                        : "Remove day"}
                     </Button>
                   )}
                   <Label htmlFor={`status-${entry.id}`} className="text-xs text-muted-foreground">

@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
+import {
+  notifySubmittedForReview,
+  timeRequestLabel,
+} from "@/lib/services/notifications/notificationEvents";
 import { Role } from "@prisma/client";
 import { createTimeRequest, listTimeRequests } from "@/lib/services/attendance/timeRequestService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
@@ -40,6 +45,14 @@ export async function POST(
       await req.json(),
       user,
       req.headers.get("x-forwarded-for")
+    );
+    waitUntil(
+      notifySubmittedForReview({
+        studentProfileId: params.studentProfileId,
+        reviewer: "adviser",
+        what: timeRequestLabel(result.deviationType),
+        link: `/students/${params.studentProfileId}/leave-requests`,
+      })
     );
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

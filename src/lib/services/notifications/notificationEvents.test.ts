@@ -51,22 +51,26 @@ beforeEach(() => {
   (getAssignedFacultyIds as jest.Mock).mockResolvedValue(["fac-1"]);
 });
 
-it("report submitted → the student and their assigned faculty, by email too", async () => {
+it("report submitted → the student by email, their faculty in-app (the digest emails them)", async () => {
   await notifyReportSubmitted({
     studentUserId: "stu-1",
     studentProfileId: "p-1",
     referenceCode: "WR-1",
     late: true,
   });
-  expect(lastCall()).toEqual(
+  const calls = jest.mocked(notify).mock.calls.map(([input]) => input);
+  expect(calls).toContainEqual(
     expect.objectContaining({
-      userIds: ["stu-1", "fac-1"],
+      userIds: ["stu-1"],
       trigger: "REPORT_SUBMITTED",
       email: true,
       title: expect.stringContaining("WR-1"),
       body: expect.stringMatching(/late/i),
     })
   );
+  const faculty = calls.find((c) => c.userIds.includes("fac-1"));
+  expect(faculty).toEqual(expect.objectContaining({ userIds: ["fac-1"] }));
+  expect(faculty?.email).toBeUndefined();
 });
 
 it("schedule change: request goes to the advisers, validation to the coordinators, the decision to the intern", async () => {

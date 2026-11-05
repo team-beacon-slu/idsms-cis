@@ -24,11 +24,15 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const studentProfileId = await getWorkPlanStudentProfileId(params.id);
     await assertCanAccessStudent(user, studentProfileId);
 
-    const { action } = scheduleChangeReviewSchema.parse(await req.json());
+    const { action, reason } = scheduleChangeReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await approveScheduleChangeCoordinator(params.id, user.id, action, ipAddress);
     waitUntil(
-      notifyScheduleChange(studentProfileId, result.status === "APPROVED" ? "APPROVED" : "REJECTED")
+      notifyScheduleChange(
+        studentProfileId,
+        result.status === "APPROVED" ? "APPROVED" : "REJECTED",
+        reason
+      )
     );
     return NextResponse.json(result);
   } catch (error) {
