@@ -36,7 +36,7 @@ function Item({
   onChange: (v: number) => void;
 }) {
   return (
-    <fieldset className="space-y-2">
+    <fieldset id={name} className="scroll-mt-6 space-y-2">
       <legend className="text-sm font-medium">
         {n}. {text}
       </legend>
@@ -84,6 +84,15 @@ export function CompanyEvaluationForm({
   const [comments, setComments] = useState(EMPTY);
   const [pending, setPending] = useState(false);
   const left = [...obligations, ...quality].filter((v) => v === undefined).length;
+  // Efficiency item 27: "N left" jumps to the first unrated item.
+  function goToFirstGap() {
+    const i = obligations.findIndex((v) => v === undefined);
+    const name =
+      i >= 0 ? `obligation-${i}` : `quality-${quality.findIndex((v) => v === undefined)}`;
+    const el = document.getElementById(name);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.querySelector("input")?.focus({ preventScroll: true });
+  }
   // 22 ratings and 3 comments: a refresh or timeout must not lose them.
   const draftKey = `company-evaluation:${studentProfileId}`;
   const empty = (n: number) => Array<number | undefined>(n).fill(undefined);
@@ -203,7 +212,14 @@ export function CompanyEvaluationForm({
           </Button>
           {left > 0 && (
             <p className="text-xs text-muted-foreground" aria-live="polite">
-              {left} of 22 items left to rate.
+              {left} of 22 items left to rate.{" "}
+              <button
+                type="button"
+                onClick={goToFirstGap}
+                className="cursor-pointer font-medium text-primary underline underline-offset-2"
+              >
+                Go to the first one
+              </button>
             </p>
           )}
         </form>

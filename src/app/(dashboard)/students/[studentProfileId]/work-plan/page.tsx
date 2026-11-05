@@ -59,6 +59,7 @@ export default async function WorkPlanPage(props: {
         <WorkPlanSubmitForm
           studentProfileId={params.studentProfileId}
           aiRead={canSubmitNew && (await connectionFor("workplan", user)) !== null}
+          initialRows={latest?.status === "RETURNED" ? rows : undefined}
         />
       )}
 

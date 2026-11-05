@@ -108,12 +108,14 @@ export function FinalReportEditor({
   content,
   office: initialOffice,
   hasPdf,
+  approvedWork = "",
 }: {
   studentProfileId: string;
   status: "DRAFT" | "SUBMITTED" | "APPROVED" | "RETURNED" | null;
   content: FinalReportContent;
   office: string;
   hasPdf: boolean;
+  approvedWork?: string; // "- ..." lines from the intern's approved weeks
 }) {
   const router = useRouter();
   const editable = status === null || status === "DRAFT" || status === "RETURNED";
@@ -222,6 +224,25 @@ export function FinalReportEditor({
         disabled={locked}
         onChange={(e) => setSections({ ...sections, [k]: e.target.value })}
       />
+      {(k === "tasks" || k === "accomplishments") && approvedWork && !locked && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            setSections((s) => ({
+              ...s,
+              [k]: (s[k].trim() ? `${s[k].trimEnd()}\n${approvedWork}` : approvedWork).slice(
+                0,
+                10000
+              ),
+            }))
+          }
+          className="cursor-pointer"
+        >
+          Insert from my approved weeks
+        </Button>
+      )}
     </div>
   );
   const setList = (key: "work" | "self", i: number, v: number) =>

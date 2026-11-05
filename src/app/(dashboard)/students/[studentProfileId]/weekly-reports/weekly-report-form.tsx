@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClarityCoach } from "@/components/ai/clarity-coach";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarPlus, Eye, Save, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -312,6 +312,7 @@ export function WeeklyReportForm({
   clarityAi?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname(); // request links bring the intern back here (item 25)
   const holidayOn = (iso: string) => holidays[iso.slice(0, 10)];
   const holidayLabel = (iso: string) => {
     const h = holidayOn(iso);
@@ -404,7 +405,11 @@ export function WeeklyReportForm({
     return dayGaps(ranges, shift);
   }
 
+  // Efficiency item 24: Submit marks every day that needs fixing, not only the first.
+  const [problems, setProblems] = useState<Record<string, string>>({});
+
   function updateRow(id: string, patch: Partial<RowState>) {
+    setProblems((prev) => (prev[id] ? { ...prev, [id]: "" } : prev));
     setRows((prev) => ({
       ...prev,
       [id]: { ...prev[id], ...patch, dirty: true, follows: false },
@@ -425,6 +430,23 @@ export function WeeklyReportForm({
           if (e.scheduledHours > 0 && follows) {
             out[e.id] = { ...row, ...patch, dirty: true, follows: true };
           }
+        }
+      }
+      return out;
+    });
+  }
+
+  // "Tools used" rarely changes within a week: once typed, later present days that are still
+  // blank get the same text (they can still be changed).
+  function carryToolsForward(id: string) {
+    const tools = rows[id]?.toolsUsed.trim();
+    if (!tools) return;
+    setRows((prev) => {
+      const out = { ...prev };
+      for (const e of entries.slice(entries.findIndex((x) => x.id === id) + 1)) {
+        const row = prev[e.id] ?? rowFromEntry(e, shift, usualTimes);
+        if (row.status === "PRESENT" && !row.toolsUsed.trim()) {
+          out[e.id] = { ...row, toolsUsed: tools, dirty: true };
         }
       }
       return out;
@@ -517,9 +539,22 @@ export function WeeklyReportForm({
       toast.error("Rewrite the flagged entries — copied accomplishments can't be submitted");
       return;
     }
-    const incomplete = entries.find((entry) => rowProblem(entry));
-    if (incomplete) {
-      toast.error(`${formatDay(incomplete.reportDate)}: ${rowProblem(incomplete)}`);
+    const found: Record<string, string> = {};
+    for (const entry of entries) {
+      const problem = rowProblem(entry);
+      if (problem) found[entry.id] = problem;
+    }
+    setProblems(found);
+    const bad = entries.filter((entry) => found[entry.id]);
+    if (bad.length > 0) {
+      toast.error(
+        bad.length === 1
+          ? `${formatDay(bad[0].reportDate)}: ${found[bad[0].id]}`
+          : `${bad.length} days need fixing; each is marked below`
+      );
+      document
+        .getElementById(`day-${bad[0].id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (late && !reasonForDelay.trim()) {
@@ -670,9 +705,11 @@ export function WeeklyReportForm({
           return (
             <div
               key={entry.id}
+              id={`day-${entry.id}`}
               className={cn(
-                "space-y-3 rounded-lg border p-4",
-                flag && "border-amber-300 bg-amber-50/50"
+                "scroll-mt-6 space-y-3 rounded-lg border p-4",
+                flag && "border-amber-300 bg-amber-50/50",
+                problems[entry.id] && "border-red-300"
               )}
             >
               {/* One header line per day: what the day is on the left, its status on the right. */}
@@ -838,6 +875,7 @@ export function WeeklyReportForm({
                         value={row.toolsUsed}
                         disabled={isPending}
                         onChange={(e) => updateRow(entry.id, { toolsUsed: e.target.value })}
+                        onBlur={() => carryToolsForward(entry.id)}
                         placeholder="e.g. VS Code, Figma"
                       />
                     </div>
@@ -855,6 +893,7 @@ export function WeeklyReportForm({
                         href={`/leave-requests?${new URLSearchParams({
                           deviationType: "ABSENCE",
                           date: entry.reportDate.slice(0, 10),
+                          returnTo: pathname,
                         })}`}
                         className="underline"
                       >
@@ -864,6 +903,12 @@ export function WeeklyReportForm({
                       Classroom.
                     </>
                   )}
+                </p>
+              )}
+              {problems[entry.id] && (
+                <p role="alert" className="flex items-center gap-1.5 text-xs text-red-700">
+                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                  {problems[entry.id]}
                 </p>
               )}
               {flag && (
@@ -883,6 +928,7 @@ export function WeeklyReportForm({
                       date: entry.reportDate.slice(0, 10),
                       startTime: gap.start,
                       endTime: gap.end,
+                      returnTo: pathname,
                     })}`}
                     className="underline"
                   >
