@@ -39,7 +39,8 @@ export async function submitWorkPlan(
   studentProfileId: string,
   input: SubmitWorkPlanInput,
   actingUser: { id: string; role: Role },
-  ipAddress?: string | null
+  ipAddress?: string | null,
+  filePath: string | null = null // the uploaded work plan PDF, stored by the route
 ): Promise<WorkPlan> {
   await assertCanAccessStudent(actingUser, studentProfileId);
 
@@ -61,6 +62,7 @@ export async function submitWorkPlan(
         studentProfileId,
         plannedTasks: input.plannedTasks,
         scheduleConfig: input.scheduleConfig ?? undefined,
+        filePath,
       },
     });
 

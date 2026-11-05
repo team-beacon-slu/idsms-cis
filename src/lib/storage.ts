@@ -80,15 +80,19 @@ export function validateUpload(file: File): void {
 // upsert:true so a Return -> re-upload cycle overwrites in place rather than
 // accumulating orphaned versions against the 1GB free-tier cap.
 export async function uploadFile(bucket: string, path: string, file: File): Promise<string> {
+  await assertUploadable(file);
+  await putObject(bucket, path, file, file.type);
+  return path;
+}
+
+// Type, size and the real first bytes, for a file that is stored or sent anywhere.
+export async function assertUploadable(file: File): Promise<void> {
   validateUpload(file);
   const signature = SIGNATURES[file.type];
   const head = new Uint8Array(await file.slice(0, signature.length).arrayBuffer());
   if (!signature.every((byte, i) => head[i] === byte)) {
     throw new InvalidFileError("The file's contents don't match its type");
   }
-
-  await putObject(bucket, path, file, file.type);
-  return path;
 }
 
 // Both drivers overwrite in place (Supabase upsert:true; S3 PutObject always does).
@@ -144,7 +148,9 @@ export function verifyDownloadSig(bucket: string, path: string, exp: number, sig
 export async function getSignedUrl(
   bucket: string,
   path: string,
-  expiresInSeconds = 300
+  expiresInSeconds = 300,
+  // Saves under this name (an SLU file name) instead of opening inline under the key.
+  downloadAs?: string
 ): Promise<string> {
   if (STORAGE_DRIVER === "s3") {
     const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
@@ -153,13 +159,14 @@ export async function getSignedUrl(
       k: path,
       exp: String(exp),
       sig: signDownload(bucket, path, exp),
+      ...(downloadAs ? { n: downloadAs } : {}),
     });
     // Absolute, because NextResponse.redirect (deviation proofs) rejects relative URLs.
     return new URL(`/api/storage/download?${qs}`, process.env.NEXTAUTH_URL).toString();
   }
   const { data, error } = await supabaseAdmin!.storage
     .from(bucket)
-    .createSignedUrl(path, expiresInSeconds);
+    .createSignedUrl(path, expiresInSeconds, downloadAs ? { download: downloadAs } : undefined);
 
   if (error || !data) {
     throw new InvalidFileError(error?.message ?? "Failed to create signed URL");

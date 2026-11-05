@@ -3,6 +3,7 @@ import { Company, MoaRecord, MoaStatus, Prisma, PrismaClient, Role } from "@pris
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
 import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
+import { placeIntern } from "@/lib/services/predeployment/placementService";
 
 export class InvalidMoaTransitionError extends Error {
   constructor(from: MoaStatus, to: MoaStatus) {
@@ -67,10 +68,7 @@ export async function createCompany(
     });
 
     if (targetStudentProfileId) {
-      await tx.studentProfile.update({
-        where: { id: targetStudentProfileId },
-        data: { companyId: company.id, positionTitle: input.positionTitle },
-      });
+      await placeIntern(tx, targetStudentProfileId, company.id, input.positionTitle);
     }
 
     await logEvent(
@@ -97,7 +95,7 @@ export class CompanyStateError extends Error {
 }
 
 // Words that don't tell two companies apart: "Accenture Inc." = "ACCENTURE PH".
-const NAME_NOISE = new Set([
+export const NAME_NOISE = new Set([
   "the",
   "inc",
   "incorporated",
@@ -115,6 +113,7 @@ const NAME_NOISE = new Set([
   "philippines",
 ]);
 
+// Same normalization as company_name_key() in migration 026; keep the word lists in step.
 export function normalizeCompanyName(name: string): string {
   return name
     .toLowerCase()
@@ -124,20 +123,32 @@ export function normalizeCompanyName(name: string): string {
     .join(" ");
 }
 
-const isSimilar = (a: string, b: string) =>
-  a === b || (Math.min(a.length, b.length) >= 4 && (a.includes(b) || b.includes(a)));
+// Trigram similarity (pg_trgm) at or above which a name is offered while typing, and at or
+// above which two companies are listed as likely duplicates. Measured on the beta: a typo
+// ("acenture") scores 0.73, a plural 0.85, two different firms sharing a word 0.40.
+const SUGGEST_SIMILARITY = 0.45;
+const DUPLICATE_SIMILARITY = 0.6;
 
 // FR-MOA-02: offered while an intern types, so they join the existing company instead of adding a copy.
-// shortcut: scans every company in memory, fine for a department's few hundred; move to pg_trgm if it grows.
+// Matches in the database (migration 026's trigram index): a similar name, typos included,
+// or one containing what was typed so far.
 export async function findSimilarCompanies(name: string) {
   const target = normalizeCompanyName(name);
   if (target.length < 3) return [];
-  const companies = await prisma.company.findMany({
-    where: { deletedAt: null },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, address: true },
-  });
-  return companies.filter((c) => isSimilar(target, normalizeCompanyName(c.name))).slice(0, 5);
+  // target holds only [a-z0-9 ], so it is safe inside the LIKE patterns.
+  return prisma.$queryRaw<Array<{ id: string; name: string; address: string | null }>>`
+    select id, name, address
+    from (
+      select c.id, c.name, c.address, public.company_name_key(c.name) as k
+      from companies c
+      where c.deleted_at is null
+    ) m
+    where m.k <> ''
+      and (extensions.similarity(m.k, ${target}) >= ${SUGGEST_SIMILARITY}
+        or (length(${target}) >= 4 and m.k like '%' || ${target} || '%')
+        or (length(m.k) >= 4 and ${target} like '%' || m.k || '%'))
+    order by (m.k = ${target}) desc, extensions.similarity(m.k, ${target}) desc, m.name
+    limit 5`;
 }
 
 // A student links their own profile to a company someone else already registered.
@@ -153,11 +164,11 @@ export async function joinCompany(
   });
   if (!company || company.deletedAt) throw new CompanyStateError("That company no longer exists");
   await prisma.$transaction(async (tx) => {
-    const profile = await tx.studentProfile.update({
+    const profile = await tx.studentProfile.findUniqueOrThrow({
       where: { userId: studentUserId },
-      data: { companyId, positionTitle },
       select: { id: true },
     });
+    await placeIntern(tx, profile.id, companyId, positionTitle);
     await logEvent(
       {
         userId: studentUserId,
@@ -172,10 +183,36 @@ export async function joinCompany(
   });
 }
 
-// Groups of two or more companies whose names normalize the same, for the coordinator to merge.
+// Groups of companies that are likely one and the same, for the coordinator to merge: the
+// same normalized name, or a near one (typos, plurals). Pairs are found in the database
+// with the trigram index; linked pairs join one group.
 export async function listDuplicateCompanyGroups() {
+  const pairs = await prisma.$queryRaw<Array<{ a: string; b: string }>>`
+    select a.id as a, b.id as b
+    from companies a
+    join companies b
+      on a.id < b.id
+     and public.company_name_key(a.name) operator(extensions.%) public.company_name_key(b.name)
+    where a.deleted_at is null
+      and b.deleted_at is null
+      and (public.company_name_key(a.name) = public.company_name_key(b.name)
+        or extensions.similarity(public.company_name_key(a.name), public.company_name_key(b.name))
+             >= ${DUPLICATE_SIMILARITY})`;
+  if (pairs.length === 0) return [];
+
+  // Union-find over the pairs, so A~B and B~C give one group.
+  const parent = new Map<string, string>();
+  const root = (id: string): string => {
+    const p = parent.get(id) ?? id;
+    if (p === id) return id;
+    const r = root(p);
+    parent.set(id, r);
+    return r;
+  };
+  for (const { a, b } of pairs) parent.set(root(a), root(b));
+
   const companies = await prisma.company.findMany({
-    where: { deletedAt: null },
+    where: { id: { in: [...new Set(pairs.flatMap(({ a, b }) => [a, b]))] } },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -187,8 +224,7 @@ export async function listDuplicateCompanyGroups() {
   });
   const groups = new Map<string, typeof companies>();
   for (const c of companies) {
-    const key = normalizeCompanyName(c.name);
-    if (!key) continue;
+    const key = root(c.id);
     groups.set(key, [...(groups.get(key) ?? []), c]);
   }
   return [...groups.values()].filter((group) => group.length > 1);
@@ -216,6 +252,14 @@ export async function mergeCompanies(
       data: { companyId: keepId },
     });
     await tx.companyEvaluation.updateMany({
+      where: { companyId: { in: ids } },
+      data: { companyId: keepId },
+    });
+    await tx.companyPlacement.updateMany({
+      where: { companyId: { in: ids } },
+      data: { companyId: keepId },
+    });
+    await tx.companyVisit.updateMany({
       where: { companyId: { in: ids } },
       data: { companyId: keepId },
     });

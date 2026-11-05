@@ -91,10 +91,10 @@ describe("runRetentionScan", () => {
     expect((await runRetentionScan(NOW)).ran).toBe(true);
   });
 
-  it("uses a calendar-year cutoff: now minus 3 years, strict less-than", async () => {
+  it("uses a calendar-year cutoff: now minus 2 years, strict less-than", async () => {
     candidates({ item: false });
     await runRetentionScan(NOW);
-    const cutoff = new Date("2023-10-12T00:00:00Z");
+    const cutoff = new Date("2024-10-12T00:00:00Z");
     const where = prismaMock.preDeploymentChecklistItem.findMany.mock.calls[0][0]!.where;
     expect(where).toEqual({
       filePath: { not: null },
@@ -143,7 +143,7 @@ describe("runRetentionScan", () => {
         userIds: ["sa-1"],
         trigger: "RETENTION_REVIEW",
         title: "Files due for retention review",
-        body: "3 files are more than 3 years past their semester. Review them in the Export Center.",
+        body: "3 files are more than 2 years past their semester. Review them in the Export Center.",
         link: "/admin/export-center#retention",
       })
     );

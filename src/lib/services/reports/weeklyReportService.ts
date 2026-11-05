@@ -403,6 +403,18 @@ export async function saveDailyAccomplishment(
   // hours-derived behaviour. Non-PRESENT days always count 0 hours.
   const status: AttendanceStatus = details.attendanceStatus ?? (hours > 0 ? "PRESENT" : "ABSENT");
   const isPresent = status === "PRESENT";
+  // Read before the transaction: with one pooled connection (Vercel, PG_POOL_MAX=1) a query
+  // on `prisma` inside it waits for the connection the transaction holds, until it times out.
+  const holidayDays =
+    status === "HOLIDAY"
+      ? await prisma.dailyReportEntry
+          .findUniqueOrThrow({
+            where: { id: dailyReportEntryId },
+            select: { weeklyReport: { select: { studentProfileId: true } } },
+          })
+          .then((e) => getHolidayCalendarForStudent(e.weeklyReport.studentProfileId))
+          .then((list) => new Set(list.filter((h) => h.applicable).map((h) => toDateKey(h.date))))
+      : null;
   return prisma.$transaction(async (tx) => {
     const entry = await tx.dailyReportEntry.findUniqueOrThrow({
       where: { id: dailyReportEntryId },
@@ -432,10 +444,8 @@ export async function saveDailyAccomplishment(
     }
     // Holiday days count 0 hours with no deduction, so only a real holiday on this intern's
     // list may be one; any other day off is an absence (with its request).
-    if (status === "HOLIDAY") {
-      const day = toDateKey(entry.reportDate);
-      const holidays = await getHolidayCalendarForStudent(entry.weeklyReport.studentProfileId);
-      if (!holidays.some((h) => h.applicable && toDateKey(h.date) === day)) {
+    if (holidayDays) {
+      if (!holidayDays.has(toDateKey(entry.reportDate))) {
         throw new DailyEntryDateError(
           "That day isn't a holiday on your calendar. Mark it Absent and file an absence request, or add your company's day off on the Attendance page."
         );

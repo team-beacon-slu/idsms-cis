@@ -34,6 +34,8 @@ import {
   ScheduleNotConfiguredError,
   WorkPlanNotApprovedError,
 } from "@/lib/services/attendance/attendanceService";
+import { PlacementStateError } from "@/lib/services/predeployment/placementService";
+import { LearningJournalError } from "@/lib/services/reports/monthlyReportService";
 import { SemesterStateError } from "@/lib/services/academic/semesterService";
 import { ClassGroupStateError } from "@/lib/services/academic/classGroupService";
 import {
@@ -67,6 +69,7 @@ const BAD_REQUEST_ERRORS = [
   EndorsementDataIncompleteError,
   FinalReportLockedError,
   AiConfigError,
+  LearningJournalError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {
@@ -118,6 +121,7 @@ export function handleApiError(error: unknown): NextResponse {
     error instanceof SemesterStateError ||
     error instanceof ClassGroupStateError ||
     error instanceof CompanyStateError ||
+    error instanceof PlacementStateError ||
     error instanceof FinalReportStateError ||
     error instanceof DataRequestStateError ||
     error instanceof RetentionStateError ||

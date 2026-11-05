@@ -92,6 +92,12 @@ export const weeklyReportReviewSchema = z
     path: ["notes"],
   });
 
+export const learningJournalSchema = z.object({
+  calendarMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM"),
+  narrative: z.string().max(20000, "Keep the journal under 20,000 characters"),
+  office: z.string().trim().max(150, "Keep the office name under 150 characters"),
+});
+
 export const monthlyReportSchema = z.object({
   // Month must be 01-12 — a shape-only \d{4}-\d{2} check would let
   // "2026-13" through and silently roll into the wrong calendar year in

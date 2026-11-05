@@ -2,7 +2,9 @@ import { DocumentStatus, DocumentType, WeeklyReportStatus } from "@prisma/client
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   checkMonthlyAggregationEligibility,
+  LearningJournalError,
   listMonthlyReportsForStudent,
+  saveLearningJournal,
   submitMonthlyReport,
 } from "@/lib/services/reports/monthlyReportService";
 
@@ -21,6 +23,9 @@ describe("monthlyReportService — reachable and wired correctly", () => {
 describe("submitMonthlyReport", () => {
   it("creates a PENDING_DRAFT MONTHLY_REPORT and logs the submission", async () => {
     prismaMock.generatedDocument.findFirst.mockResolvedValue(null);
+    prismaMock.learningJournal.findUnique.mockResolvedValue({
+      narrative: "x".repeat(200),
+    } as never);
     prismaMock.generatedDocument.create.mockResolvedValue({ id: "doc-1" } as never);
 
     const result = await submitMonthlyReport("profile-1", "2026-08", "actor-1", "1.2.3.4");
@@ -64,6 +69,41 @@ describe("submitMonthlyReport", () => {
     expect(result).toEqual({ generatedDocumentId: "existing-doc", calendarMonth: "2026-08" });
     expect(prismaMock.generatedDocument.create).not.toHaveBeenCalled();
     expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("the Journal on Learning Experience", () => {
+  it("refuses to submit a month whose journal is missing or too short", async () => {
+    prismaMock.generatedDocument.findFirst.mockResolvedValue(null);
+    prismaMock.learningJournal.findUnique.mockResolvedValue({ narrative: "  short  " } as never);
+    await expect(submitMonthlyReport("profile-1", "2026-08", "actor-1")).rejects.toThrow(
+      LearningJournalError
+    );
+    prismaMock.learningJournal.findUnique.mockResolvedValue(null);
+    await expect(submitMonthlyReport("profile-1", "2026-08", "actor-1")).rejects.toThrow(
+      /Journal on Learning Experience/
+    );
+    expect(prismaMock.generatedDocument.create).not.toHaveBeenCalled();
+  });
+
+  it("saves the narrative and the office until the month is submitted", async () => {
+    prismaMock.generatedDocument.findFirst.mockResolvedValue(null);
+    await saveLearningJournal("profile-1", "2026-08", { narrative: "I learned.", office: "IT" });
+    expect(prismaMock.learningJournal.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { studentProfileId_month: { studentProfileId: "profile-1", month: "2026-08" } },
+        update: { narrative: "I learned." },
+      })
+    );
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: { office: "IT" },
+    });
+
+    prismaMock.generatedDocument.findFirst.mockResolvedValue({ id: "doc-1" } as never);
+    await expect(
+      saveLearningJournal("profile-1", "2026-08", { narrative: "late edit", office: "IT" })
+    ).rejects.toThrow("already submitted");
   });
 });
 

@@ -8,6 +8,7 @@ import { formatHrsMins } from "@/lib/utils/timeMath";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { TimeReportLinks } from "../weekly-reports/time-report-links";
 import { EditRequestButton, RequestForm, type RequestFormValues } from "./request-form";
 import { RequestReviewActions } from "./request-review-actions";
 import type { Metadata } from "next";
@@ -84,6 +85,23 @@ export default async function LeaveRequestsPage(props: {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Reports for your terminal requirements</CardTitle>
+          <CardDescription>
+            SLU&apos;s reports on off-duty (overtime) hours, under time and absences for the whole
+            internship, from the requests on record. Have your supervisor sign them; each
+            week&apos;s own reports are on the Weekly reports page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <TimeReportLinks
+            studentProfileId={params.studentProfileId}
+            kinds={["OT", "UT", "ABSENCE"]}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

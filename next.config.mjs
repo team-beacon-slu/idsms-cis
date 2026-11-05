@@ -1,10 +1,16 @@
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The footer shows which build testers are on (package.json "version").
+  env: {
+    NEXT_PUBLIC_APP_VERSION: JSON.parse(readFileSync(new URL("./package.json", import.meta.url)))
+      .version,
+  },
   // The Docker image (deploy/Dockerfile) builds a self-contained server; everywhere
   // else `next start` is used, which does not support standalone output.
   ...(process.env.NEXT_OUTPUT === "standalone" && { output: "standalone" }),
@@ -37,6 +43,26 @@ const nextConfig = {
   // Keep the headless-browser packages as runtime requires so webpack doesn't
   // try to bundle Chromium's binary/ESM internals.
   serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium"],
+  // Chromium's compressed binaries are read from disk at launch, which tracing can't see:
+  // without this every PDF on Vercel failed with "@sparticuz/chromium/bin does not exist".
+  // Only the routes that print, since the binaries are 67 MB. Print fonts are read from disk
+  // by src/lib/documents/fonts.ts (also invisible to tracing) and go to every route (the
+  // weekly report preview renders in a page).
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@fontsource/{carlito,caladea,didact-gothic}/files/*-latin-*.woff2"],
+    ...Object.fromEntries(
+      [
+        "/api/**/pdf",
+        "/api/**/preview",
+        "/api/**/endorsement-letter",
+        "/api/**/endorsement-letters",
+        "/api/**/final-cover",
+        "/api/**/time-reports/**",
+        "/api/**/notice",
+        "/api/**/waiver",
+      ].map((route) => [route, ["./node_modules/@sparticuz/chromium/bin/**"]])
+    ),
+  },
 };
 
 export default nextConfig;

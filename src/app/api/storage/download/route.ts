@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
   const key = p.get("k") ?? "";
   const exp = Number(p.get("exp"));
   const sig = p.get("sig") ?? "";
+  // Unsigned on purpose: it only names the saved file, so it is reduced to safe characters.
+  const name = p.get("n")?.replace(/[^\w .-]/g, "");
 
   let valid = false;
   try {
@@ -41,7 +43,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(obj.Body.transformToWebStream(), {
       headers: {
         "Content-Type": obj.ContentType ?? "application/octet-stream",
-        "Content-Disposition": "inline",
+        "Content-Disposition": name ? `attachment; filename="${name}"` : "inline",
         "Cache-Control": "private, no-store",
       },
     });

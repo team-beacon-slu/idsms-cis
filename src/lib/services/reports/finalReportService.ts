@@ -15,6 +15,7 @@ import {
 } from "@/lib/services/notifications/notificationEvents";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import {
+  asAssessment,
   asAttachments,
   asSections,
   ATTACHMENT_KEYS,
@@ -68,6 +69,7 @@ export async function saveFinalReportDraft(
   const draft = finalReportDraftSchema.parse(input);
 
   const sections = { ...asSections(existing?.sections), ...(draft.sections ?? {}) };
+  const assessment = draft.assessment ?? asAssessment(existing?.assessment);
   const attachments: Attachments = { ...asAttachments(existing?.attachments) };
   for (const [k, attached] of Object.entries(draft.attachments ?? {})) {
     if (attached !== undefined) attachments[k] = { attached, confirmed: false };
@@ -96,6 +98,7 @@ export async function saveFinalReportDraft(
           data: {
             studentProfileId,
             sections,
+            assessment,
             attachments: attachments as Prisma.InputJsonValue,
             ...scores,
           },
@@ -106,12 +109,23 @@ export async function saveFinalReportDraft(
     } else {
       const { count } = await tx.finalTechnicalReport.updateMany({
         where: { id: existing.id, status: { in: EDITABLE } },
-        data: { sections, attachments: attachments as Prisma.InputJsonValue, ...scores },
+        data: {
+          sections,
+          assessment,
+          attachments: attachments as Prisma.InputJsonValue,
+          ...scores,
+        },
       });
       if (count === 0) {
         throw new FinalReportStateError("A submitted or approved report can't be edited");
       }
       reportId = existing.id;
+    }
+    if (draft.office !== undefined) {
+      await tx.studentProfile.update({
+        where: { id: studentProfileId },
+        data: { office: draft.office || null },
+      });
     }
     await logEvent(
       {

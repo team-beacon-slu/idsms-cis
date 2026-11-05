@@ -136,7 +136,7 @@ Each service's test sits next to it (`fooService.test.ts`). Route-specific compo
 
 ## 5. API route inventory
 
-All routes are under `src/app/api/`. "Signed in" means any active user; "own or assigned" means `assertCanAccessStudent`: the student themself, a faculty adviser assigned to the student's class group for that semester, or a coordinator / Super Admin. Roles: SA = Super Admin, DC = Department coordinator, FA = Faculty adviser, SI = Student intern.
+All routes are under `src/app/api/`. "Signed in" means any active user; "own or assigned" means `assertCanAccessStudent`: the student themself, a faculty adviser assigned to the student's class group for that semester, or a coordinator / Super Admin. Roles: SA = Super Admin, DC = Internship coordinator, FA = Faculty adviser, SI = Student intern.
 
 ### Authentication and users
 

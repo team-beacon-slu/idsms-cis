@@ -52,7 +52,27 @@ async function post(
   return json;
 }
 
-function gemini(
+// Gemini's free tier allows 15 chat and 100 embedding requests a minute. Spacing the calls
+// one function instance makes keeps the nightly batch under that instead of failing on 429
+// (instances don't share this, but the batch is one instance).
+const MIN_GAP_MS = { generateContent: 4_100, batchEmbedContents: 650 } as Record<string, number>;
+const lastCall = new Map<string, number>();
+
+export async function paceGemini(
+  method: string,
+  now = Date.now,
+  sleep = defaultSleep,
+  // Unit tests of the provider calls run back to back; pacing has its own test.
+  gap = process.env.NODE_ENV === "test" ? 0 : (MIN_GAP_MS[method] ?? 0)
+) {
+  const wait = (lastCall.get(method) ?? -Infinity) + gap - now();
+  if (wait > 0) await sleep(wait);
+  lastCall.set(method, now());
+}
+
+const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function gemini(
   conn: AiConnection,
   model: string,
   method: string,
@@ -61,6 +81,7 @@ function gemini(
 ) {
   const key = keyOf(conn);
   if (!key) throw new AiProviderError(`${conn.keyEnv ?? "The API key variable"} is not set`);
+  await paceGemini(method);
   return post(
     `${GEMINI_BASE}/${model}:${method}`,
     { "x-goog-api-key": key }, // a header, never the URL (URLs get logged)
@@ -137,8 +158,17 @@ export async function embedText(
 // JSON mode at temperature 0. The prompt is built by lib/ai/guard.ts (fenced data,
 // fixed format); the caller validates the result against its own schema and drops
 // anything else (R4).
-export async function chatJson(conn: AiConnection, prompt: string): Promise<unknown> {
+export async function chatJson(
+  conn: AiConnection,
+  prompt: string,
+  // A document the model reads with the prompt (the uploaded work plan). Gemini only:
+  // OpenAI-compatible servers have no common way to take a PDF.
+  file?: { mimeType: string; data: Buffer }
+): Promise<unknown> {
   let raw: string | undefined;
+  if (file && conn.provider === "openai") {
+    throw new AiProviderError(`${conn.chatModel} on this connection can't read files`, 400);
+  }
   if (conn.provider === "openai") {
     const json = (await openAi(
       conn,
@@ -158,7 +188,21 @@ export async function chatJson(conn: AiConnection, prompt: string): Promise<unkn
       conn.chatModel,
       "generateContent",
       {
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [
+          {
+            role: "user",
+            parts: [
+              ...(file
+                ? [
+                    {
+                      inline_data: { mime_type: file.mimeType, data: file.data.toString("base64") },
+                    },
+                  ]
+                : []),
+              { text: prompt },
+            ],
+          },
+        ],
         generationConfig: { responseMimeType: "application/json", temperature: 0 },
       },
       CHAT_TIMEOUT_MS

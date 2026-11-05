@@ -7,6 +7,8 @@ import { ForbiddenError } from "@/lib/services/accounts/userService";
 import { getLatestSubmission, isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import {
   checklistRequirements,
+  isPartner,
+  PARTNER_SELECT,
   getRequiredChecklistTypes,
 } from "@/lib/services/predeployment/checklistService";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
@@ -185,7 +187,7 @@ export async function getComplianceRows(
       startBeforeMoaAllowed: true,
       user: { select: { email: true } },
       classGroup: { select: { name: true, classType: true } },
-      company: { select: { name: true, isForeign: true } },
+      company: { select: { name: true, ...PARTNER_SELECT } },
       checklistItems: { select: { requirementType: true, status: true } },
       weeklyReports: {
         select: {
@@ -216,6 +218,7 @@ export async function getComplianceRows(
     // Counted against this intern's required items (Super Admin list, minus what doesn't apply).
     const { gate } = checklistRequirements(required, {
       isForeignCompany: s.company?.isForeign ?? false,
+      isPartnerCompany: isPartner(s.company),
       classType: s.classGroup?.classType ?? null,
       startBeforeMoaAllowed: s.startBeforeMoaAllowed ?? false,
     });

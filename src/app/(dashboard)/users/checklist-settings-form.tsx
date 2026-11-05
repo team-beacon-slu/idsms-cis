@@ -6,7 +6,10 @@ import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 
 const NOTE: Record<string, string> = {
-  PROOF_OF_CORPORATE_LEGITIMACY: "Only for interns at a foreign-owned company",
+  GOVERNMENT_COMPANY_PERMIT:
+    "Only for an HTE that is not yet a partner (no active MOA), in the Philippines",
+  PROOF_OF_CORPORATE_LEGITIMACY:
+    "Only for an HTE outside the Philippines that is not yet a partner, in lieu of DTI and SEC",
   INTERNSHIP_AGREEMENT: "Only for irregular students (class type other than Regular)",
   MOA: "An adviser can still let an intern start before MOA approval",
 };

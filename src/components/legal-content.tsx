@@ -2,18 +2,27 @@
 // render them in full and the sign-in consent dialog shows the key points. Change the text
 // here, then bump PRIVACY_NOTICE_VERSION (src/lib/privacy.ts) so everyone agrees again.
 
-export const LEGAL_UPDATED = "23 October 2026";
+export const LEGAL_UPDATED = "4 November 2026";
 
 export const PRIVACY_KEY_POINTS = [
   "SLU SAMCIS collects your name, student number, email, program, host company, attendance, reports and requirement statuses to monitor your internship.",
-  "Only you, your faculty adviser, the department coordinator and system administrators see your records.",
-  "Records are kept for three years after the semester, then deleted.",
-  "You can ask for a copy or a correction of your data at any time from Account settings.",
+  "Only you, your faculty adviser, the internship coordinator and system administrators see your records.",
+  "Records are only kept for two years after the semester, then deleted.",
+  "You can ask for a copy or a correction of your data at any time using the Account Settings.",
+];
+
+// What staff (advisers, coordinators, admins) agree to: their own account data, and how they
+// may use the interns' records they see.
+export const STAFF_PRIVACY_KEY_POINTS = [
+  "SLU SAMCIS keeps your name, email and role, and logs what you review and change, to run the internship program.",
+  "You see the records of the interns assigned to you only to monitor and assess their internship.",
+  "Interns' records are only kept for two years after the semester, then deleted.",
+  "You can ask for a copy or a correction of your own data at any time using the Account Settings.",
 ];
 
 export const TERMS_KEY_POINTS = [
   "Your account is yours alone: don't share your password or sign in for someone else.",
-  "Reports and hours must be true; falsifying them is handled under SLU's student and employee codes of conduct.",
+  "Reports must be true; falsifying them is handled under SLU's student handbook.",
   "Staff use interns' records only to monitor their internship and never copy or share them outside IDSMS-CIS.",
 ];
 
@@ -38,8 +47,8 @@ export function PrivacyNoticeBody() {
       <Section title="Who is responsible">
         <p>
           Saint Louis University, through SAMCIS, is the personal information controller. The
-          department coordinator runs the internship program day to day. Questions or requests for
-          the SLU Data Protection Officer can be sent through your department coordinator.
+          internship coordinator runs the internship program day to day. Questions or requests for
+          the SLU Data Protection Officer can be sent through your internship coordinator.
         </p>
       </Section>
       <Section title="What we collect">
@@ -85,7 +94,7 @@ export function PrivacyNoticeBody() {
       <Section title="Who can see it">
         <p>
           You see your own records. Your faculty adviser sees the records of the interns in their
-          class groups. The department coordinator and system administrators see all interns&apos;
+          class groups. The internship coordinator and system administrators see all interns&apos;
           records to run the program. IDSMS does not sell or publish personal information.
         </p>
         <p>
@@ -113,8 +122,8 @@ export function PrivacyNoticeBody() {
       </Section>
       <Section title="How long we keep it">
         <p>
-          Records are kept for three years after the end of the semester, for academic records and
-          audits, then reviewed by an administrator and deleted. Audit logs cannot be edited.
+          Records are only kept for two years after the end of the semester, for academic records
+          and audits, then reviewed by an administrator and deleted. Audit logs cannot be edited.
         </p>
       </Section>
       <Section title="Your rights">
@@ -149,7 +158,7 @@ export function TermsBody() {
     <div className="space-y-6">
       <p className="text-[15px] leading-relaxed text-foreground/90">
         These terms cover everyone who uses IDSMS-CIS: student interns, faculty advisers, the
-        department coordinator and system administrators. Using the system means you accept them.
+        internship coordinator and system administrators. Using the system means you accept them.
       </p>
       <Section title="Your account">
         <ul className="list-disc space-y-1 pl-5">

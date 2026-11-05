@@ -1,4 +1,10 @@
-import { AiProviderError, chatJson, embedText, embedTexts } from "@/lib/services/ai/aiService";
+import {
+  AiProviderError,
+  chatJson,
+  embedText,
+  embedTexts,
+  paceGemini,
+} from "@/lib/services/ai/aiService";
 import type { AiConnection } from "@/lib/ai/connections";
 
 const fetchMock = jest.fn();
@@ -131,5 +137,23 @@ describe("OpenAI-compatible adapter", () => {
   it("refuses to call out without a base URL", async () => {
     await expect(embedText({ ...ollama, baseUrl: undefined }, "x")).rejects.toThrow(/base URL/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("paceGemini (free-tier rate limits)", () => {
+  it("spaces calls of one kind by the gap and leaves the first one alone", async () => {
+    let clock = 1_000_000;
+    const sleep = jest.fn(async (ms: number) => {
+      clock += ms;
+    });
+    const now = () => clock;
+    await paceGemini("chat-test", now, sleep, 4_100);
+    expect(sleep).not.toHaveBeenCalled();
+    clock += 1_000;
+    await paceGemini("chat-test", now, sleep, 4_100);
+    expect(sleep).toHaveBeenCalledWith(3_100);
+    clock += 10_000;
+    await paceGemini("chat-test", now, sleep, 4_100);
+    expect(sleep).toHaveBeenCalledTimes(1);
   });
 });

@@ -75,14 +75,19 @@ export async function setRequiredChecklistTypes(
 }
 
 export interface ChecklistContext {
-  isForeignCompany: boolean;
+  isForeignCompany: boolean; // the HTE is outside the Philippines
+  isPartnerCompany: boolean; // the HTE already has an active MOA with SLU
   classType: string | null;
   startBeforeMoaAllowed: boolean;
 }
 
-// Pure: proof of corporate legitimacy applies only to foreign-owned host companies, the
-// internship agreement only to irregular students (a class group that isn't "Regular"),
-// and a start-before-MOA override takes the MOA out of the gate (it stays on the list).
+// Pure. SAMCIS advisory: an HTE that is not yet a partner needs its DTI and SEC
+// registration (the government-issued permit item); one outside the Philippines needs a
+// proof of legitimacy instead. A partner (active MOA) needs neither. The internship
+// agreement applies only to irregular students (a class group that isn't "Regular"), and
+// a start-before-MOA override takes the MOA out of the gate (it stays on the list).
+// shortcut: partner status is the company's MOA today, so the intern whose own MOA gets
+// approved stops needing DTI/SEC from then on; snapshot it at deployment if that matters.
 export function checklistRequirements(
   required: ChecklistRequirementType[],
   ctx: ChecklistContext
@@ -91,7 +96,10 @@ export function checklistRequirements(
   const applicable = new Set(
     Object.values(ChecklistRequirementType).filter(
       (t) =>
-        (t !== ChecklistRequirementType.PROOF_OF_CORPORATE_LEGITIMACY || ctx.isForeignCompany) &&
+        (t !== ChecklistRequirementType.GOVERNMENT_COMPANY_PERMIT ||
+          (!ctx.isPartnerCompany && !ctx.isForeignCompany)) &&
+        (t !== ChecklistRequirementType.PROOF_OF_CORPORATE_LEGITIMACY ||
+          (!ctx.isPartnerCompany && ctx.isForeignCompany)) &&
         (t !== ChecklistRequirementType.INTERNSHIP_AGREEMENT || irregular)
     )
   );
@@ -103,10 +111,23 @@ export function checklistRequirements(
   return { applicable, gate };
 }
 
+// What a company needs to say whether it is outside the Philippines and already a partner.
+export const PARTNER_SELECT = {
+  isForeign: true,
+  moaRecords: {
+    where: { status: { in: [MoaStatus.APPROVED_ACTIVE, MoaStatus.EXPIRING] }, archivedAt: null },
+    select: { id: true },
+    take: 1,
+  },
+} satisfies Prisma.CompanySelect;
+
+export const isPartner = (company: { moaRecords?: unknown[] } | null | undefined) =>
+  (company?.moaRecords?.length ?? 0) > 0;
+
 const CONTEXT_SELECT = {
   startBeforeMoaAllowed: true,
   startBeforeMoaReason: true,
-  company: { select: { isForeign: true } },
+  company: { select: PARTNER_SELECT },
   classGroup: { select: { classType: true } },
 } satisfies Prisma.StudentProfileSelect;
 
@@ -121,6 +142,7 @@ async function loadContext(
   return {
     ctx: {
       isForeignCompany: profile.company?.isForeign ?? false,
+      isPartnerCompany: isPartner(profile.company),
       classType: profile.classGroup?.classType ?? null,
       startBeforeMoaAllowed: profile.startBeforeMoaAllowed,
     },

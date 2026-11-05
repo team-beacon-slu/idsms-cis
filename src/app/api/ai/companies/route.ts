@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { connectionFor, runJob } from "@/lib/ai/jobs";
 import { chatJson } from "@/lib/services/ai/aiService";
 import { buildPrompt, entryId } from "@/lib/ai/guard";
-import { normalizeCompanyName } from "@/lib/services/predeployment/companyService";
+import { listDuplicateCompanyGroups } from "@/lib/services/predeployment/companyService";
 import { handleApiError } from "@/lib/utils/apiError";
 
 const MAX_COMPANIES = 250;
@@ -36,6 +36,12 @@ export async function POST() {
       },
     });
     if (companies.length < 2) return NextResponse.json({ groups: [], ai: true });
+    // The rules (same or near name) already group these; the AI adds only what they miss.
+    const ruleGroup = new Map<string, number>();
+    (await listDuplicateCompanyGroups()).forEach((group, i) =>
+      group.forEach((c) => ruleGroup.set(c.id, i))
+    );
+    const ruleGroupOf = (id: string) => ruleGroup.get(id) ?? `none:${id}`;
     const prompt = buildPrompt(
       "The entries are company names typed by different students. List pairs that are the SAME " +
         "organisation written differently (abbreviations, punctuation, Inc./Corp./Co., a branch " +
@@ -49,14 +55,7 @@ export async function POST() {
     const seen = new Set<string>();
     const groups = parsed.data.pairs
       .map(([a, b]) => [companies[a - 1], companies[b - 1]])
-      .filter(
-        ([a, b]) =>
-          a &&
-          b &&
-          a.id !== b.id &&
-          // The rules already group these; the AI adds only what they miss.
-          normalizeCompanyName(a.name) !== normalizeCompanyName(b.name)
-      )
+      .filter(([a, b]) => a && b && a.id !== b.id && ruleGroupOf(a.id) !== ruleGroupOf(b.id))
       .filter(([a, b]) => {
         const key = [a.id, b.id].sort().join(":");
         if (seen.has(key)) return false;

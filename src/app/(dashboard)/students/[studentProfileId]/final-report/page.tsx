@@ -8,7 +8,8 @@ import {
   getFinalReportState,
 } from "@/lib/services/reports/finalReportService";
 import { getFinalTechnicalReportDocument } from "@/lib/services/reports/documentService";
-import { toContent } from "@/lib/validators/finalReport";
+import { emptyAssessment, toContent } from "@/lib/validators/finalReport";
+import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { FinalReportEditor } from "./final-report-editor";
@@ -37,21 +38,39 @@ export default async function FinalReportPage(props: {
     throw error;
   }
 
-  const [state, pdf] = await Promise.all([
+  const [state, pdf, profile] = await Promise.all([
     getFinalReportState(params.studentProfileId),
     getFinalTechnicalReportDocument(params.studentProfileId),
+    prisma.studentProfile.findUnique({
+      where: { id: params.studentProfileId },
+      select: {
+        office: true,
+        company: { select: { supervisorName: true, supervisorPosition: true } },
+      },
+    }),
   ]);
   const report = state.report;
   const content = report
     ? toContent(report)
     : {
         sections: {},
+        assessment: emptyAssessment(),
         supervisorScore: null,
         supervisorScale: null,
         peerScore: null,
         peerScale: null,
         attachments: {},
       };
+  // A new report starts with the supervisor on record ("name - designation").
+  const supervisor = profile?.company;
+  if (!content.sections.supervisors && supervisor) {
+    content.sections = {
+      ...content.sections,
+      supervisors: [supervisor.supervisorName, supervisor.supervisorPosition]
+        .filter(Boolean)
+        .join(" - "),
+    };
+  }
   const isOwner = user.role === Role.STUDENT_INTERN;
   const isReviewer = FINAL_REPORT_REVIEWERS.includes(user.role);
 
@@ -59,7 +78,7 @@ export default async function FinalReportPage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Final report"
-        description={`The final technical report. Opens at ${state.threshold} confirmed hours (${state.renderedHours} so far); reviewed by the department coordinator.`}
+        description={`SLU's Technical Report. Opens at ${state.threshold} confirmed hours (${state.renderedHours} so far); reviewed by the internship coordinator.`}
       />
 
       {!state.unlocked && !report ? (
@@ -86,6 +105,7 @@ export default async function FinalReportPage(props: {
                 studentProfileId={params.studentProfileId}
                 status={report?.status ?? null}
                 content={content}
+                office={profile?.office ?? ""}
                 hasPdf={pdf?.status === "GENERATED"}
               />
             ) : (
@@ -93,6 +113,7 @@ export default async function FinalReportPage(props: {
                 studentProfileId={params.studentProfileId}
                 status="SUBMITTED"
                 content={content}
+                office={profile?.office ?? ""}
                 hasPdf={false}
               />
             )}

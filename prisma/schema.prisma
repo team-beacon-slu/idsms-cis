@@ -178,25 +178,25 @@ model Session {
 // ── Core domain tables ──────────────────────────────────────────────────
 
 model User {
-  holidaysAdded HolidayCalendarEntry[] @relation("HolidayCreatedBy")
-  id                    String    @id @default(uuid()) @db.Uuid
-  email                 String    @unique
-  hashedPassword        String    @map("hashed_password")
+  holidaysAdded         HolidayCalendarEntry[] @relation("HolidayCreatedBy")
+  id                    String                 @id @default(uuid()) @db.Uuid
+  email                 String                 @unique
+  hashedPassword        String                 @map("hashed_password")
   role                  Role
-  isActive              Boolean   @default(true) @map("is_active")
-  mustResetPassword     Boolean   @default(true) @map("must_reset_password")
-  failedLoginAttempts   Int       @default(0) @map("failed_login_attempts")
-  lockedUntil           DateTime? @map("locked_until")
+  isActive              Boolean                @default(true) @map("is_active")
+  mustResetPassword     Boolean                @default(true) @map("must_reset_password")
+  failedLoginAttempts   Int                    @default(0) @map("failed_login_attempts")
+  lockedUntil           DateTime?              @map("locked_until")
   // FR-CK-05: null until the user agrees to the privacy notice; a new version asks again.
-  privacyConsentAt      DateTime? @map("privacy_consent_at") @db.Timestamptz
-  privacyConsentVersion String?   @map("privacy_consent_version")
+  privacyConsentAt      DateTime?              @map("privacy_consent_at") @db.Timestamptz
+  privacyConsentVersion String?                @map("privacy_consent_version")
   // Display name for staff (students' legal name lives on student_profiles.full_name).
-  fullName              String?   @map("full_name")
+  fullName              String?                @map("full_name")
   // ai-assist-plan step 6: each person can turn AI hints off for themselves.
-  aiAssist              Boolean   @default(true) @map("ai_assist")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  deletedAt             DateTime? @map("deleted_at")
+  aiAssist              Boolean                @default(true) @map("ai_assist")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  deletedAt             DateTime?              @map("deleted_at")
 
   accounts               Account[]
   sessions               Session[]
@@ -210,6 +210,7 @@ model User {
   dataRequests           DataRequest[]                @relation("DataRequestRequester")
   fulfilledDataRequests  DataRequest[]                @relation("DataRequestFulfiller")
   aiFeedback             AiFeedback[]
+  companyVisits          CompanyVisit[]               @relation("CompanyVisitor")
 
   @@map("users")
 }
@@ -247,6 +248,8 @@ model StudentProfile {
   // FR-DG-01 endorsement letter needs the student's legal name; the users
   // table only holds an email. Nullable — set from the profile page.
   fullName              String?   @map("full_name")
+  // Office/department at the host company, printed on the JLE and technical report (021).
+  office                String?
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   // Checklist & MOA settings: the adviser may let an intern start before the MOA is approved.
@@ -272,6 +275,8 @@ model StudentProfile {
   weeklyReports        WeeklyReport[]
   generatedDocuments   GeneratedDocument[]
   holidayOverrides     HolidayCalendarEntry[]
+  learningJournals     LearningJournal[]
+  placements           CompanyPlacement[]
 
   // classGroupId/semesterId are pre-existing Phase 0 gaps (Postgres never
   // auto-indexes FK columns) left alone here; companyId and classGroupId are
@@ -351,24 +356,80 @@ model Company {
   moaRecords  MoaRecord[]
   holidays    HolidayCalendarEntry[]
   evaluations CompanyEvaluation[]
+  placements  CompanyPlacement[]
+  visits      CompanyVisit[]
 
   @@map("companies")
 }
 
 // The intern's evaluation of their host company, one per intern, opened once
 // all required hours are confirmed (migration 019). Ratings are 1–5.
+// SLU Journal on Learning Experience: the intern's narrative for one month (021).
+model LearningJournal {
+  id               String   @id @default(uuid()) @db.Uuid
+  studentProfileId String   @map("student_profile_id") @db.Uuid
+  month            String // "YYYY-MM"
+  narrative        String   @default("")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([studentProfileId, month])
+  @@map("learning_journals")
+}
+
+// An intern's time at one host company (025). Ends through a notification of retraction,
+// filed by the intern and noted by SAMCIS, or on completion.
+model CompanyPlacement {
+  id                  String    @id @default(uuid()) @db.Uuid
+  studentProfileId    String    @map("student_profile_id") @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  positionTitle       String?   @map("position_title")
+  startedOn           DateTime  @map("started_on") @db.Date
+  endedOn             DateTime? @map("ended_on") @db.Date
+  endReason           String?   @map("end_reason") // RETRACTED | COMPLETED
+  retractionLastDay   DateTime? @map("retraction_last_day") @db.Date
+  retractionReason    String?   @map("retraction_reason")
+  retractionFiledAt   DateTime? @map("retraction_filed_at") @db.Timestamptz(3)
+  retractionNotedAt   DateTime? @map("retraction_noted_at") @db.Timestamptz(3)
+  retractionNotedById String?   @map("retraction_noted_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  company        Company        @relation(fields: [companyId], references: [id])
+
+  @@index([studentProfileId])
+  @@index([companyId])
+  @@map("company_placements")
+}
+
+// SAMCIS's company visit before the internship ends (025).
+model CompanyVisit {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  visitedOn DateTime @map("visited_on") @db.Date
+  visitedBy String   @map("visited_by") @db.Uuid
+  mode      String   @default("ON_SITE") // ON_SITE | ONLINE
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id])
+  visitor User    @relation("CompanyVisitor", fields: [visitedBy], references: [id])
+
+  @@index([companyId])
+  @@map("company_visits")
+}
+
 model CompanyEvaluation {
   id               String   @id @default(uuid()) @db.Uuid
   studentProfileId String   @unique @map("student_profile_id") @db.Uuid
   companyId        String   @map("company_id") @db.Uuid
-  supervision      Int      @db.SmallInt
-  learning         Int      @db.SmallInt
-  safety           Int      @db.SmallInt
-  communication    Int      @db.SmallInt
-  integration      Int      @db.SmallInt
-  resources        Int      @db.SmallInt
-  recommend        Int      @db.SmallInt
-  comment          String?
+  // FM-VAA-052 (022): 16 CMO 104 obligations and 6 internship-quality items, each 1-4.
+  obligations      Int[]    @db.SmallInt
+  quality          Int[]    @db.SmallInt
+  liked            String? // A. what they liked most
+  improve          String? // B. what the HTE could improve
+  comment          String? // C. other comments or suggestions
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
@@ -426,6 +487,8 @@ model WorkPlan {
   studentProfileId      String         @map("student_profile_id") @db.Uuid
   status                WorkPlanStatus @default(SUBMITTED)
   plannedTasks          Json           @map("planned_tasks")
+  // The uploaded work plan PDF, in the company's own template (024).
+  filePath              String?        @map("file_path")
   scheduleConfig        Json?          @map("schedule_config")
   scheduleChangeHistory Json           @default("[]") @map("schedule_change_history")
   approvalMetadata      Json?          @map("approval_metadata")
@@ -535,6 +598,8 @@ model FinalTechnicalReport {
   studentProfileId String            @unique @map("student_profile_id") @db.Uuid
   status           FinalReportStatus @default(DRAFT)
   sections         Json              @default("{}")
+  // SLU work assessment and self-assessment ratings, 1-4 (023).
+  assessment       Json              @default("{}")
   supervisorScore  Decimal?          @map("supervisor_score") @db.Decimal(5, 2)
   supervisorScale  Int?              @map("supervisor_scale")
   peerScore        Decimal?          @map("peer_score") @db.Decimal(5, 2)

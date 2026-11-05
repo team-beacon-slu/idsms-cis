@@ -3,6 +3,7 @@ import { formatCalendarDate } from "@/lib/documents/html";
 import { WORK_MODALITY_LABEL } from "@/lib/utils/labels";
 import Link from "next/link";
 import { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { MapPin, Briefcase, User, Phone, ShieldCheck, Plus, Lock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import {
@@ -27,6 +28,9 @@ import { CompanyVerifyToggle } from "./company-verify-toggle";
 import { CompanyForeignToggle } from "./company-foreign-toggle";
 import { MoaStatusActions } from "./moa-status-actions";
 import { CompanyReplyForm } from "./company-reply-form";
+import { NoteRetractionButton, RetractionForm, VisitForm } from "./placement-actions";
+import { listPlacementsForCompany } from "@/lib/services/predeployment/placementService";
+import { listVisits, VISITORS } from "@/lib/services/predeployment/visitService";
 import {
   getCompanyFeedback,
   MIN_GROUP,
@@ -34,6 +38,32 @@ import {
 } from "@/lib/services/predeployment/companyEvaluationService";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
+
+function RatingList({
+  title,
+  items,
+  start,
+}: {
+  title: string;
+  items: { label: string; average: number }[];
+  start: number;
+}) {
+  return (
+    <div className="space-y-1">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase">{title}</h3>
+      <dl className="divide-y rounded-lg border border-border">
+        {items.map((a, i) => (
+          <div key={i} className="flex items-start justify-between gap-4 p-3">
+            <dt className="text-sm">
+              {start + i}. {a.label}
+            </dt>
+            <dd className="text-sm font-semibold tabular-nums">{a.average}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
@@ -70,6 +100,14 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
   if (!company) {
     notFound();
   }
+  const own =
+    user.role === Role.STUDENT_INTERN
+      ? await prisma.studentProfile.findUnique({
+          where: { userId: user.id },
+          select: { id: true, companyId: true },
+        })
+      : null;
+  if (user.role === Role.STUDENT_INTERN && own?.companyId !== company.id) notFound(); // own company only
 
   const isStaff = STAFF_ROLES.includes(user.role);
   // FR-MOA-07: MOA records are restricted to staff — never fetched or shown
@@ -77,6 +115,14 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
   const [moaRecords, feedback] = isStaff
     ? await Promise.all([listMoaRecordsForCompany(params.id), getCompanyFeedback(params.id)])
     : [[], null];
+  const [placements, visits] = isStaff
+    ? await Promise.all([listPlacementsForCompany(params.id), listVisits(params.id)])
+    : [[], []];
+  const myPlacement = own
+    ? await prisma.companyPlacement.findFirst({
+        where: { studentProfileId: own.id, companyId: company.id, endedOn: null },
+      })
+    : null;
   const canReply = REPLY_EDITORS.includes(user.role);
 
   return (
@@ -88,7 +134,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
             <VerificationPill isVerified={company.isVerified} />
             {company.isForeign && (
               <span className="inline-flex items-center rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-900">
-                Foreign-owned
+                Outside the Philippines
               </span>
             )}
           </CardTitle>
@@ -191,6 +237,112 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
         </Card>
       )}
 
+      {myPlacement && own && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Stopping at this company</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              If you must stop working here for any reason, file a notification of retraction.
+              SAMCIS notes it, then you can join your next host company. Tell your supervisor and
+              adviser too.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {myPlacement.retractionFiledAt ? (
+              <>
+                <p className="text-sm">
+                  Filed {formatCalendarDate(myPlacement.retractionFiledAt)}; last day{" "}
+                  {formatCalendarDate(myPlacement.retractionLastDay!)}. Waiting for SAMCIS to note
+                  it.
+                </p>
+                <a
+                  href={`/api/placements/${myPlacement.id}/notice`}
+                  download
+                  className="text-sm text-primary underline"
+                >
+                  Download the notice to have it signed
+                </a>
+              </>
+            ) : (
+              <RetractionForm studentProfileId={own.id} />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isStaff && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Placements and visits</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Every intern placed here, current and past, and SAMCIS&apos;s company visits.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Interns placed</h2>
+              {placements.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No interns placed here yet.</p>
+              ) : (
+                <ul className="divide-y rounded-lg border text-sm">
+                  {placements.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center justify-between gap-2 p-3"
+                    >
+                      <span>
+                        <Link
+                          href={`/students/${p.studentProfile.id}/weekly-reports`}
+                          className="font-medium underline-offset-2 hover:underline"
+                        >
+                          {p.studentProfile.fullName ?? p.studentProfile.studentNumber}
+                        </Link>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {p.studentProfile.semester.name} · {formatCalendarDate(p.startedOn)} –{" "}
+                          {p.endedOn
+                            ? `${formatCalendarDate(p.endedOn)} (${p.endReason === "RETRACTED" ? "retracted" : "completed"})`
+                            : "now"}
+                        </span>
+                      </span>
+                      {!p.endedOn && p.retractionFiledAt && (
+                        <span className="flex items-center gap-2">
+                          <a
+                            href={`/api/placements/${p.id}/notice`}
+                            className="text-xs text-primary underline"
+                          >
+                            Notice
+                          </a>
+                          <NoteRetractionButton placementId={p.id} />
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Company visits</h2>
+              {visits.length > 0 && (
+                <ul className="divide-y rounded-lg border text-sm">
+                  {visits.map((v) => (
+                    <li key={v.id} className="p-3">
+                      <span className="font-medium">{formatCalendarDate(v.visitedOn)}</span>{" "}
+                      <span className="text-muted-foreground">
+                        · {v.mode === "ONLINE" ? "online" : "on site"} ·{" "}
+                        {v.visitor.fullName ?? v.visitor.email}
+                      </span>
+                      {v.notes && <p className="mt-1 text-muted-foreground">{v.notes}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {VISITORS.includes(user.role) && <VisitForm companyId={company.id} />}
+            </section>
+          </CardContent>
+        </Card>
+      )}
+
       {feedback && (
         <Card>
           <CardHeader>
@@ -253,24 +405,41 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
               {feedback.ratings ? (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Average of {feedback.ratings.count} evaluations, 1 (very poor) to 5 (very good).
+                    Averages of {feedback.ratings.count} FM-VAA-052 evaluations, 4 (advanced /
+                    highly satisfactory) to 1 (low / not satisfactory).
                   </p>
-                  <dl className="divide-y rounded-lg border border-border">
-                    {feedback.ratings.averages.map((a) => (
-                      <div key={a.key} className="flex items-center justify-between gap-4 p-3">
-                        <dt className="text-sm">{a.label}</dt>
-                        <dd className="text-sm font-semibold tabular-nums">{a.average}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {feedback.ratings.comments.length > 0 && (
-                    <ul className="space-y-2">
-                      {feedback.ratings.comments.map((c, i) => (
-                        <li key={i} className="rounded-lg bg-muted/40 p-3 text-sm">
-                          {c}
-                        </li>
-                      ))}
-                    </ul>
+                  <RatingList
+                    title="Obligations as per CMO No. 104 S. 2017"
+                    items={feedback.ratings.obligations}
+                    start={1}
+                  />
+                  <RatingList
+                    title="Internship quality"
+                    items={feedback.ratings.quality}
+                    start={17}
+                  />
+                  {(
+                    [
+                      ["What interns liked most", feedback.ratings.comments.liked],
+                      ["What the company could improve", feedback.ratings.comments.improve],
+                      ["Other comments", feedback.ratings.comments.comment],
+                    ] as const
+                  ).map(
+                    ([title, list]) =>
+                      list.length > 0 && (
+                        <div key={title} className="space-y-2">
+                          <h3 className="text-xs font-semibold text-muted-foreground uppercase">
+                            {title}
+                          </h3>
+                          <ul className="space-y-2">
+                            {list.map((c, i) => (
+                              <li key={i} className="rounded-lg bg-muted/40 p-3 text-sm">
+                                {c}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )
                   )}
                 </>
               ) : (

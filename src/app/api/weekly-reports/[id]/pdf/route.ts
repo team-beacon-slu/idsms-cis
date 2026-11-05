@@ -8,6 +8,8 @@ import {
   getWeeklyReportDocument,
 } from "@/lib/services/reports/documentService";
 import { handleApiError } from "@/lib/utils/apiError";
+import { loadWeeklyReportDocumentData } from "@/lib/documents/weeklyReportData";
+import { sluFileName } from "@/lib/documents/slu";
 
 // Puppeteer needs the Node runtime and headroom for a cold Chrome start plus
 // FR-DG-07's retries (1s+2s+4s backoff on top of each render attempt).
@@ -36,7 +38,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         { status: 404 }
       );
     }
-    return NextResponse.redirect(await getGeneratedDocumentDownloadUrl(doc));
+    const data = await loadWeeklyReportDocumentData(params.id);
+    const fileName = data && sluFileName({ kind: "WWR", week: data.weekNumber }, data.student.name);
+    return NextResponse.redirect(await getGeneratedDocumentDownloadUrl(doc, fileName ?? undefined));
   } catch (error) {
     return handleApiError(error);
   }

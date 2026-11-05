@@ -19,6 +19,47 @@ export async function resolveBrowserLaunch(): Promise<{ executablePath: string; 
 
 const CLOSE_TIMEOUT_MS = 5_000;
 
+// Pages in a Chrome-printed PDF: one "/Type /Page" object each ("/Pages" is the tree).
+export const countPdfPages = (pdf: Uint8Array) =>
+  (
+    Buffer.from(pdf)
+      .toString("latin1")
+      .match(/\/Type\s*\/Page(?![s\w])/g) ?? []
+  ).length;
+
+type Page = Awaited<ReturnType<Awaited<ReturnType<typeof puppeteer.launch>>["newPage"]>>;
+
+// A template with a table of contents marks each entry's page cell data-toc="<section id>"
+// (the technical report). Every top-level section starts a new page, so printing each alone
+// gives its exact page count, and so where each one starts.
+async function numberTableOfContents(page: Page, print: () => Promise<Uint8Array>) {
+  const ids = await page.evaluate(() =>
+    document.querySelector("[data-toc]")
+      ? Array.from(document.querySelectorAll("body > section[id]"), (s) => s.id)
+      : []
+  );
+  if (ids.length === 0) return;
+  const show = (only: string | null) =>
+    page.evaluate((only) => {
+      document.querySelectorAll<HTMLElement>("body > section[id]").forEach((s) => {
+        s.style.display = only === null || s.id === only ? "" : "none";
+      });
+    }, only);
+  const starts: Record<string, number> = {};
+  let next = 1;
+  for (const id of ids) {
+    await show(id);
+    starts[id] = next;
+    next += countPdfPages(await print());
+  }
+  await show(null);
+  await page.evaluate((starts) => {
+    document.querySelectorAll<HTMLElement>("[data-toc]").forEach((cell) => {
+      cell.textContent = String(starts[cell.dataset.toc ?? ""] ?? "");
+    });
+  }, starts);
+}
+
 // Each step (launch, load, print) gets `timeoutMs`, so one attempt is bounded
 // at ~3× that — documentService's retry deadline is sized against it.
 export async function renderHtmlToPdf(html: string, timeoutMs = 15_000): Promise<Buffer> {
@@ -34,8 +75,16 @@ export async function renderHtmlToPdf(html: string, timeoutMs = 15_000): Promise
     // setContent, not goto — the HTML is already rendered server-side, so no
     // session cookies ever need to be handed to the headless browser.
     await page.setContent(html, { waitUntil: "load", timeout: timeoutMs });
-    const pdf = await page.pdf({ format: "A4", printBackground: true, timeout: timeoutMs });
-    return Buffer.from(pdf);
+    await page.evaluate(() => document.fonts.ready);
+    // A template's @page size wins (SLU long bond 8.5x13in, A4 for VPAA forms); A4 otherwise.
+    const options = {
+      format: "A4" as const,
+      preferCSSPageSize: true,
+      printBackground: true,
+      timeout: timeoutMs,
+    };
+    await numberTableOfContents(page, () => page.pdf(options));
+    return Buffer.from(await page.pdf(options));
   } finally {
     // A crashed or hung Chrome must neither replace the real error nor
     // discard a PDF that already printed, so close is time-boxed and logged.

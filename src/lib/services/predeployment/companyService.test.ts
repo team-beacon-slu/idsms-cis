@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { MoaStatus, Role } from "@prisma/client";
 import {
@@ -9,6 +11,7 @@ import {
   listDuplicateCompanyGroups,
   mergeCompanies,
   normalizeCompanyName,
+  NAME_NOISE,
   createMoaRecord,
   getCompany,
   getExpiringMoaRecords,
@@ -290,43 +293,78 @@ describe("company duplicates (FR-MOA-02)", () => {
     expect(normalizeCompanyName("The Acme Co., Ltd")).toBe("acme");
   });
 
-  it("suggests companies whose names match after normalizing", async () => {
-    prismaMock.company.findMany.mockResolvedValue([
-      { id: "c1", name: "Accenture Inc.", address: "Taguig" },
-      { id: "c2", name: "Acme Corp", address: "Baguio" },
-      { id: "c3", name: "Accenture Philippines", address: "Makati" },
-    ] as never);
-    const result = await findSimilarCompanies("accenture ph");
-    expect(result.map((c) => c.id)).toEqual(["c1", "c3"]);
+  it("keeps the database's company_name_key word list in step with the app's", () => {
+    const sql = readFileSync(
+      join(process.cwd(), "prisma/migrations_manual/026_company_name_trigram.sql"),
+      "utf8"
+    );
+    const list = sql.match(/not in \(([^)]*)\)/)?.[1] ?? "";
+    const words = [...list.matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+    expect(words.sort()).toEqual([...NAME_NOISE].sort());
+  });
+
+  it("asks the database for similar names, with the normalized name", async () => {
+    prismaMock.$queryRaw.mockResolvedValue([{ id: "c1", name: "Accenture Inc.", address: null }]);
+    const result = await findSimilarCompanies("Accenture PH");
+    expect(result.map((c) => c.id)).toEqual(["c1"]);
+    expect(prismaMock.$queryRaw.mock.calls[0]).toContain("accenture");
   });
 
   it("does not search on one or two letters", async () => {
     await expect(findSimilarCompanies("Ac")).resolves.toEqual([]);
+    expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("joins linked duplicate pairs into one group", async () => {
+    prismaMock.$queryRaw.mockResolvedValue([
+      { a: "c1", b: "c3" },
+      { a: "c3", b: "c4" },
+    ]);
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: "c1", name: "Accenture Inc." },
+      { id: "c3", name: "ACCENTURE PH" },
+      { id: "c4", name: "Acenture" },
+    ] as never);
+    const groups = await listDuplicateCompanyGroups();
+    expect(groups.map((g) => g.map((c) => c.id))).toEqual([["c1", "c3", "c4"]]);
+  });
+
+  it("finds no groups without a near pair, and skips loading companies", async () => {
+    prismaMock.$queryRaw.mockResolvedValue([]);
+    await expect(listDuplicateCompanyGroups()).resolves.toEqual([]);
     expect(prismaMock.company.findMany).not.toHaveBeenCalled();
   });
 
-  it("groups duplicates and leaves unique names out", async () => {
-    prismaMock.company.findMany.mockResolvedValue([
-      { id: "c1", name: "Accenture Inc." },
-      { id: "c2", name: "Acme" },
-      { id: "c3", name: "ACCENTURE PH" },
-    ] as never);
-    const groups = await listDuplicateCompanyGroups();
-    expect(groups.map((g) => g.map((c) => c.id))).toEqual([["c1", "c3"]]);
-  });
-
-  it("joins a student to an existing company and logs it", async () => {
+  it("joins a student to an existing company, opens the placement, and logs it", async () => {
     prismaMock.company.findUnique.mockResolvedValue({ deletedAt: null } as never);
-    prismaMock.studentProfile.update.mockResolvedValue({ id: "profile-1" } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ id: "profile-1" } as never);
+    prismaMock.companyPlacement.findFirst.mockResolvedValue(null);
     await joinCompany("c1", "Web Intern", "student-1");
+    expect(prismaMock.companyPlacement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        studentProfileId: "profile-1",
+        companyId: "c1",
+        positionTitle: "Web Intern",
+      }),
+    });
     expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
-      where: { userId: "student-1" },
+      where: { id: "profile-1" },
       data: { companyId: "c1", positionTitle: "Web Intern" },
-      select: { id: true },
     });
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: "COMPANY_JOINED" }) })
     );
+  });
+
+  it("won't move a placed intern to another company before a noted retraction", async () => {
+    prismaMock.company.findUnique.mockResolvedValue({ deletedAt: null } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ id: "profile-1" } as never);
+    prismaMock.companyPlacement.findFirst.mockResolvedValue({
+      id: "pl-1",
+      companyId: "c0",
+    } as never);
+    await expect(joinCompany("c1", undefined, "student-1")).rejects.toThrow(/retraction/);
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
   });
 
   it("refuses to join a merged-away company", async () => {

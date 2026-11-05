@@ -68,8 +68,6 @@ const submitted = {
   },
   company: null,
   entries: [],
-  overtime: [],
-  undertime: [],
   totals: { totalHours: 0, runningTotal: 0, remainingHours: 600, beginning: 0, ending: 0 },
 };
 
@@ -211,10 +209,8 @@ describe("generateMonthlyReportPdf", () => {
       calendarMonth: "2026-09",
       referenceCode: "MR-202609-ABCD1234",
       generatedAt: new Date("2026-10-11T02:00:00Z"),
-      student: submitted.student,
-      company: null,
-      weeks: [],
-      approvedHours: 0,
+      student: { name: "Dela Cruz, Juan P.", office: null },
+      narrative: "I learned.",
     });
     render.mockResolvedValue(Buffer.from("%PDF"));
     upload.mockResolvedValue("monthly/p-1/2026-09.pdf");
@@ -615,7 +611,8 @@ describe("generateFinalTechnicalReportPdf (WS-H)", () => {
     prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue(profile as never);
     prismaMock.finalTechnicalReport.findUnique.mockResolvedValue({
       status: "APPROVED",
-      sections: { introduction: "Hi" },
+      sections: { companyDescription: "Hi" },
+      assessment: {},
       supervisorScore: 4.5,
       supervisorScale: 5,
       peerScore: 90,
@@ -636,7 +633,8 @@ describe("generateFinalTechnicalReportPdf (WS-H)", () => {
         referenceCode: expect.stringMatching(/^FTR-/),
       }),
     });
-    expect(render.mock.calls[0][0]).toContain("Evaluation Scores");
+    expect(render.mock.calls[0][0]).toContain("Company Profile");
+    expect(render.mock.calls[0][0]).not.toContain("Evaluation Scores"); // grading data, not SLU's
   });
 });
 

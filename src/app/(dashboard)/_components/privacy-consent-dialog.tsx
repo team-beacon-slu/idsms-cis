@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
-import { PRIVACY_KEY_POINTS, TERMS_KEY_POINTS } from "@/components/legal-content";
+import {
+  PRIVACY_KEY_POINTS,
+  STAFF_PRIVACY_KEY_POINTS,
+  TERMS_KEY_POINTS,
+} from "@/components/legal-content";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +22,7 @@ import {
 
 // Blocking: no close button, Escape and outside clicks do nothing. The only ways out are the two
 // answers, and agreeing needs the box ticked.
-export function PrivacyConsentDialog() {
+export function PrivacyConsentDialog({ staff = false }: { staff?: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState<"agree" | "decline" | null>(null);
   const [read, setRead] = useState(false);
@@ -49,15 +53,15 @@ export function PrivacyConsentDialog() {
         <DialogHeader>
           <DialogTitle>Privacy notice and terms of use</DialogTitle>
           <DialogDescription>
-            Please read these before using IDSMS-CIS. They follow the Data Privacy Act of 2012 (RA
-            10173).
+            Please read these before using IDSMS-CIS. In accordance with the Data Privacy Act of
+            2012 (RA 10173).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm text-foreground">
           <div>
             <p className="font-medium">Your data</p>
             <ul className="mt-1 list-disc space-y-1 pl-5">
-              {PRIVACY_KEY_POINTS.map((p) => (
+              {(staff ? STAFF_PRIVACY_KEY_POINTS : PRIVACY_KEY_POINTS).map((p) => (
                 <li key={p}>{p}</li>
               ))}
             </ul>
@@ -102,8 +106,9 @@ export function PrivacyConsentDialog() {
             <span>I have read and agree to the privacy notice and the terms of use.</span>
           </label>
           <p className="text-muted-foreground">
-            If you disagree, you will be signed out. The system cannot monitor your internship
-            without this data, so please talk to your coordinator.
+            {staff
+              ? "If you disagree, you will be signed out; please talk to the internship coordinator."
+              : "If you disagree, you will be signed out. The system cannot monitor your internship without this data, so please talk to your coordinator."}
           </p>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">

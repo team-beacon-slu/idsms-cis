@@ -375,7 +375,7 @@ _Prioritization: **Could**, whole module — explicitly the newest addition to t
 | NFR-DP-05     | The system must not expose student personal information in publicly accessible URLs, shared links, or unscoped API responses.                                                                                                                                                                       |
 | NFR-DP-06     | A data retention policy must flag records for institutional review or anonymization after the defined retention period rather than automatic deletion.                                                                                                                                              |
 | **NFR-DP-07** | **Data Subject Access Request (DSAR):** Users can trigger a DSAR from their Settings page. This generates a ticket logged in `audit_logs`, notifies the Super Admin, and carries a 15-day SLA for the admin to generate and provide a CSV/PDF export of the user's personal data, per NPC advisory. |
-| **NFR-DP-08** | **File Retention & Cleanup:** Generated PDFs and uploaded documents are retained for 3 years post-semester. A quarterly background job flags files older than 3 years for Super Admin review before permanent deletion, preventing unbounded storage growth.                                        |
+| **NFR-DP-08** | **File Retention & Cleanup:** Generated PDFs and uploaded documents are retained for 2 years post-semester (adviser, Nov 2026; was 3). A quarterly background job flags files older than 2 years for Super Admin review before permanent deletion, preventing unbounded storage growth.             |
 
 #### Performance
 

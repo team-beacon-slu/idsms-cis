@@ -187,7 +187,7 @@ export default async function ExportCenterPage() {
           Files due for review
         </h2>
         <p className="text-sm text-muted-foreground">
-          Files more than 3 years past their semester. Nothing is deleted until you choose to.
+          Files more than 2 years past their semester. Nothing is deleted until you choose to.
         </p>
         {retention.length === 0 ? (
           <p className="text-sm text-muted-foreground">No files are due for review.</p>

@@ -8,6 +8,9 @@ import {
   getGeneratedDocumentDownloadUrl,
 } from "@/lib/services/reports/documentService";
 import { handleApiError } from "@/lib/utils/apiError";
+import { prisma } from "@/lib/prisma";
+import { sluFileName } from "@/lib/documents/slu";
+import { displayNameFromEmail } from "@/lib/utils/displayName";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -28,7 +31,13 @@ export async function GET(
         { status: 404 }
       );
     }
-    return NextResponse.redirect(await getGeneratedDocumentDownloadUrl(doc));
+    const profile = await prisma.studentProfile.findUnique({
+      where: { id: params.studentProfileId },
+      select: { fullName: true, user: { select: { email: true } } },
+    });
+    const name = profile && (profile.fullName?.trim() || displayNameFromEmail(profile.user.email));
+    const fileName = name ? sluFileName({ kind: "TECHNICAL_REPORT" }, name) : undefined;
+    return NextResponse.redirect(await getGeneratedDocumentDownloadUrl(doc, fileName));
   } catch (error) {
     return handleApiError(error);
   }

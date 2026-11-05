@@ -90,7 +90,7 @@ The audit log records sign-in attempts (successful, failed, locked, inactive), r
 
 ## 8. File retention
 
-- Generated PDFs and uploaded files are kept for **3 years after the end of their semester** (NFR-DP-08).
+- Generated PDFs and uploaded files are kept for **2 years after the end of their semester** (NFR-DP-08).
 - Every 90 days the daily job flags older files for review; Super Admins are notified.
 - The Super Admin chooses **Keep** or **Delete** for each file. Deletion requires the password and is audited. **Nothing is deleted automatically** (NFR-DP-06).
 - Archiving a semester deletes nothing; history is kept for audit and accreditation (FR-DB-07).

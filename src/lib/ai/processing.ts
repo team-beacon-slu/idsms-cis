@@ -3,10 +3,17 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { chatJson, embedTexts } from "@/lib/services/ai/aiService";
 import { getAiSettings } from "@/lib/ai/settings";
-import { allJobStatuses, markEmbeddedWith, runJob, type JobId } from "@/lib/ai/jobs";
+import {
+  allJobStatuses,
+  EMBEDDED_WITH_KEY,
+  markEmbeddedWith,
+  runJob,
+  type JobId,
+} from "@/lib/ai/jobs";
 import { buildPrompt, entryId, isAddressedToAi, oneObject, verifiedQuote } from "@/lib/ai/guard";
 import { getLatestSubmission } from "@/lib/services/reports/weeklyReportService";
 import type { AiConnection } from "@/lib/ai/connections";
+import { extractiveSummary, toneWorthAsking } from "@/lib/ai/localText";
 
 // What the nightly job caches on weekly_reports.ai_hints. Advisory only (FR-AI-06):
 // this module writes the AI columns and embeddings, never status, hours or review fields.
@@ -94,11 +101,18 @@ export async function processWeeklyReportAi(weeklyReportId: string): Promise<{
         hints.coverage = await planCoverage(report, names, embedConn);
       }
     }
-    if (on("tone").on && readable.length) {
+    // Free-tier calls go where a model is needed: the tone model only sees weeks with a
+    // cue word, and the summary (the intern's own sentences) is picked locally.
+    if (
+      on("tone").on &&
+      readable.length &&
+      toneWorthAsking(readable.map((d) => d.accomplishments))
+    ) {
       hints.tone = await runJob("tone", () => toneHint(readable, names, on("tone").connection!));
     }
     if (on("summary").on && readable.length) {
-      hints.summary = await runJob("summary", () => summary(readable, on("summary").connection!));
+      const picked = extractiveSummary(readable);
+      if (picked.length) hints.summary = picked;
     }
 
     const { similarityThreshold } = await getAiSettings();
@@ -141,12 +155,9 @@ async function embedWeek(
   await prisma.$executeRaw`
     UPDATE daily_report_entries SET embedding_vector = NULL
     WHERE weekly_report_id = ${reportId}::uuid`;
-  const vectors = await runJob(job, () =>
-    embedTexts(
-      conn,
-      days.map((d) => d.accomplishments),
-      { names }
-    )
+  const vectors = await reuseOrEmbed(
+    days.map((d) => d.accomplishments),
+    (texts) => runJob(job, () => embedTexts(conn, texts, { names }))
   );
   for (let i = 0; i < days.length; i += 1) {
     await prisma.$executeRaw`
@@ -155,6 +166,77 @@ async function embedWeek(
       WHERE id = ${days[i].id}::uuid`;
   }
   await markEmbeddedWith(conn.embeddingModel);
+}
+
+// Texts already embedded (a resubmission's unchanged days, a pasted sentence, a work plan's
+// tasks seen last week) take their stored vector; only the rest go to the provider. Every
+// stored vector is from the current model (markEmbeddedWith / the re-embed guardrail).
+export async function reuseOrEmbed(
+  texts: string[],
+  embed: (texts: string[]) => Promise<number[][]>
+): Promise<number[][]> {
+  const unique = [...new Set(texts)];
+  const stored = unique.length
+    ? await prisma.$queryRaw<{ text: string; v: string }[]>`
+        SELECT DISTINCT ON (accomplishments) accomplishments AS text, embedding_vector::text AS v
+        FROM daily_report_entries
+        WHERE embedding_vector IS NOT NULL AND accomplishments = ANY(${unique}::text[])`
+    : [];
+  const known = new Map(stored.map((r) => [r.text, JSON.parse(r.v) as number[]]));
+  for (const [text, v] of await taskVectorCache(unique.filter((t) => !known.has(t)))) {
+    known.set(text, v);
+  }
+  const missing = unique.filter((t) => !known.has(t));
+  if (missing.length) {
+    const fresh = await embed(missing);
+    missing.forEach((t, i) => known.set(t, fresh[i]));
+    await rememberTaskVectors(missing, fresh);
+  }
+  return texts.map((t) => known.get(t)!);
+}
+
+// Planned tasks aren't daily entries, so their vectors are kept in system_config for the
+// next week's coverage check (capped, oldest out).
+const TASK_CACHE_KEY = "ai:text_vectors";
+const TASK_CACHE_MAX = 400;
+type VectorCache = { model?: string; items: [string, number[]][] };
+
+async function readTaskCache(): Promise<VectorCache> {
+  const row = await prisma.systemConfig.findUnique({ where: { configKey: TASK_CACHE_KEY } });
+  return (row?.configValue as VectorCache | undefined) ?? { items: [] };
+}
+
+async function taskVectorCache(texts: string[]): Promise<[string, number[]][]> {
+  if (!texts.length) return [];
+  const { model, items } = await readTaskCache();
+  if (model !== (await currentEmbeddingModel())) return [];
+  const wanted = new Set(texts);
+  return items.filter(([t]) => wanted.has(t));
+}
+
+async function rememberTaskVectors(texts: string[], vectors: number[][]) {
+  const model = await currentEmbeddingModel();
+  const cache = await readTaskCache();
+  const items = cache.model === model ? cache.items : [];
+  const fresh = new Set(texts);
+  const next: [string, number[]][] = [
+    ...items.filter(([t]) => !fresh.has(t)),
+    ...texts.map((t, i): [string, number[]] => [
+      t,
+      vectors[i].map((x) => Math.round(x * 1e5) / 1e5),
+    ]),
+  ].slice(-TASK_CACHE_MAX);
+  const value = { model, items: next } as unknown as Prisma.InputJsonValue;
+  await prisma.systemConfig.upsert({
+    where: { configKey: TASK_CACHE_KEY },
+    create: { configKey: TASK_CACHE_KEY, configValue: value },
+    update: { configValue: value },
+  });
+}
+
+async function currentEmbeddingModel(): Promise<string | null> {
+  const row = await prisma.systemConfig.findUnique({ where: { configKey: EMBEDDED_WITH_KEY } });
+  return (row?.configValue as string | null | undefined) ?? null;
 }
 
 // Job 3: the closest pair (this week's day, an earlier week's day of the same intern).
@@ -215,7 +297,9 @@ async function planCoverage(
   });
   if (weeks.length < COVERAGE_WEEKS - 1) return undefined; // too early to say
   const weekIds = [report.id, ...weeks.map((w) => w.id)];
-  const taskVectors = await runJob("coverage", () => embedTexts(conn, tasks, { names }));
+  const taskVectors = await reuseOrEmbed(tasks, (missing) =>
+    runJob("coverage", () => embedTexts(conn, missing, { names }))
+  );
   const missing: string[] = [];
   for (let i = 0; i < tasks.length; i += 1) {
     const [row] = await prisma.$queryRaw<{ best: number | null }[]>`
@@ -249,30 +333,4 @@ async function toneHint(
   const day = days[parsed.data.id - 1];
   const quote = day && verifiedQuote(parsed.data.quote, day.accomplishments);
   return day && quote ? { entryId: day.id, quote } : undefined;
-}
-
-const summarySchema = z.object({
-  quotes: z.array(z.object({ id: entryId, quote: z.string() })).max(5),
-});
-
-// Job 1: 2–3 of the intern's own sentences, each linked to its day. No new prose.
-async function summary(
-  days: { id: string; accomplishments: string }[],
-  conn: AiConnection
-): Promise<AiHints["summary"]> {
-  const prompt = buildPrompt(
-    "Pick the 2 or 3 sentences that best show what this student did this week. " +
-      "Copy each sentence exactly, word for word. Do not write anything of your own.",
-    days.map((d) => d.accomplishments),
-    '{"quotes": [{"id": <entry id>, "quote": "<exact sentence>"}]}'
-  );
-  const parsed = summarySchema.safeParse(await chatJson(conn, prompt));
-  if (!parsed.success) return undefined;
-  const out: { entryId: string; quote: string }[] = [];
-  for (const q of parsed.data.quotes) {
-    const day = days[q.id - 1];
-    const quote = day && verifiedQuote(q.quote, day.accomplishments);
-    if (day && quote && out.length < 3) out.push({ entryId: day.id, quote });
-  }
-  return out.length ? out : undefined;
 }
