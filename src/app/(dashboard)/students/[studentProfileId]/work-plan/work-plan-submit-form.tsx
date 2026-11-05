@@ -29,25 +29,62 @@ const toRow = (r: {
   hours: r.hours == null ? "" : String(r.hours),
 });
 
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const PERIOD = /^([A-Za-z]+) (\d{1,2})\s*[–-]\s*(?:([A-Za-z]+) )?(\d{1,2}), (\d{4})$/;
+
+// Efficiency item 23: a new row's period starts a week after the last one ("June 10 – June 14,
+// 2026" -> "June 17 – June 21, 2026"). Free text: anything else leaves the new period blank.
+export function nextPeriod(last: string): string {
+  const m = last.trim().match(PERIOD);
+  if (!m) return "";
+  const month = (name: string) =>
+    MONTHS.findIndex((x) => x.toLowerCase().startsWith(name.toLowerCase().slice(0, 3)));
+  const [from, to] = [month(m[1]), month(m[3] ?? m[1])];
+  if (from < 0 || to < 0) return "";
+  const year = Number(m[5]);
+  const end = new Date(Date.UTC(year, to, Number(m[4]) + 7));
+  // A period ending in January that starts in December began the year before.
+  const start = new Date(Date.UTC(from > to ? year - 1 : year, from, Number(m[2]) + 7));
+  const fmt = (x: Date) => `${MONTHS[x.getUTCMonth()]} ${x.getUTCDate()}`;
+  return `${fmt(start)} – ${fmt(end)}, ${end.getUTCFullYear()}`;
+}
+
 // The work plan in the company's own template (the adviser: every company has one), as an
 // uploaded PDF, with its rows typed in or read from it by AI assist. The rows feed plan
 // coverage; days off the plan marks can go straight onto the intern's calendar.
 export function WorkPlanSubmitForm({
   studentProfileId,
   aiRead,
+  initialRows,
 }: {
   studentProfileId: string;
   aiRead: boolean; // AI assist can read uploaded files for this intern
+  initialRows?: Parameters<typeof toRow>[0][]; // a returned plan's rows, to revise
 }) {
   const router = useRouter();
-  const [rows, setRows] = useState<Row[]>([blank()]);
+  const [rows, setRows] = useState<Row[]>(() =>
+    initialRows?.length ? initialRows.map(toRow) : [blank()]
+  );
   const [file, setFile] = useState<File | null>(null);
   const [reading, setReading] = useState(false);
   const [daysOff, setDaysOff] = useState<{ date: string; name: string; added?: boolean }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [adding, setAdding] = useState<number | null>(null);
 
-  async function readWithAi() {
+  async function readWithAi(file: File | null) {
     if (!file) return;
     setReading(true);
     const form = new FormData();
@@ -85,6 +122,9 @@ export function WorkPlanSubmitForm({
     }
     setDaysOff((list) => list.map((x, j) => (j === i ? { ...x, added: true } : x)));
     toast.success(`${d.name} added to your calendar`);
+  }
+  async function addAllDaysOff() {
+    for (const [i, d] of daysOff.entries()) if (!d.added) await addDayOff(i);
   }
   const set = (i: number, key: keyof Row, value: string) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
@@ -147,8 +187,11 @@ export function WorkPlanSubmitForm({
               type="file"
               accept="application/pdf"
               onChange={(e) => {
-                setFile(e.target.files?.[0] ?? null);
+                const picked = e.target.files?.[0] ?? null;
+                setFile(picked);
                 setDaysOff([]);
+                // The AI read starts as soon as the PDF is picked; the button reads it again.
+                if (aiRead && picked) void readWithAi(picked);
               }}
             />
             {aiRead && (
@@ -157,7 +200,7 @@ export function WorkPlanSubmitForm({
                 size="sm"
                 variant="outline"
                 disabled={!file || reading}
-                onClick={readWithAi}
+                onClick={() => readWithAi(file)}
                 className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
               >
                 <Sparkles className="size-3.5" aria-hidden="true" />
@@ -170,6 +213,19 @@ export function WorkPlanSubmitForm({
                 <p className="text-xs text-muted-foreground">
                   Add the ones that are right to your calendar; your adviser sees them too.
                 </p>
+                {daysOff.filter((d) => !d.added).length > 1 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={adding !== null}
+                    onClick={addAllDaysOff}
+                    className="cursor-pointer gap-1.5"
+                  >
+                    <CalendarPlus className="size-3.5" aria-hidden="true" />
+                    Add all days off to calendar
+                  </Button>
+                )}
                 <ul className="space-y-1">
                   {daysOff.map((d, i) => (
                     <li key={d.date + d.name} className="flex flex-wrap items-center gap-2 text-sm">
@@ -273,7 +329,12 @@ export function WorkPlanSubmitForm({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setRows((rs) => [...rs, blank()])}
+              onClick={() =>
+                setRows((rs) => [
+                  ...rs,
+                  { ...blank(), period: nextPeriod(rs.at(-1)?.period ?? "") },
+                ])
+              }
               className="cursor-pointer gap-1.5"
             >
               <Plus className="size-3.5" aria-hidden="true" />

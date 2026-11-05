@@ -2,7 +2,10 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-jest.mock("next/navigation", () => ({ useRouter: () => ({ refresh: jest.fn() }) }));
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: jest.fn() }),
+  usePathname: () => "/students/sp-1/weekly-reports/wr-1",
+}));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() } }));
 
 import { toast } from "sonner";
@@ -95,4 +98,28 @@ it("copies times typed on one day to the later untouched days, but not to edited
   expect(timeIn("wed")).toHaveValue("09:30");
   expect(timeOut("wed")).toHaveValue("17:00");
   expect(timeIn("thu")).toHaveValue("10:00");
+});
+
+const tools = (id: string) => document.getElementById(`tools-${id}`) as HTMLInputElement;
+
+it("carries Tools used to the later blank days once typed, leaving filled ones alone", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable />);
+  fireEvent.change(tools("thu"), { target: { value: "Excel" } });
+  fireEvent.change(tools("tue"), { target: { value: "VS Code, Figma" } });
+  fireEvent.blur(tools("tue"));
+
+  expect(tools("wed")).toHaveValue("VS Code, Figma");
+  expect(tools("thu")).toHaveValue("Excel");
+});
+
+it("marks every day that needs fixing on Submit and scrolls to the first", () => {
+  const scroll = jest.fn();
+  Element.prototype.scrollIntoView = scroll;
+  render(<WeeklyReportForm {...props} entries={week} editable />);
+
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+
+  expect(screen.getAllByRole("alert")).toHaveLength(3);
+  expect(toast.error).toHaveBeenCalledWith("3 days need fixing; each is marked below");
+  expect(scroll).toHaveBeenCalledTimes(1);
 });

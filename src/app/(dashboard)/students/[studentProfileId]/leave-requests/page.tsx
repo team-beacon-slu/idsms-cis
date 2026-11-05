@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { TimeReportLinks } from "../weekly-reports/time-report-links";
+import { safeInternalPath } from "@/lib/utils/safeInternalPath";
 import { EditRequestButton, RequestForm, type RequestFormValues } from "./request-form";
 import { RequestReviewActions } from "./request-review-actions";
 import type { Metadata } from "next";
@@ -81,7 +82,11 @@ export default async function LeaveRequestsPage(props: {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RequestForm studentProfileId={params.studentProfileId} initial={prefill} />
+            <RequestForm
+              studentProfileId={params.studentProfileId}
+              initial={prefill}
+              returnTo={safeInternalPath(searchParams.returnTo) ?? undefined}
+            />
           </CardContent>
         </Card>
       )}
