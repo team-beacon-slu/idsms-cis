@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
-import { CheckCircle2, RotateCcw } from "lucide-react";
+import { CheckCircle2, CloudUpload, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -13,9 +13,22 @@ interface ChecklistItemRowProps {
   itemId: string;
   status: string;
   canReview: boolean;
+  /** The intern viewing their own checklist. */
+  isOwner?: boolean;
+  /** When the intern marked it "Uploaded to Classroom" (027); ISO string. */
+  uploadedAt?: string | null;
 }
 
-export function ChecklistItemRow({ itemId, status, canReview }: ChecklistItemRowProps) {
+const fmtDay = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+
+export function ChecklistItemRow({
+  itemId,
+  status,
+  canReview,
+  isOwner = false,
+  uploadedAt = null,
+}: ChecklistItemRowProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
   const [returning, setReturning] = useState(false);
@@ -40,8 +53,40 @@ export function ChecklistItemRow({ itemId, status, canReview }: ChecklistItemRow
     router.refresh();
   }
 
+  // The intern tells the adviser the file is on Classroom, so it's reviewed (no need to ask).
+  async function markUploaded() {
+    setIsPending(true);
+    const res = await sendJson(`/api/checklist-items/${itemId}/uploaded`, { method: "POST" });
+    setIsPending(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Marked uploaded. Your adviser will review it.");
+    router.refresh();
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      {uploadedAt && status !== "APPROVED" && (
+        <span className="text-xs text-muted-foreground">Uploaded {fmtDay(uploadedAt)}</span>
+      )}
+      {isOwner && status !== "APPROVED" && !uploadedAt && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={markUploaded}
+          className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
+        >
+          <CloudUpload className="size-3.5" aria-hidden="true" />
+          {isPending
+            ? "Saving..."
+            : status === "RETURNED"
+              ? "Fixed: uploaded again"
+              : "I uploaded it to Classroom"}
+        </Button>
+      )}
       {canReview && status !== "APPROVED" && (
         <>
           <Button

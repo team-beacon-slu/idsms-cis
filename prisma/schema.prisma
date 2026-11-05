@@ -470,6 +470,8 @@ model PreDeploymentChecklistItem {
   reviewerId       String?                  @map("reviewer_id") @db.Uuid
   reviewDate       DateTime?                @map("review_date")
   comments         String?
+  // 027: the intern says the file is on Google Classroom; cleared by approve/return.
+  uploadedAt       DateTime?                @map("uploaded_at") @db.Timestamptz(3)
   archivedAt       DateTime?                @map("archived_at")
   createdAt        DateTime                 @default(now()) @map("created_at")
   updatedAt        DateTime                 @updatedAt @map("updated_at")
