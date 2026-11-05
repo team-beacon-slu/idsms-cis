@@ -16,7 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Metadata } from "next";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ClipboardCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import { requestsAwaitingReviewByStudent } from "@/lib/services/dashboards/attentionService";
 
@@ -89,6 +90,16 @@ export default async function MyStudentsPage() {
       <PageHeader
         title="My students"
         description={`${students.length} ${students.length === 1 ? "intern" : "interns"} in ${classGroups.length} ${classGroups.length === 1 ? "class group" : "class groups"}`}
+        actions={
+          students.length > 0 && (
+            <Button asChild variant="outline" className="gap-1.5">
+              <Link href="/my-students/checklist" prefetch={false}>
+                <ClipboardCheck className="size-4" aria-hidden="true" />
+                Class checklist
+              </Link>
+            </Button>
+          )
+        }
       />
 
       {groupNames.size > 0 && (

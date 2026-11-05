@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Role, Program } from "@prisma/client";
 import { z } from "zod";
 import {
-  AlertTriangle,
   Archive,
   Building2,
   CalendarX,
@@ -14,6 +13,7 @@ import {
   Rocket,
   TriangleAlert,
 } from "lucide-react";
+import { getCoordinatorWaiting } from "@/lib/services/dashboards/waitingService";
 import { prisma } from "@/lib/prisma";
 import {
   filterRows,
@@ -69,13 +69,14 @@ export async function CoordinatorDashboard({
   const status = parseParam(searchParams, "status");
 
   // Independent fetches run together; only the rows depend on the semester.
-  const [requestedSemester, semesters, expiringMoas, totalCompanies, verifiedCompanies] =
+  const [requestedSemester, semesters, expiringMoas, totalCompanies, verifiedCompanies, waiting] =
     await Promise.all([
       resolveDepartmentSemester(semesterId),
       listSemesters(),
       getExpiringMoaRecords(30),
       prisma.company.count({ where: { deletedAt: null } }),
       prisma.company.count({ where: { deletedAt: null, isVerified: true } }),
+      getCoordinatorWaiting(30),
     ]);
 
   // A well-formed but unknown semesterId (stale link) falls back to the active
@@ -111,23 +112,43 @@ export async function CoordinatorDashboard({
 
   return (
     <div className="space-y-4">
-      {expiringMoas.length > 0 && (
-        <Card role="alert" className="border-notice-border bg-notice">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <p className="flex items-center gap-2 text-sm font-medium text-notice-foreground">
-              <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-              {expiringMoas.length} {expiringMoas.length === 1 ? "MOA expires" : "MOAs expire"}{" "}
-              within 30 days
-            </p>
-            <Link
-              href="/companies"
-              className="cursor-pointer py-1 text-sm font-medium text-notice-foreground underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
-            >
-              Review companies
-            </Link>
-          </CardContent>
-        </Card>
-      )}
+      {/* Efficiency item 21: every decision only the coordinator makes, each one link away. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Waiting on you{waiting.length > 0 && ` (${waiting.length})`}</CardTitle>
+          <CardDescription>
+            Work plans, final schedule approvals, final reports, disputes, companies and MOAs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {waiting.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing is waiting for a decision.</p>
+          ) : (
+            <ul className="max-h-96 divide-y divide-border overflow-y-auto">
+              {waiting.map((w) => (
+                <li
+                  key={w.key}
+                  className="flex flex-wrap items-center justify-between gap-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground" title={w.intern}>
+                      {w.intern}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{w.what}</p>
+                  </div>
+                  <Link
+                    href={w.href}
+                    prefetch={false}
+                    className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+                  >
+                    Open
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {semester &&
         programs.map((p) => (

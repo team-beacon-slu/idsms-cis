@@ -295,6 +295,7 @@ export async function reviewChecklistItem(
         reviewerId: actingUser.id,
         reviewDate: new Date(),
         comments: comments ?? null,
+        uploadedAt: null,
       },
     });
     await logEvent(
@@ -310,6 +311,66 @@ export async function reviewChecklistItem(
     );
     return updated;
   });
+}
+
+// The intern says the file is on Google Classroom (027). A returned item goes back to
+// Pending, so marking it is how the intern says "fixed". Owner only; approved items are done.
+export async function markChecklistItemUploaded(
+  itemId: string,
+  actingUser: { id: string; role: Role },
+  ipAddress?: string | null
+): Promise<PreDeploymentChecklistItem> {
+  if (actingUser.role !== Role.STUDENT_INTERN) {
+    throw new ForbiddenError("Only the intern marks their own upload");
+  }
+  const item = await prisma.preDeploymentChecklistItem.findUniqueOrThrow({ where: { id: itemId } });
+  await assertCanAccessStudent(actingUser, item.studentProfileId);
+  if (item.status === ChecklistStatus.APPROVED) {
+    throw new ChecklistGateError("This requirement is already approved");
+  }
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.preDeploymentChecklistItem.update({
+      where: { id: itemId },
+      data: { status: ChecklistStatus.PENDING, uploadedAt: new Date() },
+    });
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "CHECKLIST_ITEM_UPLOADED",
+        entityType: "PreDeploymentChecklistItem",
+        entityId: itemId,
+        ipAddress,
+        detail: { requirementType: item.requirementType },
+      },
+      tx
+    );
+    return updated;
+  });
+}
+
+// Approve many at once (the class grid). Each item goes through reviewChecklistItem, so
+// access and the work plan / MOA gates still apply one by one; a refused item is reported,
+// never fatal to the rest.
+export async function bulkApproveChecklistItems(
+  itemIds: string[],
+  actingUser: { id: string; role: Role },
+  ipAddress?: string | null
+): Promise<{
+  approved: { id: string; studentProfileId: string }[];
+  failed: { id: string; error: string }[];
+}> {
+  const approved: { id: string; studentProfileId: string }[] = [];
+  const failed: { id: string; error: string }[] = [];
+  for (const id of itemIds) {
+    try {
+      const item = await reviewChecklistItem(id, "APPROVE", undefined, actingUser, ipAddress);
+      approved.push({ id, studentProfileId: item.studentProfileId });
+    } catch (error) {
+      if (error instanceof ForbiddenError) throw error; // not theirs: stop, don't leak which
+      failed.push({ id, error: error instanceof Error ? error.message : "Could not approve" });
+    }
+  }
+  return { approved, failed };
 }
 
 async function assertUnderlyingRecordApproved(item: PreDeploymentChecklistItem): Promise<void> {
