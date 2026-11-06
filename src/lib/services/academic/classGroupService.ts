@@ -209,3 +209,53 @@ export async function removeAdviser(
     );
   });
 }
+
+// Efficiency item 29: a new semester starts with last semester's advisers. Copies every
+// assignment of the latest earlier semester that has any, skipping advisers no longer active
+// and deleted groups; existing assignments stay as they are.
+export async function copyAdviserAssignments(
+  toSemesterId: string,
+  actingUserId: string,
+  ipAddress?: string | null
+): Promise<{ copied: number; fromSemesterId: string | null }> {
+  const target = await prisma.semester.findUnique({
+    where: { id: toSemesterId },
+    select: { startDate: true, archivedAt: true },
+  });
+  if (!target || target.archivedAt) {
+    throw new ClassGroupStateError("Choose a semester that isn't archived");
+  }
+  const source = await prisma.semester.findFirst({
+    where: { startDate: { lt: target.startDate }, facultyGroups: { some: {} } },
+    orderBy: { startDate: "desc" },
+    select: { id: true },
+  });
+  if (!source) return { copied: 0, fromSemesterId: null };
+
+  const rows = await prisma.facultyClassGroup.findMany({
+    where: {
+      semesterId: source.id,
+      classGroup: { deletedAt: null },
+      faculty: { role: Role.FACULTY_ADVISER, isActive: true, deletedAt: null },
+    },
+    select: { facultyId: true, classGroupId: true },
+  });
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.facultyClassGroup.createMany({
+      data: rows.map((r) => ({ ...r, semesterId: toSemesterId })),
+      skipDuplicates: true,
+    });
+    await logEvent(
+      {
+        userId: actingUserId,
+        action: "ADVISERS_COPIED",
+        entityType: "Semester",
+        entityId: toSemesterId,
+        ipAddress,
+        detail: { fromSemesterId: source.id, copied: count },
+      },
+      tx
+    );
+    return { copied: count, fromSemesterId: source.id };
+  });
+}

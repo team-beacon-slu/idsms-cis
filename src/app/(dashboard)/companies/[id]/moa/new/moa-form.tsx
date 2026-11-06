@@ -11,12 +11,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const PROGRAMS = ["BSIT", "BSCS", "BMMA"] as const;
 
-export function MoaForm({ companyId }: { companyId: string }) {
+export function MoaForm({
+  companyId,
+  renewal,
+}: {
+  companyId: string;
+  // Efficiency item 31: renewing an MOA starts the day after it ends, same programs.
+  renewal?: { validFrom: string; programsCovered: string[] };
+}) {
   const router = useRouter();
   const [documentUrl, setDocumentUrl] = useState("");
-  const [validFrom, setValidFrom] = useState("");
+  const [validFrom, setValidFrom] = useState(renewal?.validFrom ?? "");
   const [validTo, setValidTo] = useState("");
-  const [programsCovered, setProgramsCovered] = useState<string[]>([]);
+  const [programsCovered, setProgramsCovered] = useState<string[]>(renewal?.programsCovered ?? []);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   function toggleProgram(program: string) {

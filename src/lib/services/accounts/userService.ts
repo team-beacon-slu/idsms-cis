@@ -602,6 +602,49 @@ export interface BulkImportInputRow {
   // spreadsheet row a result actually corresponds to.
   rowNumber: number;
   row: BulkImportRow;
+  classGroupId?: string; // from the row's class group column; else the import's group
+}
+
+// Efficiency item 30: what an import would do, without writing anything, so the coordinator
+// sees "N new / M skipped" first. Same skip rules as bulkImportStudents, including a repeat
+// within the file.
+export async function previewBulkImport(
+  inputRows: BulkImportInputRow[]
+): Promise<BulkImportResult> {
+  const [users, profiles] = await Promise.all([
+    prisma.user.findMany({
+      where: { email: { in: inputRows.map((r) => r.row.email) } },
+      select: { email: true },
+    }),
+    prisma.studentProfile.findMany({
+      where: { studentNumber: { in: inputRows.map((r) => r.row.studentNumber) } },
+      select: { studentNumber: true },
+    }),
+  ]);
+  const emails = new Set(users.map((u) => u.email));
+  const numbers = new Set(profiles.map((p) => p.studentNumber));
+  const results: BulkImportRowResult[] = inputRows.map(({ rowNumber, row }) => {
+    const reason = emails.has(row.email)
+      ? "Email already exists"
+      : numbers.has(row.studentNumber)
+        ? "Student number already exists"
+        : undefined;
+    emails.add(row.email);
+    numbers.add(row.studentNumber);
+    return {
+      rowNumber,
+      studentNumber: row.studentNumber,
+      email: row.email,
+      status: reason ? "skipped" : "created",
+      reason,
+    };
+  });
+  return {
+    totalRows: inputRows.length,
+    created: results.filter((r) => r.status === "created").length,
+    skipped: results.filter((r) => r.status === "skipped").length,
+    results,
+  };
 }
 
 // A student profile and its checklist rows (one per requirement type), for the bulk import
@@ -718,6 +761,7 @@ export async function bulkImportStudents(
 
   for (let index = 0; index < inputRows.length; index++) {
     const { rowNumber, row } = inputRows[index];
+    const rowGroupId = inputRows[index].classGroupId ?? classGroupId;
 
     try {
       // bcrypt (~0.3 s) before the transaction opens: inside it, a slow link could hit the
@@ -750,7 +794,7 @@ export async function bulkImportStudents(
           userId: user.id,
           studentNumber: row.studentNumber,
           program: row.program,
-          classGroupId,
+          classGroupId: rowGroupId,
           semesterId,
           requiredHours: row.requiredHours,
         });

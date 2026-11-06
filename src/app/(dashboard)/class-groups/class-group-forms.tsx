@@ -27,31 +27,58 @@ function useSubmit() {
     }
     toast.success(success);
     router.refresh();
-    return true;
+    return (res.body ?? {}) as { id?: string };
   }
   return { isPending, run };
 }
 
-export function NewClassGroupForm({ programs }: { programs: string[] }) {
+// "BSCS 4B" -> "BSCS": the program a section name starts with, if it is one.
+export function programFromName(name: string, programs: string[]): string | undefined {
+  const head = name.trim().toUpperCase().split(/[\s-]/)[0];
+  return programs.find((p) => p === head);
+}
+
+// Efficiency item 28: name + adviser is enough. Dates come from the active semester, the
+// program from the name (until picked by hand), and the adviser is assigned for that semester.
+export function NewClassGroupForm({
+  programs,
+  advisers = [],
+  activeSemester,
+}: {
+  programs: string[];
+  advisers?: Option[];
+  activeSemester?: { id: string; startDate: string; endDate: string };
+}) {
   const { isPending, run } = useSubmit();
   const [form, setForm] = useState({
     name: "",
     program: programs[0],
     classType: "Regular",
-    startDate: "",
-    endDate: "",
+    startDate: activeSemester?.startDate ?? "",
+    endDate: activeSemester?.endDate ?? "",
   });
+  const [programPicked, setProgramPicked] = useState(false);
+  const [facultyId, setFacultyId] = useState("");
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const ok = await run(
+    const created = await run(
       "/api/class-groups",
       { method: "POST", body: form },
       `${form.name.trim()} created`
     );
-    if (ok) setForm((f) => ({ ...f, name: "" }));
+    if (!created) return;
+    if (facultyId && activeSemester && created.id) {
+      await run(
+        `/api/class-groups/${created.id}/advisers`,
+        { method: "POST", body: { facultyId, semesterId: activeSemester.id } },
+        "Adviser assigned"
+      );
+    }
+    setForm((f) => ({ ...f, name: "" }));
+    setProgramPicked(false);
   }
 
   return (
@@ -62,16 +89,41 @@ export function NewClassGroupForm({ programs }: { programs: string[] }) {
           id="cg-name"
           required
           value={form.name}
-          onChange={set("name")}
+          onChange={(e) => {
+            const name = e.target.value;
+            const program = programPicked ? undefined : programFromName(name, programs);
+            setForm((f) => ({ ...f, name, ...(program && { program }) }));
+          }}
           placeholder="BSIT 4A"
         />
       </div>
+      {advisers.length > 0 && activeSemester && (
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="cg-adviser">Adviser (this semester)</Label>
+          <select
+            id="cg-adviser"
+            value={facultyId}
+            onChange={(e) => setFacultyId(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">Assign later</option>
+            {advisers.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="cg-program">Program</Label>
         <select
           id="cg-program"
           value={form.program}
-          onChange={set("program")}
+          onChange={(e) => {
+            setProgramPicked(true);
+            set("program")(e);
+          }}
           className={selectClass}
         >
           {programs.map((p) => (
@@ -319,5 +371,43 @@ export function ClassGroupActions({
         </Button>
       )}
     </div>
+  );
+}
+
+// Efficiency item 29: one click gives the active semester last semester's advisers.
+export function CopyAdvisersButton({ semesterId }: { semesterId: string }) {
+  const router = useRouter();
+  const [isPending, setIsPending] = useState(false);
+  async function copy() {
+    setIsPending(true);
+    const res = await sendJson("/api/class-groups/copy-advisers", {
+      method: "POST",
+      body: { semesterId },
+    });
+    setIsPending(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    const copied = Number(res.body.copied);
+    toast.success(
+      res.body.fromSemesterId
+        ? `${copied} ${copied === 1 ? "assignment" : "assignments"} copied`
+        : "No earlier semester has adviser assignments"
+    );
+    router.refresh();
+  }
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={isPending}
+      onClick={copy}
+      className="cursor-pointer gap-1.5"
+    >
+      <UserPlus className="size-4" aria-hidden="true" />
+      {isPending ? "Copying..." : "Copy adviser assignments from last semester"}
+    </Button>
   );
 }

@@ -4,6 +4,7 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import {
   ClassGroupStateError,
   assignAdviser,
+  copyAdviserAssignments,
   createClassGroup,
   deleteClassGroup,
   renameClassGroup,
@@ -156,5 +157,45 @@ describe("renameClassGroup / deleteClassGroup", () => {
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: "CLASS_GROUP_DELETED" }) })
     );
+  });
+});
+
+describe("copyAdviserAssignments (efficiency item 29)", () => {
+  it("copies the latest earlier semester's active advisers and logs once", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({
+      startDate: new Date("2027-01-11"),
+      archivedAt: null,
+    } as never);
+    prismaMock.semester.findFirst.mockResolvedValue({ id: "sem-prev" } as never);
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+      { facultyId: FACULTY, classGroupId: "cg-1" },
+    ] as never);
+    prismaMock.facultyClassGroup.createMany.mockResolvedValue({ count: 1 });
+
+    expect(await copyAdviserAssignments(SEMESTER, "coord-1")).toEqual({
+      copied: 1,
+      fromSemesterId: "sem-prev",
+    });
+    expect(prismaMock.facultyClassGroup.createMany).toHaveBeenCalledWith({
+      data: [{ facultyId: FACULTY, classGroupId: "cg-1", semesterId: SEMESTER }],
+      skipDuplicates: true,
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "ADVISERS_COPIED" }) })
+    );
+  });
+
+  it("copies nothing when no earlier semester has advisers", async () => {
+    prismaMock.semester.findUnique.mockResolvedValue({
+      startDate: new Date("2026-08-01"),
+      archivedAt: null,
+    } as never);
+    prismaMock.semester.findFirst.mockResolvedValue(null);
+
+    expect(await copyAdviserAssignments(SEMESTER, "coord-1")).toEqual({
+      copied: 0,
+      fromSemesterId: null,
+    });
+    expect(prismaMock.facultyClassGroup.createMany).not.toHaveBeenCalled();
   });
 });

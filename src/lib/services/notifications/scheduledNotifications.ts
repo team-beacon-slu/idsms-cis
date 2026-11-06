@@ -1,6 +1,8 @@
 import {
   ChecklistStatus,
   DataRequestStatus,
+  NotificationChannel,
+  NotificationStatus,
   Prisma,
   ValidationStatus,
   WeeklyReportStatus,
@@ -8,7 +10,8 @@ import {
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
-import { notify } from "@/lib/services/notifications/notify";
+import { isEmailConfigured, notify, sendEmail } from "@/lib/services/notifications/notify";
+import { NotificationEmail } from "@/components/emails/notification-email";
 import {
   getDepartmentStaffIds,
   getSuperAdminIds,
@@ -250,6 +253,53 @@ export async function sendReviewDigests(now: Date): Promise<number> {
   return sent;
 }
 
+// Efficiency item 34: failed emails of the last 7 days, for Settings and the retry.
+export const RETRY_EMAIL_DAYS = 7;
+const failedEmailsSince = (now: Date) => ({
+  channel: NotificationChannel.EMAIL,
+  status: NotificationStatus.FAILED,
+  payload: { path: ["failedAt"], gte: now.getTime() - RETRY_EMAIL_DAYS * DAY_MS },
+});
+
+export const countFailedEmails = (now = new Date()) =>
+  prisma.notification.count({ where: failedEmailsSince(now) });
+
+// The daily cron sends each retryable failed email once more (plain notifications only:
+// reset and other custom emails never store their body). 50 a run keeps the cron short.
+export async function retryFailedEmails(now: Date): Promise<number> {
+  if (!isEmailConfigured()) return 0;
+  const failed = await prisma.notification.findMany({
+    where: { ...failedEmailsSince(now), user: { isActive: true, deletedAt: null } },
+    take: 50,
+    select: { id: true, payload: true, user: { select: { email: true } } },
+  });
+  let sent = 0;
+  for (const n of failed) {
+    const p = n.payload as { title?: unknown; body?: unknown; link?: unknown } | null;
+    if (typeof p?.title !== "string" || typeof p.body !== "string") continue;
+    const link = typeof p.link === "string" ? p.link : null;
+    try {
+      await sendEmail(
+        n.user.email,
+        p.title,
+        NotificationEmail({ title: p.title, body: p.body, link: link ?? undefined }),
+        [p.title, p.body, link ? `${process.env.NEXTAUTH_URL ?? ""}${link}` : ""]
+          .filter(Boolean)
+          .join("\n\n")
+      );
+    } catch (error) {
+      console.error("Email retry failed", { notificationId: n.id, error });
+      continue;
+    }
+    await prisma.notification.update({
+      where: { id: n.id },
+      data: { status: NotificationStatus.SENT, sentAt: now },
+    });
+    sent += 1;
+  }
+  return sent;
+}
+
 interface ReminderTarget {
   profileId: string;
   userId: string;
@@ -271,6 +321,7 @@ export async function runDailyNotifications(now: Date) {
     moaWarnings: 0,
     dsarReminders: 0,
     reviewDigests: 0,
+    emailRetries: 0,
     // null when the scan step threw.
     retention: null as { ran: boolean; flagged: number } | null,
     errors: [] as string[],
@@ -382,6 +433,13 @@ export async function runDailyNotifications(now: Date) {
   } catch (error) {
     console.error("Review digest failed", { error });
     result.errors.push("digest");
+  }
+
+  try {
+    result.emailRetries = await retryFailedEmails(now);
+  } catch (error) {
+    console.error("Email retry failed", { error });
+    result.errors.push("email-retry");
   }
 
   try {

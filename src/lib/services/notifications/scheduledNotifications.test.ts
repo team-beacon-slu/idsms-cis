@@ -2,6 +2,8 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 
 jest.mock("@/lib/services/notifications/notify", () => ({
   notify: jest.fn().mockResolvedValue({ inApp: 1, emailed: 0, failed: 0 }),
+  isEmailConfigured: () => true,
+  sendEmail: jest.fn().mockResolvedValue(true),
 }));
 jest.mock("@/lib/services/privacy/retentionService", () => ({
   runRetentionScan: jest.fn().mockResolvedValue({ ran: false, flagged: 0 }),
@@ -14,12 +16,13 @@ jest.mock("@/lib/services/notifications/notificationRecipients", () => ({
   getSuperAdminIds: jest.fn().mockResolvedValue(["sa-1"]),
 }));
 
-import { notify } from "@/lib/services/notifications/notify";
+import { notify, sendEmail } from "@/lib/services/notifications/notify";
 import { runRetentionScan } from "@/lib/services/privacy/retentionService";
 import {
   getNotificationSettings,
   notificationSettingsSchema,
   remindDueDataRequests,
+  retryFailedEmails,
   runDailyNotifications,
   sendReviewDigests,
 } from "@/lib/services/notifications/scheduledNotifications";
@@ -35,6 +38,8 @@ beforeEach(() => {
   prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
   // No open data requests unless a test says so.
   prismaMock.dataRequest.findMany.mockResolvedValue([] as never);
+  // No failed emails to retry unless a test says so.
+  prismaMock.notification.findMany.mockResolvedValue([] as never);
   // No adviser assignments (so no review digests) unless a test says so.
   prismaMock.facultyClassGroup.findMany.mockResolvedValue([] as never);
   prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
@@ -416,5 +421,26 @@ describe("remindDueDataRequests", () => {
     const result = await runDailyNotifications(NOW);
     expect(result.dsarReminders).toBe(1);
     expect(result.errors).toEqual([]);
+  });
+});
+
+describe("retryFailedEmails (efficiency item 34)", () => {
+  it("resends plain failed emails once and marks them sent; skips ones without a body", async () => {
+    prismaMock.notification.findMany.mockResolvedValue([
+      {
+        id: "n-1",
+        payload: { title: "Week returned", body: "Fix Monday", link: "/x" },
+        user: { email: "a@slu.edu.ph" },
+      },
+      { id: "n-2", payload: { title: "Reset your password" }, user: { email: "b@slu.edu.ph" } },
+    ] as never);
+
+    expect(await retryFailedEmails(NOW)).toBe(1);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(sendEmail).mock.calls[0][0]).toBe("a@slu.edu.ph");
+    expect(prismaMock.notification.update).toHaveBeenCalledWith({
+      where: { id: "n-1" },
+      data: { status: "SENT", sentAt: NOW },
+    });
   });
 });

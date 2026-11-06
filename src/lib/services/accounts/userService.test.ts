@@ -4,6 +4,7 @@ import {
   ForbiddenError,
   assertCanAccessStudent,
   bulkImportStudents,
+  previewBulkImport,
   changePassword,
   completePasswordReset,
   countOtherSessions,
@@ -964,5 +965,64 @@ describe("assertCanAccessStudent", () => {
     await expect(
       assertCanAccessStudent({ id: "unrelated-faculty", role: Role.FACULTY_ADVISER }, "profile-1")
     ).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe("previewBulkImport (efficiency item 30)", () => {
+  const row = (n: string, email: string) => ({
+    studentNumber: n,
+    email,
+    program: "BSIT" as never,
+    requiredHours: 486,
+  });
+
+  it("counts new and skipped rows without writing, including a repeat within the file", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ email: "taken@slu.edu.ph" }] as never);
+    prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
+
+    const result = await previewBulkImport([
+      { rowNumber: 2, row: row("1", "taken@slu.edu.ph") },
+      { rowNumber: 3, row: row("2", "new@slu.edu.ph") },
+      { rowNumber: 4, row: row("2", "other@slu.edu.ph") },
+    ]);
+
+    expect(result.created).toBe(1);
+    expect(result.results.map((r) => r.reason)).toEqual([
+      "Email already exists",
+      undefined,
+      "Student number already exists",
+    ]);
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("bulkImportStudents with a class group column", () => {
+  it("files the row into its own class group instead of the import's", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    prismaMock.studentProfile.findUnique.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue(baseUser({ id: "new-user" }) as never);
+    prismaMock.studentProfile.create.mockResolvedValue({ id: "sp-1" } as never);
+
+    await bulkImportStudents(
+      [
+        {
+          rowNumber: 2,
+          classGroupId: "cg-4b",
+          row: {
+            studentNumber: "2021-00009",
+            email: "x@example.com",
+            program: "BSIT" as never,
+            requiredHours: 486,
+          },
+        },
+      ],
+      "cg-4a",
+      "semester-1",
+      "admin-1"
+    );
+
+    expect(prismaMock.studentProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ classGroupId: "cg-4b" }) })
+    );
   });
 });

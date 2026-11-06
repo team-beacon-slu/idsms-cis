@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { Role } from "@prisma/client";
 import { bulkImportRequestSchema, bulkImportRowSchema } from "@/lib/validators/user";
-import { bulkImportStudents, BulkImportInputRow } from "@/lib/services/accounts/userService";
+import {
+  bulkImportStudents,
+  BulkImportInputRow,
+  previewBulkImport,
+} from "@/lib/services/accounts/userService";
+import { prisma } from "@/lib/prisma";
 import { parseImportFile } from "@/lib/utils/fileImport";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
 import { notifyAccountsCreatedByEmail } from "@/lib/services/notifications/notificationEvents";
@@ -36,14 +41,43 @@ export async function POST(req: NextRequest) {
 
     const validRows: BulkImportInputRow[] = [];
     const rowErrors: { rowNumber: number; issues: unknown }[] = [];
+    // A class group column names sections; match them case-insensitively.
+    const groups = await prisma.classGroup.findMany({
+      where: { deletedAt: null },
+      select: { id: true, name: true },
+    });
+    const groupId = new Map(groups.map((g) => [g.name.trim().toUpperCase(), g.id]));
 
     for (const parsedRow of parsedRows) {
       const validation = bulkImportRowSchema.safeParse(parsedRow.data);
-      if (validation.success) {
-        validRows.push({ rowNumber: parsedRow.rowNumber, row: validation.data });
-      } else {
+      if (!validation.success) {
         rowErrors.push({ rowNumber: parsedRow.rowNumber, issues: validation.error.issues });
+        continue;
       }
+      const name = validation.data.classGroup;
+      const rowGroupId = name ? groupId.get(name.toUpperCase()) : undefined;
+      if (name && !rowGroupId) {
+        rowErrors.push({
+          rowNumber: parsedRow.rowNumber,
+          issues: [{ path: ["classGroup"], message: `No class group named "${name}"` }],
+        });
+        continue;
+      }
+      validRows.push({
+        rowNumber: parsedRow.rowNumber,
+        row: validation.data,
+        classGroupId: rowGroupId,
+      });
+    }
+
+    if (formData.get("preview") === "1") {
+      const preview = await previewBulkImport(validRows);
+      return NextResponse.json({
+        ...preview,
+        preview: true,
+        totalRows: parsedRows.length,
+        rowErrors,
+      });
     }
 
     const ipAddress = req.headers.get("x-forwarded-for");
