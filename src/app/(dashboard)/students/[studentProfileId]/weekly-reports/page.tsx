@@ -116,6 +116,11 @@ export default async function WeeklyReportsPage(props: {
     : !shift && scheduledDay
       ? defaultDayTimes(Number(scheduledDay.scheduledHours))
       : null;
+  const usualTools =
+    reports
+      .flatMap((r) => r.dailyEntries)
+      .filter((e) => e.toolsUsed?.trim())
+      .sort((a, b) => b.reportDate.getTime() - a.reportDate.getTime())[0]?.toolsUsed ?? "";
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const deductionsAsOf = (weekEnd: Date) =>
     Math.round(
@@ -335,6 +340,7 @@ export default async function WeeklyReportsPage(props: {
                       editable={editable}
                       shift={shift}
                       usualTimes={usualTimes}
+                      usualTools={usualTools}
                       holidays={holidays}
                       weekEnd={report.weekEnd.toISOString()}
                       priorAccomplishments={priorAccomplishments}

@@ -87,6 +87,12 @@ it("prefills new days with the intern's usual times when the schedule has none",
   expect(timeOut("thu")).toHaveValue("17:30");
 });
 
+it("prefills new days with the last worked day's tools", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable usualTools="VS Code, Figma" />);
+
+  expect(document.getElementById("tools-wed")).toHaveValue("VS Code, Figma");
+});
+
 it("copies times typed on one day to the later untouched days, but not to edited ones", () => {
   render(<WeeklyReportForm {...props} entries={week} editable />);
   fireEvent.change(timeIn("thu"), { target: { value: "10:00" } }); // Thursday is edited
