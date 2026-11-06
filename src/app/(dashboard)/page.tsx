@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/page-header";
 import { greeting } from "@/lib/utils/greeting";
 import { FacultyDashboard } from "./_components/faculty-dashboard";
 import { CoordinatorDashboard } from "./_components/coordinator-dashboard";
+import { GettingStarted } from "./_components/getting-started";
 import { StudentDashboardTables } from "./_components/student-dashboard";
 import { reportState, weeklyHistory } from "@/lib/services/dashboards/complianceService";
 import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
@@ -56,6 +57,7 @@ export default async function DashboardHomePage(props: {
           title="Department overview"
           description="Every intern this semester: hours, requirements and weekly reports."
         />
+        <GettingStarted role={user.role} />
         <CoordinatorDashboard role={user.role} searchParams={searchParams} />
       </div>
     );
@@ -69,6 +71,7 @@ export default async function DashboardHomePage(props: {
           title="Advising overview"
           description="Your class groups: what is waiting for your review, then each intern."
         />
+        <GettingStarted role={user.role} />
         <FacultyDashboard facultyId={user.id} />
       </div>
     );
@@ -210,6 +213,7 @@ export default async function DashboardHomePage(props: {
           </Button>
         }
       />
+      <GettingStarted role={user.role} studentProfileId={studentProfile?.id} />
 
       {/* Bento: the biggest tile answers "am I on track?"; colour blocks carry one figure each. */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12">
