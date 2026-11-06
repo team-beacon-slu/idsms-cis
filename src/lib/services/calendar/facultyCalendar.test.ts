@@ -9,6 +9,7 @@ jest.mock("@/lib/services/attendance/attendanceService");
 jest.mock("@/lib/services/reports/weeklyReportService");
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.departmentEvent.findMany.mockResolvedValue([]);
   jest.clearAllMocks();
   jest.mocked(computeProjectedCompletionDate).mockResolvedValue(null);
   jest.mocked(getHolidayCalendarForStudent).mockResolvedValue([]);

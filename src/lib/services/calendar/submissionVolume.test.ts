@@ -6,6 +6,7 @@ import {
 } from "@/lib/services/calendar/calendarService";
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.departmentEvent.findMany.mockResolvedValue([]);
   prismaMock.facultyClassGroup.findMany.mockResolvedValue([]);
 });
 const deadline = (date: string): CalendarEvent => ({

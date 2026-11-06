@@ -307,6 +307,24 @@ describe("company non-working days (FR-AT-02)", () => {
     } as never);
   });
 
+  it("gives an intern at a company outside the Philippines only that company's days off", async () => {
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      semesterId: "sem-1",
+      companyId: "company-1",
+      company: { isForeign: true },
+    } as never);
+    prismaMock.holidayCalendarEntry.findMany.mockResolvedValue([] as never);
+
+    await getHolidayCalendarForStudent("profile-1");
+
+    expect(prismaMock.holidayCalendarEntry.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { studentProfileId: null, OR: [{ companyId: "company-1" }] },
+      })
+    );
+  });
+
   it("lists the intern's company days beside the semester's PH holidays", async () => {
     prismaMock.holidayCalendarEntry.findMany
       .mockResolvedValueOnce([
