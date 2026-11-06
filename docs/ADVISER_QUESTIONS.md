@@ -83,7 +83,9 @@ More detail: [system documentation](system/README.md), starting with the [produc
 - **Options:** **A.** 240. **B.** 600. **C.** Another number.
 - **If you choose B or C:** It is a setting; it takes a minute.
 
-### Q6. Is there a grace period for lateness? — _Has a working default_
+### Q6. Is there a grace period for lateness? — _Answered (Nov 2026)_
+
+- **Answer:** No fixed grace period. A time-in after the shift starts is **marked late**, and the faculty adviser decides: leave it as late, or **Excuse** it. A late arrival no longer blocks submitting the week (an early leave still needs an undertime request).
 
 - **The question:** Please confirm there is **no grace period**: any time-in after the shift starts counts as late.
 - **What IDSMS does today:** No grace period. A late intern files an undertime (or leave) request for that day before submitting the week. Time outside the shift only counts as approved overtime of at least 30 minutes, and extra time never makes up for a late day. Example: a shift of 8:00–5:00 with lunch, in at 7:55 and out at 5:15, gives **8 hours**.
@@ -151,9 +153,9 @@ More detail: [system documentation](system/README.md), starting with the [produc
 
 ## D. Monitoring and the internship's end
 
-### Q13. Should IDSMS log supervisor checks and OJT visits? — _Answered in part (Nov 2026)_
+### Q13. Should IDSMS log supervisor checks and OJT visits? — _Answered (Nov 2026)_
 
-- **Answer:** Company visits are logged (#169). A separate supervisor check-in log is not planned; the recommendation is to record a check-in in the same visit log, with how it happened (visit, call, online).
+- **Answer:** One log for both. On a company's page, **Visits and supervisor check-ins** records the date, who, notes and how it happened: visit on site, online meeting or phone call.
 
 - **The question:** CHED's internship rules (CMO No. 104, s. 2017) expect the school to monitor interns. Should IDSMS keep a log of supervisor check-ins and faculty visits to the company (date, who, notes)?
 - **What IDSMS does today:** Not built. It is on the list for later.

@@ -14,7 +14,8 @@ export const VISITORS: Role[] = [
 
 export const visitSchema = z.object({
   visitedOn: z.iso.date().transform((d) => new Date(`${d}T00:00:00.000Z`)),
-  mode: z.enum(["ON_SITE", "ONLINE"]).default("ON_SITE"),
+  // Q13: supervisor check-ins go in this log too, by how they happened.
+  mode: z.enum(["ON_SITE", "ONLINE", "CALL"]).default("ON_SITE"),
   notes: z.string().trim().max(4000).optional(),
 });
 

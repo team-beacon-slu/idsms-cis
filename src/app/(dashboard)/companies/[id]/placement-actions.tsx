@@ -113,7 +113,7 @@ export function VisitForm({ companyId }: { companyId: string }) {
       toast.error(res.error);
       return;
     }
-    toast.success("Company visit recorded");
+    toast.success("Visit or check-in recorded");
     setVisitedOn("");
     setNotes("");
     router.refresh();
@@ -123,7 +123,7 @@ export function VisitForm({ companyId }: { companyId: string }) {
     <form onSubmit={submit} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-[12rem_10rem_1fr]">
         <div className="space-y-1">
-          <Label htmlFor="visit-day">Visited on</Label>
+          <Label htmlFor="visit-day">Date</Label>
           <Input
             id="visit-day"
             type="date"
@@ -140,8 +140,9 @@ export function VisitForm({ companyId }: { companyId: string }) {
             value={mode}
             onChange={(e) => setMode(e.target.value)}
           >
-            <option value="ON_SITE">On site</option>
-            <option value="ONLINE">Online</option>
+            <option value="ON_SITE">Visit on site</option>
+            <option value="ONLINE">Online meeting</option>
+            <option value="CALL">Phone call</option>
           </select>
         </div>
         <div className="space-y-1">

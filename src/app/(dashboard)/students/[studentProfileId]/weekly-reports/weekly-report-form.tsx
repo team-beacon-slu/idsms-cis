@@ -920,7 +920,9 @@ export function WeeklyReportForm({
               {rowGaps(entry, row).map((gap) => (
                 <p key={gap.kind} className="flex items-center gap-1.5 text-xs text-amber-700">
                   <AlertTriangle className="size-3.5" aria-hidden="true" />
-                  {gap.kind === "late" ? "Late arrival" : "Early leave"}: file an undertime request
+                  {gap.kind === "late"
+                    ? "Late arrival: marked for your adviser, who decides whether it counts. To explain it,"
+                    : "Early leave: file an undertime request"}{" "}
                   —{" "}
                   <Link
                     href={`/leave-requests?${new URLSearchParams({
