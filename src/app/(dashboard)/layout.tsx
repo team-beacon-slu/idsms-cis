@@ -9,6 +9,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { DashboardNav } from "./_components/dashboard-nav";
 import { PrivacyConsentDialog } from "./_components/privacy-consent-dialog";
 import { OfflineBanner } from "./_components/offline-banner";
+import { MaintenanceBanner } from "./_components/maintenance-banner";
+import { getMaintenanceNotice } from "@/lib/services/notifications/maintenanceNotice";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUserPage();
@@ -21,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // The consent version and display name come with the session (authOptions), so only a
   // student's legal name needs a query here.
   const consent = { privacyConsentVersion: user.privacyConsentVersion, fullName: user.fullName };
-  const [profile, cookieStore] = await Promise.all([
+  const [profile, cookieStore, notice] = await Promise.all([
     user.role === Role.STUDENT_INTERN
       ? prisma.studentProfile.findUnique({
           where: { userId: user.id },
@@ -29,6 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         })
       : null,
     cookies(),
+    getMaintenanceNotice(),
   ]);
   // Beta Google sign-in: a student with no profile yet still owes their student number
   // and class group (imported students always have one).
@@ -66,6 +69,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         id="main"
         className="min-h-dvh md:pl-60 md:transition-[padding] md:duration-200 md:group-has-[aside[data-collapsed=true]]/shell:pl-[72px] print:pl-0"
       >
+        {notice && <MaintenanceBanner message={notice} />}
         {/* Fluid: the canvas follows the window, capped only on very wide screens. */}
         <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8 xl:px-12 print:max-w-none print:p-0">
           {children}
