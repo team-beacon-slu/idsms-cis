@@ -50,6 +50,7 @@ import {
   WeeklyReportIncompleteError,
   WeeklyReportLockedError,
   WeeklyReportNotAwaitingReviewError,
+  WeeklyReportWithdrawError,
 } from "@/lib/services/reports/weeklyReportService";
 
 // Student-facing business-rule violations from Phase 3's attendance and
@@ -71,6 +72,7 @@ const BAD_REQUEST_ERRORS = [
   FinalReportLockedError,
   AiConfigError,
   LearningJournalError,
+  WeeklyReportWithdrawError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {

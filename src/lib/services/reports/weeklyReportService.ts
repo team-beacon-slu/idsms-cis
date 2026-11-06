@@ -73,7 +73,8 @@ export function getLatestSubmission(revisionHistory: unknown): WeeklyReportSubmi
 
 // Only these entry types move a report through review; any other history
 // entry type must never change locked/unlocked state.
-const LIFECYCLE_ENTRY_TYPES = new Set(["SUBMITTED", "RETURNED"]);
+// WITHDRAWN (Q21): the intern took the week back to draft before review and the deadline.
+const LIFECYCLE_ENTRY_TYPES = new Set(["SUBMITTED", "RETURNED", "WITHDRAWN"]);
 
 export function isAwaitingReview(report: {
   status: WeeklyReportStatus;
@@ -814,6 +815,61 @@ export async function recordWeeklyReportSubmission(
     );
 
     return entry;
+  });
+}
+
+export class WeeklyReportWithdrawError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WeeklyReportWithdrawError";
+  }
+}
+
+// Q21 option C: an intern may take a submitted week back to draft while it still awaits
+// review and the Tuesday 11:59 PM deadline has not passed, so fixing a slip needs no Return
+// from the adviser. The SUBMITTED entry stays in the history; a WITHDRAWN entry follows it.
+export async function withdrawWeeklyReportSubmission(
+  weeklyReportId: string,
+  actingUser: { id: string },
+  now: Date = new Date(),
+  ipAddress?: string | null
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    // Locked like a review, so a withdrawal and a review cannot both pass the check.
+    await tx.$queryRaw`SELECT id FROM weekly_reports WHERE id = ${weeklyReportId}::uuid FOR UPDATE`;
+    const report = await tx.weeklyReport.findUniqueOrThrow({
+      where: { id: weeklyReportId },
+      select: { status: true, weekEnd: true, revisionHistory: true },
+    });
+    if (!isAwaitingReview(report)) {
+      throw new WeeklyReportWithdrawError(
+        "Only a submitted week that your adviser has not reviewed yet can be taken back"
+      );
+    }
+    if (isWeeklyReportLate(report.weekEnd, now)) {
+      throw new WeeklyReportWithdrawError(
+        "The deadline has passed; ask your adviser to return the week if it needs a fix"
+      );
+    }
+    await tx.weeklyReport.update({
+      where: { id: weeklyReportId },
+      data: {
+        revisionHistory: [
+          ...getWeeklyReportHistory(report.revisionHistory),
+          { type: "WITHDRAWN", timestamp: now.toISOString(), withdrawnBy: actingUser.id },
+        ] as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "WEEKLY_REPORT_WITHDRAWN",
+        entityType: "WeeklyReport",
+        entityId: weeklyReportId,
+        ipAddress,
+      },
+      tx
+    );
   });
 }
 

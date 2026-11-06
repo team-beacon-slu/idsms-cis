@@ -20,7 +20,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
-import { getWeeklyReportDueDate, toDateKey } from "@/lib/utils/reportDeadline";
+import { getWeeklyReportDueDate, isWeeklyReportLate, toDateKey } from "@/lib/utils/reportDeadline";
 import { ClipboardCheck, Hash, MessageSquareWarning } from "lucide-react";
 import { WeeklyReportForm } from "./weekly-report-form";
 import { jobsOnFor } from "@/lib/ai/jobs";
@@ -28,6 +28,7 @@ import type { AiHints as AiHintsData } from "@/lib/ai/processing";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
 import { QuickApprove } from "./quick-approve";
+import { WithdrawReport } from "./withdraw-report";
 import { TimeReportLinks } from "./time-report-links";
 import { timeReportKindsFor, timeReportWeeks } from "@/lib/documents/timeReportData";
 import type { Metadata } from "next";
@@ -246,7 +247,7 @@ export default async function WeeklyReportsPage(props: {
                     <div className="flex flex-wrap items-center gap-2">
                       {awaitingReview ? (
                         <Badge variant="secondary">Submitted · awaiting review</Badge>
-                      ) : report.status === "PENDING" && !submission ? (
+                      ) : report.status === "PENDING" ? (
                         <Badge variant="outline">Draft</Badge>
                       ) : (
                         <StatusBadge status={report.status} />
@@ -264,6 +265,9 @@ export default async function WeeklyReportsPage(props: {
                         weeklyReportId={report.id}
                         kinds={timeReportKindsFor(report, timeRecords)}
                       />
+                      {isOwner && awaitingReview && !isWeeklyReportLate(report.weekEnd) && (
+                        <WithdrawReport weeklyReportId={report.id} />
+                      )}
                       {canReview && awaitingReview && <QuickApprove weeklyReportId={report.id} />}
                       {canReview && (
                         <Link
@@ -279,7 +283,7 @@ export default async function WeeklyReportsPage(props: {
                     </div>
                   </div>
 
-                  {submission && (
+                  {submission && (awaitingReview || report.status !== "PENDING") && (
                     <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <Hash className="size-3.5" aria-hidden="true" />
                       <span className="font-mono text-foreground">{submission.referenceCode}</span>·
