@@ -242,7 +242,8 @@ function AddDayControl({
 function rowFromEntry(
   e: DailyEntryRow,
   shift: Shift | null = null,
-  usual: DayTimes | null = null
+  usual: DayTimes | null = null,
+  usualTools = ""
 ): RowState {
   // An unfilled scheduled day starts as Present at the schedule's times, else at the times
   // of the intern's last worked day (the adviser: fewer things to type); the intern changes
@@ -261,6 +262,8 @@ function rowFromEntry(
     dirty: false,
   };
   if (!unfilled || base.status !== "PRESENT") return base;
+  // Tools rarely change day to day: start from the last worked day's, like the times.
+  base.toolsUsed ||= usualTools;
   if (shift) {
     return {
       ...base,
@@ -295,6 +298,7 @@ export function WeeklyReportForm({
   priorAccomplishments,
   shift = null,
   usualTimes = null,
+  usualTools = "",
   holidays = {},
   clarityAi = false,
 }: {
@@ -306,6 +310,7 @@ export function WeeklyReportForm({
   priorAccomplishments: string[];
   shift?: Shift | null;
   usualTimes?: DayTimes | null;
+  usualTools?: string; // the last worked day's tools, prefilled on new days
   // This intern's applicable holidays by date (YYYY-MM-DD): PH holidays and company days off.
   holidays?: Record<string, { name: string; company: boolean }>;
   // AI assist's clarity coach can take a second look (lib/ai/jobs.ts "clarity" is on).
@@ -319,7 +324,7 @@ export function WeeklyReportForm({
     return h ? `${h.name} (${h.company ? "company day off" : "PH holiday"})` : "Holiday";
   };
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
-    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)]))
+    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes, usualTools)]))
   );
   // A day added with "Add a day" arrives after a refresh; give it a row without
   // dropping the unsaved edits on the other days.
@@ -327,7 +332,9 @@ export function WeeklyReportForm({
   if (missing.length > 0) {
     setRows((prev) => ({
       ...prev,
-      ...Object.fromEntries(missing.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)])),
+      ...Object.fromEntries(
+        missing.map((e) => [e.id, rowFromEntry(e, shift, usualTimes, usualTools)])
+      ),
     }));
   }
   const [totals, setTotals] = useState(initialTotals);
@@ -336,8 +343,11 @@ export function WeeklyReportForm({
 
   // Each day as the server last sent it; drafts restore only over an unchanged day.
   const serverRows = useMemo(
-    () => Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)])),
-    [entries, shift, usualTimes]
+    () =>
+      Object.fromEntries(
+        entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes, usualTools)])
+      ),
+    [entries, shift, usualTimes, usualTools]
   );
   // Read after mount (the server render has no localStorage), once per report.
   const [draftChecked, setDraftChecked] = useState(false);
@@ -444,7 +454,7 @@ export function WeeklyReportForm({
     setRows((prev) => {
       const out = { ...prev };
       for (const e of entries.slice(entries.findIndex((x) => x.id === id) + 1)) {
-        const row = prev[e.id] ?? rowFromEntry(e, shift, usualTimes);
+        const row = prev[e.id] ?? rowFromEntry(e, shift, usualTimes, usualTools);
         if (row.status === "PRESENT" && !row.toolsUsed.trim()) {
           out[e.id] = { ...row, toolsUsed: tools, dirty: true };
         }
@@ -454,7 +464,7 @@ export function WeeklyReportForm({
   }
 
   function rowProblem(entry: DailyEntryRow): string | null {
-    const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes);
+    const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes, usualTools);
     // Absent and holiday days count 0 hours and need no description.
     if (row.status !== "PRESENT") return null;
     if (row.hours === "" || Number.isNaN(Number(row.hours))) return "Enter hours worked";
@@ -700,7 +710,7 @@ export function WeeklyReportForm({
 
       <div className="space-y-3">
         {entries.map((entry) => {
-          const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes);
+          const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes, usualTools);
           const flag = copyPasteFlags[entry.id];
           return (
             <div
