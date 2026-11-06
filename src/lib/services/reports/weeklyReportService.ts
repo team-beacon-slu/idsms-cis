@@ -716,11 +716,12 @@ async function assertUndertimeFiled(
     if (e.timeIn2 && e.timeOut2) ranges.push([e.timeIn2, e.timeOut2]);
     const sameDay = requests.filter((r) => toDateKey(r.date) === toDateKey(e.reportDate));
     for (const gap of dayGaps(ranges, shift)) {
+      // Q6: no grace period is set; a late arrival is only marked (an automatic deduction item
+      // the adviser can excuse), so it never blocks submitting. An early leave still needs a request.
+      if (gap.kind === "late") continue;
       // Any status counts here (filing is what the gate asks for); the range must span the gap.
       if (!isGapCovered(gap, sameDay)) {
-        missing.push(
-          `${shortDate(e.reportDate)} (${gap.kind === "late" ? "late arrival" : "early leave"})`
-        );
+        missing.push(`${shortDate(e.reportDate)} (early leave)`);
       }
     }
   }

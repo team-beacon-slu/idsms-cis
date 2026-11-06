@@ -331,14 +331,20 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
               )}
             </section>
             <section className="space-y-2">
-              <h2 className="text-sm font-semibold">Company visits</h2>
+              <h2 className="text-sm font-semibold">Visits and supervisor check-ins</h2>
               {visits.length > 0 && (
                 <ul className="divide-y rounded-lg border text-sm">
                   {visits.map((v) => (
                     <li key={v.id} className="p-3">
                       <span className="font-medium">{formatCalendarDate(v.visitedOn)}</span>{" "}
                       <span className="text-muted-foreground">
-                        · {v.mode === "ONLINE" ? "online" : "on site"} · {displayName(v.visitor)}
+                        ·{" "}
+                        {v.mode === "ONLINE"
+                          ? "online meeting"
+                          : v.mode === "CALL"
+                            ? "phone call"
+                            : "on site"}{" "}
+                        · {displayName(v.visitor)}
                       </span>
                       {v.notes && <p className="mt-1 text-muted-foreground">{v.notes}</p>}
                     </li>

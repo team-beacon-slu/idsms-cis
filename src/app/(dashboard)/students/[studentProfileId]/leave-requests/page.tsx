@@ -78,7 +78,8 @@ export default async function LeaveRequestsPage(props: {
           <CardHeader>
             <CardTitle>New request</CardTitle>
             <CardDescription>
-              File overtime before you work it. File undertime for any late arrival or early leave.
+              File overtime before you work it and undertime for an early leave. A late arrival is
+              marked for your adviser to decide; you may file undertime to explain it.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -901,11 +901,18 @@ describe("recordWeeklyReportSubmission", () => {
         actingUser
       );
 
-    it("blocks a tardy day with no undertime request, listing the date", async () => {
+    it("lets a late day through without a request: it is only marked for the adviser (Q6)", async () => {
       mockReport([tardyDay]);
       prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
       prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
-      await expect(submit()).rejects.toThrow("File an undertime request for: Oct 6 (late arrival)");
+      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+    });
+
+    it("still blocks an early leave with no undertime request, listing the date", async () => {
+      mockReport([{ ...tardyDay, timeIn: "08:00", timeOut2: "16:00" }]);
+      prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
+      prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+      await expect(submit()).rejects.toThrow("File an undertime request for: Oct 6 (early leave)");
     });
 
     it("passes with an undertime request of any status on that date", async () => {
