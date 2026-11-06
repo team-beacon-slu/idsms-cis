@@ -22,6 +22,8 @@ import { AiSettingsForm } from "../users/ai-settings-form";
 import { AiPanel } from "./ai-panel";
 import { getAiPanel } from "@/lib/ai/jobs";
 import { DeductionSettingsForm } from "../users/deduction-settings-form";
+import { MaintenanceNoticeForm } from "../users/maintenance-notice-form";
+import { getMaintenanceNotice } from "@/lib/services/notifications/maintenanceNotice";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -41,6 +43,7 @@ export default async function SettingsPage() {
     required,
     aiPanel,
     failedEmails,
+    maintenanceNotice,
   ] = await Promise.all([
     getNotificationSettings(),
     Promise.all(
@@ -55,6 +58,7 @@ export default async function SettingsPage() {
     getRequiredChecklistTypes(),
     getAiPanel(),
     countFailedEmails(),
+    getMaintenanceNotice(),
   ]);
 
   return (
@@ -86,6 +90,19 @@ export default async function SettingsPage() {
         </Card>
 
         <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg text-brand-900">Notice to everyone</CardTitle>
+              <CardDescription>
+                A banner on every signed-in page, for planned downtime or anything all users must
+                see. Clear it when it no longer applies.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MaintenanceNoticeForm initial={maintenanceNotice ?? ""} />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-lg text-brand-900">Required internship hours</CardTitle>
