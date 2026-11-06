@@ -18,6 +18,7 @@ import { getAdvisoryView } from "@/lib/ai/display";
 import { getAiSettings } from "@/lib/ai/settings";
 import { allJobStatuses, jobsOnFor, type JobId } from "@/lib/ai/jobs";
 import { AiHints } from "@/components/ai/ai-hints";
+import { hintTrackRecords } from "@/lib/ai/jobs";
 import { getReviewQueue, queueReasons } from "@/lib/ai/reviewQueue";
 import { displayName } from "@/lib/utils/displayName";
 
@@ -123,7 +124,12 @@ export default async function WeeklyReportReviewPage(props: {
               yourself; hints come back after the next nightly run.
             </p>
           ) : (
-            <AiHints view={view} reportId={report!.id} texts={texts} />
+            <AiHints
+              view={view}
+              reportId={report!.id}
+              texts={texts}
+              trackRecords={await hintTrackRecords(["summary", "copy", "tone", "coverage"])}
+            />
           )}
         </CardContent>
 
