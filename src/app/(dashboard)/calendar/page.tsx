@@ -15,8 +15,9 @@ import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeploymen
 import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";
-import { SuspensionDays } from "./suspension-days";
-import { listSuspensionDays } from "@/lib/services/calendar/suspensionService";
+import { DayList } from "./day-list";
+import { listDepartmentEvents } from "@/lib/services/calendar/departmentEventService";
+import { listCompanyDays } from "@/lib/services/calendar/companyDaysService";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 
@@ -60,9 +61,19 @@ export default async function CalendarPage() {
   }
   // Reuse the view just built: rebuilding it per detector doubled the page's queries.
   const highVolumeWeeks = isFaculty ? await detectHighVolumeSubmissionWeeks(user.id, events) : [];
-  const [endorsementSpikes, suspensionDays] = coordinatorView
-    ? await Promise.all([detectEndorsementLetterSpikes(user.id, events), listSuspensionDays()])
-    : [[], []];
+  const [endorsementSpikes, companyDays, departmentEvents, hostCompanies] = coordinatorView
+    ? await Promise.all([
+        detectEndorsementLetterSpikes(user.id, events),
+        listCompanyDays(),
+        listDepartmentEvents(),
+        // Companies with interns this semester: the only ones a day off can matter to.
+        prisma.company.findMany({
+          where: { deletedAt: null, students: { some: { semester: { isActive: true } } } },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        }),
+      ])
+    : [[], [], [], []];
 
   return (
     <div className="space-y-6">
@@ -118,15 +129,55 @@ export default async function CalendarPage() {
       {coordinatorView && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">University suspension days</CardTitle>
+            <CardTitle className="text-base">Company days off</CardTitle>
             <CardDescription>
-              Days the university suspends work or classes. Every intern this semester gets the day
-              off like a holiday, so no one is marked absent.
+              Interns follow their host company&apos;s calendar, not the school&apos;s: an
+              anniversary, a company holiday or a work suspension is a day off only for the interns
+              placed there. A school suspension reaches only interns whose host company is the
+              school. Interns can add upcoming days for their own company too.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <SuspensionDays
-              days={suspensionDays.map((d) => ({ ...d, date: d.date.toISOString() }))}
+            <DayList
+              id="company-day"
+              endpoint="/api/company-days"
+              companies={hostCompanies}
+              days={companyDays.map((d) => ({
+                id: d.id,
+                date: d.date.toISOString(),
+                name: `${d.company?.name ?? ""}: ${d.name}`,
+              }))}
+              nameLabel="Reason"
+              placeholder="e.g. Company anniversary"
+              addedMessage="Day off added for that company's interns"
+              removedMessage="Day off removed"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {coordinatorView && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Department events</CardTitle>
+            <CardDescription>
+              Orientations, seminars and other dates every intern and adviser should see. They show
+              on everyone&apos;s calendar this semester; they are not days off.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DayList
+              id="department-event"
+              endpoint="/api/department-events"
+              days={departmentEvents.map((d) => ({
+                id: d.id,
+                date: d.date.toISOString(),
+                name: d.title,
+              }))}
+              nameLabel="Event"
+              placeholder="e.g. Pre-deployment orientation"
+              addedMessage="Event added to everyone's calendar"
+              removedMessage="Event removed"
             />
           </CardContent>
         </Card>

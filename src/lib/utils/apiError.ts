@@ -38,7 +38,7 @@ import {
 import { PlacementStateError } from "@/lib/services/predeployment/placementService";
 import { LearningJournalError } from "@/lib/services/reports/monthlyReportService";
 import { SemesterStateError } from "@/lib/services/academic/semesterService";
-import { SuspensionError } from "@/lib/services/calendar/suspensionService";
+import { CalendarEntryError } from "@/lib/services/calendar/companyDaysService";
 import { ClassGroupStateError } from "@/lib/services/academic/classGroupService";
 import {
   ComplianceNotFoundError,
@@ -72,7 +72,7 @@ const BAD_REQUEST_ERRORS = [
   FinalReportLockedError,
   AiConfigError,
   LearningJournalError,
-  SuspensionError,
+  CalendarEntryError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {

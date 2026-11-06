@@ -10,7 +10,7 @@ import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
 import { projectCompletionDate } from "@/lib/utils/completionProjection";
 import { getExpiringMoaRecords } from "@/lib/services/predeployment/companyService";
 
-export type CalendarEventType = "DEADLINE" | "HOLIDAY" | "DEVIATION" | "COMPLETION";
+export type CalendarEventType = "DEADLINE" | "HOLIDAY" | "DEVIATION" | "COMPLETION" | "EVENT";
 
 export interface CalendarEvent {
   type: CalendarEventType;
@@ -173,6 +173,7 @@ async function getCalendarEventsForStudents(ids: string[]): Promise<CalendarEven
         id: true,
         semesterId: true,
         companyId: true,
+        company: { select: { isForeign: true } },
         requiredHours: true,
         renderedHours: true,
       },
@@ -217,7 +218,9 @@ async function getCalendarEventsForStudents(ids: string[]): Promise<CalendarEven
       weeklyReports: reports.filter((r) => r.studentProfileId === profile.id),
       holidays: systemHolidays
         .filter((h) =>
-          h.companyId ? h.companyId === profile.companyId : h.semesterId === profile.semesterId
+          h.companyId
+            ? h.companyId === profile.companyId
+            : h.semesterId === profile.semesterId && !profile.company?.isForeign
         )
         .map((h) => ({ ...h, applicable: !optedOut.has(h.date.getTime()) })),
       deviations: deviations.filter((d) => d.studentProfileId === profile.id),
@@ -254,6 +257,7 @@ export const CALENDAR_EVENT_COLORS: Record<CalendarEventType, string> = {
   HOLIDAY: "gray",
   DEVIATION: "yellow",
   COMPLETION: "green",
+  EVENT: "blue",
 };
 
 export function colorCodeCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
@@ -275,8 +279,23 @@ export function colorCodeCalendarEvents(events: CalendarEvent[]): CalendarEvent[
 // the page — CalendarEventType has no "working day" variant, and one event
 // per working day would drown out the deadlines.
 export async function getStudentCalendarView(studentProfileId: string): Promise<CalendarEvent[]> {
-  const events = await getStudentCalendarEvents(studentProfileId);
-  return colorCodeCalendarEvents(events).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const [events, departmentEvents] = await Promise.all([
+    getStudentCalendarEvents(studentProfileId),
+    getDepartmentEvents(),
+  ]);
+  return colorCodeCalendarEvents([...events, ...departmentEvents]).sort(
+    (a, b) => a.date.getTime() - b.date.getTime()
+  );
+}
+
+// Coordinator-posted events of the active semester, the same for every role.
+// shortcut: active semester only; an intern still finishing a past semester sees the current one's.
+async function getDepartmentEvents(): Promise<CalendarEvent[]> {
+  const rows = await prisma.departmentEvent.findMany({
+    where: { semester: { isActive: true } },
+    select: { date: true, title: true },
+  });
+  return rows.map((r) => ({ type: "EVENT", date: r.date, label: r.title }));
 }
 
 // FR-CAL-03 — Owner: AndresBonifaci0 (Matt)
@@ -290,8 +309,13 @@ export async function getStudentCalendarView(studentProfileId: string): Promise<
 // aggregated array. Feeds `detectHighVolumeSubmissionWeeks` below.
 // Edge cases: none beyond the aggregation itself.
 export async function getFacultyCalendarView(facultyId: string): Promise<CalendarEvent[]> {
-  const events = await getUnifiedCalendarEvents(facultyId, Role.FACULTY_ADVISER);
-  return colorCodeCalendarEvents(events).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const [events, departmentEvents] = await Promise.all([
+    getUnifiedCalendarEvents(facultyId, Role.FACULTY_ADVISER),
+    getDepartmentEvents(),
+  ]);
+  return colorCodeCalendarEvents([...events, ...departmentEvents]).sort(
+    (a, b) => a.date.getTime() - b.date.getTime()
+  );
 }
 
 // FR-CAL-03 — Owner: AndresBonifaci0 (Matt)
@@ -354,11 +378,12 @@ export function bucketHighVolumeSubmissionWeeks(
 // `detectEndorsementLetterSpikes` below.
 // Edge cases: none beyond the merge.
 export async function getCoordinatorCalendarView(coordinatorId: string): Promise<CalendarEvent[]> {
-  const [events, moaRecords] = await Promise.all([
+  const [events, moaRecords, departmentEvents] = await Promise.all([
     getUnifiedCalendarEvents(coordinatorId, Role.DEPARTMENT_COORDINATOR),
     // Phase 2's shared alert horizon: active agreements expiring within 30 days,
     // including overdue active agreements that still need coordinator attention.
     getExpiringMoaRecords(),
+    getDepartmentEvents(),
   ]);
   const companies = moaRecords.length
     ? await prisma.company.findMany({
@@ -389,7 +414,7 @@ export async function getCoordinatorCalendarView(coordinatorId: string): Promise
     seen.add(key);
     return [{ type: event.type, date: event.date, label: event.label }];
   });
-  return colorCodeCalendarEvents([...milestones, ...expiryEvents]).sort(
+  return colorCodeCalendarEvents([...milestones, ...expiryEvents, ...departmentEvents]).sort(
     (a, b) => a.date.getTime() - b.date.getTime()
   );
 }

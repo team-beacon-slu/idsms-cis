@@ -30,6 +30,7 @@ const mockedListWeeklyReportsForStudent = listWeeklyReportsForStudent as jest.Mo
 
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.departmentEvent.findMany.mockResolvedValue([]);
   mockedComputeProjectedCompletionDate.mockReset().mockResolvedValue(null);
   mockedGetHolidayCalendarForStudent.mockReset().mockResolvedValue([]);
   mockedListWeeklyReportsForStudent.mockReset().mockResolvedValue([]);
@@ -319,6 +320,19 @@ describe("calendarService — reachable and wired correctly", () => {
       ["COMPLETION", "green"],
     ]);
     expect(events.every((e) => e.studentProfileId === "profile-1")).toBe(true);
+  });
+
+  it("getStudentCalendarView adds the coordinator's department events in blue", async () => {
+    prismaMock.departmentEvent.findMany.mockResolvedValue([
+      { date: new Date("2026-11-20T00:00:00Z"), title: "Pre-deployment orientation" },
+    ] as never);
+    const events = await getStudentCalendarView("profile-1");
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "EVENT", color: "blue", label: "Pre-deployment orientation" })
+    );
+    expect(prismaMock.departmentEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { semester: { isActive: true } } })
+    );
   });
 
   it("getFacultyCalendarView returns no events and does not query students without assignments", async () => {

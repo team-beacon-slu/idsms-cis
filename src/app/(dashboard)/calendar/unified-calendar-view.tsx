@@ -19,13 +19,14 @@ import { cn } from "@/lib/utils";
 // Edge cases: an empty `events` array (new semester, nothing scheduled yet)
 // renders an empty grid / agenda, not an error state.
 
-type Tone = "red" | "slate" | "amber" | "green";
+type Tone = "red" | "slate" | "amber" | "green" | "blue";
 
 const TYPE_LABEL: Record<CalendarEventType, string> = {
   DEADLINE: "Submission deadline",
   HOLIDAY: "Holiday",
   DEVIATION: "Approved deviation",
   COMPLETION: "Projected completion",
+  EVENT: "Department event",
 };
 
 const TYPE_TONE: Record<CalendarEventType, Tone> = {
@@ -33,6 +34,7 @@ const TYPE_TONE: Record<CalendarEventType, Tone> = {
   HOLIDAY: "slate",
   DEVIATION: "amber",
   COMPLETION: "green",
+  EVENT: "blue",
 };
 
 const DOT_CLASSES: Record<Tone, string> = {
@@ -40,6 +42,7 @@ const DOT_CLASSES: Record<Tone, string> = {
   slate: "bg-slate-400",
   amber: "bg-amber-500",
   green: "bg-green-500",
+  blue: "bg-blue-500",
 };
 
 const CHIP_CLASSES: Record<Tone, string> = {
@@ -47,6 +50,7 @@ const CHIP_CLASSES: Record<Tone, string> = {
   slate: "border-slate-200 bg-slate-100 text-slate-700",
   amber: "border-amber-200 bg-amber-50 text-amber-700",
   green: "border-green-200 bg-green-50 text-green-700",
+  blue: "border-blue-200 bg-blue-50 text-blue-700",
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

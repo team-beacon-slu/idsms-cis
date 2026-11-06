@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { addSuspensionDay } from "@/lib/services/calendar/suspensionService";
+import { removeDepartmentEvent } from "@/lib/services/calendar/departmentEventService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 
-// Q14: the coordinator (or Super Admin) records a university suspension day.
-export async function POST(req: NextRequest) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);
-    return NextResponse.json(await addSuspensionDay(await req.json(), user.id), { status: 201 });
+    await removeDepartmentEvent((await params).id, user.id);
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return handleApiError(error);
   }

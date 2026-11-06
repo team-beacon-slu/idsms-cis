@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
-import { removeSuspensionDay } from "@/lib/services/calendar/suspensionService";
+import { addCompanyDay } from "@/lib/services/calendar/companyDaysService";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// Company days off: the coordinator (or Super Admin) adds one for any host company.
+export async function POST(req: NextRequest) {
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);
-    await removeSuspensionDay((await params).id, user.id);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(await addCompanyDay(await req.json(), user.id), { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

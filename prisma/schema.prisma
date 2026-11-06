@@ -138,7 +138,7 @@ enum HolidayType {
   NATIONAL
   REGIONAL
   COMPANY // a host company's own non-working day (FR-AT-02)
-  SUSPENSION // a university suspension day, added by the coordinator (Q14)
+  SUSPENSION // unused: 029 added it, then days off became per company (COMPANY); Postgres keeps enum values
 }
 
 // ── NextAuth (database session strategy — FR-UM-11) ────────────────────────
@@ -181,6 +181,7 @@ model Session {
 
 model User {
   holidaysAdded         HolidayCalendarEntry[] @relation("HolidayCreatedBy")
+  departmentEventsAdded DepartmentEvent[]      @relation("DepartmentEventCreatedBy")
   id                    String                 @id @default(uuid()) @db.Uuid
   email                 String                 @unique
   hashedPassword        String                 @map("hashed_password")
@@ -335,9 +336,10 @@ model Semester {
   // Faculty-defined start of Week 1 for the term (weekly report numbering).
   weekOneStart DateTime? @map("week_one_start")
 
-  students       StudentProfile[]
-  facultyGroups  FacultyClassGroup[]
-  holidayEntries HolidayCalendarEntry[]
+  students         StudentProfile[]
+  facultyGroups    FacultyClassGroup[]
+  holidayEntries   HolidayCalendarEntry[]
+  departmentEvents DepartmentEvent[]
 
   @@map("semesters")
 }
@@ -795,6 +797,23 @@ model RetentionFlag {
   @@unique([sourceType, sourceId])
   @@index([status])
   @@map("retention_flags")
+}
+
+// Coordinator-posted department events (030): on every calendar for the semester; not a day off.
+model DepartmentEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  semesterId  String   @map("semester_id") @db.Uuid
+  date        DateTime
+  title       String
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  semester  Semester @relation(fields: [semesterId], references: [id])
+  createdBy User?    @relation("DepartmentEventCreatedBy", fields: [createdById], references: [id])
+
+  @@index([semesterId, date])
+  @@index([createdById])
+  @@map("department_events")
 }
 
 model HolidayCalendarEntry {
