@@ -74,7 +74,7 @@ Quality gates on every merge: type checking, linting, about 1,100 automated test
 | Onboarding tour (NFR-USA-02)                                                      | Not built; the Help page covers first-time questions                                    |
 | Monitoring log: supervisor checks and OJT visitations                             | Backlog (Q13)                                                                           |
 | Pull-out or mid-internship company transfer                                       | Backlog (Q22)                                                                           |
-| Withdraw a submitted weekly report to draft                                       | Waiting for the adviser (Q21)                                                           |
+| Withdraw a submitted weekly report to draft                                       | Done (Nov 2026, Q21 option C): 'Take back to fix' until review and the Tuesday deadline |
 | Habitual tardiness or absence flag on the faculty dashboard                       | Done (Nov 2026): Interns table notes 3+ absences or late arrivals in 4 weeks            |
 | "University suspension" calendar type                                             | Done (Nov 2026, Q14 option B): coordinator adds them on Calendar; counted like holidays |
 | Coordinator-posted department events on students' calendars                       | Backlog                                                                                 |
