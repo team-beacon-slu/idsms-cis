@@ -129,6 +129,10 @@ export function getNavGroups(role: Role, studentProfileId?: string): NavGroup[] 
         { href: "/semesters", label: "Semesters", icon: CalendarRange },
         { href: "/final-reports", label: "Final reports", icon: BookOpenCheck },
         { href: "/search", label: "Search entries", icon: Search },
+        // The coordinator's Settings holds the required hours only (Q5).
+        ...(role === "DEPARTMENT_COORDINATOR"
+          ? [{ href: "/settings", label: "Settings", icon: Settings }]
+          : []),
       ],
     },
   ];

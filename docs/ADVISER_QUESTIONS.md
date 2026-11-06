@@ -1,6 +1,6 @@
 # Questions for our adviser
 
-_IDSMS-CIS (SAMCIS Internship Document Submission and Monitoring System), Saint Louis University. Prepared by Team BEACON. Last updated: 23 October 2026._
+_IDSMS-CIS (SAMCIS Internship Document Submission and Monitoring System), Saint Louis University. Prepared by Team BEACON. Last updated: 7 November 2026._
 
 This is the **only** list of open questions for the adviser. It replaces the older "Adviser briefing" and the question list in the system docs, so there is one place to read and answer.
 
@@ -16,15 +16,17 @@ Every question has one of two tags:
 | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | **Has a working default** | IDSMS already works a sensible way. If you agree, write "OK". We only change it if you choose differently. |
 | **Needs your answer**     | We cannot finish this part, or we would be guessing about an SLU rule. These matter most before launch.    |
+| **Answered (Nov 2026)**   | The project manager answered it on 7 Nov 2026; the answer sits under the question. Tell us if you differ.  |
 
 Nothing here is final. Everything already built, including the rules below, follows the project manager's reading of SLU's internship instructions and can still change on your advice.
 
 ## Where the project stands (one minute)
 
 - **Built and working:** accounts and roles; the pre-deployment checklist (status only, files stay in Google Classroom); companies and MOAs; attendance with SLU's hours rules; leave, overtime and undertime requests; weekly and monthly reports in SLU's format with PDFs; endorsement letters; the final technical report; conduct records and SLU's deduction matrix; notifications; dashboards and Excel exports; data-privacy tools (privacy notice and terms, "Request my data", tamper-proof audit log, file retention review); a help page; light and dark themes.
-- **Built but switched off:** AI hints for faculty (similar or vague reports). It stays off until you decide on question 16.
+- **AI hints for faculty:** each AI job has its own switch; every hint shows how often advisers rated it right, and a job switches itself off if too many are rated wrong (question 16).
+- **Still open:** only Q18 (what "CPO" stands for). Answered questions show the answer under them; please tell us if any answer is wrong.
 - **Next:** Phase 5, moving IDSMS from the free cloud services to a SAMCIS lab computer, then testing with real interns, faculty and the coordinator. No new features are planned in Phase 5.
-- **Quality:** every change passes type checks, linting, about 1,100 automated tests and a production build, and is reviewed before it is merged.
+- **Quality:** every change passes type checks, linting, about 1,300 automated tests and a production build, and is reviewed before it is merged.
 
 More detail: [system documentation](system/README.md), starting with the [product overview](system/01-product-overview.md).
 
@@ -71,7 +73,9 @@ More detail: [system documentation](system/README.md), starting with the [produc
 
 ## B. Hours and reports
 
-### Q5. How many hours must BSCS interns complete? — _Needs your answer_
+### Q5. How many hours must BSCS interns complete? — _Answered (Nov 2026)_
+
+- **Answer:** A setting. The coordinator and the Super Admin set each program's hours in Settings (coordinators got access in Nov 2026).
 
 - **The question:** Is **240 hours** right for BSCS, or should BSCS follow IT at 600?
 - **Why we ask:** SLU's slide lists BSIT 600 and BMMA 500 but not BSCS.
@@ -86,7 +90,9 @@ More detail: [system documentation](system/README.md), starting with the [produc
 - **Options:** **A.** No grace period. **B.** A grace period of ___ minutes.
 - **If you choose B:** A setting plus a small rule change (about a day).
 
-### Q7. Is there an SLU template for the monthly journal? — _Needs your answer_
+### Q7. Is there an SLU template for the monthly journal? — _Answered (Nov 2026)_
+
+- **Answer:** Yes: SLU's Journal on Learning Experience (JLE) template. IDSMS builds the monthly journal on that page (#162).
 
 - **The question:** Does SLU have an official template for the monthly journal or monthly report? If so, please share it.
 - **What IDSMS does today:** It builds a monthly report PDF from the approved weekly reports, in a simple layout.
@@ -100,7 +106,9 @@ More detail: [system documentation](system/README.md), starting with the [produc
 - **We recommend:** A.
 - **If you choose B:** We move the date to each class group. About a day.
 
-### Q21. May a student take back a weekly report they already submitted? — _Needs your answer_
+### Q21. May a student take back a weekly report they already submitted? — _Answered (Nov 2026)_
+
+- **Answer:** C. "Take back to fix" until the adviser reviews the week and before the Tuesday 11:59 PM deadline (#187).
 
 - **The question:** If a student notices a mistake right after submitting, may they pull the report back to "draft" to fix it, as long as the adviser has not reviewed it yet?
 - **Why we ask:** Today the only way to fix a submitted report is for the adviser to return it, which adds work for the adviser.
@@ -119,7 +127,9 @@ More detail: [system documentation](system/README.md), starting with the [produc
 - **What IDSMS does today:** "Total at that count". IDSMS supports both, and each category can be switched.
 - **Options:** **A.** Total at that count. **B.** Added per incident.
 
-### Q10. What are the point values for suspensions? — _Needs your answer_
+### Q10. What are the point values for suspensions? — _Answered (Nov 2026)_
+
+- **Answer:** Faculty fill in the suspension points themselves in the deduction matrix (Settings).
 
 - **The question:** The orientation slide was cut off at the suspension row. What are the ADVISER and WWR points for a suspension?
 - **What IDSMS does today:** The suspension row exists but its values are blank until you tell us. Faculty can edit the matrix, so you can also enter them yourself.
@@ -141,14 +151,18 @@ More detail: [system documentation](system/README.md), starting with the [produc
 
 ## D. Monitoring and the internship's end
 
-### Q13. Should IDSMS log supervisor checks and OJT visits? — _Needs your answer_
+### Q13. Should IDSMS log supervisor checks and OJT visits? — _Answered in part (Nov 2026)_
+
+- **Answer:** Company visits are logged (#169). A separate supervisor check-in log is not planned; the recommendation is to record a check-in in the same visit log, with how it happened (visit, call, online).
 
 - **The question:** CHED's internship rules (CMO No. 104, s. 2017) expect the school to monitor interns. Should IDSMS keep a log of supervisor check-ins and faculty visits to the company (date, who, notes)?
 - **What IDSMS does today:** Not built. It is on the list for later.
 - **Options:** **A.** Not needed; it is recorded elsewhere. **B.** Add a simple monitoring log per student.
 - **If you choose B:** About three days.
 
-### Q22. What should happen when an intern is pulled out or moves to another company? — _Needs your answer_
+### Q22. What should happen when an intern is pulled out or moves to another company? — _Answered (Nov 2026)_
+
+- **Answer:** A. Pull-outs and transfers stay manual; staff handle these rare cases by hand.
 
 - **The question:** CMO No. 104 lets the school pull an intern out of a company (for example for safety reasons). How should IDSMS handle a pull-out or a move to a new company in the middle of the internship?
 - **Why we ask:** Hours, reports and the MOA are tied to one company. A move affects all three.
@@ -156,14 +170,18 @@ More detail: [system documentation](system/README.md), starting with the [produc
 - **Options:** **A.** Keep it out of scope; staff handle these rare cases manually. **B.** Add a "Pulled out" status that freezes the record with a reason. **C.** Add B plus moving the intern to a new company, keeping the hours already confirmed.
 - **We recommend:** A for now, B if pull-outs happen every semester.
 
-### Q14. Should the calendar support "University suspension" days? — _Needs your answer_
+### Q14. Should the calendar support "University suspension" days? — _Answered (Nov 2026)_
+
+- **Answer:** Interns follow their host company's calendar, not the school's. A day off or suspension belongs to one company (the coordinator adds it on Calendar, with a reason), so a school suspension only reaches interns whose host company is the school. PH holidays reach only interns at companies in the Philippines (#188).
 
 - **The question:** When the university suspends work or classes (for example for weather), should those days count like holidays, so interns are not marked absent?
 - **What IDSMS does today:** Philippine holidays are in the calendar. University suspensions are not.
 - **Options:** **A.** No. **B.** Yes, the coordinator can add suspension days.
 - **If you choose B:** About a day.
 
-### Q18. What does "CPO" stand for? — _Needs your answer_
+### Q18. What does "CPO" stand for? — _Open (Nov 2026)_
+
+- **Answer:** Not known yet; the screens keep the word "CPO" until someone confirms it.
 
 - **The question:** The Certificate of Attendance is issued by the "CPO". What does CPO stand for, so the screens and documents name it correctly?
 
@@ -179,24 +197,32 @@ More detail: [system documentation](system/README.md), starting with the [produc
 
 ## E. Email, AI, hosting and security
 
-### Q15. Can SLU provide an email address IDSMS may send from? — _Needs your answer_
+### Q15. Can SLU provide an email address IDSMS may send from? — _Answered (Nov 2026)_
+
+- **Answer:** No SLU address. Email is sent from the account of whoever hosts IDSMS (the technical faculty or the admin), set on the server (SMTP_USER / SMTP_PASS). Until then, notifications stay in the bell and inbox.
 
 - **The question:** To email students and faculty (deadline reminders, review results), IDSMS needs a sending domain or address that SLU allows, for example `noreply@samcis.slu.edu.ph`. Can the department or IT office provide one?
 - **What IDSMS does today:** All notifications appear inside IDSMS (the bell and inbox). Email turns on as soon as a sending domain is set up.
 
-### Q16. Should we switch on the AI hints for faculty? — _Needs your answer_
+### Q16. Should we switch on the AI hints for faculty? — _Answered (Nov 2026)_
+
+- **Answer:** Each AI job has an on/off switch in Settings, and each user can turn hints off. Instead of 30 hand-labelled pairs, accuracy is measured from advisers' own Right / Not right ratings: every hint shows its confidence (how often it was rated right), and a job switches itself off when 30% of its last 50 ratings are Not right.
 
 - **The question:** IDSMS can warn faculty when a weekly report looks very similar to an earlier one, or is very vague. Should we turn this on?
 - **What it needs from you:** (a) approval to send report text to Google's AI service, with names and personal details removed first, as allowed under RA 10173; and (b) about 30 pairs of sample reports that a faculty member labels as "similar" or "not similar", so we can measure accuracy before anyone relies on it.
 - **What IDSMS does today:** Built and **switched off**. The hints are advice only and never change a grade or an approval.
 - **Options:** **A.** Leave it off. **B.** Turn it on after the accuracy test passes.
 
-### Q17. Who will look after the lab computer that hosts IDSMS? — _Needs your answer_
+### Q17. Who will look after the lab computer that hosts IDSMS? — _Answered (Nov 2026)_
+
+- **Answer:** The school's technical faculty looks after the lab computer, with the Super Admin and the adviser from time to time.
 
 - **The question:** In Phase 5, IDSMS moves to a dedicated SAMCIS lab computer. Please confirm this plan and tell us who in the department or IT office will manage that machine (power, updates, backups) after the team finishes.
 - **Why we ask:** A system without an owner stops working the first time something breaks. The full hosting plan has six more technical questions for the IT office ([Phase 5 plan](plans/phase5-lab-server-hosting.md)).
 
-### Q19. Where should proof for leave, overtime and undertime go? — _Has a working default_
+### Q19. Where should proof for leave, overtime and undertime go? — _Answered (Nov 2026)_
+
+- **Answer:** B. Proof goes to Google Classroom; IDSMS only records which proof it is (medical certificate, proof of leave, written notice). IDSMS does not accept proof files, because they may hold sensitive data.
 
 - **The question:** Should proof for an absence, overtime or undertime (for example a medical certificate) still be uploaded to IDSMS, or go to Google Classroom with IDSMS tracking only the status, as with Q1?
 - **What IDSMS does today:** A proof file can be uploaded with the request.
