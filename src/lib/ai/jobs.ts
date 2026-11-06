@@ -282,6 +282,23 @@ export async function ratingSummary(job: JobId, since?: string) {
   return ratingsVerdict(await ratingsFor(job, since));
 }
 
+export type TrackRecord = { count: number; notRight: number };
+
+// How often each hint has been right, from advisers' ratings: the same window that switches a
+// job off, so the hint and Settings › AI agree. Shown on every hint as its confidence.
+export async function hintTrackRecords(
+  jobs: JobId[]
+): Promise<Partial<Record<JobId, TrackRecord>>> {
+  const states = await getJobStates();
+  const entries = await Promise.all(
+    jobs.map(async (job) => {
+      const { count, notRight } = await ratingSummary(job, states[job]?.since);
+      return [job, { count, notRight }] as const;
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
 // Back on after IT's re-test. Copy detection also needs its golden-set test passed on
 // the current model (jobStatus checks that); older ratings stop counting.
 export async function reenableJob(job: JobId, actingUserId: string) {
