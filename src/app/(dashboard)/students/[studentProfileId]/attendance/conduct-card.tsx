@@ -54,7 +54,7 @@ const REASON_LABEL: Record<string, string> = {
   BEYOND_INTERN_CONTROL: "Beyond the intern's control",
 };
 const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", {
+  new Date(iso).toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",

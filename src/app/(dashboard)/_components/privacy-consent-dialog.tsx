@@ -95,8 +95,17 @@ export function PrivacyConsentDialog({ staff = false }: { staff?: boolean }) {
             </a>{" "}
             (opens in a new tab).
           </p>
+          <p className="text-muted-foreground">
+            {staff
+              ? "If you disagree, you will be signed out; please talk to the internship coordinator."
+              : "If you disagree, you will be signed out. The system cannot monitor your internship without this data, so please talk to your coordinator."}
+          </p>
+        </div>
+        {/* Efficiency item 37: on phones the tick and the buttons stay in view while the notice
+            scrolls behind them. */}
+        <div className="sticky -bottom-6 -mx-6 -mb-6 space-y-3 border-t border-border bg-background px-6 py-4 sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0">
           {/* An explicit tick, not just a button: the agreement is informed and provable (NPC consent standard). */}
-          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border p-3">
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border p-3 text-sm">
             <input
               type="checkbox"
               checked={read}
@@ -105,29 +114,24 @@ export function PrivacyConsentDialog({ staff = false }: { staff?: boolean }) {
             />
             <span>I have read and agree to the privacy notice and the terms of use.</span>
           </label>
-          <p className="text-muted-foreground">
-            {staff
-              ? "If you disagree, you will be signed out; please talk to the internship coordinator."
-              : "If you disagree, you will be signed out. The system cannot monitor your internship without this data, so please talk to your coordinator."}
-          </p>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              disabled={pending !== null}
+              onClick={() => void answer(false)}
+              className="cursor-pointer"
+            >
+              {pending === "decline" ? "Signing out..." : "I disagree"}
+            </Button>
+            <Button
+              disabled={pending !== null || !read}
+              onClick={() => void answer(true)}
+              className="cursor-pointer"
+            >
+              {pending === "agree" ? "Saving..." : "I agree"}
+            </Button>
+          </DialogFooter>
         </div>
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button
-            variant="outline"
-            disabled={pending !== null}
-            onClick={() => void answer(false)}
-            className="cursor-pointer"
-          >
-            {pending === "decline" ? "Signing out..." : "I disagree"}
-          </Button>
-          <Button
-            disabled={pending !== null || !read}
-            onClick={() => void answer(true)}
-            className="cursor-pointer"
-          >
-            {pending === "agree" ? "Saving..." : "I agree"}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

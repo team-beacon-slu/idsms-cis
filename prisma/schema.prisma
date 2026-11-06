@@ -159,6 +159,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
   @@map("accounts")
 }
 
@@ -227,6 +228,7 @@ model PasswordResetToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("password_reset_tokens")
 }
 
@@ -285,6 +287,7 @@ model StudentProfile {
   @@index([startBeforeMoaBy], map: "student_profiles_start_before_moa_by_idx")
   @@index([companyId])
   @@index([classGroupId])
+  @@index([semesterId])
   @@map("student_profiles")
 }
 
@@ -315,6 +318,8 @@ model FacultyClassGroup {
   semester   Semester   @relation(fields: [semesterId], references: [id])
 
   @@unique([facultyId, classGroupId, semesterId])
+  @@index([classGroupId])
+  @@index([semesterId])
   @@map("faculty_class_groups")
 }
 
@@ -400,6 +405,7 @@ model CompanyPlacement {
 
   @@index([studentProfileId])
   @@index([companyId])
+  @@index([retractionNotedById])
   @@map("company_placements")
 }
 
@@ -417,6 +423,7 @@ model CompanyVisit {
   visitor User    @relation("CompanyVisitor", fields: [visitedBy], references: [id])
 
   @@index([companyId])
+  @@index([visitedBy])
   @@map("company_visits")
 }
 
@@ -696,6 +703,7 @@ model GeneratedDocument {
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
 
+  @@index([studentProfileId])
   @@map("generated_documents")
 }
 
@@ -766,6 +774,7 @@ model DataRequest {
 
   @@index([status, dueAt])
   @@index([userId])
+  @@index([fulfilledBy])
   @@map("data_requests")
 }
 
@@ -805,6 +814,8 @@ model HolidayCalendarEntry {
 
   @@index([companyId])
   @@index([createdById])
+  @@index([semesterId])
+  @@index([studentProfileId])
   @@map("holiday_calendar")
 }
 

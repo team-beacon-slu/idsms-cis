@@ -101,7 +101,7 @@ export function HolidayList({
                   {holiday.company && <Badge variant="secondary">Company</Badge>}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(holiday.date).toLocaleDateString(undefined, {
+                  {new Date(holiday.date).toLocaleDateString("en-PH", {
                     weekday: "short",
                     month: "short",
                     day: "numeric",

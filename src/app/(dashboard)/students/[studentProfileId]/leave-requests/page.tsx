@@ -36,7 +36,7 @@ const STATUS: Record<string, { label: string; className: string }> = {
 const PREFILL_KEYS = ["deviationType", "date", "startTime", "endTime"] as const;
 
 const fmtDate = (d: Date) =>
-  d.toLocaleDateString("en-US", {
+  d.toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",

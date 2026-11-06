@@ -19,6 +19,7 @@ import { getAiSettings } from "@/lib/ai/settings";
 import { allJobStatuses, jobsOnFor, type JobId } from "@/lib/ai/jobs";
 import { AiHints } from "@/components/ai/ai-hints";
 import { getReviewQueue, queueReasons } from "@/lib/ai/reviewQueue";
+import { displayName } from "@/lib/utils/displayName";
 
 // Ownership note (pre-flight fix): a role check alone isn't enough — a
 // Faculty Adviser must also be assigned to this specific student (same
@@ -107,9 +108,8 @@ export default async function WeeklyReportReviewPage(props: {
             <StatusBadge status={report!.status} />
           </div>
           <CardDescription>
-            {student?.fullName ?? student?.studentNumber ?? "Student"} · Week of{" "}
-            {formatCalendarDate(new Date(report!.weekStart))} –{" "}
-            {formatCalendarDate(new Date(report!.weekEnd))}
+            {displayName(student ?? {})} · Week of {formatCalendarDate(new Date(report!.weekStart))}{" "}
+            – {formatCalendarDate(new Date(report!.weekEnd))}
           </CardDescription>
           <p className="text-xs text-muted-foreground">
             Supervisor-signed copies are submitted on Google Classroom, not in IDSMS.

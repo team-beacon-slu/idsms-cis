@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ClipboardCheck, Download, Send, Users, UserX } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Send, Users, UserX } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requestsAwaitingReviewByStudent } from "@/lib/services/dashboards/attentionService";
 import { getDeductionTallies } from "@/lib/services/conduct/deductionService";
@@ -11,10 +11,8 @@ import {
 import { ComplianceTable } from "@/components/compliance-table";
 import { InternCharts } from "@/components/intern-charts";
 import { StatCard, StatStrip } from "@/components/stat-card";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { BulkEndorsementButton } from "../my-students/bulk-endorsement-button";
+import { displayName } from "@/lib/utils/displayName";
 
 const QUEUE_ROWS = 6;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -28,13 +26,12 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
   const assignedLoad = prisma.facultyClassGroup.findMany({
     // Same scope as the KPIs: archived semesters are last term's cohort.
     where: { facultyId, semester: { archivedAt: null } },
-    select: { classGroupId: true, semesterId: true, classGroup: { select: { name: true } } },
+    select: { classGroupId: true, semesterId: true },
   });
   // Each load starts as soon as its own input is ready instead of waiting for the full table;
   // every advisee's tally takes a fixed handful of queries.
-  const [rows, assigned, requests, tallies] = await Promise.all([
+  const [rows, requests, tallies] = await Promise.all([
     getComplianceRows(scope),
-    assignedLoad,
     assignedLoad.then(requestsAwaitingReviewByStudent),
     getComplianceStudentIds(scope).then((ids) => getDeductionTallies(ids)),
   ]);
@@ -42,11 +39,9 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
   const deductions = Object.fromEntries(
     [...tallies].map(([id, tally]) => [id, tally.totals] as const)
   );
-  // One bulk button per class group, even if advised across several semesters.
-  const groupNames = new Map(assigned.map((g) => [g.classGroupId, g.classGroup.name]));
 
   const queue = rows.flatMap((r) => {
-    const name = r.fullName || r.email;
+    const name = displayName(r);
     const items = [];
     if (r.awaitingReview > 0) {
       items.push({
@@ -105,8 +100,14 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
             </ul>
           )}
           {queue.length > QUEUE_ROWS && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {plural(queue.length - QUEUE_ROWS, "more item", "more items")} in the table below.
+            <p className="mt-2 text-sm">
+              <Link
+                href="/review-queue"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                {plural(queue.length - QUEUE_ROWS, "more item", "more items")}
+              </Link>{" "}
+              <span className="text-muted-foreground">in your review queue.</span>
             </p>
           )}
         </CardContent>
@@ -116,44 +117,22 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Interns</CardTitle>
-              <CardDescription>
-                Hours, documents and weekly reports for your assigned class groups.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <a
-                href="/api/compliance/export"
-                download
-                className={cn(buttonVariants({ size: "sm", variant: "outline" }), "gap-1.5")}
-              >
-                <Download className="size-4" aria-hidden="true" />
-                Export to Excel
-              </a>
-              <a
-                href="/api/compliance/weekly-summary"
-                download
-                className={cn(buttonVariants({ size: "sm", variant: "outline" }), "gap-1.5")}
-              >
-                <Download className="size-4" aria-hidden="true" />
-                Weekly summary (Excel)
-              </a>
-            </div>
-          </div>
+          <CardTitle>Interns</CardTitle>
+          {/* Efficiency item 38: exports and endorsement letters live on My students; home is
+              for what waits on the adviser. */}
+          <CardDescription>
+            Hours, documents and weekly reports for your assigned class groups. Exports and
+            endorsement letters are on{" "}
+            <Link
+              href="/my-students"
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              My students
+            </Link>
+            .
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {groupNames.size > 0 && (
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              {Array.from(groupNames).map(([id, name]) => (
-                <div key={id} className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{name}</span>
-                  <BulkEndorsementButton classGroupId={id} classGroupName={name} />
-                </div>
-              ))}
-            </div>
-          )}
           <ComplianceTable rows={rows} deductions={deductions} />
         </CardContent>
       </Card>

@@ -16,10 +16,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Metadata } from "next";
-import { ChevronDown, ClipboardCheck } from "lucide-react";
+import { ChevronDown, ClipboardCheck, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import { requestsAwaitingReviewByStudent } from "@/lib/services/dashboards/attentionService";
+import { displayName } from "@/lib/utils/displayName";
 
 export const metadata: Metadata = { title: "My students" };
 
@@ -92,12 +93,26 @@ export default async function MyStudentsPage() {
         description={`${students.length} ${students.length === 1 ? "intern" : "interns"} in ${classGroups.length} ${classGroups.length === 1 ? "class group" : "class groups"}`}
         actions={
           students.length > 0 && (
-            <Button asChild variant="outline" className="gap-1.5">
-              <Link href="/my-students/checklist" prefetch={false}>
-                <ClipboardCheck className="size-4" aria-hidden="true" />
-                Class checklist
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="gap-1.5">
+                <Link href="/my-students/checklist" prefetch={false}>
+                  <ClipboardCheck className="size-4" aria-hidden="true" />
+                  Class checklist
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-1.5">
+                <a href="/api/compliance/export" download>
+                  <Download className="size-4" aria-hidden="true" />
+                  Export to Excel
+                </a>
+              </Button>
+              <Button asChild variant="outline" className="gap-1.5">
+                <a href="/api/compliance/weekly-summary" download>
+                  <Download className="size-4" aria-hidden="true" />
+                  Weekly summary (Excel)
+                </a>
+              </Button>
+            </div>
           )
         }
       />
@@ -140,7 +155,7 @@ export default async function MyStudentsPage() {
                     prefetch={false}
                     className="min-w-0 font-medium break-words text-foreground underline-offset-4 hover:underline"
                   >
-                    {student.fullName || student.user.email}
+                    {displayName({ fullName: student.fullName, email: student.user.email })}
                   </Link>
                   <WaitingBadge count={waiting.get(student.id) ?? 0} />
                 </div>
@@ -180,7 +195,7 @@ export default async function MyStudentsPage() {
                         prefetch={false}
                         className="block font-medium text-foreground underline-offset-4 hover:underline"
                       >
-                        {student.fullName || student.user.email}
+                        {displayName({ fullName: student.fullName, email: student.user.email })}
                       </Link>
                       <span className="block text-xs text-muted-foreground">
                         {student.studentNumber}

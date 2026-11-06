@@ -9,11 +9,11 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getLatestScheduleChangeStatus } from "@/lib/services/attendance/attendanceService";
 import { getExpiringMoaRecords } from "@/lib/services/predeployment/companyService";
+import { displayName } from "@/lib/utils/displayName";
 
 export type WaitingItem = { key: string; intern: string; what: string; href: string };
 
-const internName = (p: { fullName: string | null; studentNumber: string | null }) =>
-  p.fullName || p.studentNumber || "An intern";
+const internName = (p: { fullName: string | null; studentNumber: string | null }) => displayName(p);
 const profileSelect = { id: true, fullName: true, studentNumber: true } as const;
 
 const REQUEST_LABEL: Record<string, string> = {

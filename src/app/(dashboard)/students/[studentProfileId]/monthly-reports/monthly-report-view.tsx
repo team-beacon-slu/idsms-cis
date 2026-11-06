@@ -45,7 +45,7 @@ export interface MonthRollup {
 
 function monthLabel(calendarMonth: string) {
   const [year, month] = calendarMonth.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(undefined, {
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-PH", {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -53,7 +53,7 @@ function monthLabel(calendarMonth: string) {
 }
 
 function shortDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
