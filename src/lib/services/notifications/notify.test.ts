@@ -52,6 +52,38 @@ it("writes one IN_APP row per active recipient and emails when asked", async () 
   });
 });
 
+it("keeps a notice in the inbox only for someone who switched email off", async () => {
+  prismaMock.user.findMany.mockResolvedValue([{ ...active, emailNotifications: false }] as never);
+  send.mockResolvedValue({ data: { id: "em-1" }, error: null });
+
+  const result = await notify({
+    userIds: ["u-1"],
+    trigger: "REPORT_SUBMITTED",
+    title: "t",
+    body: "b",
+    email: true,
+  });
+
+  expect(result).toEqual({ inApp: 1, emailed: 0, failed: 0 });
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("still emails an email-only message (a password reset) with email switched off", async () => {
+  prismaMock.user.findMany.mockResolvedValue([{ ...active, emailNotifications: false }] as never);
+  send.mockResolvedValue({ data: { id: "em-1" }, error: null });
+
+  const result = await notify({
+    userIds: ["u-1"],
+    trigger: "PASSWORD_RESET",
+    title: "Reset your password",
+    body: "b",
+    email: true,
+    inApp: false,
+  });
+
+  expect(result).toEqual(expect.objectContaining({ emailed: 1 }));
+});
+
 it("records FAILED email without throwing", async () => {
   prismaMock.user.findMany.mockResolvedValue([active] as never);
   send.mockRejectedValue(new Error("Resend down"));
