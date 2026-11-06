@@ -165,3 +165,24 @@ function finish(
     earlyLeave,
   };
 }
+
+// Prefill for a schedule with hours but no start/end times (older schedules): 8:00 to noon,
+// then from 1:00 PM for the rest of the scheduled hours, so the two ranges add up to exactly
+// the scheduled day. Only a starting point the intern edits; never used to judge lateness.
+export function defaultDayTimes(hours: number): {
+  timeIn: string;
+  timeOut: string;
+  timeIn2: string;
+  timeOut2: string;
+} {
+  const minutes = Math.round(hours * 60);
+  if (minutes <= 4 * 60) {
+    return { timeIn: "08:00", timeOut: toHHMM(8 * 60 + minutes), timeIn2: "", timeOut2: "" };
+  }
+  return {
+    timeIn: "08:00",
+    timeOut: "12:00",
+    timeIn2: "13:00",
+    timeOut2: toHHMM(13 * 60 + minutes - 4 * 60),
+  };
+}
