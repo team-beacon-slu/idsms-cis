@@ -29,9 +29,11 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Settings" };
 
 // System settings, one view of their own (they used to sit above the account list on
-// Users, which pushed that page's main job to the bottom). Super Admin only.
+// Users, which pushed that page's main job to the bottom). Super Admin; the coordinator sees
+// only the required hours (Q5: coordinators and the admin set them).
 export default async function SettingsPage() {
   const user = await requireUserPage();
+  if (user.role === Role.DEPARTMENT_COORDINATOR) return <CoordinatorSettings />;
   if (user.role !== Role.SUPER_ADMIN) redirect("/");
 
   const [
@@ -46,12 +48,7 @@ export default async function SettingsPage() {
     maintenanceNotice,
   ] = await Promise.all([
     getNotificationSettings(),
-    Promise.all(
-      Object.values(Program).map(async (program) => ({
-        program,
-        hours: await getRequiredHoursConfig(program),
-      }))
-    ),
+    requiredHoursRows(),
     getAiSettings(),
     getDeductionMatrix(),
     getDefaultConductHours(),
@@ -170,6 +167,36 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+async function requiredHoursRows() {
+  return Promise.all(
+    Object.values(Program).map(async (program) => ({
+      program,
+      hours: await getRequiredHoursConfig(program),
+    }))
+  );
+}
+
+async function CoordinatorSettings() {
+  const requiredHours = await requiredHoursRows();
+  return (
+    <div className="max-w-3xl space-y-6">
+      <PageHeader title="Settings" description="Rules you set for the department." />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg text-brand-900">Required internship hours</CardTitle>
+          <CardDescription>
+            Hours each program must complete. Sets the default for students imported after you save.
+            Existing students keep their current required hours.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RequiredHoursForm initial={requiredHours} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
