@@ -197,6 +197,8 @@ model User {
   fullName              String?                @map("full_name")
   // ai-assist-plan step 6: each person can turn AI hints off for themselves.
   aiAssist              Boolean                @default(true) @map("ai_assist")
+  // 031: off = notices stay in the bell and inbox; email-only messages still send.
+  emailNotifications    Boolean                @default(true) @map("email_notifications")
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
   deletedAt             DateTime?              @map("deleted_at")

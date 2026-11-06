@@ -10,6 +10,7 @@ import { DataRequestCard } from "./data-request-card";
 import { SignOutOthersButton } from "./sign-out-others-button";
 import { ThemeChoice } from "@/components/theme-toggle";
 import { AiAssistSwitch } from "@/components/ai/ai-assist-switch";
+import { EmailNotificationsSwitch } from "@/components/email-notifications-switch";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ export default async function AccountSettingsPage() {
     countOtherSessions(user.id, sessionToken),
     prisma.user.findUnique({
       where: { id: user.id },
-      select: { privacyConsentAt: true, privacyConsentVersion: true },
+      select: { privacyConsentAt: true, privacyConsentVersion: true, emailNotifications: true },
     }),
   ]);
   const isStudent = user.role === "STUDENT_INTERN";
@@ -133,6 +134,7 @@ export default async function AccountSettingsPage() {
           <ThemeChoice />
           {/* Saved on your account, on every device. */}
           <AiAssistSwitch initial={user.aiAssist} />
+          <EmailNotificationsSwitch initial={consent?.emailNotifications !== false} />
         </CardContent>
       </Card>
 
