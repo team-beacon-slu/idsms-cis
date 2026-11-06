@@ -46,7 +46,7 @@ export function ComplianceTable({
           <TableRow>
             <TableHead>Student</TableHead>
             {showProgram && <TableHead>Program</TableHead>}
-            <TableHead className="text-right">Hours</TableHead>
+            <TableHead className="hidden text-right sm:table-cell">Hours</TableHead>
             <TableHead className="text-right">Docs</TableHead>
             {deductions && <TableHead className="text-right">Deductions (ADVISER / WWR)</TableHead>}
             <TableHead>Weekly report</TableHead>
@@ -64,28 +64,14 @@ export function ComplianceTable({
                   <p className="text-xs text-muted-foreground">
                     {row.fullName ? `${row.studentNumber} · ${row.email}` : row.email}
                   </p>
+                  {/* Phones: the table scrolls sideways, so the hours ride with the name. */}
+                  <div className="mt-2 sm:hidden">
+                    <HoursBar row={row} name={name} />
+                  </div>
                 </TableCell>
                 {showProgram && <TableCell>{row.program}</TableCell>}
-                <TableCell>
-                  <div className="min-w-32">
-                    <p className="text-right text-xs text-foreground tabular-nums">
-                      {row.confirmedHours} / {row.requiredHours}
-                    </p>
-                    <div
-                      role="progressbar"
-                      aria-valuenow={row.hoursPercent}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={`Hours progress for ${name}`}
-                      aria-valuetext={`${row.confirmedHours} of ${row.requiredHours} hours, ${row.hoursPercent}%`}
-                      className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
-                    >
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${row.hoursPercent}%` }}
-                      />
-                    </div>
-                  </div>
+                <TableCell className="hidden sm:table-cell">
+                  <HoursBar row={row} name={name} />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {row.checklistApproved}/{row.checklistTotal}
@@ -146,6 +132,28 @@ export function ComplianceTable({
           )}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+function HoursBar({ row, name }: { row: ComplianceRow; name: string }) {
+  return (
+    <div className="min-w-32">
+      <p className="text-xs text-foreground tabular-nums sm:text-right">
+        {row.confirmedHours} / {row.requiredHours}
+        <span className="text-muted-foreground sm:hidden"> hrs</span>
+      </p>
+      <div
+        role="progressbar"
+        aria-valuenow={row.hoursPercent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Hours progress for ${name}`}
+        aria-valuetext={`${row.confirmedHours} of ${row.requiredHours} hours, ${row.hoursPercent}%`}
+        className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+      >
+        <div className="h-full rounded-full bg-primary" style={{ width: `${row.hoursPercent}%` }} />
+      </div>
     </div>
   );
 }

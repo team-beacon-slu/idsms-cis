@@ -108,6 +108,17 @@
     background-color: hsl(var(--popover));
     color: hsl(var(--popover-foreground));
   }
+
+  /* Phones: a two-up time field is ~97 px wide; Chrome's built-in gaps around the clock
+     icon pushed it out of the box (Input gives time fields px-2). Text stays 16 px so iOS
+     doesn't zoom on focus. */
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    margin-inline-start: 0;
+    padding: 0;
+  }
+  input[type="time"]::-webkit-datetime-edit {
+    padding: 0;
+  }
 }
 
 @utility text-balance {
