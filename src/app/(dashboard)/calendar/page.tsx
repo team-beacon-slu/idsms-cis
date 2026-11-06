@@ -16,6 +16,8 @@ import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";
 import { DayList } from "./day-list";
+import { FeedLink } from "./feed-link";
+import { feedToken } from "@/lib/calendar/icsFeed";
 import { listDepartmentEvents } from "@/lib/services/calendar/departmentEventService";
 import { listCompanyDays } from "@/lib/services/calendar/companyDaysService";
 import type { Metadata } from "next";
@@ -182,6 +184,16 @@ export default async function CalendarPage() {
           </CardContent>
         </Card>
       )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+        <p className="text-muted-foreground">
+          <span className="font-medium text-foreground">On your phone: </span>
+          see these dates in your own calendar app; it refreshes by itself.
+        </p>
+        <FeedLink
+          url={`${process.env.NEXTAUTH_URL ?? ""}/api/calendar/feed?u=${user.id}&t=${feedToken(user.id)}`}
+        />
+      </div>
 
       <Card>
         <CardHeader>
