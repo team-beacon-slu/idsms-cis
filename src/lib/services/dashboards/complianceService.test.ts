@@ -22,7 +22,10 @@ beforeEach(() => {
 const NOW = new Date("2026-10-12T00:00:00Z"); // Mon 08:00 Manila -> due week 2026-10-05
 
 const entries = (...hours: Array<number | null>) =>
-  hours.map((h) => ({ actualHours: h === null ? null : { toString: () => String(h) } }));
+  hours.map((h) => ({
+    actualHours: h === null ? null : { toString: () => String(h) },
+    reportDate: new Date("2026-09-28T00:00:00Z"),
+  }));
 
 const profile = (over: Record<string, unknown> = {}) => ({
   id: "sp-1",
@@ -235,12 +238,14 @@ describe("getComplianceRows", () => {
                 scheduledHours: 8,
                 creditedHours: null,
                 attendanceStatus: "PRESENT",
+                reportDate: new Date("2026-09-28T00:00:00Z"),
               },
               {
                 actualHours: 9,
                 scheduledHours: 8,
                 creditedHours: 8.5,
                 attendanceStatus: "PRESENT",
+                reportDate: new Date("2026-09-28T00:00:00Z"),
               },
             ],
           },
@@ -269,6 +274,48 @@ describe("getComplianceRows", () => {
     expect(row.confirmedHours).toBe(12);
     expect(row.hoursPercent).toBe(100);
     expect(row.status).toBe("COMPLETED");
+  });
+
+  it("notes habitual absence and lateness against the approved schedule's start time", async () => {
+    const day = (d: string, attendanceStatus: string, timeIn: string | null = null) => ({
+      reportDate: new Date(`${d}T00:00:00Z`),
+      attendanceStatus,
+      scheduledHours: 8,
+      actualHours: null,
+      timeIn,
+    });
+    prismaMock.studentProfile.findMany.mockResolvedValue([
+      profile({
+        workPlans: [
+          {
+            scheduleConfig: {
+              daysOfWeek: [1, 2, 3, 4, 5],
+              hoursPerDay: 8,
+              startTime: "08:00",
+              endTime: "17:00",
+            },
+          },
+        ],
+        weeklyReports: [
+          {
+            weekStart: new Date("2026-09-28T00:00:00Z"),
+            status: "SUBMITTED",
+            revisionHistory: [],
+            dailyEntries: [
+              day("2026-09-29", "ABSENT"),
+              day("2026-09-30", "ABSENT"),
+              day("2026-10-01", "ABSENT"),
+              day("2026-10-02", "PRESENT", "08:30"),
+              day("2026-10-05", "PRESENT", "08:05"),
+              day("2026-10-06", "PRESENT", "09:00"),
+              day("2026-10-07", "PRESENT", "08:00"), // on time
+            ],
+          },
+        ],
+      }),
+    ] as never);
+    const [row] = await getComplianceRows({ kind: "department", semesterId: "sem-1" }, NOW);
+    expect(row.attendanceNote).toBe("Absent 3×, Late 3× in 4 weeks");
   });
 
   it("flags NEEDS_ATTENTION for an incomplete checklist or a missing due-week report", async () => {
@@ -381,6 +428,7 @@ const row = (over: Partial<ComplianceRow>): ComplianceRow => ({
   awaitingReview: 0,
   status: "ON_TRACK",
   recentWeeks: [],
+  attendanceNote: null,
   ...over,
 });
 

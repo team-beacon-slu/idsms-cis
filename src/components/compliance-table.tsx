@@ -96,6 +96,11 @@ export function ComplianceTable({
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={row.status} />
+                  {row.attendanceNote && (
+                    <p className="mt-1 text-xs font-medium whitespace-nowrap text-amber-700 dark:text-amber-300">
+                      {row.attendanceNote}
+                    </p>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-x-3 gap-y-1">
