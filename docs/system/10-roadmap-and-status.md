@@ -66,20 +66,20 @@ Quality gates on every merge: type checking, linting, about 1,100 automated test
 
 ## 5. Deferred and backlog items
 
-| Item                                                                              | Source / note                                                                          |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Two-step sign-in for sensitive actions (FR-UM-05)                                 | Deferred; password re-check used instead (Q24)                                         |
-| Work plan program-task matching (FR-WP-03)                                        | Deferred                                                                               |
-| Maintenance banner (NFR-REL-01)                                                   | Done (Nov 2026): Super Admin sets a notice on Settings; banner on every signed-in page |
-| Onboarding tour (NFR-USA-02)                                                      | Not built; the Help page covers first-time questions                                   |
-| Monitoring log: supervisor checks and OJT visitations                             | Backlog (Q13)                                                                          |
-| Pull-out or mid-internship company transfer                                       | Backlog (Q22)                                                                          |
-| Withdraw a submitted weekly report to draft                                       | Waiting for the adviser (Q21)                                                          |
-| Habitual tardiness or absence flag on the faculty dashboard                       | Done (Nov 2026): Interns table notes 3+ absences or late arrivals in 4 weeks           |
-| "University suspension" calendar type                                             | Backlog (Q14)                                                                          |
-| Coordinator-posted department events on students' calendars                       | Backlog                                                                                |
-| Notification email preferences per user                                           | Backlog; email itself waits for a sending domain (Q15)                                 |
-| Calendar feed (`.ics`) for phone calendars                                        | Backlog                                                                                |
-| Monthly journal in SLU's template                                                 | Waiting for the template (Q7)                                                          |
-| Leave, OT and UT proof: upload vs Google Classroom                                | Pending confirmation (Q19); today a proof file can still be uploaded                   |
-| Out of scope: allowance, group applications, international deployment (CHED-SIAP) | PRD and SLU guidelines review                                                          |
+| Item                                                                              | Source / note                                                                           |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Two-step sign-in for sensitive actions (FR-UM-05)                                 | Deferred; password re-check used instead (Q24)                                          |
+| Work plan program-task matching (FR-WP-03)                                        | Deferred                                                                                |
+| Maintenance banner (NFR-REL-01)                                                   | Done (Nov 2026): Super Admin sets a notice on Settings; banner on every signed-in page  |
+| Onboarding tour (NFR-USA-02)                                                      | Not built; the Help page covers first-time questions                                    |
+| Monitoring log: supervisor checks and OJT visitations                             | Backlog (Q13)                                                                           |
+| Pull-out or mid-internship company transfer                                       | Backlog (Q22)                                                                           |
+| Withdraw a submitted weekly report to draft                                       | Waiting for the adviser (Q21)                                                           |
+| Habitual tardiness or absence flag on the faculty dashboard                       | Done (Nov 2026): Interns table notes 3+ absences or late arrivals in 4 weeks            |
+| "University suspension" calendar type                                             | Done (Nov 2026, Q14 option B): coordinator adds them on Calendar; counted like holidays |
+| Coordinator-posted department events on students' calendars                       | Backlog                                                                                 |
+| Notification email preferences per user                                           | Backlog; email itself waits for a sending domain (Q15)                                  |
+| Calendar feed (`.ics`) for phone calendars                                        | Backlog                                                                                 |
+| Monthly journal in SLU's template                                                 | Waiting for the template (Q7)                                                           |
+| Leave, OT and UT proof: upload vs Google Classroom                                | Pending confirmation (Q19); today a proof file can still be uploaded                    |
+| Out of scope: allowance, group applications, international deployment (CHED-SIAP) | PRD and SLU guidelines review                                                           |
