@@ -6,6 +6,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { loadShift } from "@/lib/services/attendance/creditedHours";
+import { defaultDayTimes } from "@/lib/utils/timeMath";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
   getConfirmedSubmission,
@@ -100,6 +101,11 @@ export default async function WeeklyReportsPage(props: {
     .flatMap((r) => r.dailyEntries)
     .filter((e) => e.attendanceStatus === "PRESENT" && e.timeIn && e.timeOut)
     .sort((a, b) => b.reportDate.getTime() - a.reportDate.getTime())[0];
+  // With neither (an older schedule and no worked day yet), a standard day sized to the
+  // scheduled hours, so the intern only writes what they did.
+  const scheduledDay = reports
+    .flatMap((r) => r.dailyEntries)
+    .find((e) => Number(e.scheduledHours) > 0);
   const usualTimes = lastWorked
     ? {
         timeIn: lastWorked.timeIn ?? "",
@@ -107,7 +113,9 @@ export default async function WeeklyReportsPage(props: {
         timeIn2: lastWorked.timeIn2 ?? "",
         timeOut2: lastWorked.timeOut2 ?? "",
       }
-    : null;
+    : !shift && scheduledDay
+      ? defaultDayTimes(Number(scheduledDay.scheduledHours))
+      : null;
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const deductionsAsOf = (weekEnd: Date) =>
     Math.round(
