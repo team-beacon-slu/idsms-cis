@@ -15,6 +15,8 @@ import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeploymen
 import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";
+import { SuspensionDays } from "./suspension-days";
+import { listSuspensionDays } from "@/lib/services/calendar/suspensionService";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 
@@ -58,9 +60,9 @@ export default async function CalendarPage() {
   }
   // Reuse the view just built: rebuilding it per detector doubled the page's queries.
   const highVolumeWeeks = isFaculty ? await detectHighVolumeSubmissionWeeks(user.id, events) : [];
-  const endorsementSpikes = coordinatorView
-    ? await detectEndorsementLetterSpikes(user.id, events)
-    : [];
+  const [endorsementSpikes, suspensionDays] = coordinatorView
+    ? await Promise.all([detectEndorsementLetterSpikes(user.id, events), listSuspensionDays()])
+    : [[], []];
 
   return (
     <div className="space-y-6">
@@ -111,6 +113,23 @@ export default async function CalendarPage() {
             <p className="mt-1 text-muted-foreground">No clustered completion weeks detected.</p>
           )}
         </div>
+      )}
+
+      {coordinatorView && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">University suspension days</CardTitle>
+            <CardDescription>
+              Days the university suspends work or classes. Every intern this semester gets the day
+              off like a holiday, so no one is marked absent.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SuspensionDays
+              days={suspensionDays.map((d) => ({ ...d, date: d.date.toISOString() }))}
+            />
+          </CardContent>
+        </Card>
       )}
 
       <Card>

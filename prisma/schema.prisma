@@ -138,6 +138,7 @@ enum HolidayType {
   NATIONAL
   REGIONAL
   COMPANY // a host company's own non-working day (FR-AT-02)
+  SUSPENSION // a university suspension day, added by the coordinator (Q14)
 }
 
 // ── NextAuth (database session strategy — FR-UM-11) ────────────────────────
