@@ -54,6 +54,38 @@ it("aggregates assigned students using both class group and semester, then color
   expect(prismaMock.weeklyReport.findMany).toHaveBeenCalledTimes(1);
   expect(listWeeklyReportsForStudent).not.toHaveBeenCalled();
 });
+it("shows a holiday the advisees share once, while each intern keeps their own deadline", async () => {
+  prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+    { classGroupId: "g-1", semesterId: "s-1" },
+  ] as never);
+  prismaMock.studentProfile.findMany.mockResolvedValue([{ id: "p-1" }, { id: "p-2" }] as never);
+  prismaMock.weeklyReport.findMany.mockResolvedValue([
+    { studentProfileId: "p-1", weekStart: new Date("2026-10-12"), weekEnd: new Date("2026-10-18") },
+    { studentProfileId: "p-2", weekStart: new Date("2026-10-12"), weekEnd: new Date("2026-10-18") },
+  ] as never);
+  // First read: interns' opt-outs (none); second: the semester's holidays.
+  prismaMock.holidayCalendarEntry.findMany
+    .mockResolvedValueOnce([] as never)
+    .mockResolvedValueOnce([
+      {
+        semesterId: undefined,
+        companyId: null,
+        date: new Date("2026-11-01"),
+        name: "All Saints' Day",
+      },
+    ] as never);
+
+  const events = await getFacultyCalendarView("faculty-1");
+
+  const holidays = events.filter((e) => e.type === "HOLIDAY");
+  expect(holidays).toEqual([expect.objectContaining({ label: "All Saints' Day" })]);
+  expect(holidays[0]).not.toHaveProperty("studentProfileId");
+  expect(events.filter((e) => e.type === "DEADLINE").map((e) => e.studentProfileId)).toEqual([
+    "p-1",
+    "p-2",
+  ]);
+});
+
 it("propagates lookup failures instead of returning a misleading empty calendar", async () => {
   prismaMock.facultyClassGroup.findMany.mockRejectedValue(new Error("Unavailable"));
   await expect(getFacultyCalendarView("faculty-1")).rejects.toThrow("Unavailable");

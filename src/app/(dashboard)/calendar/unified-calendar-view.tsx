@@ -266,7 +266,8 @@ export function UnifiedCalendarView({
                 <span
                   className={cn(
                     "inline-flex size-5 items-center justify-center rounded-full text-[11px]",
-                    inMonth ? "text-foreground" : "text-muted-foreground/50",
+                    // Other-month days are told apart by their cell tint; /50 text failed 4.5:1.
+                    inMonth ? "text-foreground" : "text-muted-foreground",
                     isToday && "bg-chart-1 font-semibold text-white"
                   )}
                 >

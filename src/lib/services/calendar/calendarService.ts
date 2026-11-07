@@ -260,6 +260,22 @@ export const CALENDAR_EVENT_COLORS: Record<CalendarEventType, string> = {
   EVENT: "blue",
 };
 
+// Events of these types that several interns share (same day and label) become one event
+// with no intern attached; other events pass through untouched.
+export function showSharedOnce(
+  events: CalendarEvent[],
+  types: CalendarEventType[]
+): CalendarEvent[] {
+  const seen = new Set<string>();
+  return events.flatMap((event): CalendarEvent[] => {
+    if (!types.includes(event.type)) return [event];
+    const key = `${event.type}|${event.date.getTime()}|${event.label}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ type: event.type, date: event.date, label: event.label }];
+  });
+}
+
 export function colorCodeCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
   return events.map((event) => ({ ...event, color: CALENDAR_EVENT_COLORS[event.type] }));
 }
@@ -313,9 +329,12 @@ export async function getFacultyCalendarView(facultyId: string): Promise<Calenda
     getUnifiedCalendarEvents(facultyId, Role.FACULTY_ADVISER),
     getDepartmentEvents(),
   ]);
-  return colorCodeCalendarEvents([...events, ...departmentEvents]).sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
-  );
+  // A holiday most advisees share showed once per advisee (39 "All Saints' Day" chips);
+  // deadlines stay per intern, they link to that intern's reports and feed the volume count.
+  return colorCodeCalendarEvents([
+    ...showSharedOnce(events, ["HOLIDAY"]),
+    ...departmentEvents,
+  ]).sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 // FR-CAL-03 — Owner: AndresBonifaci0 (Matt)
@@ -406,14 +425,7 @@ export async function getCoordinatorCalendarView(coordinatorId: string): Promise
   // FR-CAL-04 asks for department-wide milestones: every intern shares the same report
   // deadlines and semester holidays, so show each once instead of once per intern.
   // Completions stay per intern; the endorsement-demand forecast counts them.
-  const seen = new Set<string>();
-  const milestones = events.flatMap((event): CalendarEvent[] => {
-    if (event.type !== "DEADLINE" && event.type !== "HOLIDAY") return [event];
-    const key = `${event.type}|${event.date.getTime()}|${event.label}`;
-    if (seen.has(key)) return [];
-    seen.add(key);
-    return [{ type: event.type, date: event.date, label: event.label }];
-  });
+  const milestones = showSharedOnce(events, ["DEADLINE", "HOLIDAY"]);
   return colorCodeCalendarEvents([...milestones, ...expiryEvents, ...departmentEvents]).sort(
     (a, b) => a.date.getTime() - b.date.getTime()
   );
