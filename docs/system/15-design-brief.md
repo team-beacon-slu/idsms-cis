@@ -178,13 +178,13 @@ As built:
 
 Items marked **Built** were done in later work; the rest are **Recommendation (not built)**.
 
-| Priority | Recommendation                                                                | Status                         |
-| -------- | ----------------------------------------------------------------------------- | ------------------------------ |
-| High     | Announce async status changes with contextual `role="status"` text            | Recommendation (not built)     |
-| High     | Horizontal-scroll or card layout for staff tables on phones                   | **Built** (#98)                |
-| High     | Field-level errors plus an error summary on the weekly report form            | Recommendation (not built)     |
-| Medium   | Show hours as "N hrs M mins" everywhere, for consistency with the PDF         | Recommendation (not built)     |
-| Medium   | Add the SLU logo and seal to the sidebar header and PDFs                      | Waiting for SLU's official art |
-| Medium   | A first-login tour (NFR-USA-02) explaining status colours and the main action | Partly: Help page (#111)       |
-| Low      | Dark theme switch                                                             | **Built** (#107)               |
-| Low      | Respect reduced-motion preferences for transitions                            | **Built** (`globals.css`)      |
+| Priority | Recommendation                                                                | Status                                            |
+| -------- | ----------------------------------------------------------------------------- | ------------------------------------------------- |
+| High     | Announce async status changes with contextual `role="status"` text            | **Built** (Nov 2026, weekly report and work plan) |
+| High     | Horizontal-scroll or card layout for staff tables on phones                   | **Built** (#98)                                   |
+| High     | Field-level errors plus an error summary on the weekly report form            | **Built** (Nov 2026)                              |
+| Medium   | Show hours as "N hrs M mins" everywhere, for consistency with the PDF         | **Built** (Nov 2026)                              |
+| Medium   | Add the SLU logo and seal to the sidebar header and PDFs                      | Waiting for SLU's official art                    |
+| Medium   | A first-login tour (NFR-USA-02) explaining status colours and the main action | **Built** (#190, Getting started card)            |
+| Low      | Dark theme switch                                                             | **Built** (#107)                                  |
+| Low      | Respect reduced-motion preferences for transitions                            | **Built** (`globals.css`)                         |

@@ -265,8 +265,8 @@ Write a letter, "OK", or a short note. Questions are grouped by topic, so the nu
 | 10  | Suspension points                  | — (please give values)   |             |
 | 11  | Final grade                        | A (tally only)           |             |
 | 12  | Demerit hours                      | A (0)                    |             |
-| 13  | Monitoring log                     | — (not built)            |             |
-| 14  | University suspension days         | — (not built)            |             |
+| 13  | Monitoring log                     | Built (visit log, Q13)   |             |
+| 14  | University suspension days         | Built (company days off) |             |
 | 15  | Sending email address              | — (please provide)       |             |
 | 16  | AI hints for faculty               | A (off)                  |             |
 | 17  | Lab computer owner                 | — (please name)          |             |
