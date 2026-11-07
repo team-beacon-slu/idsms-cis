@@ -125,7 +125,44 @@ it("marks every day that needs fixing on Submit and scrolls to the first", () =>
 
   fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
 
-  expect(screen.getAllByRole("alert")).toHaveLength(3);
+  // One error summary with a link per day, each field flagged and tied to its message.
+  const summary = screen.getByRole("alert");
+  expect(summary.querySelectorAll("a")).toHaveLength(3);
+  expect(summary).toHaveTextContent("Wed, Oct 21: Enter hours worked");
+  const acc = document.getElementById("hours-wed");
+  expect(acc).toHaveAttribute("aria-invalid", "true");
+  expect(acc).toHaveAttribute("aria-describedby", "problem-wed");
+  expect(document.getElementById("problem-wed")).toHaveTextContent("Enter hours worked");
   expect(toast.error).toHaveBeenCalledWith("3 days need fixing; each is marked below");
   expect(scroll).toHaveBeenCalledTimes(1);
+  expect(document.activeElement).toBe(document.getElementById("hours-tue"));
+});
+
+it("clears a day's error once the intern edits it", () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  render(<WeeklyReportForm {...props} entries={week} editable />);
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+
+  fireEvent.change(document.getElementById("hours-tue")!, { target: { value: "8" } });
+
+  expect(screen.getByRole("alert").querySelectorAll("a")).toHaveLength(2);
+  expect(document.getElementById("hours-tue")).not.toHaveAttribute("aria-invalid");
+});
+
+it("flags a missing reason for delay on a late report next to the box", () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  const filled = {
+    ...entry,
+    attendanceStatus: "PRESENT",
+    actualHours: 8,
+    accomplishments: "Did it",
+  };
+  render(
+    <WeeklyReportForm {...props} weekEnd="2026-10-25T00:00:00.000Z" entries={[filled]} editable />
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+
+  const box = document.getElementById("delay-wr-1");
+  expect(box).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("alert")).toHaveTextContent("Reason for delay is required");
 });
