@@ -698,7 +698,7 @@ async function assertUndertimeFiled(
     (e) => e.attendanceStatus === "PRESENT" && Number(e.scheduledHours) > 0 && e.timeIn && e.timeOut
   );
   if (worked.length === 0) return;
-  const shift = await loadShift(studentProfileId);
+  const shift = await loadShift(studentProfileId, tx);
   if (!shift) return;
 
   const requests = await tx.deviationReport.findMany({
