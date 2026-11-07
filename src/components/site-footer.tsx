@@ -81,6 +81,9 @@ export function SiteFooter({
                   )}
                   <Link
                     href={href}
+                    // Rarely opened, and on every page: prefetching re-rendered them on the
+                    // server for nothing (counted against the hosting plan).
+                    prefetch={false}
                     className="rounded-md px-2 py-1.5 text-foreground/80 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
                   >
                     {label}

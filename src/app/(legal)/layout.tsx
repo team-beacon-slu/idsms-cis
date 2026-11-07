@@ -20,12 +20,14 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
         <nav aria-label="Legal" className="flex gap-4 text-sm">
           <Link
             href="/privacy"
+            prefetch={false}
             className="text-foreground underline underline-offset-2 hover:text-primary"
           >
             Privacy notice
           </Link>
           <Link
             href="/terms"
+            prefetch={false}
             className="text-foreground underline underline-offset-2 hover:text-primary"
           >
             Terms of use

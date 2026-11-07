@@ -54,7 +54,7 @@ export default async function ReviewQueuePage() {
                     <Link
                       href={`/students/${r.studentProfileId}/weekly-reports/${r.id}/review`}
                       prefetch={false}
-                      className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
+                      className="inline-block py-1 font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
                     >
                       {r.intern}
                     </Link>
@@ -140,7 +140,7 @@ export default async function ReviewQueuePage() {
                         <Link
                           href={r.href}
                           prefetch={false}
-                          className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
+                          className="inline-block py-1 font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
                         >
                           {r.intern}
                         </Link>
