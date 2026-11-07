@@ -21,6 +21,7 @@ import { runRetentionScan } from "@/lib/services/privacy/retentionService";
 import {
   getNotificationSettings,
   notificationSettingsSchema,
+  purgeExpiredSignIns,
   remindDueDataRequests,
   retryFailedEmails,
   runDailyNotifications,
@@ -43,6 +44,21 @@ beforeEach(() => {
   // No adviser assignments (so no review digests) unless a test says so.
   prismaMock.facultyClassGroup.findMany.mockResolvedValue([] as never);
   prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+  // No sign-in leftovers to clear unless a test says so.
+  prismaMock.session.deleteMany.mockResolvedValue({ count: 0 });
+  prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
+});
+
+it("clears expired sessions and used or expired reset links, and reports how many", async () => {
+  const now = new Date("2026-11-08T00:00:00Z");
+  prismaMock.session.deleteMany.mockResolvedValue({ count: 145 });
+  prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 1 });
+
+  expect(await purgeExpiredSignIns(now)).toBe(146);
+  expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { expires: { lt: now } } });
+  expect(prismaMock.passwordResetToken.deleteMany).toHaveBeenCalledWith({
+    where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] },
+  });
 });
 
 describe("sendReviewDigests (decision D1)", () => {
