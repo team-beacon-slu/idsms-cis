@@ -300,6 +300,18 @@ export async function retryFailedEmails(now: Date): Promise<number> {
   return sent;
 }
 
+// Sign-in leftovers serve no one: expired sessions can't sign anyone in, and a reset
+// link that was used or has expired can't be used again. Keeping them only keeps data.
+export async function purgeExpiredSignIns(now: Date): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const sessions = await tx.session.deleteMany({ where: { expires: { lt: now } } });
+    const tokens = await tx.passwordResetToken.deleteMany({
+      where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] },
+    });
+    return sessions.count + tokens.count;
+  });
+}
+
 interface ReminderTarget {
   profileId: string;
   userId: string;
@@ -322,6 +334,7 @@ export async function runDailyNotifications(now: Date) {
     dsarReminders: 0,
     reviewDigests: 0,
     emailRetries: 0,
+    expiredSignIns: 0,
     // null when the scan step threw.
     retention: null as { ran: boolean; flagged: number } | null,
     errors: [] as string[],
@@ -447,6 +460,13 @@ export async function runDailyNotifications(now: Date) {
   } catch (error) {
     console.error("DSAR due reminder failed", { error });
     result.errors.push("dsar");
+  }
+
+  try {
+    result.expiredSignIns = await purgeExpiredSignIns(now);
+  } catch (error) {
+    console.error("Expired sign-in cleanup failed", { error });
+    result.errors.push("sign-in-cleanup");
   }
 
   // NFR-DP-08: quarterly (the scan gates itself); flags only, never deletes.
