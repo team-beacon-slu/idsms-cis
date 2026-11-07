@@ -52,7 +52,7 @@ function ConnectionFields({
     <fieldset className="space-y-3 rounded-lg border p-3">
       <legend className="px-1 text-sm font-medium">{title}</legend>
       <p className="text-xs text-muted-foreground">{hint}</p>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
         <input
           type="checkbox"
           checked={value !== null}

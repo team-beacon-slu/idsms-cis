@@ -101,7 +101,7 @@ function EventList({ events, staff }: { events: CalendarEvent[]; staff: boolean 
             {staff && event.studentProfileId && (
               <a
                 href={`/students/${event.studentProfileId}/weekly-reports`}
-                className="text-xs text-primary underline underline-offset-2"
+                className="inline-block py-1 text-xs text-primary underline underline-offset-2"
               >
                 Student reports
               </a>
