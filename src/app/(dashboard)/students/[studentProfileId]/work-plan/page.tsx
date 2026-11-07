@@ -15,6 +15,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { FileDown } from "lucide-react";
 import { WorkPlanReviewActions } from "./work-plan-review-actions";
+import { ProgramFitNote } from "./program-fit-note";
+import { prisma } from "@/lib/prisma";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Work plan" };
@@ -36,7 +38,13 @@ export default async function WorkPlanPage(props: {
     throw error;
   }
 
-  const history = await getWorkPlanHistory(params.studentProfileId);
+  const [history, profile] = await Promise.all([
+    getWorkPlanHistory(params.studentProfileId),
+    prisma.studentProfile.findUniqueOrThrow({
+      where: { id: params.studentProfileId },
+      select: { program: true },
+    }),
+  ]);
   const latest = history[0];
   const rows = latest ? asWorkPlanRows(latest.plannedTasks) : [];
   const isOwner = user.role === Role.STUDENT_INTERN;
@@ -58,6 +66,7 @@ export default async function WorkPlanPage(props: {
       {canSubmitNew && (
         <WorkPlanSubmitForm
           studentProfileId={params.studentProfileId}
+          program={profile.program}
           aiRead={canSubmitNew && (await connectionFor("workplan", user)) !== null}
           initialRows={latest?.status === "RETURNED" ? rows : undefined}
         />
@@ -137,7 +146,10 @@ export default async function WorkPlanPage(props: {
             </a>
 
             {canReview && latest.status === "SUBMITTED" && (
-              <WorkPlanReviewActions workPlanId={latest.id} />
+              <>
+                <ProgramFitNote program={profile.program} tasks={rows} forReviewer />
+                <WorkPlanReviewActions workPlanId={latest.id} />
+              </>
             )}
           </CardContent>
         </Card>

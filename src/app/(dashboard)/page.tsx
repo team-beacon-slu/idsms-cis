@@ -29,6 +29,7 @@ import { InternshipTrack, MiniTrack } from "@/components/internship-track";
 import { BeaconRing } from "@/components/beacon-ring";
 import { CountUp } from "@/components/count-up";
 import type { Metadata } from "next";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -174,7 +175,7 @@ export default async function DashboardHomePage(props: {
     ? "Your student profile is not set up yet. Ask your coordinator."
     : hoursComplete
       ? `All ${requiredHours} required hours confirmed. Well done: what's left is your final report.`
-      : `${confirmedHours} of ${requiredHours} hours confirmed · ` +
+      : `${formatHrsMins(confirmedHours)} of ${requiredHours} hours confirmed · ` +
         (projectedCompletion
           ? `on schedule to finish ${fmtDate(projectedCompletion)}`
           : "set your work schedule to see your finish date");
@@ -240,7 +241,7 @@ export default async function DashboardHomePage(props: {
             <div className="rounded-2xl bg-white/10 px-3 py-2.5">
               <dt className="text-white/70">Hours awaiting review</dt>
               <dd className="mt-0.5 font-semibold text-white tabular-nums">
-                {pendingHours > 0 ? `+${pendingHours} hrs` : "—"}
+                {pendingHours > 0 ? `+${formatHrsMins(pendingHours)}` : "—"}
               </dd>
             </div>
             <div className="rounded-2xl bg-white/10 px-3 py-2.5">

@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 7 November 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 The executed roadmap, per-workstream plans and designs are kept for reference in [`docs/archive/`](../archive/README.md). The one active plan is the [Phase 5 lab-server plan](../plans/phase5-lab-server-hosting.md).
 
@@ -53,7 +53,7 @@ Quality gates on every merge: type checking, linting, about 1,100 automated test
 
 ## 3. What is next
 
-1. **Adviser answers** to the [open questions](../ADVISER_QUESTIONS.md). Most have working defaults; Q5, Q7, Q10, Q15, Q17 and Q18 need an answer before launch.
+1. **Adviser answers:** only Q18 (what "CPO" stands for) is still open; see the [questions](../ADVISER_QUESTIONS.md).
 2. **Phase 5** lab hosting. **Stage 1 is done** (#123): the Docker stack in `deploy/` builds and runs, and file storage can switch to MinIO with `STORAGE_DRIVER=s3`. The rest waits for answers H1–H6 in the [Phase 5 plan](../plans/phase5-lab-server-hosting.md) and a lab computer.
 
 ## 4. Phase 5 plan (Planned)
@@ -69,7 +69,7 @@ Quality gates on every merge: type checking, linting, about 1,100 automated test
 | Item                                                                              | Source / note                                                                                                                                                                 |
 | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Two-step sign-in for sensitive actions (FR-UM-05)                                 | Deferred; password re-check used instead (Q24)                                                                                                                                |
-| Work plan program-task matching (FR-WP-03)                                        | Deferred                                                                                                                                                                      |
+| Work plan program-task matching (FR-WP-03)                                        | Done (Nov 2026): tasks that may not fit the program are named for the intern and the coordinator (advice only)                                                                |
 | Maintenance banner (NFR-REL-01)                                                   | Done (Nov 2026): Super Admin sets a notice on Settings; banner on every signed-in page                                                                                        |
 | Onboarding tour (NFR-USA-02)                                                      | Done (Nov 2026): 'Getting started' card on the home page, 4 steps per role; Help can show it again                                                                            |
 | Monitoring log: supervisor checks and OJT visitations                             | Done (Nov 2026, Q13): company page 'Visits and supervisor check-ins' (on site, online, phone)                                                                                 |

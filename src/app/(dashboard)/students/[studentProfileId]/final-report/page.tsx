@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/page-header";
 import { FinalReportEditor } from "./final-report-editor";
 import { FinalReportReview } from "./final-report-review";
 import type { Metadata } from "next";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 export const metadata: Metadata = { title: "Final report" };
 
@@ -105,7 +106,7 @@ export default async function FinalReportPage(props: {
           <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
             <Lock className="size-5" aria-hidden="true" />
             Unlocks at {state.threshold} confirmed hours —{" "}
-            {Math.round((state.threshold - state.renderedHours) * 100) / 100} more hours to go.
+            {formatHrsMins(state.threshold - state.renderedHours)} more to go.
           </CardContent>
         </Card>
       ) : (

@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import type { Program } from "@prisma/client";
+import { ProgramFitNote } from "./program-fit-note";
 
 type Row = { period: string; area: string; description: string; output: string; hours: string };
 const blank = (): Row => ({ period: "", area: "", description: "", output: "", hours: "" });
@@ -67,10 +69,12 @@ export function nextPeriod(last: string): string {
 // coverage; days off the plan marks can go straight onto the intern's calendar.
 export function WorkPlanSubmitForm({
   studentProfileId,
+  program,
   aiRead,
   initialRows,
 }: {
   studentProfileId: string;
+  program: Program; // FR-WP-03: tasks are checked against it as the intern types
   aiRead: boolean; // AI assist can read uploaded files for this intern
   initialRows?: Parameters<typeof toRow>[0][]; // a returned plan's rows, to revise
 }) {
@@ -344,6 +348,7 @@ export function WorkPlanSubmitForm({
               Total hours (overtime not included): {Math.round(total * 100) / 100}
             </p>
           </div>
+          <ProgramFitNote program={program} tasks={rows} />
           <Button
             type="submit"
             disabled={isSubmitting}
