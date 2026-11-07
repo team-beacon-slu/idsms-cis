@@ -8,6 +8,15 @@ name: idsms
 networks:
   idsms_net:
 
+# Sized for a 16 GB lab computer (more RAM only adds headroom): the stack tops out near 5 GB,
+# so a runaway container is stopped and restarted instead of freezing the machine.
+# Logs rotate at 3 x 10 MB per container so months of uptime can't fill the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 volumes:
   pg_data:
   minio_data:
@@ -19,6 +28,10 @@ services:
     # Same major version as Supabase (17), so its backups restore here (pg_restore needs >= the dump's version).
     image: pgvector/pgvector:pg17
     restart: unless-stopped
+    # 512 MB of cache (default 128 MB) keeps the whole database in memory at SAMCIS's size.
+    command: postgres -c shared_buffers=512MB -c effective_cache_size=1GB
+    mem_limit: 2g
+    logging: *logging
     environment:
       POSTGRES_USER: idsms
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
@@ -42,6 +55,8 @@ services:
     # retry without this line on the lab computer's Linux Docker.
     user: "0:0"
     command: server /data --console-address ":9001"
+    mem_limit: 512m
+    logging: *logging
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in deploy/.env}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in deploy/.env}
@@ -61,6 +76,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    mem_limit: 128m
+    logging: *logging
     networks: [idsms_net]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -87,6 +104,12 @@ services:
       minio-init:
         condition: service_completed_successfully
     env_file: ${APP_ENV_FILE:-../.env.production}
+    # Node gets 1 GB of heap; the rest is for Chromium while it renders PDFs
+    # (bulk endorsement letters open several pages at once).
+    environment:
+      NODE_OPTIONS: --max-old-space-size=1024
+    mem_limit: 2g
+    logging: *logging
     networks: [idsms_net]
 
   # Daily reminders and MOA-expiry alerts (FR-NT-05): Vercel Cron does this today.
@@ -94,6 +117,8 @@ services:
   cron:
     image: alpine:3.22
     restart: unless-stopped
+    mem_limit: 32m
+    logging: *logging
     depends_on:
       app:
         condition: service_healthy
@@ -110,6 +135,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    mem_limit: 128m
+    logging: *logging
     ports: ["80:80", "443:443"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

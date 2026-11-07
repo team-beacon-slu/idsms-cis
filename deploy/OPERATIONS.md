@@ -357,13 +357,16 @@ docker compose logs --tail=100 caddy  # TLS / ACME / upstream errors
 
 Common resolutions:
 
-| Symptom                                            | Action                                                                                                              |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `app` unhealthy, logs show DB connection errors    | `docker compose ps postgres`; if down/unhealthy, `docker compose up -d postgres` then `docker compose restart app`. |
-| `app` healthy locally but `https://<domain>` fails | Check `caddy` logs for cert/ACME issues; confirm DNS still points at the VM; `docker compose restart caddy`.        |
-| Everything "up" but 502 from Caddy                 | `docker compose restart app`; if it crash-loops, roll back (§3.3 fast path).                                        |
-| Disk full (dumps, images)                          | `docker system prune -f`; check `/opt/idsms/backups` size; verify `rclone` off-site sync is running.                |
-| Total confusion                                    | `docker compose up -d --wait` to force re-converge; then roll back if still bad.                                    |
+| Symptom                                            | Action                                                                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `app` unhealthy, logs show DB connection errors    | `docker compose ps postgres`; if down/unhealthy, `docker compose up -d postgres` then `docker compose restart app`.            |
+| `app` healthy locally but `https://<domain>` fails | Check `caddy` logs for cert/ACME issues; confirm DNS still points at the VM; `docker compose restart caddy`.                   |
+| Everything "up" but 502 from Caddy                 | `docker compose restart app`; if it crash-loops, roll back (§3.3 fast path).                                                   |
+| Disk full (dumps, images)                          | `docker system prune -f`; check `/opt/idsms/backups` size; verify `rclone` off-site sync is running.                           |
+| Total confusion                                    | `docker compose up -d --wait` to force re-converge; then roll back if still bad.                                               |
+| `app` restarts after PDF jobs, `OOMKilled: true`   | It hit its 2 GB cap (`docker inspect idsms-app-1 --format '{{.State.OOMKilled}}'`). Raise `mem_limit` in `docker-compose.yml`. |
+
+**Memory.** Every container has a cap (`mem_limit` in `docker-compose.yml`), sized for a 16 GB machine: app 2 GB (Node heap 1 GB, the rest for Chromium's PDFs), postgres 2 GB (`shared_buffers` 512 MB), minio 512 MB, caddy and minio-init 128 MB, cron 32 MB; about 5 GB at most. A container over its cap is killed and restarted (`restart: unless-stopped`) instead of slowing the whole machine. `docker stats` shows live use against each cap. Logs rotate at 3 × 10 MB per container.
 
 ---
 
