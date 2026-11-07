@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 7 November 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 The executed roadmap, per-workstream plans and designs are kept for reference in [`docs/archive/`](../archive/README.md). The one active plan is the [Phase 5 lab-server plan](../plans/phase5-lab-server-hosting.md).
 
@@ -53,7 +53,7 @@ Quality gates on every merge: type checking, linting, about 1,100 automated test
 
 ## 3. What is next
 
-1. **Adviser answers** to the [open questions](../ADVISER_QUESTIONS.md). Most have working defaults; Q5, Q7, Q10, Q15, Q17 and Q18 need an answer before launch.
+1. **Adviser answers:** only Q18 (what "CPO" stands for) is still open; see the [questions](../ADVISER_QUESTIONS.md).
 2. **Phase 5** lab hosting. **Stage 1 is done** (#123): the Docker stack in `deploy/` builds and runs, and file storage can switch to MinIO with `STORAGE_DRIVER=s3`. The rest waits for answers H1–H6 in the [Phase 5 plan](../plans/phase5-lab-server-hosting.md) and a lab computer.
 
 ## 4. Phase 5 plan (Planned)
@@ -66,19 +66,20 @@ Quality gates on every merge: type checking, linting, about 1,100 automated test
 
 ## 5. Deferred and backlog items
 
-| Item                                                                              | Source / note                                                        |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Two-step sign-in for sensitive actions (FR-UM-05)                                 | Deferred; password re-check used instead (Q24)                       |
-| Work plan program-task matching (FR-WP-03)                                        | Deferred                                                             |
-| Onboarding tour (NFR-USA-02), maintenance banner (NFR-REL-01)                     | Not built; the Help page covers first-time questions                 |
-| Monitoring log: supervisor checks and OJT visitations                             | Backlog (Q13)                                                        |
-| Pull-out or mid-internship company transfer                                       | Backlog (Q22)                                                        |
-| Withdraw a submitted weekly report to draft                                       | Waiting for the adviser (Q21)                                        |
-| Habitual tardiness or absence flag on the faculty dashboard                       | Backlog                                                              |
-| "University suspension" calendar type                                             | Backlog (Q14)                                                        |
-| Coordinator-posted department events on students' calendars                       | Backlog                                                              |
-| Notification email preferences per user                                           | Backlog; email itself waits for a sending domain (Q15)               |
-| Calendar feed (`.ics`) for phone calendars                                        | Backlog                                                              |
-| Monthly journal in SLU's template                                                 | Waiting for the template (Q7)                                        |
-| Leave, OT and UT proof: upload vs Google Classroom                                | Pending confirmation (Q19); today a proof file can still be uploaded |
-| Out of scope: allowance, group applications, international deployment (CHED-SIAP) | PRD and SLU guidelines review                                        |
+| Item                                                                              | Source / note                                                                                                                                                                 |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Two-step sign-in for sensitive actions (FR-UM-05)                                 | Deferred; password re-check used instead (Q24)                                                                                                                                |
+| Work plan program-task matching (FR-WP-03)                                        | Done (Nov 2026): tasks that may not fit the program are named for the intern and the coordinator (advice only)                                                                |
+| Maintenance banner (NFR-REL-01)                                                   | Done (Nov 2026): Super Admin sets a notice on Settings; banner on every signed-in page                                                                                        |
+| Onboarding tour (NFR-USA-02)                                                      | Done (Nov 2026): 'Getting started' card on the home page, 4 steps per role; Help can show it again                                                                            |
+| Monitoring log: supervisor checks and OJT visitations                             | Done (Nov 2026, Q13): company page 'Visits and supervisor check-ins' (on site, online, phone)                                                                                 |
+| Pull-out or mid-internship company transfer                                       | Decided (Q22, option A): handled by staff by hand; not built                                                                                                                  |
+| Withdraw a submitted weekly report to draft                                       | Done (Nov 2026, Q21 option C): 'Take back to fix' until review and the Tuesday deadline                                                                                       |
+| Habitual tardiness or absence flag on the faculty dashboard                       | Done (Nov 2026): Interns table notes 3+ absences or late arrivals in 4 weeks                                                                                                  |
+| "University suspension" calendar type                                             | Done (Nov 2026) per company: interns follow the host company's days off (coordinator adds them on Calendar, with a reason); PH holidays only for companies in the Philippines |
+| Coordinator-posted department events on students' calendars                       | Done (Nov 2026): Calendar card; shown on every calendar this semester, not a day off                                                                                          |
+| Notification email preferences per user                                           | Done (Nov 2026): 'Email me notifications' switch on Account settings; email-only messages still send                                                                          |
+| Calendar feed (`.ics`) for phone calendars                                        | Done (Nov 2026): 'Add to my calendar' on Calendar; private signed .ics link per user                                                                                          |
+| Monthly journal in SLU's template                                                 | Done: SLU's JLE template (#162)                                                                                                                                               |
+| Leave, OT and UT proof: upload vs Google Classroom                                | Done (Q19, option B): proof goes to Google Classroom; IDSMS records only the proof type                                                                                       |
+| Out of scope: allowance, group applications, international deployment (CHED-SIAP) | PRD and SLU guidelines review                                                                                                                                                 |

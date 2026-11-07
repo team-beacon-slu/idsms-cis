@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClarityCoach } from "@/components/ai/clarity-coach";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarPlus, Eye, Save, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -123,8 +123,29 @@ function rowPayload(entryId: string, row: RowState) {
   };
 }
 
+// A day that can't be submitted: the message and which input (by id prefix) to fix.
+type DayProblem = { message: string; field: string };
+
+// dailyEntrySchema paths -> the id prefix of the input that holds them.
+const FIELD_IDS: Record<string, string> = {
+  hours: "hours",
+  accomplishments: "acc",
+  toolsUsed: "tools",
+  timeIn: "in",
+  timeOut: "out",
+  timeIn2: "in2",
+  timeOut2: "out2",
+};
+
+function focusField(entryId: string, field: string) {
+  const el =
+    document.getElementById(`${field}-${entryId}`) ?? document.getElementById(`day-${entryId}`);
+  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  el?.focus({ preventScroll: true });
+}
+
 function formatDay(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString("en-PH", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -242,7 +263,8 @@ function AddDayControl({
 function rowFromEntry(
   e: DailyEntryRow,
   shift: Shift | null = null,
-  usual: DayTimes | null = null
+  usual: DayTimes | null = null,
+  usualTools = ""
 ): RowState {
   // An unfilled scheduled day starts as Present at the schedule's times, else at the times
   // of the intern's last worked day (the adviser: fewer things to type); the intern changes
@@ -261,6 +283,8 @@ function rowFromEntry(
     dirty: false,
   };
   if (!unfilled || base.status !== "PRESENT") return base;
+  // Tools rarely change day to day: start from the last worked day's, like the times.
+  base.toolsUsed ||= usualTools;
   if (shift) {
     return {
       ...base,
@@ -295,6 +319,7 @@ export function WeeklyReportForm({
   priorAccomplishments,
   shift = null,
   usualTimes = null,
+  usualTools = "",
   holidays = {},
   clarityAi = false,
 }: {
@@ -306,19 +331,21 @@ export function WeeklyReportForm({
   priorAccomplishments: string[];
   shift?: Shift | null;
   usualTimes?: DayTimes | null;
+  usualTools?: string; // the last worked day's tools, prefilled on new days
   // This intern's applicable holidays by date (YYYY-MM-DD): PH holidays and company days off.
   holidays?: Record<string, { name: string; company: boolean }>;
   // AI assist's clarity coach can take a second look (lib/ai/jobs.ts "clarity" is on).
   clarityAi?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname(); // request links bring the intern back here (item 25)
   const holidayOn = (iso: string) => holidays[iso.slice(0, 10)];
   const holidayLabel = (iso: string) => {
     const h = holidayOn(iso);
     return h ? `${h.name} (${h.company ? "company day off" : "PH holiday"})` : "Holiday";
   };
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
-    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)]))
+    Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes, usualTools)]))
   );
   // A day added with "Add a day" arrives after a refresh; give it a row without
   // dropping the unsaved edits on the other days.
@@ -326,7 +353,9 @@ export function WeeklyReportForm({
   if (missing.length > 0) {
     setRows((prev) => ({
       ...prev,
-      ...Object.fromEntries(missing.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)])),
+      ...Object.fromEntries(
+        missing.map((e) => [e.id, rowFromEntry(e, shift, usualTimes, usualTools)])
+      ),
     }));
   }
   const [totals, setTotals] = useState(initialTotals);
@@ -335,8 +364,11 @@ export function WeeklyReportForm({
 
   // Each day as the server last sent it; drafts restore only over an unchanged day.
   const serverRows = useMemo(
-    () => Object.fromEntries(entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes)])),
-    [entries, shift, usualTimes]
+    () =>
+      Object.fromEntries(
+        entries.map((e) => [e.id, rowFromEntry(e, shift, usualTimes, usualTools)])
+      ),
+    [entries, shift, usualTimes, usualTools]
   );
   // Read after mount (the server render has no localStorage), once per report.
   const [draftChecked, setDraftChecked] = useState(false);
@@ -404,7 +436,24 @@ export function WeeklyReportForm({
     return dayGaps(ranges, shift);
   }
 
+  // Efficiency item 24: Submit marks every day that needs fixing, not only the first.
+  const [problems, setProblems] = useState<Record<string, DayProblem>>({});
+  const [delayMissing, setDelayMissing] = useState(false);
+
+  // Ties an input to its day's error text so screen readers read it with the field.
+  function fieldProps(entryId: string, field: string) {
+    return problems[entryId]?.field === field
+      ? { "aria-invalid": true, "aria-describedby": `problem-${entryId}` }
+      : {};
+  }
+
   function updateRow(id: string, patch: Partial<RowState>) {
+    setProblems((prev) => {
+      if (!prev[id]) return prev;
+      const rest = { ...prev };
+      delete rest[id];
+      return rest;
+    });
     setRows((prev) => ({
       ...prev,
       [id]: { ...prev[id], ...patch, dirty: true, follows: false },
@@ -431,15 +480,39 @@ export function WeeklyReportForm({
     });
   }
 
-  function rowProblem(entry: DailyEntryRow): string | null {
-    const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes);
+  // "Tools used" rarely changes within a week: once typed, later present days that are still
+  // blank get the same text (they can still be changed).
+  function carryToolsForward(id: string) {
+    const tools = rows[id]?.toolsUsed.trim();
+    if (!tools) return;
+    setRows((prev) => {
+      const out = { ...prev };
+      for (const e of entries.slice(entries.findIndex((x) => x.id === id) + 1)) {
+        const row = prev[e.id] ?? rowFromEntry(e, shift, usualTimes, usualTools);
+        if (row.status === "PRESENT" && !row.toolsUsed.trim()) {
+          out[e.id] = { ...row, toolsUsed: tools, dirty: true };
+        }
+      }
+      return out;
+    });
+  }
+
+  function rowProblem(entry: DailyEntryRow): DayProblem | null {
+    const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes, usualTools);
     // Absent and holiday days count 0 hours and need no description.
     if (row.status !== "PRESENT") return null;
-    if (row.hours === "" || Number.isNaN(Number(row.hours))) return "Enter hours worked";
-    if (!row.accomplishments.trim()) return "Describe what you accomplished";
+    if (row.hours === "" || Number.isNaN(Number(row.hours)))
+      return { message: "Enter hours worked", field: "hours" };
+    if (!row.accomplishments.trim())
+      return { message: "Describe what you accomplished", field: "acc" };
     // Same rules the server enforces.
     const parsed = dailyEntrySchema.safeParse(rowPayload(entry.id, row));
-    return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Check this day's entry");
+    if (parsed.success) return null;
+    const issue = parsed.error.issues[0];
+    return {
+      message: issue?.message ?? "Check this day's entry",
+      field: FIELD_IDS[String(issue?.path[0])] ?? "acc",
+    };
   }
 
   // Saves every changed day. Returns false (after a toast) if any failed.
@@ -449,7 +522,7 @@ export function WeeklyReportForm({
       if (!row?.dirty) continue;
       const problem = rowProblem(entry);
       if (problem) {
-        toast.error(`${formatDay(entry.reportDate)}: ${problem}`);
+        toast.error(`${formatDay(entry.reportDate)}: ${problem.message}`);
         return false;
       }
       const res = await sendJson(`/api/weekly-reports/${weeklyReportId}`, {
@@ -471,7 +544,14 @@ export function WeeklyReportForm({
     return true;
   }
 
+  // A day with saved text asks once more before it goes (the text goes with it).
+  const [removeArmed, setRemoveArmed] = useState<string | null>(null);
   async function removeAddedDay(entry: DailyEntryRow) {
+    if (entry.accomplishments?.trim() && removeArmed !== entry.id) {
+      setRemoveArmed(entry.id);
+      return;
+    }
+    setRemoveArmed(null);
     setIsPending(true);
     const res = await sendJson(
       `/api/weekly-reports/${weeklyReportId}/entries?entryId=${entry.id}`,
@@ -510,13 +590,27 @@ export function WeeklyReportForm({
       toast.error("Rewrite the flagged entries — copied accomplishments can't be submitted");
       return;
     }
-    const incomplete = entries.find((entry) => rowProblem(entry));
-    if (incomplete) {
-      toast.error(`${formatDay(incomplete.reportDate)}: ${rowProblem(incomplete)}`);
+    const found: Record<string, DayProblem> = {};
+    for (const entry of entries) {
+      const problem = rowProblem(entry);
+      if (problem) found[entry.id] = problem;
+    }
+    setProblems(found);
+    const noReason = late && !reasonForDelay.trim();
+    setDelayMissing(noReason);
+    const bad = entries.filter((entry) => found[entry.id]);
+    if (bad.length > 0) {
+      toast.error(
+        bad.length === 1
+          ? `${formatDay(bad[0].reportDate)}: ${found[bad[0].id].message}`
+          : `${bad.length} days need fixing; each is marked below`
+      );
+      focusField(bad[0].id, found[bad[0].id].field);
       return;
     }
-    if (late && !reasonForDelay.trim()) {
+    if (noReason) {
       toast.error("This report is late — add a reason for delay before submitting");
+      document.getElementById(`delay-${weeklyReportId}`)?.focus();
       return;
     }
 
@@ -658,14 +752,16 @@ export function WeeklyReportForm({
 
       <div className="space-y-3">
         {entries.map((entry) => {
-          const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes);
+          const row = rows[entry.id] ?? rowFromEntry(entry, shift, usualTimes, usualTools);
           const flag = copyPasteFlags[entry.id];
           return (
             <div
               key={entry.id}
+              id={`day-${entry.id}`}
               className={cn(
-                "space-y-3 rounded-lg border p-4",
-                flag && "border-amber-300 bg-amber-50/50"
+                "scroll-mt-6 space-y-3 rounded-lg border p-4",
+                flag && "border-amber-300 bg-amber-50/50",
+                problems[entry.id] && "border-red-300"
               )}
             >
               {/* One header line per day: what the day is on the left, its status on the right. */}
@@ -696,7 +792,9 @@ export function WeeklyReportForm({
                       aria-label={`Remove ${formatDay(entry.reportDate)} from this report`}
                       className="h-8 cursor-pointer px-2 text-xs text-red-700"
                     >
-                      Remove day
+                      {removeArmed === entry.id
+                        ? "Click again to remove (with its text)"
+                        : "Remove day"}
                     </Button>
                   )}
                   <Label htmlFor={`status-${entry.id}`} className="text-xs text-muted-foreground">
@@ -746,6 +844,7 @@ export function WeeklyReportForm({
                       </Label>
                       <Input
                         id={`in-${entry.id}`}
+                        {...fieldProps(entry.id, "in")}
                         type="time"
                         value={row.timeIn}
                         disabled={isPending}
@@ -758,6 +857,7 @@ export function WeeklyReportForm({
                       </Label>
                       <Input
                         id={`out-${entry.id}`}
+                        {...fieldProps(entry.id, "out")}
                         type="time"
                         value={row.timeOut}
                         disabled={isPending}
@@ -770,6 +870,7 @@ export function WeeklyReportForm({
                       </Label>
                       <Input
                         id={`in2-${entry.id}`}
+                        {...fieldProps(entry.id, "in2")}
                         type="time"
                         value={row.timeIn2}
                         disabled={isPending}
@@ -782,6 +883,7 @@ export function WeeklyReportForm({
                       </Label>
                       <Input
                         id={`out2-${entry.id}`}
+                        {...fieldProps(entry.id, "out2")}
                         type="time"
                         value={row.timeOut2}
                         disabled={isPending}
@@ -796,6 +898,7 @@ export function WeeklyReportForm({
                       </Label>
                       <Input
                         id={`hours-${entry.id}`}
+                        {...fieldProps(entry.id, "hours")}
                         type="number"
                         min={0}
                         max={24}
@@ -813,6 +916,7 @@ export function WeeklyReportForm({
                       </Label>
                       <Textarea
                         id={`acc-${entry.id}`}
+                        {...fieldProps(entry.id, "acc")}
                         rows={3}
                         value={row.accomplishments}
                         disabled={isPending}
@@ -826,9 +930,11 @@ export function WeeklyReportForm({
                       </Label>
                       <Input
                         id={`tools-${entry.id}`}
+                        {...fieldProps(entry.id, "tools")}
                         value={row.toolsUsed}
                         disabled={isPending}
                         onChange={(e) => updateRow(entry.id, { toolsUsed: e.target.value })}
+                        onBlur={() => carryToolsForward(entry.id)}
                         placeholder="e.g. VS Code, Figma"
                       />
                     </div>
@@ -846,6 +952,7 @@ export function WeeklyReportForm({
                         href={`/leave-requests?${new URLSearchParams({
                           deviationType: "ABSENCE",
                           date: entry.reportDate.slice(0, 10),
+                          returnTo: pathname,
                         })}`}
                         className="underline"
                       >
@@ -857,6 +964,15 @@ export function WeeklyReportForm({
                   )}
                 </p>
               )}
+              {problems[entry.id] && (
+                <p
+                  id={`problem-${entry.id}`}
+                  className="flex items-center gap-1.5 text-xs text-red-700"
+                >
+                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                  {problems[entry.id].message}
+                </p>
+              )}
               {flag && (
                 <p className="flex items-center gap-1.5 text-xs text-amber-700">
                   <AlertTriangle className="size-3.5" aria-hidden="true" />
@@ -866,7 +982,9 @@ export function WeeklyReportForm({
               {rowGaps(entry, row).map((gap) => (
                 <p key={gap.kind} className="flex items-center gap-1.5 text-xs text-amber-700">
                   <AlertTriangle className="size-3.5" aria-hidden="true" />
-                  {gap.kind === "late" ? "Late arrival" : "Early leave"}: file an undertime request
+                  {gap.kind === "late"
+                    ? "Late arrival: marked for your adviser, who decides whether it counts. To explain it,"
+                    : "Early leave: file an undertime request"}{" "}
                   —{" "}
                   <Link
                     href={`/leave-requests?${new URLSearchParams({
@@ -874,6 +992,7 @@ export function WeeklyReportForm({
                       date: entry.reportDate.slice(0, 10),
                       startTime: gap.start,
                       endTime: gap.end,
+                      returnTo: pathname,
                     })}`}
                     className="underline"
                   >
@@ -898,7 +1017,7 @@ export function WeeklyReportForm({
         <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
           <Label htmlFor={`delay-${weeklyReportId}`} className="text-red-700">
             Reason for delay (required — due{" "}
-            {dueDate.toLocaleDateString(undefined, {
+            {dueDate.toLocaleDateString("en-PH", {
               weekday: "short",
               month: "short",
               day: "numeric",
@@ -911,9 +1030,25 @@ export function WeeklyReportForm({
             rows={2}
             value={reasonForDelay}
             disabled={isPending}
-            onChange={(e) => setReasonForDelay(e.target.value)}
+            onChange={(e) => {
+              setReasonForDelay(e.target.value);
+              setDelayMissing(false);
+            }}
             placeholder="Your faculty adviser will see this note"
+            {...(delayMissing && {
+              "aria-invalid": true,
+              "aria-describedby": `delay-error-${weeklyReportId}`,
+            })}
           />
+          {delayMissing && (
+            <p
+              id={`delay-error-${weeklyReportId}`}
+              className="flex items-center gap-1.5 text-xs text-red-700"
+            >
+              <AlertTriangle className="size-3.5" aria-hidden="true" />
+              Add a reason for delay before submitting
+            </p>
+          )}
         </div>
       )}
 
@@ -928,6 +1063,44 @@ export function WeeklyReportForm({
             tools: rows[e.id]?.toolsUsed ?? null,
           }))}
       />
+
+      {/* Error summary: every blocker in one place, each a link to the field to fix. */}
+      <div role="alert" aria-live="assertive">
+        {(Object.keys(problems).length > 0 || delayMissing) && (
+          <div className="space-y-1 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <p className="font-medium">Fix these before submitting:</p>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {entries
+                .filter((e) => problems[e.id])
+                .map((e) => (
+                  <li key={e.id}>
+                    <a
+                      href={`#${problems[e.id].field}-${e.id}`}
+                      className="underline"
+                      onClick={(ev) => {
+                        ev.preventDefault();
+                        focusField(e.id, problems[e.id].field);
+                      }}
+                    >
+                      {formatDay(e.reportDate)}: {problems[e.id].message}
+                    </a>
+                  </li>
+                ))}
+              {delayMissing && (
+                <li>
+                  <a href={`#delay-${weeklyReportId}`} className="underline">
+                    Reason for delay is required
+                  </a>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
+      {/* Announces save and submit progress to screen readers (toasts can be missed). */}
+      <p role="status" className="sr-only">
+        {isPending ? "Saving your report…" : ""}
+      </p>
 
       <div className="flex flex-wrap gap-2">
         <Button

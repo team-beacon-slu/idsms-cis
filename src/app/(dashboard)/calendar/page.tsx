@@ -15,6 +15,11 @@ import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeploymen
 import { formatSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UnifiedCalendarView } from "./unified-calendar-view";
+import { DayList } from "./day-list";
+import { FeedLink } from "./feed-link";
+import { feedToken } from "@/lib/calendar/icsFeed";
+import { listDepartmentEvents } from "@/lib/services/calendar/departmentEventService";
+import { listCompanyDays } from "@/lib/services/calendar/companyDaysService";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 
@@ -58,9 +63,19 @@ export default async function CalendarPage() {
   }
   // Reuse the view just built: rebuilding it per detector doubled the page's queries.
   const highVolumeWeeks = isFaculty ? await detectHighVolumeSubmissionWeeks(user.id, events) : [];
-  const endorsementSpikes = coordinatorView
-    ? await detectEndorsementLetterSpikes(user.id, events)
-    : [];
+  const [endorsementSpikes, companyDays, departmentEvents, hostCompanies] = coordinatorView
+    ? await Promise.all([
+        detectEndorsementLetterSpikes(user.id, events),
+        listCompanyDays(),
+        listDepartmentEvents(),
+        // Companies with interns this semester: the only ones a day off can matter to.
+        prisma.company.findMany({
+          where: { deletedAt: null, students: { some: { semester: { isActive: true } } } },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        }),
+      ])
+    : [[], [], [], []];
 
   return (
     <div className="space-y-6">
@@ -112,6 +127,73 @@ export default async function CalendarPage() {
           )}
         </div>
       )}
+
+      {coordinatorView && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Company days off</CardTitle>
+            <CardDescription>
+              Interns follow their host company&apos;s calendar, not the school&apos;s: an
+              anniversary, a company holiday or a work suspension is a day off only for the interns
+              placed there. A school suspension reaches only interns whose host company is the
+              school. Interns can add upcoming days for their own company too.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DayList
+              id="company-day"
+              endpoint="/api/company-days"
+              companies={hostCompanies}
+              days={companyDays.map((d) => ({
+                id: d.id,
+                date: d.date.toISOString(),
+                name: `${d.company?.name ?? ""}: ${d.name}`,
+              }))}
+              nameLabel="Reason"
+              placeholder="e.g. Company anniversary"
+              addedMessage="Day off added for that company's interns"
+              removedMessage="Day off removed"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {coordinatorView && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Department events</CardTitle>
+            <CardDescription>
+              Orientations, seminars and other dates every intern and adviser should see. They show
+              on everyone&apos;s calendar this semester; they are not days off.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DayList
+              id="department-event"
+              endpoint="/api/department-events"
+              days={departmentEvents.map((d) => ({
+                id: d.id,
+                date: d.date.toISOString(),
+                name: d.title,
+              }))}
+              nameLabel="Event"
+              placeholder="e.g. Pre-deployment orientation"
+              addedMessage="Event added to everyone's calendar"
+              removedMessage="Event removed"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+        <p className="text-muted-foreground">
+          <span className="font-medium text-foreground">On your phone: </span>
+          see these dates in your own calendar app; it refreshes by itself.
+        </p>
+        <FeedLink
+          url={`${process.env.NEXTAUTH_URL ?? ""}/api/calendar/feed?u=${user.id}&t=${feedToken(user.id)}`}
+        />
+      </div>
 
       <Card>
         <CardHeader>

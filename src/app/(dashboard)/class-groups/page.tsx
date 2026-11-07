@@ -7,11 +7,13 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AssignAdviserForm,
+  CopyAdvisersButton,
   ClassGroupActions,
   NewClassGroupForm,
   RemoveAdviserButton,
 } from "./class-group-forms";
 import type { Metadata } from "next";
+import { displayName } from "@/lib/utils/displayName";
 
 export const metadata: Metadata = { title: "Class groups" };
 
@@ -35,7 +37,13 @@ export default async function ClassGroupsPage() {
     id: a.id,
     label: a.fullName ? `${a.fullName} (${a.email})` : a.email,
   }));
-  const activeSemesterId = openSemesters.find((s) => s.isActive)?.id;
+  const active = openSemesters.find((s) => s.isActive);
+  const activeSemesterId = active?.id;
+  const activeSemester = active && {
+    id: active.id,
+    startDate: active.startDate.toISOString().slice(0, 10),
+    endDate: active.endDate.toISOString().slice(0, 10),
+  };
 
   return (
     <div className="space-y-6">
@@ -50,9 +58,19 @@ export default async function ClassGroupsPage() {
           <CardDescription>One per section, e.g. BSIT 4A.</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewClassGroupForm programs={Object.values(Program)} />
+          <NewClassGroupForm
+            programs={Object.values(Program)}
+            advisers={adviserOptions}
+            activeSemester={activeSemester}
+          />
         </CardContent>
       </Card>
+
+      {groups.length > 0 && activeSemesterId && (
+        <div className="flex justify-end">
+          <CopyAdvisersButton semesterId={activeSemesterId} />
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
@@ -87,7 +105,7 @@ export default async function ClassGroupsPage() {
                     >
                       <span className="min-w-0 text-sm">
                         <span className="font-medium text-foreground">
-                          {fg.faculty.fullName || fg.faculty.email}
+                          {displayName(fg.faculty)}
                         </span>
                         {fg.faculty.fullName && (
                           <span className="text-muted-foreground"> · {fg.faculty.email}</span>
@@ -97,10 +115,7 @@ export default async function ClassGroupsPage() {
                           · {fg.semester.name} ({fg.semester.academicYear})
                         </span>
                       </span>
-                      <RemoveAdviserButton
-                        assignmentId={fg.id}
-                        label={fg.faculty.fullName || fg.faculty.email}
-                      />
+                      <RemoveAdviserButton assignmentId={fg.id} label={displayName(fg.faculty)} />
                     </li>
                   ))}
                 </ul>

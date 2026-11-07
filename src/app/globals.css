@@ -108,6 +108,18 @@
     background-color: hsl(var(--popover));
     color: hsl(var(--popover-foreground));
   }
+
+  /* Phones: a two-up time field is ~97 px wide and 16 px text (no iOS zoom on focus) leaves
+     no room for Chrome's clock icon, which got cut off. Below sm the icon goes; tapping the
+     field still opens the picker, and phone browsers draw no icon anyway. */
+  input[type="time"]::-webkit-datetime-edit {
+    padding: 0;
+  }
+  @media (width < 40rem) {
+    input[type="time"]::-webkit-calendar-picker-indicator {
+      display: none;
+    }
+  }
 }
 
 @utility text-balance {

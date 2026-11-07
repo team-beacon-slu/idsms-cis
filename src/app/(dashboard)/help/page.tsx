@@ -7,7 +7,9 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EVERYONE, GLOSSARY, ROLE_FAQ, faqId, type Faq } from "./faq";
 import { HelpAsk } from "./help-ask";
+import { ShowTourAgain } from "../_components/getting-started";
 import { connectionFor } from "@/lib/ai/jobs";
+import { displayName } from "@/lib/utils/displayName";
 
 export const metadata: Metadata = { title: "Help" };
 
@@ -24,7 +26,7 @@ async function contactsFor(userId: string, role: Role): Promise<Contact[]> {
     });
   const toContact = (label: string) => (u: { email: string; fullName: string | null }) => ({
     label,
-    name: u.fullName || u.email,
+    name: displayName(u),
     email: u.email,
   });
 
@@ -87,6 +89,7 @@ export default async function HelpPage() {
       <PageHeader
         title="Help"
         description="Answers for your role, who to ask, and the words IDSMS uses."
+        actions={<ShowTourAgain />}
       />
 
       {helpAi && <HelpAsk />}

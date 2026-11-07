@@ -1,6 +1,17 @@
 import { Copy, Eye, ListChecks, MessageSquareQuote, ShieldAlert, Sparkles } from "lucide-react";
 import type { AdvisoryView } from "@/lib/ai/display";
 import { HintRating } from "@/components/ai/hint-rating";
+import type { TrackRecord } from "@/lib/ai/jobs";
+
+// The hint's confidence: how often advisers rated this kind of hint Right so far.
+export function confidenceLine(record?: TrackRecord): string {
+  if (!record || record.count < 5) {
+    return `Confidence: not measured yet (${record?.count ?? 0} of 5 ratings needed). Rate it to help.`;
+  }
+  const right = record.count - record.notRight;
+  const pct = Math.round((right / record.count) * 100);
+  return `Confidence: right ${pct}% of the time (${right} of ${record.count} ratings by advisers).`;
+}
 
 const fmt = (iso: string) =>
   new Date(`${iso}T00:00:00+08:00`).toLocaleDateString("en-PH", {
@@ -19,7 +30,7 @@ function Hint({
   icon: typeof Copy;
   title: string;
   children: React.ReactNode;
-  rate?: { job: string; targetId: string };
+  rate?: { job: string; targetId: string; record?: TrackRecord };
 }) {
   return (
     <div className="flex gap-3 rounded-lg border bg-muted/50 p-4 text-sm">
@@ -27,6 +38,7 @@ function Hint({
       <div className="min-w-0 flex-1 space-y-1.5">
         <p className="font-medium text-foreground">{title}</p>
         {children}
+        {rate && <p className="text-xs text-muted-foreground">{confidenceLine(rate.record)}</p>}
         {rate && <HintRating job={rate.job} targetId={rate.targetId} />}
       </div>
     </div>
@@ -39,9 +51,11 @@ export function AiHints({
   view,
   reportId,
   texts,
+  trackRecords = {},
 }: {
   view: AdvisoryView;
   reportId: string;
+  trackRecords?: Partial<Record<string, TrackRecord>>;
   texts: Record<string, string>; // entry id -> what the intern wrote (incl. the earlier day)
 }) {
   const any =
@@ -70,7 +84,7 @@ export function AiHints({
         <Hint
           icon={MessageSquareQuote}
           title="What the intern wrote, not an assessment"
-          rate={{ job: "summary", targetId: reportId }}
+          rate={{ job: "summary", targetId: reportId, record: trackRecords.summary }}
         >
           <ul className="space-y-1">
             {view.summary.map((s) => (
@@ -86,7 +100,7 @@ export function AiHints({
         <Hint
           icon={Copy}
           title={`${fmt(view.similar.date)} is very similar to ${fmt(view.similar.prevDate)}`}
-          rate={{ job: "copy", targetId: reportId }}
+          rate={{ job: "copy", targetId: reportId, record: trackRecords.copy }}
         >
           <div className="grid gap-2 sm:grid-cols-2">
             {[
@@ -100,14 +114,18 @@ export function AiHints({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Repetitive work is normal; judge it yourself. Similarity score{" "}
-            {view.similar.score.toFixed(2)}. It never affects deductions.
+            Repetitive work is normal; judge it yourself. The two days are a{" "}
+            {Math.round(view.similar.score * 100)}% match. It never affects deductions.
           </p>
         </Hint>
       )}
 
       {view.tone && (
-        <Hint icon={Eye} title="Worth a look" rate={{ job: "tone", targetId: reportId }}>
+        <Hint
+          icon={Eye}
+          title="Worth a look"
+          rate={{ job: "tone", targetId: reportId, record: trackRecords.tone }}
+        >
           <p className="text-foreground/85">
             <span className="text-xs text-muted-foreground">{fmt(view.tone.date)}: </span>“
             {view.tone.quote}”
@@ -120,7 +138,7 @@ export function AiHints({
         <Hint
           icon={ListChecks}
           title={`Planned tasks not found in the last ${view.coverage.weeks} weeks of entries`}
-          rate={{ job: "coverage", targetId: reportId }}
+          rate={{ job: "coverage", targetId: reportId, record: trackRecords.coverage }}
         >
           <ul className="list-disc space-y-0.5 pl-5 text-foreground/85">
             {view.coverage.missing.map((t) => (

@@ -25,11 +25,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// FR-AT-06: Super Admin only.
+// FR-AT-06: the coordinator or Super Admin (Q5).
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUserApi();
-    requireRole(user, [Role.SUPER_ADMIN]);
+    requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);
     const { program, hours } = requiredHoursConfigSchema.parse(await req.json());
     const result = await setRequiredHoursConfig(program, hours, user.id);
     return NextResponse.json(result);

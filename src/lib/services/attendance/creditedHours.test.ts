@@ -59,6 +59,22 @@ describe("loadCreditContext", () => {
     );
   });
 
+  // Beta P2028: with one pooled connection, a read on `prisma` inside a transaction waits
+  // for the connection the transaction holds until it times out.
+  it("reads everything through the transaction client it is given", async () => {
+    const tx = {
+      workPlan: { findFirst: jest.fn().mockResolvedValue(null) },
+      deviationReport: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+
+    await loadCreditContext("profile-1", tx as never);
+
+    expect(tx.workPlan.findFirst).toHaveBeenCalled();
+    expect(tx.deviationReport.findMany).toHaveBeenCalled();
+    expect(prismaMock.workPlan.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.deviationReport.findMany).not.toHaveBeenCalled();
+  });
+
   it("has no shift for a legacy schedule", async () => {
     prismaMock.workPlan.findFirst.mockResolvedValue({
       scheduleConfig: { daysOfWeek: [1], hoursPerDay: 8 },

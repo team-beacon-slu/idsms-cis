@@ -36,6 +36,7 @@ import {
   MIN_GROUP,
   REPLY_EDITORS,
 } from "@/lib/services/predeployment/companyEvaluationService";
+import { displayName } from "@/lib/utils/displayName";
 
 const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
 
@@ -213,10 +214,18 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                       <TableCell>{formatCalendarDate(new Date(moa.validTo))}</TableCell>
                       <TableCell>{moa.programsCovered.join(", ")}</TableCell>
                       <TableCell>
-                        <MoaStatusActions
-                          moaId={moa.id}
-                          nextStatuses={ALLOWED_MOA_TRANSITIONS[moa.status]}
-                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <MoaStatusActions
+                            moaId={moa.id}
+                            nextStatuses={ALLOWED_MOA_TRANSITIONS[moa.status]}
+                          />
+                          <Link
+                            href={`/companies/${company.id}/moa/new?renew=${moa.id}`}
+                            className="text-sm text-primary underline-offset-2 hover:underline"
+                          >
+                            Renew
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -295,7 +304,7 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
                           href={`/students/${p.studentProfile.id}/weekly-reports`}
                           className="font-medium underline-offset-2 hover:underline"
                         >
-                          {p.studentProfile.fullName ?? p.studentProfile.studentNumber}
+                          {displayName(p.studentProfile)}
                         </Link>
                         <span className="text-muted-foreground">
                           {" "}
@@ -322,15 +331,20 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
               )}
             </section>
             <section className="space-y-2">
-              <h2 className="text-sm font-semibold">Company visits</h2>
+              <h2 className="text-sm font-semibold">Visits and supervisor check-ins</h2>
               {visits.length > 0 && (
                 <ul className="divide-y rounded-lg border text-sm">
                   {visits.map((v) => (
                     <li key={v.id} className="p-3">
                       <span className="font-medium">{formatCalendarDate(v.visitedOn)}</span>{" "}
                       <span className="text-muted-foreground">
-                        · {v.mode === "ONLINE" ? "online" : "on site"} ·{" "}
-                        {v.visitor.fullName ?? v.visitor.email}
+                        ·{" "}
+                        {v.mode === "ONLINE"
+                          ? "online meeting"
+                          : v.mode === "CALL"
+                            ? "phone call"
+                            : "on site"}{" "}
+                        · {displayName(v.visitor)}
                       </span>
                       {v.notes && <p className="mt-1 text-muted-foreground">{v.notes}</p>}
                     </li>

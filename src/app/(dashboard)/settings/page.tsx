@@ -8,7 +8,10 @@ import {
   getDeductionMatrix,
   getDefaultConductHours,
 } from "@/lib/services/conduct/deductionService";
-import { getNotificationSettings } from "@/lib/services/notifications/scheduledNotifications";
+import {
+  countFailedEmails,
+  getNotificationSettings,
+} from "@/lib/services/notifications/scheduledNotifications";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirementLabel } from "@/lib/utils/requirementLabel";
@@ -19,31 +22,41 @@ import { AiSettingsForm } from "../users/ai-settings-form";
 import { AiPanel } from "./ai-panel";
 import { getAiPanel } from "@/lib/ai/jobs";
 import { DeductionSettingsForm } from "../users/deduction-settings-form";
+import { MaintenanceNoticeForm } from "../users/maintenance-notice-form";
+import { getMaintenanceNotice } from "@/lib/services/notifications/maintenanceNotice";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Settings" };
 
 // System settings, one view of their own (they used to sit above the account list on
-// Users, which pushed that page's main job to the bottom). Super Admin only.
+// Users, which pushed that page's main job to the bottom). Super Admin; the coordinator sees
+// only the required hours (Q5: coordinators and the admin set them).
 export default async function SettingsPage() {
   const user = await requireUserPage();
+  if (user.role === Role.DEPARTMENT_COORDINATOR) return <CoordinatorSettings />;
   if (user.role !== Role.SUPER_ADMIN) redirect("/");
 
-  const [notificationSettings, requiredHours, aiSettings, matrix, defaultHours, required, aiPanel] =
-    await Promise.all([
-      getNotificationSettings(),
-      Promise.all(
-        Object.values(Program).map(async (program) => ({
-          program,
-          hours: await getRequiredHoursConfig(program),
-        }))
-      ),
-      getAiSettings(),
-      getDeductionMatrix(),
-      getDefaultConductHours(),
-      getRequiredChecklistTypes(),
-      getAiPanel(),
-    ]);
+  const [
+    notificationSettings,
+    requiredHours,
+    aiSettings,
+    matrix,
+    defaultHours,
+    required,
+    aiPanel,
+    failedEmails,
+    maintenanceNotice,
+  ] = await Promise.all([
+    getNotificationSettings(),
+    requiredHoursRows(),
+    getAiSettings(),
+    getDeductionMatrix(),
+    getDefaultConductHours(),
+    getRequiredChecklistTypes(),
+    getAiPanel(),
+    countFailedEmails(),
+    getMaintenanceNotice(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -76,6 +89,19 @@ export default async function SettingsPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
+              <CardTitle className="text-lg text-brand-900">Notice to everyone</CardTitle>
+              <CardDescription>
+                A banner on every signed-in page, for planned downtime or anything all users must
+                see. Clear it when it no longer applies.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MaintenanceNoticeForm initial={maintenanceNotice ?? ""} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-lg text-brand-900">Required internship hours</CardTitle>
               <CardDescription>
                 Hours each program must complete. Sets the default for students imported after you
@@ -96,6 +122,18 @@ export default async function SettingsPage() {
             </CardHeader>
             <CardContent>
               <NotificationSettingsForm initial={notificationSettings} />
+              {/* Efficiency item 34: failures are visible, and the daily job retries them. */}
+              <p
+                className={
+                  failedEmails > 0
+                    ? "mt-4 text-sm text-red-700"
+                    : "mt-4 text-sm text-muted-foreground"
+                }
+              >
+                {failedEmails === 0
+                  ? "No emails failed in the last 7 days."
+                  : `${failedEmails} ${failedEmails === 1 ? "email" : "emails"} failed in the last 7 days. The daily job sends them again; password resets are not resent.`}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -129,6 +167,36 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+async function requiredHoursRows() {
+  return Promise.all(
+    Object.values(Program).map(async (program) => ({
+      program,
+      hours: await getRequiredHoursConfig(program),
+    }))
+  );
+}
+
+async function CoordinatorSettings() {
+  const requiredHours = await requiredHoursRows();
+  return (
+    <div className="max-w-3xl space-y-6">
+      <PageHeader title="Settings" description="Rules you set for the department." />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg text-brand-900">Required internship hours</CardTitle>
+          <CardDescription>
+            Hours each program must complete. Sets the default for students imported after you save.
+            Existing students keep their current required hours.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RequiredHoursForm initial={requiredHours} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

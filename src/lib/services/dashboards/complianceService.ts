@@ -12,6 +12,9 @@ import {
   getRequiredChecklistTypes,
 } from "@/lib/services/predeployment/checklistService";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
+import { attendancePattern, patternNote } from "@/lib/utils/attendancePattern";
+import { parseScheduleConfig } from "@/lib/utils/schedule";
+import { scheduleShift } from "@/lib/utils/timeMath";
 import { formatManilaDateTime } from "@/lib/utils/excelExport";
 import {
   addDays,
@@ -48,6 +51,7 @@ export interface ComplianceRow {
   awaitingReview: number; // reports of any week waiting on faculty
   status: ComplianceStatus;
   recentWeeks: TrackKind[]; // last 8 weeks up to this one, oldest first (the roster's mini track)
+  attendanceNote: string | null; // "Absent 3× in 4 weeks" once a pattern reaches the threshold
 }
 
 // Spreadsheet shape shared by the F compliance export and the G admin
@@ -194,10 +198,17 @@ export async function getComplianceRows(
           weekStart: true,
           status: true,
           revisionHistory: true,
-          dailyEntries: { select: CREDITED_HOURS_SELECT },
+          dailyEntries: { select: { ...CREDITED_HOURS_SELECT, reportDate: true, timeIn: true } },
         },
       },
       conductRecords: { where: { revokedAt: null }, select: { hoursDeducted: true } },
+      // The shift, for late arrivals (same plan loadShift reads).
+      workPlans: {
+        where: { status: "APPROVED" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { scheduleConfig: true },
+      },
     },
     orderBy: { studentNumber: "asc" },
   });
@@ -255,6 +266,15 @@ export async function getComplianceRows(
             .slice(-RECENT_WEEKS)
             .map((w) => w.kind);
 
+    const schedule = parseScheduleConfig(s.workPlans?.[0]?.scheduleConfig);
+    const attendanceNote = patternNote(
+      attendancePattern(
+        s.weeklyReports.flatMap((r) => r.dailyEntries),
+        schedule ? scheduleShift(schedule) : null,
+        now
+      )
+    );
+
     return {
       studentProfileId: s.id,
       studentNumber: s.studentNumber,
@@ -274,6 +294,7 @@ export async function getComplianceRows(
       awaitingReview,
       status,
       recentWeeks,
+      attendanceNote,
     };
   });
 }

@@ -109,7 +109,12 @@ export function findAutomaticItems(input: AutomaticItemsInput): AutomaticItem[] 
   // Undertime (late arrival / early leave) and absences on scheduled days of
   // submitted weeks (a draft isn't final yet).
   for (const report of reports) {
-    if (!history(report).some((h) => h.type === "SUBMITTED")) continue;
+    const lifecycle = history(report).filter((h) =>
+      ["SUBMITTED", "RETURNED", "WITHDRAWN"].includes(h.type)
+    );
+    // Never submitted, or taken back to draft (Q21): not final yet.
+    if (!lifecycle.some((h) => h.type === "SUBMITTED") || lifecycle.at(-1)?.type === "WITHDRAWN")
+      continue;
     for (const e of report.dailyEntries) {
       if (Number(e.scheduledHours) <= 0) continue;
       const key = toDateKey(e.reportDate);

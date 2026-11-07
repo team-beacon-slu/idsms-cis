@@ -73,7 +73,8 @@ export function getLatestSubmission(revisionHistory: unknown): WeeklyReportSubmi
 
 // Only these entry types move a report through review; any other history
 // entry type must never change locked/unlocked state.
-const LIFECYCLE_ENTRY_TYPES = new Set(["SUBMITTED", "RETURNED"]);
+// WITHDRAWN (Q21): the intern took the week back to draft before review and the deadline.
+const LIFECYCLE_ENTRY_TYPES = new Set(["SUBMITTED", "RETURNED", "WITHDRAWN"]);
 
 export function isAwaitingReview(report: {
   status: WeeklyReportStatus;
@@ -697,7 +698,7 @@ async function assertUndertimeFiled(
     (e) => e.attendanceStatus === "PRESENT" && Number(e.scheduledHours) > 0 && e.timeIn && e.timeOut
   );
   if (worked.length === 0) return;
-  const shift = await loadShift(studentProfileId);
+  const shift = await loadShift(studentProfileId, tx);
   if (!shift) return;
 
   const requests = await tx.deviationReport.findMany({
@@ -715,11 +716,12 @@ async function assertUndertimeFiled(
     if (e.timeIn2 && e.timeOut2) ranges.push([e.timeIn2, e.timeOut2]);
     const sameDay = requests.filter((r) => toDateKey(r.date) === toDateKey(e.reportDate));
     for (const gap of dayGaps(ranges, shift)) {
+      // Q6: no grace period is set; a late arrival is only marked (an automatic deduction item
+      // the adviser can excuse), so it never blocks submitting. An early leave still needs a request.
+      if (gap.kind === "late") continue;
       // Any status counts here (filing is what the gate asks for); the range must span the gap.
       if (!isGapCovered(gap, sameDay)) {
-        missing.push(
-          `${shortDate(e.reportDate)} (${gap.kind === "late" ? "late arrival" : "early leave"})`
-        );
+        missing.push(`${shortDate(e.reportDate)} (early leave)`);
       }
     }
   }
@@ -817,6 +819,61 @@ export async function recordWeeklyReportSubmission(
   });
 }
 
+export class WeeklyReportWithdrawError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WeeklyReportWithdrawError";
+  }
+}
+
+// Q21 option C: an intern may take a submitted week back to draft while it still awaits
+// review and the Tuesday 11:59 PM deadline has not passed, so fixing a slip needs no Return
+// from the adviser. The SUBMITTED entry stays in the history; a WITHDRAWN entry follows it.
+export async function withdrawWeeklyReportSubmission(
+  weeklyReportId: string,
+  actingUser: { id: string },
+  now: Date = new Date(),
+  ipAddress?: string | null
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    // Locked like a review, so a withdrawal and a review cannot both pass the check.
+    await tx.$queryRaw`SELECT id FROM weekly_reports WHERE id = ${weeklyReportId}::uuid FOR UPDATE`;
+    const report = await tx.weeklyReport.findUniqueOrThrow({
+      where: { id: weeklyReportId },
+      select: { status: true, weekEnd: true, revisionHistory: true },
+    });
+    if (!isAwaitingReview(report)) {
+      throw new WeeklyReportWithdrawError(
+        "Only a submitted week that your adviser has not reviewed yet can be taken back"
+      );
+    }
+    if (isWeeklyReportLate(report.weekEnd, now)) {
+      throw new WeeklyReportWithdrawError(
+        "The deadline has passed; ask your adviser to return the week if it needs a fix"
+      );
+    }
+    await tx.weeklyReport.update({
+      where: { id: weeklyReportId },
+      data: {
+        revisionHistory: [
+          ...getWeeklyReportHistory(report.revisionHistory),
+          { type: "WITHDRAWN", timestamp: now.toISOString(), withdrawnBy: actingUser.id },
+        ] as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "WEEKLY_REPORT_WITHDRAWN",
+        entityType: "WeeklyReport",
+        entityId: weeklyReportId,
+        ipAddress,
+      },
+      tx
+    );
+  });
+}
+
 // FR-WR-06 (Approve) — Owner: JayPing23 (Danielle)
 // Requirement: Faculty can Approve — hours count, status complete.
 // Connects to: called by PATCH /api/weekly-reports/[id]/review (Task 12
@@ -856,10 +913,18 @@ async function logReview(
   facultyId: string,
   weeklyReportId: string,
   action: string,
-  ipAddress?: string | null
+  ipAddress?: string | null,
+  detail?: Prisma.InputJsonValue
 ) {
   await logEvent(
-    { userId: facultyId, action, entityType: "WeeklyReport", entityId: weeklyReportId, ipAddress },
+    {
+      userId: facultyId,
+      action,
+      entityType: "WeeklyReport",
+      entityId: weeklyReportId,
+      ipAddress,
+      detail,
+    },
     tx
   );
 }
@@ -992,13 +1057,22 @@ export async function reviewWeeklyReport_Regard(
 export async function reviewWeeklyReport_Disregard(
   weeklyReportId: string,
   facultyId: string,
-  ipAddress?: string | null
+  ipAddress?: string | null,
+  notes?: string
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
   return prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
     await tx.dailyReportEntry.deleteMany({ where: { weeklyReportId } });
     await tx.weeklyReport.delete({ where: { id: weeklyReportId } });
-    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_DISREGARDED", ipAddress);
+    // The row is gone, so the reason lives in the audit trail.
+    await logReview(
+      tx,
+      facultyId,
+      weeklyReportId,
+      "WEEKLY_REPORT_DISREGARDED",
+      ipAddress,
+      notes ? { notes } : undefined
+    );
 
     return { id: weeklyReportId, status: WeeklyReportStatus.DISREGARDED };
   });

@@ -31,7 +31,9 @@ export type NotificationTrigger =
   | "RETENTION_REVIEW"
   | "AI_JOB_OFF"
   | "RETRACTION_FILED"
-  | "RETRACTION_NOTED";
+  | "RETRACTION_NOTED"
+  | "SUBMITTED_FOR_REVIEW"
+  | "REVIEW_DIGEST";
 
 export interface NotifyInput {
   userIds: string[];
@@ -104,11 +106,11 @@ export async function notify(
   input: NotifyInput
 ): Promise<{ inApp: number; emailed: number; failed: number }> {
   const counts = { inApp: 0, emailed: 0, failed: 0 };
-  let users: { id: string; email: string }[];
+  let users: { id: string; email: string; emailNotifications: boolean }[];
   try {
     users = await prisma.user.findMany({
       where: { id: { in: Array.from(new Set(input.userIds)) }, isActive: true, deletedAt: null },
-      select: { id: true, email: true },
+      select: { id: true, email: true, emailNotifications: true },
     });
   } catch (error) {
     console.error("notify() could not load recipients", { trigger: input.trigger, error });
@@ -160,7 +162,10 @@ export async function notify(
         counts.inApp += 1;
       }
 
-      if (input.email && (isEmailConfigured() || emailUnavailable)) {
+      // The person's email switch: a notice that also reaches the inbox skips email when it
+      // is off; an email-only message (a password reset) always goes.
+      const wantsEmail = user.emailNotifications !== false || input.inApp === false;
+      if (input.email && wantsEmail && (isEmailConfigured() || emailUnavailable)) {
         let status: NotificationStatus = NotificationStatus.SENT;
         if (emailUnavailable) {
           status = NotificationStatus.FAILED;
@@ -193,8 +198,18 @@ export async function notify(
             triggerType: input.trigger,
             channel: NotificationChannel.EMAIL,
             status,
-            // Never persist emailOverrides content — it may hold a reset link.
-            payload: { title: input.title, dedupeKey: input.dedupeKey ?? null },
+            // Never persist emailOverrides content — it may hold a reset link. A plain
+            // notification keeps its body and link so the daily cron can retry it (item 34).
+            payload: {
+              title: input.title,
+              dedupeKey: input.dedupeKey ?? null,
+              ...(status === NotificationStatus.FAILED && { failedAt: Date.now() }),
+              ...(status === NotificationStatus.FAILED &&
+                !input.emailOverrides?.[user.id] && {
+                  body: input.body,
+                  link: input.link ?? null,
+                }),
+            },
             sentAt: status === NotificationStatus.SENT ? new Date() : null,
           },
         });

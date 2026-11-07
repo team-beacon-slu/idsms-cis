@@ -10,9 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import type { Program } from "@prisma/client";
+import { ProgramFitNote } from "./program-fit-note";
 
 type Row = { period: string; area: string; description: string; output: string; hours: string };
 const blank = (): Row => ({ period: "", area: "", description: "", output: "", hours: "" });
+const isBlank = (r: Row) => Object.values(r).every((v) => !v.trim());
 
 const toRow = (r: {
   period?: string;
@@ -28,62 +31,104 @@ const toRow = (r: {
   hours: r.hours == null ? "" : String(r.hours),
 });
 
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const PERIOD = /^([A-Za-z]+) (\d{1,2})\s*[–-]\s*(?:([A-Za-z]+) )?(\d{1,2}), (\d{4})$/;
+
+// Efficiency item 23: a new row's period starts a week after the last one ("June 10 – June 14,
+// 2026" -> "June 17 – June 21, 2026"). Free text: anything else leaves the new period blank.
+export function nextPeriod(last: string): string {
+  const m = last.trim().match(PERIOD);
+  if (!m) return "";
+  const month = (name: string) =>
+    MONTHS.findIndex((x) => x.toLowerCase().startsWith(name.toLowerCase().slice(0, 3)));
+  const [from, to] = [month(m[1]), month(m[3] ?? m[1])];
+  if (from < 0 || to < 0) return "";
+  const year = Number(m[5]);
+  const end = new Date(Date.UTC(year, to, Number(m[4]) + 7));
+  // A period ending in January that starts in December began the year before.
+  const start = new Date(Date.UTC(from > to ? year - 1 : year, from, Number(m[2]) + 7));
+  const fmt = (x: Date) => `${MONTHS[x.getUTCMonth()]} ${x.getUTCDate()}`;
+  return `${fmt(start)} – ${fmt(end)}, ${end.getUTCFullYear()}`;
+}
+
 // The work plan in the company's own template (the adviser: every company has one), as an
 // uploaded PDF, with its rows typed in or read from it by AI assist. The rows feed plan
 // coverage; days off the plan marks can go straight onto the intern's calendar.
 export function WorkPlanSubmitForm({
   studentProfileId,
+  program,
   aiRead,
+  initialRows,
 }: {
   studentProfileId: string;
+  program: Program; // FR-WP-03: tasks are checked against it as the intern types
   aiRead: boolean; // AI assist can read uploaded files for this intern
+  initialRows?: Parameters<typeof toRow>[0][]; // a returned plan's rows, to revise
 }) {
   const router = useRouter();
-  const [rows, setRows] = useState<Row[]>([blank()]);
+  const [rows, setRows] = useState<Row[]>(() =>
+    initialRows?.length ? initialRows.map(toRow) : [blank()]
+  );
   const [file, setFile] = useState<File | null>(null);
   const [reading, setReading] = useState(false);
   const [daysOff, setDaysOff] = useState<{ date: string; name: string; added?: boolean }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [adding, setAdding] = useState<number | null>(null);
 
-  async function readWithAi() {
+  async function readWithAi(file: File | null) {
     if (!file) return;
     setReading(true);
     const form = new FormData();
     form.set("file", file);
-    try {
-      const res = await fetch(`/api/students/${studentProfileId}/work-plans/read`, {
-        method: "POST",
-        body: form,
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(body.error ?? "AI assist couldn't read the file");
-        return;
-      }
-      if (body.rows?.length) setRows(body.rows.map(toRow));
-      setDaysOff(body.daysOff ?? []);
-      toast.success(
-        `Read ${body.rows?.length ?? 0} rows and ${body.daysOff?.length ?? 0} days off. Check them before you submit.`
-      );
-    } catch {
-      toast.error("Could not reach the server — check your connection and try again");
-    } finally {
-      setReading(false);
+    const res = await sendJson(`/api/students/${studentProfileId}/work-plans/read`, {
+      method: "POST",
+      body: form,
+    });
+    setReading(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
     }
+    const read = (res.body.rows as Parameters<typeof toRow>[0][] | undefined) ?? [];
+    const days = (res.body.daysOff as typeof daysOff | undefined) ?? [];
+    // Rows the intern already typed stay; the AI's rows go after them.
+    if (read.length) setRows((rs) => [...rs.filter((r) => !isBlank(r)), ...read.map(toRow)]);
+    setDaysOff(days);
+    toast.success(
+      `Read ${read.length} rows and ${days.length} days off. Check them before you submit.`
+    );
   }
 
   async function addDayOff(i: number) {
     const d = daysOff[i];
+    setAdding(i);
     const res = await sendJson(`/api/students/${studentProfileId}/holidays`, {
       method: "POST",
       body: { date: d.date, name: d.name },
     });
+    setAdding(null);
     if (!res.ok) {
       toast.error(res.error);
       return;
     }
     setDaysOff((list) => list.map((x, j) => (j === i ? { ...x, added: true } : x)));
     toast.success(`${d.name} added to your calendar`);
+  }
+  async function addAllDaysOff() {
+    for (const [i, d] of daysOff.entries()) if (!d.added) await addDayOff(i);
   }
   const set = (i: number, key: keyof Row, value: string) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
@@ -110,26 +155,21 @@ export function WorkPlanSubmitForm({
     const form = new FormData();
     form.set("plan", JSON.stringify({ plannedTasks }));
     if (file) form.set("file", file);
-    try {
-      const res = await fetch(`/api/students/${studentProfileId}/work-plans`, {
-        method: "POST",
-        body: form,
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(body.error ?? "Could not submit the work plan");
-        return;
-      }
-      toast.success("Work plan submitted");
-      setRows([blank()]);
-      setFile(null);
-      setDaysOff([]);
-      router.refresh();
-    } catch {
-      toast.error("Could not reach the server — check your connection and try again");
-    } finally {
-      setIsSubmitting(false);
+    // sendJson shows the server's own reason (which field, which file problem).
+    const res = await sendJson(`/api/students/${studentProfileId}/work-plans`, {
+      method: "POST",
+      body: form,
+    });
+    setIsSubmitting(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
     }
+    toast.success("Work plan submitted");
+    setRows([blank()]);
+    setFile(null);
+    setDaysOff([]);
+    router.refresh();
   }
 
   return (
@@ -151,8 +191,11 @@ export function WorkPlanSubmitForm({
               type="file"
               accept="application/pdf"
               onChange={(e) => {
-                setFile(e.target.files?.[0] ?? null);
+                const picked = e.target.files?.[0] ?? null;
+                setFile(picked);
                 setDaysOff([]);
+                // The AI read starts as soon as the PDF is picked; the button reads it again.
+                if (aiRead && picked) void readWithAi(picked);
               }}
             />
             {aiRead && (
@@ -161,7 +204,7 @@ export function WorkPlanSubmitForm({
                 size="sm"
                 variant="outline"
                 disabled={!file || reading}
-                onClick={readWithAi}
+                onClick={() => readWithAi(file)}
                 className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
               >
                 <Sparkles className="size-3.5" aria-hidden="true" />
@@ -174,6 +217,19 @@ export function WorkPlanSubmitForm({
                 <p className="text-xs text-muted-foreground">
                   Add the ones that are right to your calendar; your adviser sees them too.
                 </p>
+                {daysOff.filter((d) => !d.added).length > 1 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={adding !== null}
+                    onClick={addAllDaysOff}
+                    className="cursor-pointer gap-1.5"
+                  >
+                    <CalendarPlus className="size-3.5" aria-hidden="true" />
+                    Add all days off to calendar
+                  </Button>
+                )}
                 <ul className="space-y-1">
                   {daysOff.map((d, i) => (
                     <li key={d.date + d.name} className="flex flex-wrap items-center gap-2 text-sm">
@@ -183,7 +239,7 @@ export function WorkPlanSubmitForm({
                         type="button"
                         size="sm"
                         variant="ghost"
-                        disabled={d.added}
+                        disabled={d.added || adding !== null}
                         onClick={() => addDayOff(i)}
                         className="cursor-pointer gap-1.5"
                       >
@@ -277,7 +333,12 @@ export function WorkPlanSubmitForm({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setRows((rs) => [...rs, blank()])}
+              onClick={() =>
+                setRows((rs) => [
+                  ...rs,
+                  { ...blank(), period: nextPeriod(rs.at(-1)?.period ?? "") },
+                ])
+              }
               className="cursor-pointer gap-1.5"
             >
               <Plus className="size-3.5" aria-hidden="true" />
@@ -287,6 +348,7 @@ export function WorkPlanSubmitForm({
               Total hours (overtime not included): {Math.round(total * 100) / 100}
             </p>
           </div>
+          <ProgramFitNote program={program} tasks={rows} />
           <Button
             type="submit"
             disabled={isSubmitting}

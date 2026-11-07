@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { TimeReportLinks } from "../weekly-reports/time-report-links";
+import { safeInternalPath } from "@/lib/utils/safeInternalPath";
 import { EditRequestButton, RequestForm, type RequestFormValues } from "./request-form";
 import { RequestReviewActions } from "./request-review-actions";
 import type { Metadata } from "next";
@@ -35,7 +36,7 @@ const STATUS: Record<string, { label: string; className: string }> = {
 const PREFILL_KEYS = ["deviationType", "date", "startTime", "endTime"] as const;
 
 const fmtDate = (d: Date) =>
-  d.toLocaleDateString("en-US", {
+  d.toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -77,11 +78,16 @@ export default async function LeaveRequestsPage(props: {
           <CardHeader>
             <CardTitle>New request</CardTitle>
             <CardDescription>
-              File overtime before you work it. File undertime for any late arrival or early leave.
+              File overtime before you work it and undertime for an early leave. A late arrival is
+              marked for your adviser to decide; you may file undertime to explain it.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RequestForm studentProfileId={params.studentProfileId} initial={prefill} />
+            <RequestForm
+              studentProfileId={params.studentProfileId}
+              initial={prefill}
+              returnTo={safeInternalPath(searchParams.returnTo) ?? undefined}
+            />
           </CardContent>
         </Card>
       )}

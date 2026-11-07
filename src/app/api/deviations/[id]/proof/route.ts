@@ -4,6 +4,7 @@ import { requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { CHECKLIST_BUCKET, getSignedUrl } from "@/lib/storage";
 import { handleApiError } from "@/lib/utils/apiError";
+import { logEvent } from "@/lib/services/accounts/auditService";
 
 // D2/D7: proof lives in Google Classroom or Drive, so a stored link may only lead there.
 const PROOF_HOSTS = ["drive.google.com", "docs.google.com", "classroom.google.com"];
@@ -31,6 +32,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       return NextResponse.json({ error: "No proof document attached" }, { status: 404 });
     }
     if (isStoragePath(report.proofUrl)) {
+      // Data Privacy Act: a trail of who opened an intern's documents.
+      await logEvent({
+        userId: user.id,
+        action: "FILE_ACCESSED",
+        entityType: "DeviationReport",
+        entityId: params.id,
+        ipAddress: req.headers.get("x-forwarded-for"),
+      });
       return NextResponse.redirect(await getSignedUrl(CHECKLIST_BUCKET, report.proofUrl));
     }
     if (!isAllowedProofLink(report.proofUrl)) {

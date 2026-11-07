@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
+import { notifySubmittedForReview } from "@/lib/services/notifications/notificationEvents";
 import { Prisma } from "@prisma/client";
 import { submitWorkPlanSchema } from "@/lib/validators/workPlan";
 import { getWorkPlanHistory, submitWorkPlan } from "@/lib/services/predeployment/workPlanService";
@@ -6,6 +8,7 @@ import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { CHECKLIST_BUCKET, uploadFile } from "@/lib/storage";
 
 export async function GET(
@@ -23,7 +26,7 @@ export async function GET(
   }
 }
 
-// Ownership (student self-only) is enforced inside submitWorkPlan. Multipart carries the
+// Access is checked before any file is stored (and again inside submitWorkPlan). Multipart carries the
 // company's own work plan PDF ("file") with the rows as JSON ("plan"); either may be empty,
 // not both.
 export async function POST(
@@ -33,6 +36,9 @@ export async function POST(
   const params = await props.params;
   try {
     const user = await requireUserApi();
+    // Before the upload: otherwise anyone signed in could leave files under another student.
+    z.uuid().parse(params.studentProfileId);
+    await assertCanAccessStudent(user, params.studentProfileId);
     let raw: unknown;
     let file: File | null = null;
     if (req.headers.get("content-type")?.startsWith("multipart/form-data")) {
@@ -65,6 +71,15 @@ export async function POST(
       user,
       ipAddress,
       filePath
+    );
+    // Work plans are reviewed by the coordinator (workPlanService.reviewWorkPlan).
+    waitUntil(
+      notifySubmittedForReview({
+        studentProfileId: params.studentProfileId,
+        reviewer: "coordinator",
+        what: "a work plan",
+        link: `/students/${params.studentProfileId}/work-plan`,
+      })
     );
     return NextResponse.json(workPlan, { status: 201 });
   } catch (error) {

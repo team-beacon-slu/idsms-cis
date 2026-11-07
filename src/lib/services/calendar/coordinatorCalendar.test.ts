@@ -11,6 +11,7 @@ jest.mock("@/lib/services/reports/weeklyReportService");
 jest.mock("@/lib/services/predeployment/companyService");
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.departmentEvent.findMany.mockResolvedValue([]);
   jest.clearAllMocks();
   prismaMock.studentProfile.findMany.mockResolvedValue([]);
   prismaMock.deviationReport.findMany.mockResolvedValue([]);

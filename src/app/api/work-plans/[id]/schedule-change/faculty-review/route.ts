@@ -21,13 +21,14 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const studentProfileId = await getWorkPlanStudentProfileId(params.id);
     await assertCanAccessStudent(user, studentProfileId);
 
-    const { action } = scheduleChangeReviewSchema.parse(await req.json());
+    const { action, reason } = scheduleChangeReviewSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await validateScheduleChangeFaculty(params.id, user.id, action, ipAddress);
     waitUntil(
       notifyScheduleChange(
         studentProfileId,
-        result.status === "PENDING_COORDINATOR" ? "PENDING_COORDINATOR" : "REJECTED"
+        result.status === "PENDING_COORDINATOR" ? "PENDING_COORDINATOR" : "REJECTED",
+        reason
       )
     );
     return NextResponse.json(result);

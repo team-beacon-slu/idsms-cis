@@ -23,6 +23,8 @@ const FOLDER: Record<string, { tab: string; label: string }> = {
   NOT_STARTED: { tab: "bg-slate-300", label: "Not started" },
 };
 
+const PHONE_CHIPS = 3;
+
 // FR-DB-02: per-requirement checklist status and weekly report history, as bento tiles.
 export function StudentDashboardTables({
   requirements,
@@ -36,6 +38,7 @@ export function StudentDashboardTables({
 }) {
   const approved = requirements.filter((r) => r.required && r.status === "APPROVED").length;
   const required = requirements.filter((r) => r.required).length;
+  const todo = requirements.filter((r) => r.status !== "APPROVED");
   return (
     <>
       <Card className="md:col-span-6 xl:col-span-8">
@@ -57,31 +60,63 @@ export function StudentDashboardTables({
           {requirements.length === 0 ? (
             <EmptyLine>No requirements are tracked yet. Your coordinator adds them.</EmptyLine>
           ) : (
-            <ul
-              aria-label="Pre-deployment requirement status"
-              className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-            >
-              {requirements.map((item) => {
-                const f = FOLDER[item.status] ?? FOLDER.NOT_STARTED;
-                return (
-                  <li key={item.requirementType} className="relative pt-2">
-                    <span
-                      aria-hidden="true"
-                      className={cn("absolute top-0 left-3 h-3 w-14 rounded-t-md", f.tab)}
-                    />
-                    <div className="relative rounded-xl border border-white/70 bg-white/80 px-3 py-2.5 dark:border-white/8 dark:bg-white/5">
-                      <p className="text-sm leading-snug font-medium text-foreground">
-                        {requirementLabel(item.requirementType)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {f.label}
-                        {!item.required && " · optional"}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="space-y-3">
+              <div
+                role="progressbar"
+                aria-label="Required items approved"
+                aria-valuemin={0}
+                aria-valuemax={required}
+                aria-valuenow={approved}
+                className="h-2.5 overflow-hidden rounded-full bg-brand-100 dark:bg-white/10"
+              >
+                <div
+                  className="h-full rounded-full bg-[#2f6b4f] transition-[width]"
+                  style={{ width: `${required ? (approved / required) * 100 : 0}%` }}
+                />
+              </div>
+              {todo.length === 0 ? (
+                <p className="text-sm font-medium text-[#2f6b4f] dark:text-emerald-300">
+                  All required items approved.
+                </p>
+              ) : (
+                // Only what still needs doing, as compact chips: the full folder grid repeated
+                // the "Needs attention" count and ran about a screen long on phones.
+                <ul aria-label="Still to do" className="flex flex-wrap gap-2">
+                  {todo.map((item, i) => {
+                    const f = FOLDER[item.status] ?? FOLDER.NOT_STARTED;
+                    return (
+                      <li
+                        key={item.requirementType}
+                        className={cn(
+                          "flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1.5 text-sm dark:border-white/8 dark:bg-white/5",
+                          // Phones: long names take a line each, so show three and link the rest.
+                          i >= PHONE_CHIPS && "max-sm:hidden"
+                        )}
+                      >
+                        <span aria-hidden="true" className={cn("size-2.5 rounded-full", f.tab)} />
+                        <span className="font-medium text-foreground">
+                          {requirementLabel(item.requirementType)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {f.label}
+                          {!item.required && " · optional"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                  {todo.length > PHONE_CHIPS && (
+                    <li className="sm:hidden">
+                      <Link
+                        href="/checklist"
+                        className="inline-block rounded-full px-3 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        +{todo.length - PHONE_CHIPS} more in your checklist
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

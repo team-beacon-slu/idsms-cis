@@ -20,6 +20,11 @@ describe("displayName", () => {
     expect(displayName({ email: "a@x.ph", fullName: "Prof. Cruz" })).toBe("Prof. Cruz");
     expect(displayName({ email: "a@x.ph", fullName: "  " })).toBe("a@x.ph");
   });
+
+  it("falls back to the student number before the email, and never shows blank", () => {
+    expect(displayName({ fullName: "", studentNumber: "2231", email: "a@x.ph" })).toBe("2231");
+    expect(displayName({ fullName: null, studentNumber: null })).toBe("An intern");
+  });
 });
 
 describe("initials", () => {

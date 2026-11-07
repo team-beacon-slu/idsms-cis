@@ -190,7 +190,7 @@ export async function getHolidayCalendarForStudent(
 ): Promise<HolidayCalendarEntryDTO[]> {
   const studentProfile = await prisma.studentProfile.findUnique({
     where: { id: studentProfileId },
-    select: { semesterId: true, companyId: true },
+    select: { semesterId: true, companyId: true, company: { select: { isForeign: true } } },
   });
   if (!studentProfile) {
     return [];
@@ -218,10 +218,16 @@ export async function getHolidayCalendarForStudent(
   }));
 }
 
-// The holidays that reach one intern: their semester's PH holidays and their company's own days.
-function holidayScope(profile: { semesterId: string; companyId: string | null }) {
+// The holidays that reach one intern: their company's own days off, plus the semester's PH
+// holidays unless the company is outside the Philippines (interns follow the company's calendar,
+// not the school's or the country's; a foreign company's days off are added as company days).
+function holidayScope(profile: {
+  semesterId: string;
+  companyId: string | null;
+  company?: { isForeign: boolean } | null;
+}) {
   return [
-    { semesterId: profile.semesterId },
+    ...(profile.company?.isForeign ? [] : [{ semesterId: profile.semesterId }]),
     ...(profile.companyId ? [{ companyId: profile.companyId }] : []),
   ];
 }
@@ -375,7 +381,7 @@ export async function markHolidayApplicable(
   return prisma.$transaction(async (tx) => {
     const studentProfile = await tx.studentProfile.findUniqueOrThrow({
       where: { id: studentProfileId },
-      select: { semesterId: true, companyId: true },
+      select: { semesterId: true, companyId: true, company: { select: { isForeign: true } } },
     });
     // Only a holiday that reaches this student (their semester's, or their company's) can be
     // toggled — never another student's opt-out row, never an arbitrary id.

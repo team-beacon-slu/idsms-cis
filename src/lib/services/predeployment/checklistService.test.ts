@@ -11,7 +11,9 @@ import {
   DEFAULT_REQUIRED_CHECKLIST,
   checklistRequirements,
   getChecklistProgress,
+  bulkApproveChecklistItems,
   isEndorsementGateSatisfied,
+  markChecklistItemUploaded,
   reviewChecklistItem,
   setRequiredChecklistTypes,
   setStartBeforeMoa,
@@ -254,6 +256,73 @@ describe("settings", () => {
     await expect(
       setStartBeforeMoa("profile-1", { allowed: false }, { id: "s-1", role: Role.STUDENT_INTERN })
     ).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe("markChecklistItemUploaded (027)", () => {
+  const intern = { id: "student-1", role: Role.STUDENT_INTERN };
+  const own = () =>
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      userId: "student-1",
+      classGroupId: "cg-1",
+      semesterId: "sem-1",
+    } as never);
+
+  it("marks the intern's own returned item uploaded and back to Pending", async () => {
+    own();
+    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(
+      baseItem({ status: ChecklistStatus.RETURNED }) as never
+    );
+    prismaMock.preDeploymentChecklistItem.update.mockResolvedValue(baseItem() as never);
+
+    await markChecklistItemUploaded("item-1", intern);
+    expect(prismaMock.preDeploymentChecklistItem.update).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: { status: ChecklistStatus.PENDING, uploadedAt: expect.any(Date) },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "CHECKLIST_ITEM_UPLOADED" }),
+      })
+    );
+  });
+
+  it("refuses staff, another intern's item, and an approved item", async () => {
+    await expect(markChecklistItemUploaded("item-1", staffUser)).rejects.toThrow(ForbiddenError);
+
+    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(baseItem() as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({ userId: "someone-else" } as never);
+    await expect(markChecklistItemUploaded("item-1", intern)).rejects.toThrow(ForbiddenError);
+
+    own();
+    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow.mockResolvedValue(
+      baseItem({ status: ChecklistStatus.APPROVED }) as never
+    );
+    await expect(markChecklistItemUploaded("item-1", intern)).rejects.toThrow(ChecklistGateError);
+    expect(prismaMock.preDeploymentChecklistItem.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("bulkApproveChecklistItems", () => {
+  it("approves each item through the same gates and reports the refused ones", async () => {
+    prismaMock.preDeploymentChecklistItem.findUniqueOrThrow
+      .mockResolvedValueOnce(baseItem({ id: "a" }) as never)
+      .mockResolvedValueOnce(
+        baseItem({ id: "b", requirementType: ChecklistRequirementType.WORK_PLAN }) as never
+      );
+    prismaMock.workPlan.findFirst.mockResolvedValue(null); // b's work plan isn't approved
+    prismaMock.preDeploymentChecklistItem.update.mockResolvedValue(
+      baseItem({ id: "a", status: ChecklistStatus.APPROVED }) as never
+    );
+
+    const result = await bulkApproveChecklistItems(["a", "b"], staffUser);
+    expect(result.approved).toEqual([{ id: "a", studentProfileId: "profile-1" }]);
+    expect(result.failed).toEqual([
+      { id: "b", error: "The student's work plan is not yet approved" },
+    ]);
+    expect(prismaMock.preDeploymentChecklistItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ uploadedAt: null }) })
+    );
   });
 });
 

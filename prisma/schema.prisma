@@ -138,6 +138,7 @@ enum HolidayType {
   NATIONAL
   REGIONAL
   COMPANY // a host company's own non-working day (FR-AT-02)
+  SUSPENSION // unused: 029 added it, then days off became per company (COMPANY); Postgres keeps enum values
 }
 
 // ── NextAuth (database session strategy — FR-UM-11) ────────────────────────
@@ -159,6 +160,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
   @@map("accounts")
 }
 
@@ -179,6 +181,7 @@ model Session {
 
 model User {
   holidaysAdded         HolidayCalendarEntry[] @relation("HolidayCreatedBy")
+  departmentEventsAdded DepartmentEvent[]      @relation("DepartmentEventCreatedBy")
   id                    String                 @id @default(uuid()) @db.Uuid
   email                 String                 @unique
   hashedPassword        String                 @map("hashed_password")
@@ -194,6 +197,8 @@ model User {
   fullName              String?                @map("full_name")
   // ai-assist-plan step 6: each person can turn AI hints off for themselves.
   aiAssist              Boolean                @default(true) @map("ai_assist")
+  // 031: off = notices stay in the bell and inbox; email-only messages still send.
+  emailNotifications    Boolean                @default(true) @map("email_notifications")
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
   deletedAt             DateTime?              @map("deleted_at")
@@ -227,6 +232,7 @@ model PasswordResetToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("password_reset_tokens")
 }
 
@@ -285,6 +291,7 @@ model StudentProfile {
   @@index([startBeforeMoaBy], map: "student_profiles_start_before_moa_by_idx")
   @@index([companyId])
   @@index([classGroupId])
+  @@index([semesterId])
   @@map("student_profiles")
 }
 
@@ -315,6 +322,8 @@ model FacultyClassGroup {
   semester   Semester   @relation(fields: [semesterId], references: [id])
 
   @@unique([facultyId, classGroupId, semesterId])
+  @@index([classGroupId])
+  @@index([semesterId])
   @@map("faculty_class_groups")
 }
 
@@ -329,9 +338,10 @@ model Semester {
   // Faculty-defined start of Week 1 for the term (weekly report numbering).
   weekOneStart DateTime? @map("week_one_start")
 
-  students       StudentProfile[]
-  facultyGroups  FacultyClassGroup[]
-  holidayEntries HolidayCalendarEntry[]
+  students         StudentProfile[]
+  facultyGroups    FacultyClassGroup[]
+  holidayEntries   HolidayCalendarEntry[]
+  departmentEvents DepartmentEvent[]
 
   @@map("semesters")
 }
@@ -400,6 +410,7 @@ model CompanyPlacement {
 
   @@index([studentProfileId])
   @@index([companyId])
+  @@index([retractionNotedById])
   @@map("company_placements")
 }
 
@@ -417,6 +428,7 @@ model CompanyVisit {
   visitor User    @relation("CompanyVisitor", fields: [visitedBy], references: [id])
 
   @@index([companyId])
+  @@index([visitedBy])
   @@map("company_visits")
 }
 
@@ -470,6 +482,8 @@ model PreDeploymentChecklistItem {
   reviewerId       String?                  @map("reviewer_id") @db.Uuid
   reviewDate       DateTime?                @map("review_date")
   comments         String?
+  // 027: the intern says the file is on Google Classroom; cleared by approve/return.
+  uploadedAt       DateTime?                @map("uploaded_at") @db.Timestamptz(3)
   archivedAt       DateTime?                @map("archived_at")
   createdAt        DateTime                 @default(now()) @map("created_at")
   updatedAt        DateTime                 @updatedAt @map("updated_at")
@@ -694,6 +708,7 @@ model GeneratedDocument {
 
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
 
+  @@index([studentProfileId])
   @@map("generated_documents")
 }
 
@@ -764,6 +779,7 @@ model DataRequest {
 
   @@index([status, dueAt])
   @@index([userId])
+  @@index([fulfilledBy])
   @@map("data_requests")
 }
 
@@ -785,6 +801,23 @@ model RetentionFlag {
   @@map("retention_flags")
 }
 
+// Coordinator-posted department events (030): on every calendar for the semester; not a day off.
+model DepartmentEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  semesterId  String   @map("semester_id") @db.Uuid
+  date        DateTime
+  title       String
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  semester  Semester @relation(fields: [semesterId], references: [id])
+  createdBy User?    @relation("DepartmentEventCreatedBy", fields: [createdById], references: [id])
+
+  @@index([semesterId, date])
+  @@index([createdById])
+  @@map("department_events")
+}
+
 model HolidayCalendarEntry {
   id               String      @id @default(uuid()) @db.Uuid
   date             DateTime
@@ -803,6 +836,8 @@ model HolidayCalendarEntry {
 
   @@index([companyId])
   @@index([createdById])
+  @@index([semesterId])
+  @@index([studentProfileId])
   @@map("holiday_calendar")
 }
 

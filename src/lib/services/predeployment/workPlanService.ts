@@ -173,9 +173,10 @@ export async function getLatestWorkPlanForStudent(
 // Read primitive Phase 3's hour computation will need (FR-WP-04: approved
 // work plans establish the fixed schedule / required hours / completion date).
 export async function getLatestApprovedWorkPlanForStudent(
-  studentProfileId: string
+  studentProfileId: string,
+  client: Pick<Prisma.TransactionClient, "workPlan"> = prisma
 ): Promise<WorkPlan | null> {
-  return prisma.workPlan.findFirst({
+  return client.workPlan.findFirst({
     where: { studentProfileId, status: WorkPlanStatus.APPROVED },
     orderBy: { createdAt: "desc" },
   });

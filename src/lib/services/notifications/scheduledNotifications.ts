@@ -1,8 +1,17 @@
-import { DataRequestStatus, Prisma, WeeklyReportStatus } from "@prisma/client";
+import {
+  ChecklistStatus,
+  DataRequestStatus,
+  NotificationChannel,
+  NotificationStatus,
+  Prisma,
+  ValidationStatus,
+  WeeklyReportStatus,
+} from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
-import { notify } from "@/lib/services/notifications/notify";
+import { isEmailConfigured, notify, sendEmail } from "@/lib/services/notifications/notify";
+import { NotificationEmail } from "@/components/emails/notification-email";
 import {
   getDepartmentStaffIds,
   getSuperAdminIds,
@@ -10,7 +19,7 @@ import {
 import { runRetentionScan } from "@/lib/services/privacy/retentionService";
 import { getExpiringMoaRecords } from "@/lib/services/predeployment/companyService";
 import { formatManilaDate, manilaDayDiff } from "@/lib/utils/excelExport";
-import { isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
+import { getLatestSubmission, isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import {
   addDays,
   getWeekStartMonday,
@@ -145,6 +154,164 @@ export async function remindDueDataRequests(now: Date): Promise<number> {
   return sent;
 }
 
+// Decision D1 (5 Nov 2026): one 08:00 email per adviser instead of one per submission.
+// Counts what waits on them (submitted weeks, time requests, checklist items marked uploaded) and how long the oldest
+// week has waited; nothing is sent when nothing waits. Once per adviser per day.
+export const OVERDUE_REVIEW_DAYS = 3;
+
+export async function sendReviewDigests(now: Date): Promise<number> {
+  const pairs = await prisma.facultyClassGroup.findMany({
+    where: { semester: { archivedAt: null }, faculty: { isActive: true, deletedAt: null } },
+    select: { facultyId: true, classGroupId: true, semesterId: true },
+  });
+  if (pairs.length === 0) return 0;
+  const groupKey = (classGroupId: string | null, semesterId: string | null) =>
+    `${classGroupId}:${semesterId}`;
+  const advisersOf = new Map<string, string[]>();
+  for (const p of pairs) {
+    const key = groupKey(p.classGroupId, p.semesterId);
+    advisersOf.set(key, [...(advisersOf.get(key) ?? []), p.facultyId]);
+  }
+  const inGroups = {
+    deletedAt: null,
+    OR: pairs.map((p) => ({ classGroupId: p.classGroupId, semesterId: p.semesterId })),
+  };
+  const [reports, requests, uploads] = await Promise.all([
+    prisma.weeklyReport.findMany({
+      where: { status: WeeklyReportStatus.PENDING, studentProfile: inGroups },
+      select: {
+        status: true,
+        revisionHistory: true,
+        studentProfile: { select: { classGroupId: true, semesterId: true } },
+      },
+    }),
+    prisma.deviationReport.findMany({
+      where: { validationStatus: ValidationStatus.PENDING, studentProfile: inGroups },
+      select: { studentProfile: { select: { classGroupId: true, semesterId: true } } },
+    }),
+    prisma.preDeploymentChecklistItem.findMany({
+      where: {
+        status: ChecklistStatus.PENDING,
+        uploadedAt: { not: null },
+        archivedAt: null,
+        studentProfile: inGroups,
+      },
+      select: { studentProfile: { select: { classGroupId: true, semesterId: true } } },
+    }),
+  ]);
+
+  type Tally = { weeks: number; requests: number; uploads: number; oldest: Date | null };
+  const tally = new Map<string, Tally>();
+  const bump = (
+    profile: { classGroupId: string | null; semesterId: string | null },
+    add: (t: Tally) => void
+  ) => {
+    for (const facultyId of advisersOf.get(groupKey(profile.classGroupId, profile.semesterId)) ??
+      []) {
+      const t = tally.get(facultyId) ?? { weeks: 0, requests: 0, uploads: 0, oldest: null };
+      add(t);
+      tally.set(facultyId, t);
+    }
+  };
+  for (const r of reports.filter(isAwaitingReview)) {
+    const stamp = getLatestSubmission(r.revisionHistory)?.timestamp;
+    const submitted = stamp ? new Date(stamp) : null;
+    bump(r.studentProfile, (t) => {
+      t.weeks += 1;
+      if (submitted && (!t.oldest || submitted < t.oldest)) t.oldest = submitted;
+    });
+  }
+  for (const r of requests) bump(r.studentProfile, (t) => (t.requests += 1));
+  for (const r of uploads) bump(r.studentProfile, (t) => (t.uploads += 1));
+
+  let sent = 0;
+  for (const [facultyId, t] of tally) {
+    const dedupeKey = `digest:${facultyId}:${toDateKey(now)}`;
+    if (await alreadySent("REVIEW_DIGEST", dedupeKey, facultyId)) continue;
+    const days = t.oldest ? Math.floor((now.getTime() - t.oldest.getTime()) / DAY_MS) : 0;
+    const parts = [
+      t.weeks && `${t.weeks} weekly report${t.weeks === 1 ? "" : "s"}`,
+      t.requests && `${t.requests} time request${t.requests === 1 ? "" : "s"}`,
+      t.uploads && `${t.uploads} checklist item${t.uploads === 1 ? "" : "s"}`,
+    ].filter(Boolean) as string[];
+    const list =
+      parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+    const result = await notify({
+      userIds: [facultyId],
+      trigger: "REVIEW_DIGEST",
+      title: `Waiting for your review: ${list}`,
+      body:
+        t.weeks > 0
+          ? `The oldest week has waited ${days} day${days === 1 ? "" : "s"}${days >= OVERDUE_REVIEW_DAYS ? " (overdue)" : ""}.`
+          : "Open your review queue to decide them.",
+      link: "/review-queue",
+      email: true,
+      dedupeKey,
+    });
+    if (result.inApp > 0) sent += 1;
+  }
+  return sent;
+}
+
+// Efficiency item 34: failed emails of the last 7 days, for Settings and the retry.
+export const RETRY_EMAIL_DAYS = 7;
+const failedEmailsSince = (now: Date) => ({
+  channel: NotificationChannel.EMAIL,
+  status: NotificationStatus.FAILED,
+  payload: { path: ["failedAt"], gte: now.getTime() - RETRY_EMAIL_DAYS * DAY_MS },
+});
+
+export const countFailedEmails = (now = new Date()) =>
+  prisma.notification.count({ where: failedEmailsSince(now) });
+
+// The daily cron sends each retryable failed email once more (plain notifications only:
+// reset and other custom emails never store their body). 50 a run keeps the cron short.
+export async function retryFailedEmails(now: Date): Promise<number> {
+  if (!isEmailConfigured()) return 0;
+  const failed = await prisma.notification.findMany({
+    where: { ...failedEmailsSince(now), user: { isActive: true, deletedAt: null } },
+    take: 50,
+    select: { id: true, payload: true, user: { select: { email: true } } },
+  });
+  let sent = 0;
+  for (const n of failed) {
+    const p = n.payload as { title?: unknown; body?: unknown; link?: unknown } | null;
+    if (typeof p?.title !== "string" || typeof p.body !== "string") continue;
+    const link = typeof p.link === "string" ? p.link : null;
+    try {
+      await sendEmail(
+        n.user.email,
+        p.title,
+        NotificationEmail({ title: p.title, body: p.body, link: link ?? undefined }),
+        [p.title, p.body, link ? `${process.env.NEXTAUTH_URL ?? ""}${link}` : ""]
+          .filter(Boolean)
+          .join("\n\n")
+      );
+    } catch (error) {
+      console.error("Email retry failed", { notificationId: n.id, error });
+      continue;
+    }
+    await prisma.notification.update({
+      where: { id: n.id },
+      data: { status: NotificationStatus.SENT, sentAt: now },
+    });
+    sent += 1;
+  }
+  return sent;
+}
+
+// Sign-in leftovers serve no one: expired sessions can't sign anyone in, and a reset
+// link that was used or has expired can't be used again. Keeping them only keeps data.
+export async function purgeExpiredSignIns(now: Date): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const sessions = await tx.session.deleteMany({ where: { expires: { lt: now } } });
+    const tokens = await tx.passwordResetToken.deleteMany({
+      where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] },
+    });
+    return sessions.count + tokens.count;
+  });
+}
+
 interface ReminderTarget {
   profileId: string;
   userId: string;
@@ -165,6 +332,9 @@ export async function runDailyNotifications(now: Date) {
     deadlineReminders: 0,
     moaWarnings: 0,
     dsarReminders: 0,
+    reviewDigests: 0,
+    emailRetries: 0,
+    expiredSignIns: 0,
     // null when the scan step threw.
     retention: null as { ran: boolean; flagged: number } | null,
     errors: [] as string[],
@@ -258,7 +428,7 @@ export async function runDailyNotifications(now: Date) {
       const sent = await notify({
         userIds: await getDepartmentStaffIds(),
         trigger: "MOA_EXPIRING",
-        title: `${expiring.length} MOA(s) expiring within ${settings.moaWarningDays} days`,
+        title: `${expiring.length} ${expiring.length === 1 ? "MOA" : "MOAs"} expiring within ${settings.moaWarningDays} days`,
         body: "Review the companies list to start renewals.",
         link: "/companies",
         email: true,
@@ -272,10 +442,31 @@ export async function runDailyNotifications(now: Date) {
   }
 
   try {
+    result.reviewDigests = await sendReviewDigests(now);
+  } catch (error) {
+    console.error("Review digest failed", { error });
+    result.errors.push("digest");
+  }
+
+  try {
+    result.emailRetries = await retryFailedEmails(now);
+  } catch (error) {
+    console.error("Email retry failed", { error });
+    result.errors.push("email-retry");
+  }
+
+  try {
     result.dsarReminders = await remindDueDataRequests(now);
   } catch (error) {
     console.error("DSAR due reminder failed", { error });
     result.errors.push("dsar");
+  }
+
+  try {
+    result.expiredSignIns = await purgeExpiredSignIns(now);
+  } catch (error) {
+    console.error("Expired sign-in cleanup failed", { error });
+    result.errors.push("sign-in-cleanup");
   }
 
   // NFR-DP-08: quarterly (the scan gates itself); flags only, never deletes.

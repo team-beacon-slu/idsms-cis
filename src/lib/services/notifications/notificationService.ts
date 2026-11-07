@@ -70,8 +70,9 @@ export async function sendReportStatusEmail(
       emailOverrides: Object.fromEntries(userIds.map((id) => [id, email])),
     });
     return { sent: result.emailed > 0 && result.failed === 0 };
-  } catch {
-    // The review has already committed successfully; delivery is best effort.
+  } catch (error) {
+    // The review has already committed successfully; delivery is best effort, but logged.
+    console.error(`[notify] report ${weeklyReportId} ${action} status notice failed`, error);
     return { sent: false };
   }
 }

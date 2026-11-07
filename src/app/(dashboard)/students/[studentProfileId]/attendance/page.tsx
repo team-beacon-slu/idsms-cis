@@ -48,6 +48,7 @@ import { getDeductionMatrix, listAutomaticItems } from "@/lib/services/conduct/d
 import { listDisputes } from "@/lib/services/conduct/disputeService";
 import { tallyDeductions } from "@/lib/utils/deductionMatrix";
 import type { Metadata } from "next";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 export const metadata: Metadata = { title: "Attendance" };
 
@@ -176,7 +177,7 @@ export default async function AttendancePage(props: {
                 </p>
                 {summary.pendingHours > 0 && (
                   <p className="text-xs text-amber-700">
-                    +{summary.pendingHours} hrs pending faculty review
+                    +{formatHrsMins(summary.pendingHours)} pending faculty review
                   </p>
                 )}
               </div>
@@ -219,7 +220,7 @@ export default async function AttendancePage(props: {
             <p className="mt-1.5 text-xs text-muted-foreground">
               {progressPercent}% confirmed · pending hours count only after faculty approval
               {summary.pendingHours > 0 &&
-                ` · ${summary.remainingIfPendingApproved} hrs left if pending reports are approved`}
+                ` · ${formatHrsMins(summary.remainingIfPendingApproved)} left if pending reports are approved`}
               {!currentSchedule && " · set a schedule to see a projected completion date"}
             </p>
           </div>

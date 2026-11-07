@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { AiConfigError } from "@/lib/ai/admin";
 import { AiProviderError } from "@/lib/services/ai/aiService";
@@ -37,6 +38,7 @@ import {
 import { PlacementStateError } from "@/lib/services/predeployment/placementService";
 import { LearningJournalError } from "@/lib/services/reports/monthlyReportService";
 import { SemesterStateError } from "@/lib/services/academic/semesterService";
+import { CalendarEntryError } from "@/lib/services/calendar/companyDaysService";
 import { ClassGroupStateError } from "@/lib/services/academic/classGroupService";
 import {
   ComplianceNotFoundError,
@@ -49,6 +51,7 @@ import {
   WeeklyReportIncompleteError,
   WeeklyReportLockedError,
   WeeklyReportNotAwaitingReviewError,
+  WeeklyReportWithdrawError,
 } from "@/lib/services/reports/weeklyReportService";
 
 // Student-facing business-rule violations from Phase 3's attendance and
@@ -70,6 +73,8 @@ const BAD_REQUEST_ERRORS = [
   FinalReportLockedError,
   AiConfigError,
   LearningJournalError,
+  CalendarEntryError,
+  WeeklyReportWithdrawError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {
@@ -88,6 +93,14 @@ export function handleApiError(error: unknown): NextResponse {
   }
   // The AI service failed or is misconfigured: say so plainly (its message never holds the key).
   if (error instanceof AiProviderError) {
+    // Out of quota or down: the raw provider text helps nobody, so say what to do instead.
+    if (error.status === 429 || (error.status ?? 0) >= 500) {
+      console.error(error);
+      return NextResponse.json(
+        { error: "AI assist is busy right now. Type it in yourself, or try again later." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { error: `The AI service didn't answer: ${error.message}` },
       { status: 502 }
@@ -144,6 +157,14 @@ export function handleApiError(error: unknown): NextResponse {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  console.error(error);
-  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  // A short reference the user can quote, matching the log line.
+  const ref = randomUUID().slice(0, 8);
+  console.error(`[error ${ref}]`, error);
+  return NextResponse.json(
+    {
+      error: `Something broke on our side (ref ${ref}). Your input is still here; try again.`,
+      ref,
+    },
+    { status: 500 }
+  );
 }

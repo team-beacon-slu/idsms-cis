@@ -9,6 +9,7 @@ import {
   reviewWeeklyReport_Return,
 } from "@/lib/services/reports/weeklyReportService";
 import { sendReportStatusEmail } from "@/lib/services/notifications/notificationService";
+import { notifyReportDisregarded } from "@/lib/services/notifications/notificationEvents";
 import { weeklyReportReviewSchema } from "@/lib/validators/report";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
@@ -40,7 +41,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     } else if (action === "REGARD") {
       result = await reviewWeeklyReport_Regard(params.id, user.id, ipAddress);
     } else {
-      result = await reviewWeeklyReport_Disregard(params.id, user.id, ipAddress);
+      result = await reviewWeeklyReport_Disregard(params.id, user.id, ipAddress, notes);
+      // The report is deleted, so sendReportStatusEmail can't find it: tell the intern here.
+      waitUntil(notifyReportDisregarded(report.studentProfileId, report.weekStart, notes ?? ""));
     }
 
     // FR-WR-07 / FR-NT-01 #4: in-app + email to the intern and their advisers.

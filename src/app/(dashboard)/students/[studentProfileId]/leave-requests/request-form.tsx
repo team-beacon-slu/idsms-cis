@@ -42,6 +42,13 @@ export const NO_DUTY_PREFIX = "No duty: ";
 const SELECT_CLASS =
   "flex h-9 w-full cursor-pointer rounded-md border border-input bg-transparent px-2 text-sm disabled:cursor-not-allowed";
 
+// Efficiency item 25: a request for today or a past day can't have been filed ahead, so the
+// kind follows the date (Manila calendar). The intern can still change it.
+export function kindForDate(date: string, now = new Date()): "ANTICIPATED" | "EMERGENCY" {
+  const today = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return date && date <= today ? "EMERGENCY" : "ANTICIPATED";
+}
+
 export function toBody(v: RequestFormValues) {
   const noDuty = v.deviationType === "NO_DUTY";
   const isLeave = v.deviationType === "ABSENCE" || noDuty;
@@ -62,15 +69,18 @@ export function RequestForm({
   requestId,
   initial,
   onDone,
+  returnTo,
 }: {
   studentProfileId: string;
   requestId?: string; // set when editing
   initial?: Partial<RequestFormValues>;
   onDone?: () => void;
+  returnTo?: string; // an internal path (already checked), e.g. the weekly report that linked here
 }) {
   const router = useRouter();
   const [v, setV] = useState<RequestFormValues>(() => {
     const start = { ...EMPTY, ...initial };
+    if (initial?.date && !initial.requestKind) start.requestKind = kindForDate(initial.date);
     // Editing a no-duty request shows it as one again, without the stored prefix.
     return start.deviationType === "ABSENCE" && start.reason.startsWith(NO_DUTY_PREFIX)
       ? { ...start, deviationType: "NO_DUTY", reason: start.reason.slice(NO_DUTY_PREFIX.length) }
@@ -99,7 +109,8 @@ export function RequestForm({
     toast.success(requestId ? "Request resubmitted for review" : "Request sent to your adviser");
     if (!requestId) setV(EMPTY);
     onDone?.();
-    router.refresh();
+    if (returnTo) router.push(returnTo);
+    else router.refresh();
   }
 
   return (
@@ -171,7 +182,13 @@ export function RequestForm({
             required
             value={v.date}
             disabled={pending}
-            onChange={(e) => set({ date: e.target.value })}
+            onChange={(e) =>
+              set(
+                requestId
+                  ? { date: e.target.value }
+                  : { date: e.target.value, requestKind: kindForDate(e.target.value) }
+              )
+            }
           />
         </div>
         {isLeave && !v.startTime && (
@@ -228,8 +245,12 @@ export function RequestForm({
       </div>
 
       <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
-        <li>Overtime must be requested before it is worked.</li>
-        <li>Overtime under 30 minutes is not credited.</li>
+        {v.deviationType === "OVERTIME" && (
+          <>
+            <li>Overtime must be requested before it is worked.</li>
+            <li>Overtime under 30 minutes is not credited.</li>
+          </>
+        )}
         <li>
           Attach the signed form and any proof to that week&apos;s report in Google Classroom.
         </li>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { requireUserPage } from "@/lib/auth/session";
 import {
   EXPORT_KINDS,
@@ -73,7 +74,10 @@ function readDetail(detail: unknown): ExportDetail | null {
   return detail && typeof detail === "object" ? (detail as ExportDetail) : null;
 }
 
-export default async function ExportCenterPage() {
+export default async function ExportCenterPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { semesterId: picked } = await props.searchParams;
   const user = await requireUserPage();
   if (user.role !== Role.SUPER_ADMIN) redirect("/");
 
@@ -89,6 +93,14 @@ export default async function ExportCenterPage() {
     label: `${s.name} (${s.academicYear})`,
   }));
   const semesterLabel = new Map(semesterOptions.map((s) => [s.id, s.label]));
+  // Efficiency item 32: one semester for the whole page, the active one unless chosen;
+  // "all" exports every semester. An unknown id falls back to the default.
+  const chosen =
+    picked === "all"
+      ? "all"
+      : typeof picked === "string" && semesterLabel.has(picked)
+        ? picked
+        : (semesters.find((s) => s.isActive)?.id ?? "all");
 
   return (
     <div className="space-y-8">
@@ -105,6 +117,30 @@ export default async function ExportCenterPage() {
         <p>Every export asks for your password and is recorded in the audit log.</p>
       </div>
 
+      <form method="get" className="flex flex-wrap items-end gap-2">
+        <div className="space-y-2">
+          <label htmlFor="export-semester" className="text-sm font-medium">
+            Semester
+          </label>
+          <select
+            id="export-semester"
+            name="semesterId"
+            defaultValue={chosen}
+            className="flex h-9 cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+          >
+            <option value="all">All semesters</option>
+            {semesterOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button type="submit" variant="outline" className="cursor-pointer">
+          Apply
+        </Button>
+      </form>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {EXPORT_KINDS.map((kind) => (
           <ExportCard
@@ -112,7 +148,8 @@ export default async function ExportCenterPage() {
             kind={kind}
             title={EXPORT_LABELS[kind].title}
             description={EXPORT_LABELS[kind].description}
-            semesters={semesterOptions}
+            semesterId={chosen === "all" ? null : chosen}
+            semesterLabel={chosen === "all" ? "All semesters" : semesterLabel.get(chosen)!}
             semesterAware={SEMESTER_AWARE.has(kind)}
           />
         ))}

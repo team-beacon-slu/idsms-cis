@@ -6,6 +6,7 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { loadShift } from "@/lib/services/attendance/creditedHours";
+import { defaultDayTimes } from "@/lib/utils/timeMath";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
   getConfirmedSubmission,
@@ -20,7 +21,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
-import { getWeeklyReportDueDate, toDateKey } from "@/lib/utils/reportDeadline";
+import { getWeeklyReportDueDate, isWeeklyReportLate, toDateKey } from "@/lib/utils/reportDeadline";
 import { ClipboardCheck, Hash, MessageSquareWarning } from "lucide-react";
 import { WeeklyReportForm } from "./weekly-report-form";
 import { jobsOnFor } from "@/lib/ai/jobs";
@@ -28,6 +29,7 @@ import type { AiHints as AiHintsData } from "@/lib/ai/processing";
 import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
 import { QuickApprove } from "./quick-approve";
+import { WithdrawReport } from "./withdraw-report";
 import { TimeReportLinks } from "./time-report-links";
 import { timeReportKindsFor, timeReportWeeks } from "@/lib/documents/timeReportData";
 import type { Metadata } from "next";
@@ -45,7 +47,7 @@ const describeFacultyAction = (action: string) =>
   FACULTY_ACTION_TEXT[action.split(" ")[0]] ?? "Reviewed by your faculty adviser.";
 
 function formatDate(date: Date) {
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -99,6 +101,11 @@ export default async function WeeklyReportsPage(props: {
     .flatMap((r) => r.dailyEntries)
     .filter((e) => e.attendanceStatus === "PRESENT" && e.timeIn && e.timeOut)
     .sort((a, b) => b.reportDate.getTime() - a.reportDate.getTime())[0];
+  // With neither (an older schedule and no worked day yet), a standard day sized to the
+  // scheduled hours, so the intern only writes what they did.
+  const scheduledDay = reports
+    .flatMap((r) => r.dailyEntries)
+    .find((e) => Number(e.scheduledHours) > 0);
   const usualTimes = lastWorked
     ? {
         timeIn: lastWorked.timeIn ?? "",
@@ -106,7 +113,14 @@ export default async function WeeklyReportsPage(props: {
         timeIn2: lastWorked.timeIn2 ?? "",
         timeOut2: lastWorked.timeOut2 ?? "",
       }
-    : null;
+    : !shift && scheduledDay
+      ? defaultDayTimes(Number(scheduledDay.scheduledHours))
+      : null;
+  const usualTools =
+    reports
+      .flatMap((r) => r.dailyEntries)
+      .filter((e) => e.toolsUsed?.trim())
+      .sort((a, b) => b.reportDate.getTime() - a.reportDate.getTime())[0]?.toolsUsed ?? "";
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const deductionsAsOf = (weekEnd: Date) =>
     Math.round(
@@ -115,6 +129,11 @@ export default async function WeeklyReportsPage(props: {
         .reduce((sum, c) => sum + Number(c.hoursDeducted), 0) * 100
     ) / 100;
   const isOwner = user.role === "STUDENT_INTERN";
+  // This week already has its form below: the start card folds away (it is for other weeks).
+  const now = new Date().getTime();
+  const hasThisWeek = reports.some(
+    (r) => r.weekStart.getTime() <= now && now < r.weekEnd.getTime() + 24 * 60 * 60 * 1000
+  );
   const canReview = !isOwner;
   // R5: interns see their own plan-coverage pointers (the newest week that has them).
   const coverage = aiJobs.has("coverage")
@@ -161,7 +180,7 @@ export default async function WeeklyReportsPage(props: {
         </Card>
       )}
 
-      {isOwner && (
+      {isOwner && !hasThisWeek && (
         <Card>
           <CardHeader>
             <CardTitle>Start a weekly report</CardTitle>
@@ -174,6 +193,16 @@ export default async function WeeklyReportsPage(props: {
             <GenerateWeekButton studentProfileId={params.studentProfileId} />
           </CardContent>
         </Card>
+      )}
+
+      {isOwner && hasThisWeek && (
+        <details className="rounded-lg border bg-card px-4 py-3 text-sm">
+          <summary className="cursor-pointer font-medium">Start a report for another week</summary>
+          <p className="mt-2 mb-3 text-muted-foreground">
+            This week&apos;s report is below. For a missed week, pick any day in it.
+          </p>
+          <GenerateWeekButton studentProfileId={params.studentProfileId} />
+        </details>
       )}
 
       <Card>
@@ -206,10 +235,13 @@ export default async function WeeklyReportsPage(props: {
               const feedback = getWeeklyReportHistory(report.revisionHistory).filter(
                 (entry) => entry.type !== "SUBMITTED" && typeof entry.notes === "string"
               );
-              // Reports are sorted newest first, so the previous week is the next one.
-              const priorAccomplishments = (reports[index + 1]?.dailyEntries ?? [])
-                .map((e) => e.accomplishments ?? "")
-                .filter(Boolean);
+              // Reports are sorted newest first, so the previous week is the next one. Only an
+              // editable week runs the copy check, so only it is sent the text (item 40: payload).
+              const priorAccomplishments = editable
+                ? (reports[index + 1]?.dailyEntries ?? [])
+                    .map((e) => e.accomplishments ?? "")
+                    .filter(Boolean)
+                : [];
 
               return (
                 <div
@@ -228,7 +260,7 @@ export default async function WeeklyReportsPage(props: {
                     <div className="flex flex-wrap items-center gap-2">
                       {awaitingReview ? (
                         <Badge variant="secondary">Submitted · awaiting review</Badge>
-                      ) : report.status === "PENDING" && !submission ? (
+                      ) : report.status === "PENDING" ? (
                         <Badge variant="outline">Draft</Badge>
                       ) : (
                         <StatusBadge status={report.status} />
@@ -246,6 +278,9 @@ export default async function WeeklyReportsPage(props: {
                         weeklyReportId={report.id}
                         kinds={timeReportKindsFor(report, timeRecords)}
                       />
+                      {isOwner && awaitingReview && !isWeeklyReportLate(report.weekEnd) && (
+                        <WithdrawReport weeklyReportId={report.id} />
+                      )}
                       {canReview && awaitingReview && <QuickApprove weeklyReportId={report.id} />}
                       {canReview && (
                         <Link
@@ -261,7 +296,7 @@ export default async function WeeklyReportsPage(props: {
                     </div>
                   </div>
 
-                  {submission && (
+                  {submission && (awaitingReview || report.status !== "PENDING") && (
                     <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <Hash className="size-3.5" aria-hidden="true" />
                       <span className="font-mono text-foreground">{submission.referenceCode}</span>·
@@ -305,6 +340,7 @@ export default async function WeeklyReportsPage(props: {
                       editable={editable}
                       shift={shift}
                       usualTimes={usualTimes}
+                      usualTools={usualTools}
                       holidays={holidays}
                       weekEnd={report.weekEnd.toISOString()}
                       priorAccomplishments={priorAccomplishments}

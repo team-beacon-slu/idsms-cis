@@ -19,13 +19,14 @@ import { cn } from "@/lib/utils";
 // Edge cases: an empty `events` array (new semester, nothing scheduled yet)
 // renders an empty grid / agenda, not an error state.
 
-type Tone = "red" | "slate" | "amber" | "green";
+type Tone = "red" | "slate" | "amber" | "green" | "blue";
 
 const TYPE_LABEL: Record<CalendarEventType, string> = {
   DEADLINE: "Submission deadline",
   HOLIDAY: "Holiday",
   DEVIATION: "Approved deviation",
   COMPLETION: "Projected completion",
+  EVENT: "Department event",
 };
 
 const TYPE_TONE: Record<CalendarEventType, Tone> = {
@@ -33,6 +34,7 @@ const TYPE_TONE: Record<CalendarEventType, Tone> = {
   HOLIDAY: "slate",
   DEVIATION: "amber",
   COMPLETION: "green",
+  EVENT: "blue",
 };
 
 const DOT_CLASSES: Record<Tone, string> = {
@@ -40,6 +42,7 @@ const DOT_CLASSES: Record<Tone, string> = {
   slate: "bg-slate-400",
   amber: "bg-amber-500",
   green: "bg-green-500",
+  blue: "bg-blue-500",
 };
 
 const CHIP_CLASSES: Record<Tone, string> = {
@@ -47,6 +50,7 @@ const CHIP_CLASSES: Record<Tone, string> = {
   slate: "border-slate-200 bg-slate-100 text-slate-700",
   amber: "border-amber-200 bg-amber-50 text-amber-700",
   green: "border-green-200 bg-green-50 text-green-700",
+  blue: "border-blue-200 bg-blue-50 text-blue-700",
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -97,7 +101,7 @@ function EventList({ events, staff }: { events: CalendarEvent[]; staff: boolean 
             {staff && event.studentProfileId && (
               <a
                 href={`/students/${event.studentProfileId}/weekly-reports`}
-                className="text-xs text-primary underline underline-offset-2"
+                className="inline-block py-1 text-xs text-primary underline underline-offset-2"
               >
                 Student reports
               </a>
@@ -262,7 +266,8 @@ export function UnifiedCalendarView({
                 <span
                   className={cn(
                     "inline-flex size-5 items-center justify-center rounded-full text-[11px]",
-                    inMonth ? "text-foreground" : "text-muted-foreground/50",
+                    // Other-month days are told apart by their cell tint; /50 text failed 4.5:1.
+                    inMonth ? "text-foreground" : "text-muted-foreground",
                     isToday && "bg-chart-1 font-semibold text-white"
                   )}
                 >

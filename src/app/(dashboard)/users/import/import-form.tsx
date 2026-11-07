@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { OFFLINE_MESSAGE } from "@/lib/utils/sendJson";
@@ -40,11 +40,29 @@ export function BulkImportForm({
   semesters: Option[];
   defaultSemesterId?: string;
 }) {
-  const [classGroupId, setClassGroupId] = useState(classGroups[0]?.id ?? "");
+  const [classGroupId, setClassGroupId] = useState(
+    classGroups.length === 1 ? classGroups[0].id : ""
+  );
   const [semesterId, setSemesterId] = useState(defaultSemesterId ?? semesters[0]?.id ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<(BulkImportResult & { rowErrors: RowError[] }) | null>(null);
+  const [result, setResult] = useState<
+    (BulkImportResult & { rowErrors: RowError[]; preview?: boolean }) | null
+  >(null);
+  // Efficiency item 30: the first submit only checks the file ("N new / M skipped"); the
+  // second imports. Changing the file, group or semester checks again.
+  const previewed = Boolean(result?.preview);
+  const clearPreview = () => setResult((r) => (r?.preview ? null : r));
+  const [downloaded, setDownloaded] = useState(false);
+  // The temporary passwords live only in this tab (the welcome emails don't carry them):
+  // leaving before downloading would mean resetting every new account by hand.
+  const unsaved = Boolean(result && !result.preview && result.created > 0 && !downloaded);
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,6 +76,7 @@ export function BulkImportForm({
     formData.set("file", file);
     formData.set("classGroupId", classGroupId);
     formData.set("semesterId", semesterId);
+    if (!previewed) formData.set("preview", "1");
 
     const res = await fetch("/api/users/bulk-import", { method: "POST", body: formData }).catch(
       () => null
@@ -76,7 +95,8 @@ export function BulkImportForm({
 
     const body = await res.json();
     setResult(body);
-    toast.success(`Imported ${body.created} of ${body.totalRows} rows`);
+    setDownloaded(false);
+    if (!body.preview) toast.success(`Imported ${body.created} of ${body.totalRows} rows`);
   }
 
   function downloadCsv() {
@@ -93,6 +113,7 @@ export function BulkImportForm({
     a.download = "student-credentials.csv";
     a.click();
     URL.revokeObjectURL(url);
+    setDownloaded(true);
   }
 
   return (
@@ -101,7 +122,8 @@ export function BulkImportForm({
         <CardHeader>
           <CardTitle>Upload class list</CardTitle>
           <CardDescription>
-            CSV or Excel. Columns: studentNumber, email, program, requiredHours.
+            CSV or Excel. Columns: studentNumber, email, program, requiredHours, and optionally
+            classGroup (e.g. BSIT 4A) to file each row into its own section.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -121,10 +143,16 @@ export function BulkImportForm({
                   <select
                     id="classGroupId"
                     value={classGroupId}
-                    onChange={(e) => setClassGroupId(e.target.value)}
+                    onChange={(e) => {
+                      setClassGroupId(e.target.value);
+                      clearPreview();
+                    }}
                     required
                     className={selectClass}
                   >
+                    <option value="" disabled>
+                      Choose a class group
+                    </option>
                     {classGroups.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.label}
@@ -138,7 +166,10 @@ export function BulkImportForm({
                 <select
                   id="semesterId"
                   value={semesterId}
-                  onChange={(e) => setSemesterId(e.target.value)}
+                  onChange={(e) => {
+                    setSemesterId(e.target.value);
+                    clearPreview();
+                  }}
                   required
                   className={selectClass}
                 >
@@ -183,13 +214,22 @@ export function BulkImportForm({
                 type="file"
                 accept=".csv,.xlsx,.xls"
                 className="sr-only"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] ?? null);
+                  clearPreview();
+                }}
                 required
               />
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="cursor-pointer">
-              {isSubmitting ? "Importing..." : "Import"}
+              {isSubmitting
+                ? previewed
+                  ? "Importing..."
+                  : "Checking..."
+                : previewed
+                  ? `Import ${result?.created ?? 0} new ${result?.created === 1 ? "student" : "students"}`
+                  : "Check file"}
             </Button>
           </form>
         </CardContent>
@@ -199,16 +239,32 @@ export function BulkImportForm({
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>
-              Results: {result.created} created, {result.skipped} skipped
+              {result.preview ? "Check: " : "Results: "}
+              {result.created} {result.preview ? "new" : "created"}, {result.skipped} skipped
               {result.rowErrors.length > 0 && `, ${result.rowErrors.length} invalid`}
+              {result.preview && (
+                <span className="block text-sm font-normal text-muted-foreground">
+                  Nothing is saved yet. Import to create the accounts.
+                </span>
+              )}
             </CardTitle>
-            {result.created > 0 && (
-              <Button onClick={downloadCsv} variant="outline" className="cursor-pointer gap-2">
+            {!result.preview && result.created > 0 && (
+              <Button
+                onClick={downloadCsv}
+                variant={downloaded ? "outline" : "default"}
+                className="cursor-pointer gap-2"
+              >
                 <Download className="size-4" aria-hidden="true" />
-                Download credentials CSV
+                {downloaded ? "Download again" : "Download credentials CSV"}
               </Button>
             )}
           </CardHeader>
+          {unsaved && (
+            <p role="status" className="px-6 text-sm font-medium text-foreground">
+              The temporary passwords are shown only on this page. Download the CSV before you
+              leave.
+            </p>
+          )}
           <CardContent>
             <div className="overflow-x-auto rounded-lg border border-border">
               <Table>
@@ -229,7 +285,7 @@ export function BulkImportForm({
                       <TableCell>{r.email}</TableCell>
                       <TableCell>
                         <Badge variant={r.status === "created" ? "outline" : "destructive"}>
-                          {r.status}
+                          {result.preview && r.status === "created" ? "new" : r.status}
                         </Badge>
                       </TableCell>
                       <TableCell>{r.reason ?? "—"}</TableCell>
@@ -242,7 +298,12 @@ export function BulkImportForm({
                       <TableCell>
                         <Badge variant="destructive">invalid</Badge>
                       </TableCell>
-                      <TableCell>Failed validation</TableCell>
+                      <TableCell>
+                        {Array.isArray(e.issues) &&
+                        typeof (e.issues[0] as { message?: unknown })?.message === "string"
+                          ? (e.issues[0] as { message: string }).message
+                          : "Failed validation"}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

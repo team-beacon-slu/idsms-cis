@@ -173,6 +173,8 @@ export default async function ChecklistPage(props: {
                         itemId={item.id}
                         status={item.status}
                         canReview={canReview}
+                        isOwner={isOwner}
+                        uploadedAt={item.uploadedAt?.toISOString() ?? null}
                       />
                     </TableCell>
                   </TableRow>

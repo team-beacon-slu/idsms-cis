@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/page-header";
 import { greeting } from "@/lib/utils/greeting";
 import { FacultyDashboard } from "./_components/faculty-dashboard";
 import { CoordinatorDashboard } from "./_components/coordinator-dashboard";
+import { GettingStarted } from "./_components/getting-started";
 import { StudentDashboardTables } from "./_components/student-dashboard";
 import { reportState, weeklyHistory } from "@/lib/services/dashboards/complianceService";
 import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
@@ -28,6 +29,7 @@ import { InternshipTrack, MiniTrack } from "@/components/internship-track";
 import { BeaconRing } from "@/components/beacon-ring";
 import { CountUp } from "@/components/count-up";
 import type { Metadata } from "next";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -56,6 +58,7 @@ export default async function DashboardHomePage(props: {
           title="Department overview"
           description="Every intern this semester: hours, requirements and weekly reports."
         />
+        <GettingStarted role={user.role} />
         <CoordinatorDashboard role={user.role} searchParams={searchParams} />
       </div>
     );
@@ -69,6 +72,7 @@ export default async function DashboardHomePage(props: {
           title="Advising overview"
           description="Your class groups: what is waiting for your review, then each intern."
         />
+        <GettingStarted role={user.role} />
         <FacultyDashboard facultyId={user.id} />
       </div>
     );
@@ -171,7 +175,7 @@ export default async function DashboardHomePage(props: {
     ? "Your student profile is not set up yet. Ask your coordinator."
     : hoursComplete
       ? `All ${requiredHours} required hours confirmed. Well done: what's left is your final report.`
-      : `${confirmedHours} of ${requiredHours} hours confirmed · ` +
+      : `${formatHrsMins(confirmedHours)} of ${requiredHours} hours confirmed · ` +
         (projectedCompletion
           ? `on schedule to finish ${fmtDate(projectedCompletion)}`
           : "set your work schedule to see your finish date");
@@ -210,6 +214,7 @@ export default async function DashboardHomePage(props: {
           </Button>
         }
       />
+      <GettingStarted role={user.role} studentProfileId={studentProfile?.id} />
 
       {/* Bento: the biggest tile answers "am I on track?"; colour blocks carry one figure each. */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12">
@@ -234,9 +239,9 @@ export default async function DashboardHomePage(props: {
           </div>
           <dl className="mt-auto grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-2xl bg-white/10 px-3 py-2.5">
-              <dt className="text-white/70">Pending review</dt>
+              <dt className="text-white/70">Hours awaiting review</dt>
               <dd className="mt-0.5 font-semibold text-white tabular-nums">
-                {pendingHours > 0 ? `+${pendingHours} hrs` : "—"}
+                {pendingHours > 0 ? `+${formatHrsMins(pendingHours)}` : "—"}
               </dd>
             </div>
             <div className="rounded-2xl bg-white/10 px-3 py-2.5">

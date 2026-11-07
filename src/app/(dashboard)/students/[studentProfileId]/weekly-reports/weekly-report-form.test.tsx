@@ -2,7 +2,10 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-jest.mock("next/navigation", () => ({ useRouter: () => ({ refresh: jest.fn() }) }));
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: jest.fn() }),
+  usePathname: () => "/students/sp-1/weekly-reports/wr-1",
+}));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() } }));
 
 import { toast } from "sonner";
@@ -84,6 +87,12 @@ it("prefills new days with the intern's usual times when the schedule has none",
   expect(timeOut("thu")).toHaveValue("17:30");
 });
 
+it("prefills new days with the last worked day's tools", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable usualTools="VS Code, Figma" />);
+
+  expect(document.getElementById("tools-wed")).toHaveValue("VS Code, Figma");
+});
+
 it("copies times typed on one day to the later untouched days, but not to edited ones", () => {
   render(<WeeklyReportForm {...props} entries={week} editable />);
   fireEvent.change(timeIn("thu"), { target: { value: "10:00" } }); // Thursday is edited
@@ -95,4 +104,65 @@ it("copies times typed on one day to the later untouched days, but not to edited
   expect(timeIn("wed")).toHaveValue("09:30");
   expect(timeOut("wed")).toHaveValue("17:00");
   expect(timeIn("thu")).toHaveValue("10:00");
+});
+
+const tools = (id: string) => document.getElementById(`tools-${id}`) as HTMLInputElement;
+
+it("carries Tools used to the later blank days once typed, leaving filled ones alone", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable />);
+  fireEvent.change(tools("thu"), { target: { value: "Excel" } });
+  fireEvent.change(tools("tue"), { target: { value: "VS Code, Figma" } });
+  fireEvent.blur(tools("tue"));
+
+  expect(tools("wed")).toHaveValue("VS Code, Figma");
+  expect(tools("thu")).toHaveValue("Excel");
+});
+
+it("marks every day that needs fixing on Submit and scrolls to the first", () => {
+  const scroll = jest.fn();
+  Element.prototype.scrollIntoView = scroll;
+  render(<WeeklyReportForm {...props} entries={week} editable />);
+
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+
+  // One error summary with a link per day, each field flagged and tied to its message.
+  const summary = screen.getByRole("alert");
+  expect(summary.querySelectorAll("a")).toHaveLength(3);
+  expect(summary).toHaveTextContent("Wed, Oct 21: Enter hours worked");
+  const acc = document.getElementById("hours-wed");
+  expect(acc).toHaveAttribute("aria-invalid", "true");
+  expect(acc).toHaveAttribute("aria-describedby", "problem-wed");
+  expect(document.getElementById("problem-wed")).toHaveTextContent("Enter hours worked");
+  expect(toast.error).toHaveBeenCalledWith("3 days need fixing; each is marked below");
+  expect(scroll).toHaveBeenCalledTimes(1);
+  expect(document.activeElement).toBe(document.getElementById("hours-tue"));
+});
+
+it("clears a day's error once the intern edits it", () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  render(<WeeklyReportForm {...props} entries={week} editable />);
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+
+  fireEvent.change(document.getElementById("hours-tue")!, { target: { value: "8" } });
+
+  expect(screen.getByRole("alert").querySelectorAll("a")).toHaveLength(2);
+  expect(document.getElementById("hours-tue")).not.toHaveAttribute("aria-invalid");
+});
+
+it("flags a missing reason for delay on a late report next to the box", () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  const filled = {
+    ...entry,
+    attendanceStatus: "PRESENT",
+    actualHours: 8,
+    accomplishments: "Did it",
+  };
+  render(
+    <WeeklyReportForm {...props} weekEnd="2026-10-25T00:00:00.000Z" entries={[filled]} editable />
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+
+  const box = document.getElementById("delay-wr-1");
+  expect(box).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("alert")).toHaveTextContent("Reason for delay is required");
 });

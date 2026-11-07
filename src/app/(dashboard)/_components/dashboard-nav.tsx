@@ -72,26 +72,30 @@ const REFERENCE: NavGroup = {
 // Grouped by what each role does there, so a new screen has an obvious home.
 // Coordinator/Admin reach every student through /users and the dashboard; My students
 // is the faculty_class_groups roster, which only faculty have.
-export function getNavGroups(role: Role): NavGroup[] {
+export function getNavGroups(role: Role, studentProfileId?: string): NavGroup[] {
   const home: NavGroup = { items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] };
   if (role === "STUDENT_INTERN") {
+    // Straight to the student's own pages: the /weekly-reports etc. stubs redirect, which
+    // costs a second render (and a full reload on a hard load).
+    const own = (path: string) =>
+      studentProfileId ? `/students/${studentProfileId}${path}` : path;
     return [
       home,
       {
         label: "Every week",
         items: [
-          { href: "/weekly-reports", label: "Weekly reports", icon: FileText },
-          { href: "/attendance", label: "Attendance", icon: Clock },
-          { href: "/leave-requests", label: "Leave & time requests", icon: CalendarOff },
+          { href: own("/weekly-reports"), label: "Weekly reports", icon: FileText },
+          { href: own("/attendance"), label: "Attendance", icon: Clock },
+          { href: own("/leave-requests"), label: "Leave & time requests", icon: CalendarOff },
         ],
       },
       {
         label: "Requirements",
         items: [
-          { href: "/checklist", label: "Checklist", icon: ClipboardCheck },
-          { href: "/work-plan", label: "Work plan", icon: NotebookText },
-          { href: "/monthly-reports", label: "Monthly reports", icon: FileBarChart2 },
-          { href: "/final-report", label: "Final report", icon: BookOpenCheck },
+          { href: own("/checklist"), label: "Checklist", icon: ClipboardCheck },
+          { href: own("/work-plan"), label: "Work plan", icon: NotebookText },
+          { href: own("/monthly-reports"), label: "Monthly reports", icon: FileBarChart2 },
+          { href: own("/final-report"), label: "Final report", icon: BookOpenCheck },
         ],
       },
       {
@@ -125,6 +129,10 @@ export function getNavGroups(role: Role): NavGroup[] {
         { href: "/semesters", label: "Semesters", icon: CalendarRange },
         { href: "/final-reports", label: "Final reports", icon: BookOpenCheck },
         { href: "/search", label: "Search entries", icon: Search },
+        // The coordinator's Settings holds the required hours only (Q5).
+        ...(role === "DEPARTMENT_COORDINATOR"
+          ? [{ href: "/settings", label: "Settings", icon: Settings }]
+          : []),
       ],
     },
   ];
@@ -178,6 +186,8 @@ function NavLinks({
               <Link
                 key={href}
                 href={href}
+                // Every page is dynamic: prefetching the whole menu re-ran each page on the server.
+                prefetch={false}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 title={rail ? label : undefined}
@@ -266,8 +276,10 @@ export function DashboardNav({
   email,
   aiAssist,
   initialCollapsed = false,
+  studentProfileId,
 }: {
   role: Role;
+  studentProfileId?: string;
   aiAssist: boolean;
   /** displayName(): legal name, display name, or email. */
   name: string;
@@ -277,7 +289,7 @@ export function DashboardNav({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [rail, setRail] = useState(initialCollapsed);
-  const groups = getNavGroups(role);
+  const groups = getNavGroups(role, studentProfileId);
   const close = () => setMobileOpen(false);
   const toggleRail = () => {
     const next = !rail;

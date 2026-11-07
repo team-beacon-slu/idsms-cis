@@ -2,6 +2,8 @@ import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 
 jest.mock("@/lib/services/notifications/notify", () => ({
   notify: jest.fn().mockResolvedValue({ inApp: 1, emailed: 0, failed: 0 }),
+  isEmailConfigured: () => true,
+  sendEmail: jest.fn().mockResolvedValue(true),
 }));
 jest.mock("@/lib/services/privacy/retentionService", () => ({
   runRetentionScan: jest.fn().mockResolvedValue({ ran: false, flagged: 0 }),
@@ -14,13 +16,16 @@ jest.mock("@/lib/services/notifications/notificationRecipients", () => ({
   getSuperAdminIds: jest.fn().mockResolvedValue(["sa-1"]),
 }));
 
-import { notify } from "@/lib/services/notifications/notify";
+import { notify, sendEmail } from "@/lib/services/notifications/notify";
 import { runRetentionScan } from "@/lib/services/privacy/retentionService";
 import {
   getNotificationSettings,
   notificationSettingsSchema,
+  purgeExpiredSignIns,
   remindDueDataRequests,
+  retryFailedEmails,
   runDailyNotifications,
+  sendReviewDigests,
 } from "@/lib/services/notifications/scheduledNotifications";
 
 beforeEach(() => {
@@ -34,6 +39,79 @@ beforeEach(() => {
   prismaMock.studentProfile.findMany.mockResolvedValue([] as never);
   // No open data requests unless a test says so.
   prismaMock.dataRequest.findMany.mockResolvedValue([] as never);
+  // No failed emails to retry unless a test says so.
+  prismaMock.notification.findMany.mockResolvedValue([] as never);
+  // No adviser assignments (so no review digests) unless a test says so.
+  prismaMock.facultyClassGroup.findMany.mockResolvedValue([] as never);
+  prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
+  // No sign-in leftovers to clear unless a test says so.
+  prismaMock.session.deleteMany.mockResolvedValue({ count: 0 });
+  prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
+});
+
+it("clears expired sessions and used or expired reset links, and reports how many", async () => {
+  const now = new Date("2026-11-08T00:00:00Z");
+  prismaMock.session.deleteMany.mockResolvedValue({ count: 145 });
+  prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 1 });
+
+  expect(await purgeExpiredSignIns(now)).toBe(146);
+  expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { expires: { lt: now } } });
+  expect(prismaMock.passwordResetToken.deleteMany).toHaveBeenCalledWith({
+    where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] },
+  });
+});
+
+describe("sendReviewDigests (decision D1)", () => {
+  const submitted = (at: string) => ({
+    status: "PENDING",
+    revisionHistory: [{ type: "SUBMITTED", timestamp: at }],
+    studentProfile: { classGroupId: "cg-1", semesterId: "sem-1" },
+  });
+
+  it("emails each adviser once with what waits and how old the oldest week is", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+      { facultyId: "f-1", classGroupId: "cg-1", semesterId: "sem-1" },
+    ] as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      submitted("2026-10-07T00:00:00Z"),
+      submitted("2026-10-10T00:00:00Z"),
+    ] as never);
+    prismaMock.deviationReport.findMany.mockResolvedValue([
+      { studentProfile: { classGroupId: "cg-1", semesterId: "sem-1" } },
+    ] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([
+      { studentProfile: { classGroupId: "cg-1", semesterId: "sem-1" } },
+    ] as never);
+    prismaMock.notification.findFirst.mockResolvedValue(null);
+
+    expect(await sendReviewDigests(NOW)).toBe(1);
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: ["f-1"],
+        trigger: "REVIEW_DIGEST",
+        title: "Waiting for your review: 2 weekly reports, 1 time request and 1 checklist item",
+        body: "The oldest week has waited 5 days (overdue).",
+        email: true,
+        dedupeKey: "digest:f-1:2026-10-12",
+      })
+    );
+  });
+
+  it("sends nothing when nothing waits, and nothing twice a day", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([
+      { facultyId: "f-1", classGroupId: "cg-1", semesterId: "sem-1" },
+    ] as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([] as never);
+    expect(await sendReviewDigests(NOW)).toBe(0);
+
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      submitted("2026-10-11T00:00:00Z"),
+    ] as never);
+    prismaMock.notification.findFirst.mockResolvedValue({ id: "n-1" } as never);
+    expect(await sendReviewDigests(NOW)).toBe(0);
+    expect(notify).not.toHaveBeenCalled();
+  });
 });
 
 const NOW = new Date("2026-10-12T00:00:00Z"); // Mon 08:00 Manila
@@ -359,5 +437,26 @@ describe("remindDueDataRequests", () => {
     const result = await runDailyNotifications(NOW);
     expect(result.dsarReminders).toBe(1);
     expect(result.errors).toEqual([]);
+  });
+});
+
+describe("retryFailedEmails (efficiency item 34)", () => {
+  it("resends plain failed emails once and marks them sent; skips ones without a body", async () => {
+    prismaMock.notification.findMany.mockResolvedValue([
+      {
+        id: "n-1",
+        payload: { title: "Week returned", body: "Fix Monday", link: "/x" },
+        user: { email: "a@slu.edu.ph" },
+      },
+      { id: "n-2", payload: { title: "Reset your password" }, user: { email: "b@slu.edu.ph" } },
+    ] as never);
+
+    expect(await retryFailedEmails(NOW)).toBe(1);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(sendEmail).mock.calls[0][0]).toBe("a@slu.edu.ph");
+    expect(prismaMock.notification.update).toHaveBeenCalledWith({
+      where: { id: "n-1" },
+      data: { status: "SENT", sentAt: NOW },
+    });
   });
 });

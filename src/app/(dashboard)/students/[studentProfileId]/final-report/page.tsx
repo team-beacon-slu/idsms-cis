@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
-import { Role } from "@prisma/client";
+import { Role, WeeklyReportStatus } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import {
@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/page-header";
 import { FinalReportEditor } from "./final-report-editor";
 import { FinalReportReview } from "./final-report-review";
 import type { Metadata } from "next";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 export const metadata: Metadata = { title: "Final report" };
 
@@ -38,7 +39,8 @@ export default async function FinalReportPage(props: {
     throw error;
   }
 
-  const [state, pdf, profile] = await Promise.all([
+  const isOwner = user.role === Role.STUDENT_INTERN;
+  const [state, pdf, profile, approvedEntries] = await Promise.all([
     getFinalReportState(params.studentProfileId),
     getFinalTechnicalReportDocument(params.studentProfileId),
     prisma.studentProfile.findUnique({
@@ -48,7 +50,26 @@ export default async function FinalReportPage(props: {
         company: { select: { supervisorName: true, supervisorPosition: true } },
       },
     }),
+    // Efficiency item 26: the intern's own approved days, to insert into Tasks/Accomplishments.
+    isOwner
+      ? prisma.dailyReportEntry.findMany({
+          where: {
+            accomplishments: { not: null },
+            weeklyReport: {
+              studentProfileId: params.studentProfileId,
+              status: { in: [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED] },
+            },
+          },
+          orderBy: { reportDate: "asc" },
+          select: { accomplishments: true },
+        })
+      : Promise.resolve([]),
   ]);
+  const approvedWork = [
+    ...new Set(approvedEntries.map((e) => e.accomplishments?.trim()).filter(Boolean)),
+  ]
+    .map((text) => `- ${text}`)
+    .join("\n");
   const report = state.report;
   const content = report
     ? toContent(report)
@@ -71,7 +92,6 @@ export default async function FinalReportPage(props: {
         .join(" - "),
     };
   }
-  const isOwner = user.role === Role.STUDENT_INTERN;
   const isReviewer = FINAL_REPORT_REVIEWERS.includes(user.role);
 
   return (
@@ -86,7 +106,7 @@ export default async function FinalReportPage(props: {
           <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
             <Lock className="size-5" aria-hidden="true" />
             Unlocks at {state.threshold} confirmed hours —{" "}
-            {Math.round((state.threshold - state.renderedHours) * 100) / 100} more hours to go.
+            {formatHrsMins(state.threshold - state.renderedHours)} more to go.
           </CardContent>
         </Card>
       ) : (
@@ -107,6 +127,7 @@ export default async function FinalReportPage(props: {
                 content={content}
                 office={profile?.office ?? ""}
                 hasPdf={pdf?.status === "GENERATED"}
+                approvedWork={approvedWork}
               />
             ) : (
               <FinalReportEditor

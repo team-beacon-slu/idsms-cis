@@ -16,8 +16,11 @@ import { ClipboardList } from "lucide-react";
 import { WeeklyReportReviewActions } from "./review-actions";
 import { getAdvisoryView } from "@/lib/ai/display";
 import { getAiSettings } from "@/lib/ai/settings";
-import { jobsOnFor } from "@/lib/ai/jobs";
+import { allJobStatuses, jobsOnFor, type JobId } from "@/lib/ai/jobs";
 import { AiHints } from "@/components/ai/ai-hints";
+import { hintTrackRecords } from "@/lib/ai/jobs";
+import { getReviewQueue, queueReasons } from "@/lib/ai/reviewQueue";
+import { displayName } from "@/lib/utils/displayName";
 
 // Ownership note (pre-flight fix): a role check alone isn't enough — a
 // Faculty Adviser must also be assigned to this specific student (same
@@ -58,6 +61,27 @@ export default async function WeeklyReportReviewPage(props: {
   // assist switch is on.
   const [on, { similarityThreshold }] = await Promise.all([jobsOnFor(user), getAiSettings()]);
   const view = getAdvisoryView(report!, { on, similarityThreshold });
+  // Approve & next: the queue's next week, so the adviser never goes back to the list.
+  // Flags are the same ones the queue shows; approving a flagged week asks once more.
+  const queue = awaitingReview ? await getReviewQueue(user.id, { on, similarityThreshold }) : [];
+  const nextItem = queue.find((q) => q.id !== report!.id);
+  const next = nextItem
+    ? {
+        href: `/students/${nextItem.studentProfileId}/weekly-reports/${nextItem.id}/review`,
+        intern: nextItem.intern,
+        left: queue.filter((q) => q.id !== report!.id).length,
+      }
+    : null;
+  const flags = queueReasons(report!, { on, similarityThreshold });
+  // Hints vanish while a job is paused (provider limit): say so, so "no copy warning" is not
+  // read as "no copying". Looked up only when no report hint job is on.
+  const REPORT_JOBS: JobId[] = ["copy", "coverage", "tone", "summary"];
+  const hintsPaused =
+    user.aiAssist !== false &&
+    !REPORT_JOBS.some((j) => on.has(j)) &&
+    (await allJobStatuses()).some(
+      (s) => REPORT_JOBS.includes(s.job) && s.reason.startsWith("Paused")
+    );
   const texts: Record<string, string> = Object.fromEntries(
     report!.dailyEntries.map((e) => [e.id, e.accomplishments ?? ""])
   );
@@ -85,9 +109,8 @@ export default async function WeeklyReportReviewPage(props: {
             <StatusBadge status={report!.status} />
           </div>
           <CardDescription>
-            {student?.fullName ?? student?.studentNumber ?? "Student"} · Week of{" "}
-            {formatCalendarDate(new Date(report!.weekStart))} –{" "}
-            {formatCalendarDate(new Date(report!.weekEnd))}
+            {displayName(student ?? {})} · Week of {formatCalendarDate(new Date(report!.weekStart))}{" "}
+            – {formatCalendarDate(new Date(report!.weekEnd))}
           </CardDescription>
           <p className="text-xs text-muted-foreground">
             Supervisor-signed copies are submitted on Google Classroom, not in IDSMS.
@@ -95,7 +118,19 @@ export default async function WeeklyReportReviewPage(props: {
         </CardHeader>
 
         <CardContent className="pt-0 empty:hidden">
-          <AiHints view={view} reportId={report!.id} texts={texts} />
+          {hintsPaused ? (
+            <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              AI hints are paused (the AI provider&apos;s limit was reached). Review this week
+              yourself; hints come back after the next nightly run.
+            </p>
+          ) : (
+            <AiHints
+              view={view}
+              reportId={report!.id}
+              texts={texts}
+              trackRecords={await hintTrackRecords(["summary", "copy", "tone", "coverage"])}
+            />
+          )}
         </CardContent>
 
         {/* The report itself, so the adviser decides with the entries in front of them. */}
@@ -134,7 +169,11 @@ export default async function WeeklyReportReviewPage(props: {
 
         <CardContent className="pt-0">
           {awaitingReview ? (
-            <WeeklyReportReviewActions weeklyReportId={params.weeklyReportId} />
+            <WeeklyReportReviewActions
+              weeklyReportId={params.weeklyReportId}
+              next={next}
+              flags={flags}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
               Nothing to review: this report isn&apos;t waiting for a decision.

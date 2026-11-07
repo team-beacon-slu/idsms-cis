@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { sendJson } from "@/lib/utils/sendJson";
+import { clearFormDraft, useFormDraft } from "@/lib/utils/formDraft";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -35,7 +36,7 @@ function Item({
   onChange: (v: number) => void;
 }) {
   return (
-    <fieldset className="space-y-2">
+    <fieldset id={name} className="scroll-mt-6 space-y-2">
       <legend className="text-sm font-medium">
         {n}. {text}
       </legend>
@@ -64,6 +65,8 @@ function Item({
   );
 }
 
+const EMPTY = { liked: "", improve: "", comment: "" };
+
 export function CompanyEvaluationForm({
   studentProfileId,
   companyName,
@@ -78,9 +81,33 @@ export function CompanyEvaluationForm({
   const [quality, setQuality] = useState<(number | undefined)[]>(
     Array(QUALITY.length).fill(undefined)
   );
-  const [comments, setComments] = useState({ liked: "", improve: "", comment: "" });
+  const [comments, setComments] = useState(EMPTY);
   const [pending, setPending] = useState(false);
   const left = [...obligations, ...quality].filter((v) => v === undefined).length;
+  // Efficiency item 27: "N left" jumps to the first unrated item.
+  function goToFirstGap() {
+    const i = obligations.findIndex((v) => v === undefined);
+    const name =
+      i >= 0 ? `obligation-${i}` : `quality-${quality.findIndex((v) => v === undefined)}`;
+    const el = document.getElementById(name);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.querySelector("input")?.focus({ preventScroll: true });
+  }
+  // 22 ratings and 3 comments: a refresh or timeout must not lose them.
+  const draftKey = `company-evaluation:${studentProfileId}`;
+  const empty = (n: number) => Array<number | undefined>(n).fill(undefined);
+  useFormDraft(
+    draftKey,
+    { obligations, quality, comments },
+    { obligations: empty(OBLIGATIONS.length), quality: empty(QUALITY.length), comments: EMPTY },
+    (draft) => {
+      // JSON keeps an unanswered item as null.
+      setObligations(draft.obligations.map((v) => v ?? undefined));
+      setQuality(draft.quality.map((v) => v ?? undefined));
+      setComments(draft.comments);
+      toast.info("Restored your unsent answers.");
+    }
+  );
 
   const set = (list: typeof obligations, i: number, v: number) =>
     list.map((old, j) => (j === i ? v : old));
@@ -97,6 +124,7 @@ export function CompanyEvaluationForm({
       toast.error(res.error);
       return;
     }
+    clearFormDraft(draftKey);
     toast.success("Evaluation sent. Download the form for Google Classroom.");
     router.refresh();
   }
@@ -184,7 +212,14 @@ export function CompanyEvaluationForm({
           </Button>
           {left > 0 && (
             <p className="text-xs text-muted-foreground" aria-live="polite">
-              {left} of 22 items left to rate.
+              {left} of 22 items left to rate.{" "}
+              <button
+                type="button"
+                onClick={goToFirstGap}
+                className="cursor-pointer font-medium text-primary underline underline-offset-2"
+              >
+                Go to the first one
+              </button>
             </p>
           )}
         </form>

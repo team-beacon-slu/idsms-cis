@@ -31,8 +31,13 @@ export interface CreditInputEntry {
 // shortcut: uses the latest shift for every date, so re-crediting or
 // re-submitting a week from before a schedule change uses the new shift;
 // upgrade to a dated shift history if mid-term schedule changes become common.
-export async function loadShift(studentProfileId: string): Promise<Shift | null> {
-  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+// Inside a transaction pass its client: with one pooled connection (Vercel, PG_POOL_MAX=1) a
+// read on `prisma` waits for the connection the transaction holds until it times out (P2028).
+export async function loadShift(
+  studentProfileId: string,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+): Promise<Shift | null> {
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId, client);
   const schedule = parseScheduleConfig(workPlan?.scheduleConfig);
   return schedule ? scheduleShift(schedule) : null;
 }
@@ -42,7 +47,7 @@ export async function loadCreditContext(
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<CreditContext> {
   const [shift, overtime] = await Promise.all([
-    loadShift(studentProfileId),
+    loadShift(studentProfileId, client),
     client.deviationReport.findMany({
       where: {
         studentProfileId,
