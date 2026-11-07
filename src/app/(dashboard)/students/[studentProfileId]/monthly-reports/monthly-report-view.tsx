@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { generatePdfInBackground, ReportPdfActions } from "../weekly-reports/report-pdf-actions";
 import { JournalEditor, MIN_JOURNAL_CHARS } from "./journal-editor";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 // FR-WR-08 — Owner: AndresBonifaci0 (Matt)
 // Requirement: eligibility status, a submit action, and a read-only rollup
@@ -122,8 +123,8 @@ export function MonthlyReportView({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {month.weeklyReports.length} weekly report
-                  {month.weeklyReports.length === 1 ? "" : "s"} ·{" "}
-                  {Math.round(monthHours * 100) / 100} approved hours
+                  {month.weeklyReports.length === 1 ? "" : "s"} · {formatHrsMins(monthHours)}{" "}
+                  approved
                 </p>
               </div>
               {month.submitted ? (
@@ -182,7 +183,9 @@ export function MonthlyReportView({
                     {shortDate(report.weekStart)} – {shortDate(report.weekEnd)}
                   </span>
                   <span className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">{report.totalHours} hrs</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatHrsMins(report.totalHours)}
+                    </span>
                     <StatusBadge status={report.status} />
                   </span>
                 </li>

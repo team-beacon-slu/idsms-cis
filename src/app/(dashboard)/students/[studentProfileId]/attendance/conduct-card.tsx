@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 // Workstream L2 — conduct records, automatic deduction items and the ADVISER /
 // WWR points tally. Staff issue, revoke and excuse; interns may dispute an item
@@ -321,7 +322,7 @@ export function ConductCard({
                   <p className="text-sm font-medium">
                     {label(r.categoryKey)}
                     {r.weight === 2 && " (counts as 2)"} · {fmtDate(r.date)}
-                    {r.hoursDeducted > 0 && ` · −${r.hoursDeducted} hrs`}
+                    {r.hoursDeducted > 0 && ` · −${formatHrsMins(r.hoursDeducted)}`}
                   </p>
                   <p className="text-sm">{r.reason}</p>
                 </div>

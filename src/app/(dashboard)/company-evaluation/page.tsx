@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { CompanyEvaluationForm } from "./company-evaluation-form";
 import type { Metadata } from "next";
+import { formatHrsMins } from "@/lib/utils/timeMath";
 
 export const metadata: Metadata = { title: "Company evaluation" };
 
@@ -56,7 +57,7 @@ export default async function CompanyEvaluationPage() {
           <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
             <Lock className="size-5" aria-hidden="true" />
             {state.companyName
-              ? `Opens once all ${state.requiredHours} required hours are confirmed (${state.confirmedHours} so far).`
+              ? `Opens once all ${state.requiredHours} required hours are confirmed (${formatHrsMins(state.confirmedHours)} so far).`
               : "Opens once you have a host company and all your required hours are confirmed."}
           </CardContent>
         </Card>
