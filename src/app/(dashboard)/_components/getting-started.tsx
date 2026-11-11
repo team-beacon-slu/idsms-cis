@@ -20,17 +20,18 @@ export function stepsFor(role: string, studentProfileId?: string): Step[] {
       return [
         {
           label: "Finish your checklist",
-          detail: "Mark each pre-deployment requirement as done.",
+          detail:
+            "Upload each requirement to Classroom and mark it uploaded; your adviser approves it.",
           href: own(studentProfileId, "/checklist"),
         },
         {
           label: "Send your work plan",
-          detail: "Your schedule and tasks; your adviser approves it.",
+          detail: "Your tasks, then your work schedule; your coordinator approves it.",
           href: own(studentProfileId, "/work-plan"),
         },
         {
-          label: "Log each day",
-          detail: "Times fill in from your schedule; submit the week by Tuesday.",
+          label: "Write your weekly report",
+          detail: "Times fill in from your schedule; list your work each day, submit by Tuesday.",
           href: own(studentProfileId, "/weekly-reports"),
         },
         {
@@ -82,7 +83,7 @@ export function stepsFor(role: string, studentProfileId?: string): Step[] {
         {
           label: "Import students",
           detail: "Accounts for the semester's interns.",
-          href: "/users",
+          href: "/users/import",
         },
       ];
     default:

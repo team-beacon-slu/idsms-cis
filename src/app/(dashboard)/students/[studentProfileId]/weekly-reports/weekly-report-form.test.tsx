@@ -288,6 +288,25 @@ it("an absent day asks why and for the proof, with no times or accomplishments",
   expect(screen.getByRole("alert")).toHaveTextContent("Choose the proof you'll upload");
 });
 
+it("fills a second absent day from the first in one tap, leaving the first day alone", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable shift={shift} />);
+  const [tue, wed] = screen.getAllByRole("radio", { name: "Absent" });
+  fireEvent.click(tue);
+  fireEvent.change(reasonBox("tue"), { target: { value: "Fever, saw a doctor" } });
+  fireEvent.change(document.getElementById("proof-tue")!, {
+    target: { value: "MEDICAL_CERTIFICATE" },
+  });
+  fireEvent.click(wed);
+
+  fireEvent.click(screen.getByRole("button", { name: "Same reason and proof as Tue, Oct 20" }));
+
+  expect(reasonBox("wed")).toHaveValue("Fever, saw a doctor");
+  expect(document.getElementById("proof-wed")).toHaveValue("MEDICAL_CERTIFICATE");
+  expect(reasonBox("tue")).toHaveValue("Fever, saw a doctor");
+  // Once this day has its own reason, the shortcut goes away.
+  expect(screen.queryByRole("button", { name: /Same reason and proof/ })).toBeNull();
+});
+
 it("shows the reasons an intern gave when the week is read-only", () => {
   const submitted = {
     ...entry,

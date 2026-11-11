@@ -19,8 +19,6 @@ export function RequiredHoursForm({ initial }: { initial: Row[] }) {
     Object.fromEntries(initial.map((r) => [r.program, String(r.hours)]))
   );
   const [isPending, setIsPending] = useState(false);
-  // Off by default: interns keep the hours of the curriculum they started under.
-  const [applyToCurrent, setApplyToCurrent] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +42,7 @@ export function RequiredHoursForm({ initial }: { initial: Row[] }) {
         const res = await fetch("/api/config/required-hours", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ program, hours, applyToCurrent }),
+          body: JSON.stringify({ program, hours }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -52,11 +50,7 @@ export function RequiredHoursForm({ initial }: { initial: Row[] }) {
           continue;
         }
         setSaved((s) => ({ ...s, [program]: hours }));
-        toast.success(
-          applyToCurrent
-            ? `${program} set to ${hours} hours for new and current interns (${body.studentsUpdated ?? 0} updated)`
-            : `${program} set to ${hours} hours for newly imported interns`
-        );
+        toast.success(`${program} default saved for newly imported students`);
       }
     } catch {
       toast.error("Could not reach the server — check your connection and try again");
@@ -81,18 +75,6 @@ export function RequiredHoursForm({ initial }: { initial: Row[] }) {
           />
         </div>
       ))}
-      <label className="flex cursor-pointer items-start gap-2 text-sm sm:col-span-4">
-        <input
-          type="checkbox"
-          checked={applyToCurrent}
-          onChange={(e) => setApplyToCurrent(e.target.checked)}
-          className="mt-0.5 size-4 cursor-pointer accent-primary"
-        />
-        <span>
-          Also change it for this semester&apos;s current interns in the program (for a curriculum
-          change). Left unticked, current interns keep the hours they started with.
-        </span>
-      </label>
       <Button
         type="submit"
         disabled={isPending}

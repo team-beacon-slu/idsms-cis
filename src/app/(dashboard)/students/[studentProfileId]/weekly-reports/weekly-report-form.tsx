@@ -1376,6 +1376,35 @@ export function WeeklyReportForm({
                     aria-label={`Absence on ${dayLabel}`}
                     className="space-y-3 rounded-md border bg-muted/30 p-3"
                   >
+                    {(() => {
+                      // A second day away: one tap fills this day from the earlier one (never
+                      // the other way round; each day stays its own).
+                      const earlier = entries
+                        .slice(0, entries.indexOf(entry))
+                        .findLast(
+                          (e) => rows[e.id]?.status === "ABSENT" && rows[e.id]?.reason.trim()
+                        );
+                      if (!earlier || row.reason.trim()) return null;
+                      const from = rowOf(earlier);
+                      return (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isPending}
+                          onClick={() =>
+                            updateRow(entry.id, {
+                              reason: from.reason,
+                              proofType: from.proofType,
+                              requestKind: from.requestKind,
+                            })
+                          }
+                          className="h-8 cursor-pointer text-xs"
+                        >
+                          Same reason and proof as {formatDay(earlier.reportDate)}
+                        </Button>
+                      );
+                    })()}
                     <div className="space-y-1">
                       <Label htmlFor={`reason-${entry.id}`} className="text-xs">
                         Reason for the absence

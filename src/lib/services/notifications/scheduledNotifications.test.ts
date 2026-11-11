@@ -162,7 +162,7 @@ it("only scans reports from recent weeks", async () => {
   );
 });
 
-it("reminds deployed students who have not started last week's report", async () => {
+it("reminds interns who filed before but have not started last week's report", async () => {
   prismaMock.systemConfig.findUnique.mockResolvedValue(null);
   prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
   prismaMock.studentProfile.findMany.mockResolvedValue([{ id: "p-9", userId: "u-9" }] as never);
@@ -178,7 +178,11 @@ it("reminds deployed students who have not started last week's report", async ()
     expect.objectContaining({
       where: expect.objectContaining({
         companyId: { not: null },
-        weeklyReports: { none: { weekStart: new Date("2026-10-05T00:00:00Z") } },
+        // Not the start date: it is set only for mid-week starters, so most interns were skipped.
+        AND: [
+          { weeklyReports: { some: { weekStart: { lt: new Date("2026-10-05T00:00:00Z") } } } },
+          { weeklyReports: { none: { weekStart: new Date("2026-10-05T00:00:00Z") } } },
+        ],
       }),
     })
   );

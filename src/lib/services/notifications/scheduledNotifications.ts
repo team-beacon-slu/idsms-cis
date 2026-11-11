@@ -377,8 +377,12 @@ export async function runDailyNotifications(now: Date) {
     where: {
       deletedAt: null,
       companyId: { not: null },
-      internshipStartDate: { lte: lastWeekEnd },
-      weeklyReports: { none: { weekStart: lastWeekStart } },
+      // Started OJT before last week: they have filed an earlier week. (The start date is
+      // only recorded for mid-week starters, so it can't be the test.)
+      AND: [
+        { weeklyReports: { some: { weekStart: { lt: lastWeekStart } } } },
+        { weeklyReports: { none: { weekStart: lastWeekStart } } },
+      ],
       // Former interns: their semester is archived.
       semester: { archivedAt: null },
     },
@@ -415,7 +419,8 @@ export async function runDailyNotifications(now: Date) {
         trigger: "DEADLINE_REMINDER",
         title: `Weekly report due in about ${Math.ceil(hoursLeft)} hours`,
         body: "Submit your weekly report by Tuesday 11:59 PM to avoid a late flag.",
-        link: `/students/${target.profileId}/weekly-reports`,
+        // Opens on that week (the page gives each week an id), not the top of the list.
+        link: `/students/${target.profileId}/weekly-reports#week-${toDateKey(target.weekStart)}`,
         email: true,
         dedupeKey,
       });
