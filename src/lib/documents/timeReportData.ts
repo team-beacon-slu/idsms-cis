@@ -8,6 +8,7 @@ import type {
   TimeRow,
 } from "@/lib/documents/timeReportTemplate";
 import { displayNameFromEmail } from "@/lib/utils/displayName";
+import { toDateKey } from "@/lib/utils/reportDeadline";
 
 const TYPE = {
   OT: DeviationType.OVERTIME,
@@ -42,7 +43,7 @@ export async function loadTimeReportData(
   if (!profile || (weeklyReportId && !report)) return null;
   const range = report ? { gte: report.weekStart, lte: report.weekEnd } : undefined;
 
-  const [requests, absentDays, weekNumber] = await Promise.all([
+  const [requests, reportedDays, weekNumber] = await Promise.all([
     prisma.deviationReport.findMany({
       where: {
         studentProfileId,
@@ -71,12 +72,12 @@ export async function loadTimeReportData(
     kind === "ABSENCE"
       ? prisma.dailyReportEntry.findMany({
           where: {
-            attendanceStatus: "ABSENT",
+            attendanceStatus: { in: ["ABSENT", "PRESENT"] },
             weeklyReport: { studentProfileId },
             ...(range ? { reportDate: range } : {}),
           },
           orderBy: { reportDate: "asc" },
-          select: { reportDate: true },
+          select: { reportDate: true, attendanceStatus: true },
         })
       : Promise.resolve([]),
     report ? weekNumberOf(studentProfileId, report.weekStart) : Promise.resolve(0),
@@ -98,16 +99,33 @@ export async function loadTimeReportData(
 
   let absences: AbsenceRow[] = [];
   if (kind === "ABSENCE") {
-    const leaves = requests.map((r) => ({
-      date: r.date,
-      endDate: r.endDate,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      kind: r.requestKind,
-      reason: r.reason,
-      proof: r.proofType,
-      pending: pending(r),
-    }));
+    const absentDays = reportedDays.filter((e) => e.attendanceStatus === "ABSENT");
+    // A whole-day leave on a day the weekly report says was worked (an old request the intern
+    // then came in for) is not an absence: printing it would contradict page 1.
+    const worked = new Set(
+      reportedDays
+        .filter((e) => e.attendanceStatus === "PRESENT")
+        .map((e) => toDateKey(e.reportDate))
+    );
+    const leaves = requests
+      .filter(
+        (r) =>
+          !(
+            !r.startTime &&
+            (!r.endDate || toDateKey(r.endDate) === toDateKey(r.date)) &&
+            worked.has(toDateKey(r.date))
+          )
+      )
+      .map((r) => ({
+        date: r.date,
+        endDate: r.endDate,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        kind: r.requestKind,
+        reason: r.reason,
+        proof: r.proofType,
+        pending: pending(r),
+      }));
     // A day marked Absent that no leave covers is still an absence to report.
     const covered = (d: Date) => leaves.some((l) => l.date <= d && (l.endDate ?? l.date) >= d);
     const unfiled = absentDays
