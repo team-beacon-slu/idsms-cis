@@ -20,7 +20,7 @@ export function stepsFor(role: string, studentProfileId?: string): Step[] {
       return [
         {
           label: "Finish your checklist",
-          detail: "Upload each pre-deployment requirement.",
+          detail: "Mark each pre-deployment requirement as done.",
           href: own(studentProfileId, "/checklist"),
         },
         {
