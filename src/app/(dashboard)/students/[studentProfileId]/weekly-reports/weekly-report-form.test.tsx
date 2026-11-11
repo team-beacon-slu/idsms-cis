@@ -168,6 +168,16 @@ it("starts every scheduled day at the schedule's times, as the template's AM and
   expect(screen.getAllByText("8 hrs")).toHaveLength(3); // Hours Rendered, break left out
 });
 
+it("prefills an afternoon shift with its scheduled hours, not the span with the break", () => {
+  // 12:00 pm to 9:00 pm with a 1-hour break: 8 hours, though the clock span is 9.
+  const afternoon = { startMin: 12 * 60, endMin: 21 * 60, breakMinutes: 60, scheduledHours: 8 };
+  render(<WeeklyReportForm {...props} entries={[entry]} editable shift={afternoon} />);
+
+  expect(timeIn2("e-1")).toHaveValue("12:00");
+  expect(timeOut2("e-1")).toHaveValue("21:00");
+  expect(screen.getByText("8 hrs")).toBeInTheDocument();
+});
+
 it("uses the report template's labels", () => {
   render(<WeeklyReportForm {...props} entries={week} editable shift={shift} />);
 
