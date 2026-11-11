@@ -104,9 +104,8 @@ export default async function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-lg text-brand-900">Required internship hours</CardTitle>
               <CardDescription>
-                Hours each program must complete under its curriculum (for example BMMA 500, BSIT
-                600, BSCS 320). New interns get these hours; tick the box to also change them for
-                this semester&apos;s current interns.
+                Hours each program must complete. Sets the default for students imported after you
+                save. Existing students keep their current required hours.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -190,9 +189,8 @@ async function CoordinatorSettings() {
         <CardHeader>
           <CardTitle className="text-lg text-brand-900">Required internship hours</CardTitle>
           <CardDescription>
-            Hours each program must complete under its curriculum (for example BMMA 500, BSIT 600,
-            BSCS 320). New interns get these hours; tick the box to also change them for this
-            semester&apos;s current interns.
+            Hours each program must complete. Sets the default for students imported after you save.
+            Existing students keep their current required hours.
           </CardDescription>
         </CardHeader>
         <CardContent>
