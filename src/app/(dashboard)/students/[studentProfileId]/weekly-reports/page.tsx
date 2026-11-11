@@ -382,7 +382,12 @@ export default async function WeeklyReportsPage(props: {
                       {awaitingReview ? (
                         <Badge variant="secondary">Submitted · awaiting review</Badge>
                       ) : report.status === "PENDING" ? (
-                        <Badge variant="outline">Draft</Badge>
+                        isWeeklyReportLate(report.weekEnd) ? (
+                          // Past its Tuesday: say so before Submit asks for the reason.
+                          <Badge variant="destructive">Overdue · not submitted</Badge>
+                        ) : (
+                          <Badge variant="outline">Draft</Badge>
+                        )
                       ) : (
                         <StatusBadge status={report.status} />
                       )}

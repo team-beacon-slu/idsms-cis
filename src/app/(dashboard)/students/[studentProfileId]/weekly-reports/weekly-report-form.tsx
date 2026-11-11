@@ -538,7 +538,12 @@ function defaultTimes(
   shift: Shift | null,
   usual: DayTimes | null
 ): Partial<RowState> {
-  const slots = shift && e.scheduledHours > 0 ? shiftSlots(shift) : usual ? toSlots(usual) : null;
+  if (shift && e.scheduledHours > 0) {
+    // The schedule's own day: its hours, since a one-range shift (afternoon, night) still has
+    // its break inside it and the raw span would overstate the day.
+    return { ...shiftSlots(shift), hours: String(shift.scheduledHours) };
+  }
+  const slots = usual ? toSlots(usual) : null;
   return slots ? { ...slots, hours: hoursOf(slots) } : {};
 }
 
