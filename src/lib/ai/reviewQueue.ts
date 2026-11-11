@@ -4,6 +4,7 @@ import { vagueDays } from "@/lib/ai/clarity";
 import type { AiHints } from "@/lib/ai/processing";
 import type { JobId } from "@/lib/ai/jobs";
 import { displayName } from "@/lib/utils/displayName";
+import { REPORTED_WHERE } from "@/lib/services/attendance/reportedTimeRecords";
 
 // Job 7: the adviser's review queue. Flagged weeks first, and every row says why. The
 // rules (vague days) work with no model; AI reasons join when their jobs are on.
@@ -12,10 +13,20 @@ export function queueReasons(
     aiHints: unknown;
     similarityScore: unknown;
     dailyEntries: { id: string; accomplishments: string | null; toolsUsed: string | null }[];
+    // Overtime, under time and absence reasons the adviser has not decided on yet.
+    undecided?: number;
   },
   ctx: { on: ReadonlySet<JobId>; similarityThreshold: number }
 ): string[] {
   const reasons: string[] = [];
+  // Approving the week accepts these (acceptReportedInWeek), so a week with any is never
+  // "nothing flagged": the adviser opens it and sees them before it can be bulk-approved.
+  if (report.undecided) {
+    const n = report.undecided;
+    reasons.push(
+      `${n} overtime, under time or absence ${n === 1 ? "reason" : "reasons"} to decide`
+    );
+  }
   const hints = (report.aiHints ?? {}) as AiHints;
   const score = report.similarityScore == null ? null : Number(report.similarityScore);
   if (ctx.on.has("copy") && score !== null && score > ctx.similarityThreshold) {
@@ -60,6 +71,7 @@ export async function getReviewQueue(
       id: true,
       status: true,
       weekStart: true,
+      weekEnd: true,
       revisionHistory: true,
       aiHints: true,
       similarityScore: true,
@@ -68,8 +80,28 @@ export async function getReviewQueue(
       dailyEntries: { select: { id: true, accomplishments: true, toolsUsed: true } },
     },
   });
-  return reports
-    .filter(isAwaitingReview)
+  const waiting = reports.filter(isAwaitingReview);
+  // One query for every week's undecided reasons, counted per intern and day.
+  const undecided = waiting.length
+    ? await prisma.deviationReport.findMany({
+        where: {
+          ...REPORTED_WHERE,
+          validationStatus: "PENDING",
+          OR: waiting.map((r) => ({
+            studentProfileId: r.studentProfileId,
+            date: { gte: r.weekStart, lte: r.weekEnd },
+          })),
+        },
+        select: { studentProfileId: true, date: true },
+      })
+    : [];
+  const undecidedIn = (r: (typeof waiting)[number]) =>
+    undecided.filter(
+      (d) =>
+        d.studentProfileId === r.studentProfileId && d.date >= r.weekStart && d.date <= r.weekEnd
+    ).length;
+  return waiting
+    .map((r) => ({ ...r, undecided: undecidedIn(r) }))
     .map((r) => ({
       id: r.id,
       studentProfileId: r.studentProfileId,

@@ -24,7 +24,7 @@ import { GettingStarted } from "./_components/getting-started";
 import { StudentDashboardTables } from "./_components/student-dashboard";
 import { reportState, weeklyHistory } from "@/lib/services/dashboards/complianceService";
 import { buildInternshipTrack, daysUntil } from "@/lib/utils/internshipTrack";
-import { getWeeklyReportDueDate } from "@/lib/utils/reportDeadline";
+import { getWeeklyReportDueDate, toDateKey } from "@/lib/utils/reportDeadline";
 import { InternshipTrack, MiniTrack } from "@/components/internship-track";
 import { BeaconRing } from "@/components/beacon-ring";
 import { CountUp } from "@/components/count-up";
@@ -113,12 +113,17 @@ export default async function DashboardHomePage(props: {
     reports: reports.map((r) => ({ weekStart: r.weekStart, state: reportState(r) })),
     projectedFinish: projectedCompletion,
   });
-  // The next report to file: this week's, unless it is already in.
-  const thisWeek = track.find((w) => w.isCurrent);
-  const nextDue =
-    thisWeek && thisWeek.kind === "open"
-      ? getWeeklyReportDueDate(new Date(thisWeek.weekStart.getTime() + 6 * 24 * 60 * 60 * 1000))
-      : null;
+  // The next report to file: the oldest still open, so on Monday and Tuesday that is last
+  // week's (due this Tuesday), not this week's.
+  const thisWeek = track.find((w) => w.kind === "open");
+  const nextDue = thisWeek
+    ? getWeeklyReportDueDate(new Date(thisWeek.weekStart.getTime() + 6 * 24 * 60 * 60 * 1000))
+    : null;
+  // Straight to that week on the intern's own page (the /weekly-reports shortcut redirects).
+  const nextReportHref =
+    studentProfile && thisWeek
+      ? `/students/${studentProfile.id}/weekly-reports#week-${toDateKey(thisWeek.weekStart)}`
+      : "/weekly-reports";
   const attentionRows = attention
     ? [
         {
@@ -133,7 +138,7 @@ export default async function DashboardHomePage(props: {
         },
         {
           count: attention.pendingDeviations,
-          label: "Older leave or time requests waiting for your adviser",
+          label: "Overtime, under time or absence reasons waiting for your adviser",
           href: "/leave-requests",
         },
         {
@@ -209,7 +214,9 @@ export default async function DashboardHomePage(props: {
             {hoursComplete ? (
               <Link href="/final-report">Submit final report</Link>
             ) : (
-              <Link href="/weekly-reports">This week&apos;s report</Link>
+              <Link href={nextReportHref}>
+                {thisWeek && !thisWeek.isCurrent ? "Last week's report" : "This week's report"}
+              </Link>
             )}
           </Button>
         }
@@ -281,7 +288,7 @@ export default async function DashboardHomePage(props: {
         </Card>
 
         <Link
-          href="/weekly-reports"
+          href={nextReportHref}
           className="group flex flex-col justify-between rounded-3xl border border-sky-200/80 bg-sky-100 p-5 text-sky-950 transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-ring motion-reduce:hover:translate-y-0 md:col-span-3 xl:col-span-3"
         >
           <span className="text-sm font-medium">Next deadline</span>
@@ -290,7 +297,11 @@ export default async function DashboardHomePage(props: {
               {nextDue ? fmtDue(nextDue) : "All caught up"}
             </span>
             <span className="mt-1 block text-sm text-sky-900/80">
-              {nextDue ? "This week's report" : "This week's report is in"}
+              {!thisWeek
+                ? "This week's report is in"
+                : thisWeek.isCurrent
+                  ? "This week's report"
+                  : "Last week's report"}
             </span>
           </span>
           {daysLeft !== null && (

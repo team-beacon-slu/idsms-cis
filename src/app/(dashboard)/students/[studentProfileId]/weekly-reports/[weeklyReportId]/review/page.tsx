@@ -79,7 +79,16 @@ export default async function WeeklyReportReviewPage(props: {
         left: queue.filter((q) => q.id !== report!.id).length,
       }
     : null;
-  const flags = queueReasons(report!, { on, similarityThreshold });
+  // The reasons the intern gave on the week's overtime, undertime and absent days, and the shift
+  // they are measured against, so the adviser sees why next to each day.
+  const [dayNotes, shift] = await Promise.all([
+    loadDayNotes(report!.studentProfileId, report!.weekStart, report!.weekEnd),
+    loadShift(report!.studentProfileId),
+  ]);
+  const undecided = Object.values(dayNotes)
+    .flatMap((n) => n.records)
+    .filter((r) => r.status === "PENDING").length;
+  const flags = queueReasons({ ...report!, undecided }, { on, similarityThreshold });
   // Hints vanish while a job is paused (provider limit): say so, so "no copy warning" is not
   // read as "no copying". Looked up only when no report hint job is on.
   const REPORT_JOBS: JobId[] = ["copy", "coverage", "tone", "summary"];
@@ -89,12 +98,6 @@ export default async function WeeklyReportReviewPage(props: {
     (await allJobStatuses()).some(
       (s) => REPORT_JOBS.includes(s.job) && s.reason.startsWith("Paused")
     );
-  // The reasons the intern gave on the week's overtime, undertime and absent days, and the shift
-  // they are measured against, so the adviser sees why next to each day.
-  const [dayNotes, shift] = await Promise.all([
-    loadDayNotes(report!.studentProfileId, report!.weekStart, report!.weekEnd),
-    loadShift(report!.studentProfileId),
-  ]);
   const texts: Record<string, string> = Object.fromEntries(
     report!.dailyEntries.map((e) => [e.id, e.accomplishments ?? ""])
   );

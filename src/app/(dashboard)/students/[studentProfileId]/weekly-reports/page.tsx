@@ -15,6 +15,7 @@ import { reportPeriodEnd } from "@/lib/utils/reportWeek";
 import { LongScheduleNotice } from "@/components/long-schedule-notice";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
+  generateWeeklyReportForm,
   getConfirmedSubmission,
   getLatestSubmission,
   getWeeklyReportHistory,
@@ -28,12 +29,15 @@ import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 import {
+  addDays,
   getWeekStartMonday,
   getWeeklyReportDueDate,
   isWeeklyReportLate,
   toDateKey,
 } from "@/lib/utils/reportDeadline";
 import { weekNumberFrom } from "@/lib/documents/weeklyReportData";
+import { sluFileName } from "@/lib/documents/slu";
+import { displayNameFromEmail } from "@/lib/utils/displayName";
 import {
   CalendarClock,
   ChevronDown,
@@ -71,6 +75,38 @@ function formatDate(date: Date) {
   });
 }
 
+async function openOwedWeeks(studentProfileId: string) {
+  const [first, profile, have] = await Promise.all([
+    prisma.weeklyReport.findFirst({
+      where: { studentProfileId },
+      orderBy: { weekStart: "asc" },
+      select: { weekStart: true },
+    }),
+    prisma.studentProfile.findUnique({
+      where: { id: studentProfileId },
+      select: {
+        renderedHours: true,
+        requiredHours: true,
+        semester: { select: { archivedAt: true } },
+      },
+    }),
+    prisma.weeklyReport.findMany({ where: { studentProfileId }, select: { weekStart: true } }),
+  ]);
+  // Not started, finished, or a past term: nothing is owed.
+  if (!first || !profile || profile.semester.archivedAt) return;
+  if (Number(profile.renderedHours) >= profile.requiredHours) return;
+  const filed = new Set(have.map((r) => toDateKey(r.weekStart)));
+  const thisWeek = getWeekStartMonday(new Date());
+  // shortcut: at most 8 weeks back per visit, so a long-idle account can't stall the page.
+  let made = 0;
+  for (let w = getWeekStartMonday(first.weekStart); w <= thisWeek && made < 8; w = addDays(w, 7)) {
+    if (filed.has(toDateKey(w))) continue;
+    made += 1;
+    // Idempotent; a missing schedule just leaves the week to the manual start below.
+    await generateWeeklyReportForm(studentProfileId, w).catch(() => {});
+  }
+}
+
 export default async function WeeklyReportsPage(props: {
   params: Promise<{ studentProfileId: string }>;
 }) {
@@ -85,6 +121,12 @@ export default async function WeeklyReportsPage(props: {
     }
     throw error;
   }
+
+  // Once OJT has started (a first report exists), every week owes a report: this week's and any
+  // week skipped since appear by themselves, so nothing is forgotten behind a date picker (the
+  // faculty adviser, Nov 2026: reports are continuous; a week away still needs its report and
+  // proof). The first week stays the intern's own choice, since it fixes Week No. 1.
+  if (user.role === "STUDENT_INTERN") await openOwedWeeks(params.studentProfileId);
 
   // Independent reads, loaded together rather than one after another.
   const [reports, documents, conduct, shift, holidayList, aiJobs, profile, workPlan, notesByDate] =
@@ -108,7 +150,12 @@ export default async function WeeklyReportsPage(props: {
       jobsOnFor(user),
       prisma.studentProfile.findUnique({
         where: { id: params.studentProfileId },
-        select: { internshipStartDate: true, semester: { select: { weekOneStart: true } } },
+        select: {
+          internshipStartDate: true,
+          fullName: true,
+          user: { select: { email: true } },
+          semester: { select: { weekOneStart: true } },
+        },
       }),
       getLatestApprovedWorkPlanForStudent(params.studentProfileId),
       // Reasons the intern gave on reported days (overtime, undertime, absences) and the
@@ -147,6 +194,11 @@ export default async function WeeklyReportsPage(props: {
       : null;
   // Week No. 1 is the intern's first report (reports are newest first), not the term's week 1.
   const firstReport = reports[reports.length - 1];
+  // The signing steps show on the newest week whose submission stands.
+  const newestSubmittedId = reports.find((r) => getConfirmedSubmission(r))?.id;
+  // The name the PDF route files it under (weeklyReportData.ts: full name, else the school email).
+  const pdfName =
+    profile?.fullName?.trim() || displayNameFromEmail(profile?.user.email ?? "intern");
   const termWeekOne = profile?.semester.weekOneStart ?? null;
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const deductionsAsOf = (weekEnd: Date) =>
@@ -162,8 +214,10 @@ export default async function WeeklyReportsPage(props: {
     (r) => r.weekStart.getTime() <= now && now < r.weekEnd.getTime() + 24 * 60 * 60 * 1000
   );
   const canReview = !isOwner;
-  // The newest week still being written opens; older unfinished ones wait folded.
-  const firstEditableId = isOwner ? reports.find((r) => isWeeklyReportEditable(r))?.id : undefined;
+  // The oldest week still owed opens (reports are newest first): on Monday that is last week's.
+  const firstEditableId = isOwner
+    ? reports.findLast((r) => isWeeklyReportEditable(r))?.id
+    : undefined;
   // R5: interns see their own plan-coverage pointers (the newest week that has them).
   const coverage = aiJobs.has("coverage")
     ? reports.map((r) => (r.aiHints as AiHintsData | null)?.coverage).find((c) => c?.missing.length)
@@ -175,7 +229,7 @@ export default async function WeeklyReportsPage(props: {
         title="Weekly reports"
         description="Daily accomplishments for each week. Due every Tuesday."
       />
-      {isOwner && (
+      {isOwner && reports.length === 0 && (
         <details className="rounded-lg border bg-card px-4 py-3 text-sm">
           <summary className="cursor-pointer font-medium">How signing works</summary>
           <p className="mt-2 text-muted-foreground">
@@ -323,7 +377,11 @@ export default async function WeeklyReportsPage(props: {
                   ) + 1
                 : null;
               return (
-                <div key={report.id} className="rounded-lg border p-4">
+                <div
+                  key={report.id}
+                  id={`week-${toDateKey(report.weekStart)}`}
+                  className="scroll-mt-6 rounded-lg border p-4"
+                >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">
@@ -375,6 +433,26 @@ export default async function WeeklyReportsPage(props: {
                       )}
                     </div>
                   </div>
+
+                  {isOwner && report.id === newestSubmittedId && (
+                    <ol className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                      {[
+                        "Download the PDF",
+                        "Have your HTE supervisor sign it",
+                        `Upload it to Google Classroom as ${sluFileName({ kind: "WWR", week: weekNo }, pdfName)}`,
+                      ].map((step, i) => (
+                        <li
+                          key={step}
+                          className="flex items-start gap-2 rounded-md bg-muted/40 px-3 py-2"
+                        >
+                          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                            {i + 1}
+                          </span>
+                          {step}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
 
                   {submission && (awaitingReview || report.status !== "PENDING") && (
                     <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
