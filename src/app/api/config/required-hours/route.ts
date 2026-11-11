@@ -8,6 +8,7 @@ import {
 import { requiredHoursConfigSchema } from "@/lib/validators/attendance";
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { handleApiError } from "@/lib/utils/apiError";
+import { refreshWeeklyTotalsFrom } from "@/lib/services/reports/weeklyReportService";
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,9 +31,17 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUserApi();
     requireRole(user, [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN]);
-    const { program, hours } = requiredHoursConfigSchema.parse(await req.json());
-    const result = await setRequiredHoursConfig(program, hours, user.id);
-    return NextResponse.json(result);
+    const { program, hours, applyToCurrent } = requiredHoursConfigSchema.parse(await req.json());
+    const { updatedStudentIds, ...result } = await setRequiredHoursConfig(
+      program,
+      hours,
+      user.id,
+      req.headers.get("x-forwarded-for"),
+      applyToCurrent
+    );
+    // Their stored running and remaining hours follow the new requirement.
+    for (const id of updatedStudentIds) await refreshWeeklyTotalsFrom(id, new Date(0));
+    return NextResponse.json({ ...result, studentsUpdated: updatedStudentIds.length });
   } catch (error) {
     return handleApiError(error);
   }

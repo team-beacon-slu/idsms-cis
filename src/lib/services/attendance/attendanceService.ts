@@ -610,14 +610,36 @@ export async function getRequiredHoursConfig(program: Program): Promise<number> 
 // `StudentProfile.requiredHours` values (those are set once, at bulk-import
 // time, per Phase 1's `userService.bulkImportStudents`) — this only changes
 // the default for *future* imports.
+// With `applyToCurrent` (a curriculum change, Nov 2026), the program's interns in the active
+// semester take the new hours too; otherwise they keep the hours they started with. Returns
+// the interns updated, so the caller can refresh their stored weekly totals.
 export async function setRequiredHoursConfig(
   program: Program,
   hours: number,
   actingUserId: string,
-  ipAddress?: string | null
-): Promise<{ program: Program; hours: number }> {
-  const input = requiredHoursConfigSchema.parse({ program, hours });
+  ipAddress?: string | null,
+  applyToCurrent = false
+): Promise<{ program: Program; hours: number; updatedStudentIds: string[] }> {
+  const input = requiredHoursConfigSchema.parse({ program, hours, applyToCurrent });
   return prisma.$transaction(async (tx) => {
+    const current = input.applyToCurrent
+      ? await tx.studentProfile.findMany({
+          where: {
+            program: input.program,
+            deletedAt: null,
+            semester: { isActive: true },
+            requiredHours: { not: input.hours },
+          },
+          select: { id: true },
+        })
+      : [];
+    const updatedStudentIds = current.map((s) => s.id);
+    if (updatedStudentIds.length > 0) {
+      await tx.studentProfile.updateMany({
+        where: { id: { in: updatedStudentIds } },
+        data: { requiredHours: input.hours },
+      });
+    }
     const config = await tx.systemConfig.upsert({
       where: { configKey: REQUIRED_HOURS_CONFIG_KEY(input.program) },
       create: {
@@ -635,11 +657,11 @@ export async function setRequiredHoursConfig(
         entityType: "SystemConfig",
         entityId: config.id,
         ipAddress,
-        detail: input,
+        detail: { ...input, studentsUpdated: updatedStudentIds.length },
       },
       tx
     );
-    return input;
+    return { program: input.program, hours: input.hours, updatedStudentIds };
   });
 }
 

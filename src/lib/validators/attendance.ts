@@ -69,4 +69,6 @@ export const holidayEntryIdSchema = z.object({ holidayEntryId: z.uuid() });
 export const requiredHoursConfigSchema = z.object({
   program: z.enum(Program),
   hours: z.number().int().positive(),
+  // A curriculum change: also set it for the program's interns in the active semester.
+  applyToCurrent: z.boolean().optional(),
 });

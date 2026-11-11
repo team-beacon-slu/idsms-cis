@@ -75,6 +75,7 @@ describe("setRequiredHoursConfig", () => {
       await expect(setRequiredHoursConfig(program, 720, "admin-1", "127.0.0.1")).resolves.toEqual({
         program,
         hours: 720,
+        updatedStudentIds: [],
       });
       expect(prismaMock.systemConfig.upsert).toHaveBeenCalledWith({
         where: { configKey: `required_hours:${program}` },
@@ -88,7 +89,7 @@ describe("setRequiredHoursConfig", () => {
             userId: "admin-1",
             entityId: "config-1",
             ipAddress: "127.0.0.1",
-            detail: { program, hours: 720 },
+            detail: { program, hours: 720, applyToCurrent: false, studentsUpdated: 0 },
           }),
         })
       );
@@ -96,6 +97,35 @@ describe("setRequiredHoursConfig", () => {
       expect(prismaMock.studentProfile.updateMany).not.toHaveBeenCalled();
     }
   );
+
+  it("on a curriculum change, also sets the program's interns in the active semester", async () => {
+    prismaMock.systemConfig.upsert.mockResolvedValue({ id: "config-1" } as never);
+    prismaMock.studentProfile.findMany.mockResolvedValue([{ id: "sp-1" }, { id: "sp-2" }] as never);
+
+    const result = await setRequiredHoursConfig(Program.BSCS, 320, "coord-1", null, true);
+
+    expect(result.updatedStudentIds).toEqual(["sp-1", "sp-2"]);
+    expect(prismaMock.studentProfile.findMany).toHaveBeenCalledWith({
+      where: {
+        program: Program.BSCS,
+        deletedAt: null,
+        semester: { isActive: true },
+        requiredHours: { not: 320 },
+      },
+      select: { id: true },
+    });
+    expect(prismaMock.studentProfile.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["sp-1", "sp-2"] } },
+      data: { requiredHours: 320 },
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          detail: { program: Program.BSCS, hours: 320, applyToCurrent: true, studentsUpdated: 2 },
+        }),
+      })
+    );
+  });
 
   it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid hours %p before writing", async (hours) => {
     await expect(setRequiredHoursConfig(Program.BSIT, hours, "admin-1")).rejects.toThrow();
