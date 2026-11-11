@@ -11,6 +11,7 @@ import { loadDayNotes } from "@/lib/services/attendance/reportedTimeRecords";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { formatSchedule, parseScheduleConfig, scheduleCells } from "@/lib/utils/schedule";
 import { WeekTimetable } from "@/components/week-timetable";
+import { reportPeriodEnd } from "@/lib/utils/reportWeek";
 import { LongScheduleNotice } from "@/components/long-schedule-notice";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
@@ -318,7 +319,8 @@ export default async function WeeklyReportsPage(props: {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        {formatDate(report.weekStart)} – {formatDate(report.weekEnd)}
+                        {formatDate(report.weekStart)} –{" "}
+                        {formatDate(reportPeriodEnd(report.weekStart, report.dailyEntries))}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Due {formatDate(getWeeklyReportDueDate(report.weekEnd))}

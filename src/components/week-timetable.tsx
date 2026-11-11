@@ -66,7 +66,11 @@ export function WeekTimetable({
 }) {
   return (
     <div className="space-y-2">
-      <ol aria-label={label} className="grid grid-cols-7 gap-1 sm:gap-2">
+      <ol
+        aria-label={label}
+        className="grid gap-1 sm:gap-2"
+        style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}
+      >
         {cells.map((c) => {
           const body = (
             <>

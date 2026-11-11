@@ -10,6 +10,7 @@ import {
 } from "@/lib/services/reports/weeklyReportService";
 import { WeeklyReportForm } from "../../weekly-report-form";
 import { loadDayNotes } from "@/lib/services/attendance/reportedTimeRecords";
+import { reportPeriodEnd } from "@/lib/utils/reportWeek";
 import { loadShift } from "@/lib/services/attendance/creditedHours";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,7 +119,8 @@ export default async function WeeklyReportReviewPage(props: {
           </div>
           <CardDescription>
             {displayName(student ?? {})} · Week of {formatCalendarDate(new Date(report!.weekStart))}{" "}
-            – {formatCalendarDate(new Date(report!.weekEnd))}
+            –{" "}
+            {formatCalendarDate(reportPeriodEnd(new Date(report!.weekStart), report!.dailyEntries))}
           </CardDescription>
           <p className="text-xs text-muted-foreground">
             Supervisor-signed copies are submitted on Google Classroom, not in IDSMS.

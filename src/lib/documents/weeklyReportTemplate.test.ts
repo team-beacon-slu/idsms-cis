@@ -77,9 +77,24 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(html).toContain("IT-MMA/CS-CAD Department");
     expect(html).toContain("Saint Louis University, Baguio City");
     expect(html).toContain("Weekly Work Report");
-    expect(html).toContain("Week No. 3 (Oct 5 – Oct 11, 2026)");
+    // SLU policy: a weekly report covers Monday to Friday.
+    expect(html).toContain("Week No. 3 (Oct 5 – Oct 9, 2026)");
     expect(html).toContain("Name: <strong>Dela Cruz, Juan P.</strong>");
     expect(html).toContain("<strong>Company</strong>: Acme Corp");
+  });
+
+  it("lists Monday to Friday, a weekday off as a day off, and a weekend only when worked", () => {
+    const html = renderWeeklyReportHtml(sample());
+    expect(html).toContain("Oct 9 (Friday)");
+    expect(html).toMatch(/Oct 9 \(Friday\)<\/td>\s*<td><strong>Day off<\/strong>/);
+    expect(html).not.toContain("Saturday");
+    const worked = renderWeeklyReportHtml(
+      sample({
+        entries: [entry(), entry({ reportDate: new Date("2026-10-10T00:00:00Z") })],
+      })
+    );
+    expect(worked).toContain("Oct 10 (Saturday)");
+    expect(worked).toContain("Week No. 3 (Oct 5 – Oct 10, 2026)");
   });
 
   it("prints the detailed time record with both ranges and N hrs M mins", () => {
