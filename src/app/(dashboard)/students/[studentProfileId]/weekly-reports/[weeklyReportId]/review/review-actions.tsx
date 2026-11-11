@@ -29,10 +29,10 @@ const ACTION_ICON: Record<Action, LucideIcon> = {
 
 // One tap fills the note with the usual reasons; the adviser can still edit it.
 export const RETURN_REASONS = [
-  "Accomplishments are too vague: say what you worked on and finished each day.",
-  "The times don't match your schedule: check time in and time out.",
+  "The list of work accomplished is too vague: say what you worked on and finished each day.",
+  "The times don't match your schedule: check the AM and PM Time In and Time Out.",
   "The supervisor-signed copy isn't on Google Classroom yet.",
-  "A day is copied from an earlier week: describe what you did that day.",
+  "A day is copied from an earlier week: list the work accomplished that day in your own words.",
 ];
 
 // Asked once more before it happens: deleting a week, or approving one that has flags.

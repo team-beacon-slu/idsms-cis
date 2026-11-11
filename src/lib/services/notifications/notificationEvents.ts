@@ -166,7 +166,7 @@ export async function notifyWorkPlanReviewed(
     title: `Work plan ${action === "APPROVE" ? "approved" : "returned for revision"}`,
     body:
       action === "APPROVE"
-        ? "Your work plan was approved. You can now set your deployment schedule."
+        ? "Your work plan was approved. You can now set your work schedule."
         : "Your work plan was returned — check the reviewer's comments.",
     link: `/students/${studentProfileId}/work-plan`,
     email: true,

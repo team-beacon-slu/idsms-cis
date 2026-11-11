@@ -38,7 +38,13 @@ export async function GET(
     const pdf = await withRetry(() => renderHtmlToPdf(renderTimeReportHtml(data)), {
       deadlineMs: GENERATION_DEADLINE_MS,
     });
-    return pdfResponse(pdf, sluFileName({ kind, week: data.week?.number }, data.student.name));
+    return pdfResponse(
+      pdf,
+      sluFileName(
+        { kind, week: typeof data.week === "object" ? data.week?.number : undefined },
+        data.student.name
+      )
+    );
   } catch (error) {
     return handleApiError(error);
   }

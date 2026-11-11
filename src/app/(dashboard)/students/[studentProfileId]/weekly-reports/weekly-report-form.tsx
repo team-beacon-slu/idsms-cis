@@ -4,22 +4,11 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { ClarityCoach } from "@/components/ai/clarity-coach";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  AlertTriangle,
-  CalendarPlus,
-  Check,
-  ChevronDown,
-  Eye,
-  Plus,
-  Save,
-  Send,
-  X,
-} from "lucide-react";
+import { AlertTriangle, CalendarPlus, Check, Eye, Plus, Save, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { WeekTimetable, type TimetableCell } from "@/components/week-timetable";
 import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, isWeeklyReportLate } from "@/lib/utils/reportDeadline";
 import {
@@ -38,7 +27,7 @@ import {
   type DayException,
   type Shift,
 } from "@/lib/utils/timeMath";
-import { clock, clockShort, WEEKDAY_LONG, WEEKDAY_SHORT } from "@/lib/utils/schedule";
+import { clock } from "@/lib/utils/schedule";
 import { sendJson } from "@/lib/utils/sendJson";
 import { reportDays, type ReportDay } from "@/lib/utils/reportWeek";
 import { clearDraft, loadDraft, saveDraft } from "@/lib/utils/reportDraft";
@@ -46,10 +35,12 @@ import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
 import { RequestReviewActions } from "../leave-requests/request-review-actions";
 
-// FR-WR-02, FR-WR-03: the intern's week, one folded row per day (exception-based, Nov 2026
-// adviser feedback): every scheduled day starts filled in from the schedule, so the intern
-// opens a day, writes what they did, and only explains a day that differs from the schedule.
-// Overtime, undertime and absences are reported on that day with a reason (no separate
+// FR-WR-02, FR-WR-03: the intern's week, laid out like SLU's Weekly Work Report and using its
+// labels (the faculty adviser, Nov 2026: "just stick with the report template"): one row per
+// day with Date (Day), Actual Work Times (AM and PM Time In / Time Out), Hours Rendered and
+// List of Work Accomplished (the adviser's label; the printed sheet says Work Accomplishment). Every scheduled day starts filled in from the schedule, so the intern
+// writes the work accomplished and only explains a day that differs from the schedule.
+// Overtime, under time and absences are reported on that day with remarks (no separate
 // requests); the server records them (lib/services/attendance/reportedTimeRecords.ts).
 // "Save draft" PATCHes every changed day in order; "Submit" saves first, then POSTs
 // /api/weekly-reports/[id]/submit. Copy-paste checks (previous week, other days) block submit.
@@ -68,7 +59,9 @@ export interface DailyEntryRow {
   timeOut2: string | null;
 }
 
-// A day's clock times; the intern's usual ones prefill days the schedule gives no times for.
+// A day's clock times. As saved they are a first and an optional second range; in the form
+// they are the template's two rows: timeIn/timeOut the morning (AM), timeIn2/timeOut2 the
+// afternoon (PM). The intern's usual ones prefill days the schedule gives no times for.
 export interface DayTimes {
   timeIn: string;
   timeOut: string;
@@ -87,7 +80,7 @@ export interface DayNoteRow {
 
 const RECORD_TYPE: Record<string, string> = {
   OVERTIME: "Overtime",
-  UNDERTIME: "Undertime",
+  UNDERTIME: "Under time",
   ABSENCE: "Absence",
 };
 const DECISION: Record<string, { text: string; className: string }> = {
@@ -159,7 +152,6 @@ interface RowState {
   timeOut: string;
   timeIn2: string;
   timeOut2: string;
-  split: boolean; // shows the second time range
   accomplishments: string;
   toolsUsed: string;
   reason: string;
@@ -184,25 +176,55 @@ export const PROOF_LABEL: Record<string, string> = {
 
 const valid = (t: string) => timeOfDay.safeParse(t).success;
 
-// Hours follow the times (both ranges); credited hours under SLU's rules come from the server.
-function withAutoHours(row: RowState): Partial<RowState> {
-  const times = {
-    timeIn: row.timeIn,
-    timeOut: row.timeOut,
-    timeIn2: row.split ? row.timeIn2 : "",
-    timeOut2: row.split ? row.timeOut2 : "",
-  };
-  const minutes = valid(row.timeIn) && valid(row.timeOut) ? rangeMinutes(times) : 0;
-  return { ...times, hours: minutes > 0 ? String(Math.round((minutes / 60) * 100) / 100) : "" };
+type Slots = Pick<RowState, "timeIn" | "timeOut" | "timeIn2" | "timeOut2">;
+
+// The day's time ranges in order: the AM row, then the PM row, each only when complete.
+function rangesOf(row: Slots): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  if (valid(row.timeIn) && valid(row.timeOut)) out.push([row.timeIn, row.timeOut]);
+  if (valid(row.timeIn2) && valid(row.timeOut2)) out.push([row.timeIn2, row.timeOut2]);
+  return out;
+}
+
+// A day saved as one range that starts at noon or later belongs in the PM row.
+function toSlots(t: DayTimes): DayTimes {
+  return !t.timeIn2 && !t.timeOut2 && valid(t.timeIn) && t.timeIn >= "12:00"
+    ? { timeIn: "", timeOut: "", timeIn2: t.timeIn, timeOut2: t.timeOut }
+    : t;
+}
+
+const NOON = 12 * 60;
+// The schedule's shift as the template's two rows: the morning to 12:00, the afternoon from
+// the end of the break (8:00 am - 5:00 pm with a 1-hour break: 8:00 - 12:00, 1:00 - 5:00).
+function shiftSlots(shift: Shift): DayTimes {
+  const { startMin, endMin, breakMinutes } = shift;
+  if (startMin < NOON && endMin <= 24 * 60 && NOON + breakMinutes < endMin) {
+    return {
+      timeIn: toHHMM(startMin),
+      timeOut: "12:00",
+      timeIn2: toHHMM(NOON + breakMinutes),
+      timeOut2: toHHMM(endMin),
+    };
+  }
+  return toSlots({ timeIn: toHHMM(startMin), timeOut: toHHMM(endMin), timeIn2: "", timeOut2: "" });
+}
+
+// Hours follow the times (both rows); credited hours under SLU's rules come from the server.
+function hoursOf(row: Slots): string {
+  const [first, second] = rangesOf(row);
+  const minutes = rangeMinutes({
+    timeIn: first?.[0],
+    timeOut: first?.[1],
+    timeIn2: second?.[0],
+    timeOut2: second?.[1],
+  });
+  return minutes > 0 ? String(Math.round((minutes / 60) * 100) / 100) : "";
 }
 
 // What makes this day differ from the schedule, read from its times (none unless Present).
 function exceptionsOf(entry: DailyEntryRow, row: RowState, shift: Shift | null): DayException[] {
-  if (row.status !== "PRESENT" || !valid(row.timeIn) || !valid(row.timeOut)) return [];
-  const ranges: Array<[string, string]> = [[row.timeIn, row.timeOut]];
-  if (row.split && valid(row.timeIn2) && valid(row.timeOut2)) {
-    ranges.push([row.timeIn2, row.timeOut2]);
-  }
+  const ranges = row.status === "PRESENT" ? rangesOf(row) : [];
+  if (ranges.length === 0) return [];
   return dayExceptions(ranges, shift, entry.scheduledHours > 0, entry.scheduledHours).filter(
     (x) => x.minutes > 0
   );
@@ -212,6 +234,7 @@ function exceptionsOf(entry: DailyEntryRow, row: RowState, shift: Shift | null):
 function rowPayload(entry: DailyEntryRow, row: RowState, shift: Shift | null) {
   const present = row.status === "PRESENT";
   const reason = row.reason.trim();
+  const [first, second] = present ? rangesOf(row) : [];
   const note =
     row.status === "ABSENT"
       ? {
@@ -228,10 +251,10 @@ function rowPayload(entry: DailyEntryRow, row: RowState, shift: Shift | null) {
     accomplishments: present ? row.accomplishments.trim() : "",
     toolsUsed: (present && row.toolsUsed.trim()) || undefined,
     attendanceStatus: row.status,
-    timeIn: (present && row.timeIn) || undefined,
-    timeOut: (present && row.timeOut) || undefined,
-    timeIn2: (present && row.split && row.timeIn2) || undefined,
-    timeOut2: (present && row.split && row.timeOut2) || undefined,
+    timeIn: first?.[0],
+    timeOut: first?.[1],
+    timeIn2: second?.[0],
+    timeOut2: second?.[1],
     note,
   };
 }
@@ -265,11 +288,24 @@ function dayProblem(entry: DailyEntryRow, row: RowState, shift: Shift | null): D
     return null;
   }
   if (row.status !== "PRESENT") return null;
-  if (!valid(row.timeIn) || !valid(row.timeOut)) {
-    return { message: "Enter your time in and time out", field: valid(row.timeIn) ? "out" : "in" };
+  // A row with only one of its two times can't be counted.
+  if (Boolean(row.timeIn) !== Boolean(row.timeOut)) {
+    return {
+      message: "Enter both the AM Time In and Time Out",
+      field: row.timeIn ? "out" : "in",
+    };
+  }
+  if (Boolean(row.timeIn2) !== Boolean(row.timeOut2)) {
+    return {
+      message: "Enter both the PM Time In and Time Out",
+      field: row.timeIn2 ? "out2" : "in2",
+    };
+  }
+  if (rangesOf(row).length === 0) {
+    return { message: "Enter your Time In and Time Out", field: "in" };
   }
   if (!row.accomplishments.trim()) {
-    return { message: "Describe what you accomplished", field: "acc" };
+    return { message: "List the work you accomplished this day", field: "acc" };
   }
   const exceptions = exceptionsOf(entry, row, shift);
   if (exceptions.some((x) => x.kind === "early") && reason.length < DAY_NOTE_MIN) {
@@ -286,7 +322,20 @@ function dayProblem(entry: DailyEntryRow, row: RowState, shift: Shift | null): D
   if (parsed.success) return null;
   const issue = parsed.error.issues[0];
   const key = String(issue?.path[0] === "note" ? issue?.path[1] : issue?.path[0]);
-  return { message: issue?.message ?? "Check this day's entry", field: FIELD_IDS[key] ?? "acc" };
+  // A day with only a PM row is saved as its first range: point at the PM inputs.
+  const field = FIELD_IDS[key] ?? "acc";
+  const pmOnly = !row.timeIn && (field === "in" || field === "out");
+  return {
+    message: issue?.message ?? "Check this day's entry",
+    field: pmOnly ? `${field}2` : field,
+  };
+}
+
+// "Jun 12 (Monday)", as SLU's template writes the Date (Day) column.
+function templateDay(iso: string) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: "UTC" });
+  return `${date} (${d.toLocaleDateString("en-PH", { weekday: "long", timeZone: "UTC" })})`;
 }
 
 function formatDay(iso: string) {
@@ -305,30 +354,29 @@ function exceptionText(x: DayException): string {
   const length = formatHrsMins(x.minutes / 60);
   if (x.kind === "overtime") return `Overtime${span} (${length})`;
   if (x.kind === "late") return `Late arrival${span} (${length})`;
-  return span ? `Left early${span} (${length})` : `Undertime: ${length} less than scheduled`;
+  return span ? `Left early${span} (${length})` : `Under time: ${length} less than scheduled`;
 }
 
 function TotalsBar({ totals }: { totals: WeeklyTotals }) {
+  // The totals under the template's Detailed Time Record, in its words.
+  const beginning = Math.round((totals.runningTotal - totals.totalHours) * 100) / 100;
   const items = [
-    ["This week", formatHrsMins(totals.totalHours)],
-    ["Running total", formatHrsMins(totals.runningTotal)],
-    [
-      "Deductions",
-      `${totals.conductDeductions > 0 ? "−" : ""}${formatHrsMins(totals.conductDeductions)}`,
-    ],
-    ["Remaining", formatHrsMins(totals.remainingHours)],
+    ["Total work-hours rendered", formatHrsMins(totals.totalHours)],
+    ["TOTAL work-hours (beginning)", formatHrsMins(beginning)],
+    ["TOTAL rendered so far (ending)", formatHrsMins(totals.runningTotal)],
+    ...(totals.conductDeductions > 0
+      ? [["Less conduct deductions (to date)", `−${formatHrsMins(totals.conductDeductions)}`]]
+      : []),
   ];
   return (
-    <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+    <dl className="grid w-fit max-w-full grid-cols-[auto_auto] gap-x-4 gap-y-1 text-sm sm:ml-auto">
       {items.map(([label, value]) => (
-        <div key={label} className="flex items-baseline gap-1.5">
-          <dt className="text-xs text-muted-foreground">{label}</dt>
+        <div key={label} className="contents">
+          <dt className="text-muted-foreground sm:text-right">{label}</dt>
           <dd
             className={cn(
-              "font-semibold tabular-nums",
-              label === "Deductions" && totals.conductDeductions > 0
-                ? "text-destructive"
-                : "text-foreground"
+              "text-right font-semibold tabular-nums",
+              label.startsWith("Less") ? "text-destructive" : "text-foreground"
             )}
           >
             {value}
@@ -447,7 +495,7 @@ function AddDayControl({
       return;
     }
     onDate("");
-    toast.success("Day added: fill in your times, what you did and what the overtime was for");
+    toast.success("Day added: fill in your times, work accomplished and overtime remarks");
     onAdded();
   }
 
@@ -490,28 +538,14 @@ function defaultTimes(
   shift: Shift | null,
   usual: DayTimes | null
 ): Partial<RowState> {
-  if (shift && e.scheduledHours > 0) {
-    return {
-      hours: String(shift.scheduledHours),
-      timeIn: toHHMM(shift.startMin),
-      timeOut: toHHMM(shift.endMin),
-      timeIn2: "",
-      timeOut2: "",
-      split: false,
-    };
-  }
-  if (usual) {
-    const split = Boolean(usual.timeIn2 && usual.timeOut2);
-    return { split, ...withAutoHours({ ...EMPTY_TIMES, ...usual, split } as RowState) };
-  }
-  return {};
+  const slots = shift && e.scheduledHours > 0 ? shiftSlots(shift) : usual ? toSlots(usual) : null;
+  return slots ? { ...slots, hours: hoursOf(slots) } : {};
 }
 
 function rowFromEntry(
   e: DailyEntryRow,
   shift: Shift | null = null,
   usual: DayTimes | null = null,
-  usualTools = "",
   note: DayNoteRow | undefined = undefined
 ): RowState {
   // An unfilled scheduled day starts as Present at the schedule's times, else at the times
@@ -520,11 +554,12 @@ function rowFromEntry(
   const base: RowState = {
     status: isAttendanceStatus(e.attendanceStatus) ? e.attendanceStatus : "PRESENT",
     hours: e.actualHours == null ? "" : String(e.actualHours),
-    timeIn: e.timeIn ?? "",
-    timeOut: e.timeOut ?? "",
-    timeIn2: e.timeIn2 ?? "",
-    timeOut2: e.timeOut2 ?? "",
-    split: Boolean(e.timeIn2 || e.timeOut2),
+    ...toSlots({
+      timeIn: e.timeIn ?? "",
+      timeOut: e.timeOut ?? "",
+      timeIn2: e.timeIn2 ?? "",
+      timeOut2: e.timeOut2 ?? "",
+    }),
     accomplishments: e.accomplishments ?? "",
     toolsUsed: e.toolsUsed ?? "",
     reason: note?.reason ?? "",
@@ -533,11 +568,19 @@ function rowFromEntry(
     dirty: false,
   };
   if (!unfilled || base.status !== "PRESENT") return base;
-  // Tools rarely change day to day: start from the last worked day's, like the times.
-  base.toolsUsed ||= usualTools;
   const times = defaultTimes(e, shift, usual);
   return Object.keys(times).length ? { ...base, ...times, dirty: true } : base; // Save sends them
 }
+
+// The template's four columns, side by side on a wide screen; stacked with their labels below it.
+const ROW_GRID = "xl:grid xl:grid-cols-[11rem_17rem_6.5rem_minmax(0,1fr)] xl:gap-4 xl:space-y-0";
+// A column's label: shown above its field when stacked, in the header row when side by side.
+const COLUMN_LABEL = "text-xs font-medium text-muted-foreground xl:sr-only";
+
+const TIME_ROWS = [
+  { half: "AM", inId: "in", outId: "out", inKey: "timeIn", outKey: "timeOut" },
+  { half: "PM", inId: "in2", outId: "out2", inKey: "timeIn2", outKey: "timeOut2" },
+] as const;
 
 export function WeeklyReportForm({
   weeklyReportId,
@@ -548,11 +591,12 @@ export function WeeklyReportForm({
   priorAccomplishments,
   shift = null,
   usualTimes = null,
-  usualTools = "",
   holidays = {},
   notes = {},
   clarityAi = false,
   reviewable = false,
+  firstWeek = false,
+  firstDay = null,
 }: {
   weeklyReportId: string;
   entries: DailyEntryRow[];
@@ -562,7 +606,6 @@ export function WeeklyReportForm({
   priorAccomplishments: string[];
   shift?: Shift | null;
   usualTimes?: DayTimes | null;
-  usualTools?: string; // the last worked day's tools, prefilled on new days
   // This intern's applicable holidays by date (YYYY-MM-DD): PH holidays and company days off.
   holidays?: Record<string, { name: string; company: boolean }>;
   // Reasons already reported on this week's days, by date (YYYY-MM-DD).
@@ -571,15 +614,19 @@ export function WeeklyReportForm({
   clarityAi?: boolean;
   // The viewer is staff who can accept or not each reported reason (read-only views).
   reviewable?: boolean;
+  // This is the intern's Week No. 1, where the first day of OJT is set.
+  firstWeek?: boolean;
+  // The intern's first day of OJT (ISO date), when set: earlier days are "not yet started".
+  firstDay?: string | null;
 }) {
   const router = useRouter();
   const holidayOn = (iso: string) => holidays[iso.slice(0, 10)];
   const holidayLabel = (iso: string) => {
     const h = holidayOn(iso);
-    return h ? `${h.name} (${h.company ? "company day off" : "PH holiday"})` : "Holiday";
+    return h ? `Holiday (${h.company ? "Company" : "PH Calendar"}): ${h.name}` : "Holiday";
   };
   const noteOf = (e: DailyEntryRow) => notes[e.reportDate.slice(0, 10)];
-  const fresh = (e: DailyEntryRow) => rowFromEntry(e, shift, usualTimes, usualTools, noteOf(e));
+  const fresh = (e: DailyEntryRow) => rowFromEntry(e, shift, usualTimes, noteOf(e));
 
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
     Object.fromEntries(entries.map((e) => [e.id, fresh(e)]))
@@ -605,7 +652,7 @@ export function WeeklyReportForm({
   const serverRows = useMemo(
     () => Object.fromEntries(entries.map((e) => [e.id, fresh(e)])),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fresh reads only these
-    [entries, shift, usualTimes, usualTools, notes]
+    [entries, shift, usualTimes, notes]
   );
   // Read after mount (the server render has no localStorage), once per report.
   const [draftChecked, setDraftChecked] = useState(false);
@@ -666,12 +713,6 @@ export function WeeklyReportForm({
   // Efficiency item 24: Submit marks every day that needs fixing, not only the first.
   const [problems, setProblems] = useState<Record<string, DayProblem>>({});
   const [delayMissing, setDelayMissing] = useState(false);
-
-  // One day open to start: the first that still needs something.
-  const [open, setOpen] = useState<Record<string, boolean>>(() => {
-    const first = entries.find((e) => dayProblem(e, fresh(e), shift));
-    return first ? { [first.id]: true } : {};
-  });
   const [addDate, setAddDate] = useState("");
   const [addOpen, setAddOpen] = useState(false);
 
@@ -682,9 +723,7 @@ export function WeeklyReportForm({
       : {};
   }
 
-  // A field inside a folded day: open the day first, then focus it on the next frame.
   function focusField(entryId: string, field: string) {
-    setOpen((prev) => ({ ...prev, [entryId]: true }));
     requestAnimationFrame(() => {
       const el =
         document.getElementById(`${field}-${entryId}`) ?? document.getElementById(`day-${entryId}`);
@@ -705,48 +744,25 @@ export function WeeklyReportForm({
 
   // A time change applies to this day only: overtime or an early out on one day is not the
   // intern's new schedule (adviser feedback, Nov 2026). Every day already starts prefilled.
-  function updateTimes(id: string, next: RowState) {
-    updateRow(id, { split: next.split, ...withAutoHours(next) });
+  function updateTime(id: string, row: RowState, key: keyof Slots, value: string) {
+    const next = { ...row, [key]: value };
+    updateRow(id, { [key]: value, hours: hoursOf(next) });
   }
 
   function setStatus(entry: DailyEntryRow, row: RowState, status: AttendanceStatus) {
     if (status === row.status) return;
     if (status === "PRESENT") {
       // Back to Present: start again from the schedule's times.
-      const times = row.timeIn ? {} : defaultTimes(entry, shift, usualTimes);
+      const times = rangesOf(row).length ? {} : defaultTimes(entry, shift, usualTimes);
       updateRow(entry.id, { status, ...times });
       return;
     }
-    updateRow(entry.id, {
-      status,
-      hours: "0",
-      ...EMPTY_TIMES,
-      split: false,
-      toolsUsed: "",
-    });
-  }
-
-  // "Tools used" rarely changes within a week: once typed, later present days that are still
-  // blank get the same text (they can still be changed).
-  function carryToolsForward(id: string) {
-    const tools = rows[id]?.toolsUsed.trim();
-    if (!tools) return;
-    setRows((prev) => {
-      const out = { ...prev };
-      for (const e of entries.slice(entries.findIndex((x) => x.id === id) + 1)) {
-        const row = prev[e.id] ?? fresh(e);
-        if (row.status === "PRESENT" && !row.toolsUsed.trim()) {
-          out[e.id] = { ...row, toolsUsed: tools, dirty: true };
-        }
-      }
-      return out;
-    });
+    updateRow(entry.id, { status, hours: "0", ...EMPTY_TIMES });
   }
 
   const rowOf = (entry: DailyEntryRow) => rows[entry.id] ?? fresh(entry);
   const problemOf = (entry: DailyEntryRow) => dayProblem(entry, rowOf(entry), shift);
 
-  // Saves every changed day. Returns false (after a toast) if any failed.
   // Saves every changed day. Submit (strict) stops at the first day that isn't ready; Save
   // draft saves the ready ones and leaves the rest on this device (the draft keeps them), so
   // writing one day at a time always works. Returns false (after a toast) if Submit can't go on.
@@ -854,8 +870,6 @@ export function WeeklyReportForm({
     setDelayMissing(noReason);
     const bad = entries.filter((entry) => found[entry.id]);
     if (bad.length > 0) {
-      // Every day that needs fixing opens, so each message sits next to its field.
-      setOpen((prev) => ({ ...prev, ...Object.fromEntries(bad.map((e) => [e.id, true])) }));
       toast.error(
         bad.length === 1
           ? `${formatDay(bad[0].reportDate)}: ${found[bad[0].id].message}`
@@ -898,67 +912,28 @@ export function WeeklyReportForm({
     void fetch(`/api/weekly-reports/${weeklyReportId}/ai`, { method: "POST" }).catch(() => {});
   }
 
-  function openDay(id: string) {
-    setOpen((prev) => ({ ...prev, [id]: true }));
-    requestAnimationFrame(() =>
-      document.getElementById(`day-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
-    );
-  }
-
   // The report's days: Monday to Friday always, Saturday/Sunday only when worked (SLU policy).
   const weekStart = addDays(weekEndDate, -6);
   const days = reportDays(weekStart, entries);
-  const cells: TimetableCell[] = days.map(({ date: d, key, entry }): TimetableCell => {
-    const base = {
-      key,
-      weekday: WEEKDAY_SHORT[d.getUTCDay()],
-      date: String(d.getUTCDate()),
-    };
-    const long = `${WEEKDAY_LONG[d.getUTCDay()]} ${d.getUTCDate()}`;
-    if (!entry) {
-      const h = holidays[key];
-      return {
-        ...base,
-        tone: h ? "holiday" : "off",
-        label: h ? "Holiday" : "Day off",
-        shortLabel: h ? "Holiday" : "Off",
-        description: `${long}: ${h ? h.name : "a day off in your schedule"}`,
-        onSelect: () =>
-          document
-            .getElementById(`off-${weeklyReportId}-${key}`)
-            ?.scrollIntoView({ behavior: "smooth", block: "center" }),
-      };
+
+  // Week No. 1 only: an intern who started mid-week has earlier days that are neither a day
+  // off nor an absence. They pick their first day; the server drops the days before it.
+  const firstDayKey = firstWeek && firstDay ? firstDay.slice(0, 10) : "";
+  const notStarted = (key: string) => key < firstDayKey;
+  async function setFirstDay(key: string) {
+    setIsPending(true);
+    const res = await sendJson(`/api/weekly-reports/${weeklyReportId}/first-day`, {
+      method: "PUT",
+      body: { firstDay: key },
+    });
+    setIsPending(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
     }
-    const row = rowOf(entry);
-    const cell = { ...base, onSelect: () => openDay(entry.id) };
-    if (row.status === "HOLIDAY") {
-      return { ...cell, tone: "holiday", label: "Holiday", description: `${long}: holiday` };
-    }
-    const issue = problems[entry.id] ?? null;
-    const ready = !problemOf(entry);
-    if (row.status === "ABSENT") {
-      return {
-        ...cell,
-        tone: ready ? "absent" : "flag",
-        label: "Absent",
-        short: ready ? undefined : "reason?",
-        detail: ready ? undefined : "Reason needed",
-        description: `${long}: absent${ready ? "" : ", reason needed"}`,
-      };
-    }
-    const hours = Number(row.hours);
-    const hrs = row.hours !== "" && !Number.isNaN(hours) ? formatHrsMins(hours) : "";
-    const ot = exceptionsOf(entry, row, shift).some((x) => x.kind === "overtime");
-    return {
-      ...cell,
-      tone: issue ? "flag" : entry.scheduledHours === 0 ? "extra" : ready ? "done" : "todo",
-      label: issue ? "Fix" : ready ? "Ready" : "To fill",
-      shortLabel: issue ? "Fix" : ready ? "Ready" : "Fill",
-      short: hrs.replace(/ hrs?/, "h").replace(/ mins?/, "m"),
-      detail: `${hrs}${ot ? " · OT" : ""}`,
-      description: `${long}: ${issue ? issue.message : ready ? "ready" : "not written yet"}${hrs ? `, ${hrs}` : ""}${ot ? ", overtime" : ""}`,
-    };
-  });
+    toast.success(`First day of OJT set to ${formatDay(key)}`);
+    router.refresh();
+  }
 
   // A weekday off was worked after all: it joins the report as an overtime day.
   const [addingDay, setAddingDay] = useState<string | null>(null);
@@ -973,31 +948,30 @@ export function WeeklyReportForm({
       toast.error(res.error);
       return;
     }
-    toast.success("Day added: fill in your times, what you did and what the overtime was for");
+    toast.success("Day added: fill in your times, work accomplished and overtime remarks");
     router.refresh();
   }
 
-  // A weekday the schedule has off (or a holiday) with nothing worked: one quiet line.
-  function offDayLine(day: ReportDay<DailyEntryRow>, canAdd: boolean) {
-    const h = holidays[day.key];
+  // What a weekday without an entry is: before the first day of OJT, a holiday, or a day off.
+  const offDayText = (key: string) => {
+    const h = holidays[key];
+    if (notStarted(key)) return "OJT not yet started";
+    return h ? holidayLabel(key) : "Day off";
+  };
+
+  // A weekday with nothing worked: one quiet line.
+  function offDayLine(day: ReportDay<DailyEntryRow>) {
     const label = formatDay(day.date.toISOString());
     return (
       <div
         key={day.key}
-        id={`off-${weeklyReportId}-${day.key}`}
-        className="flex min-h-12 scroll-mt-6 flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/20 px-4 py-2"
+        className="flex min-h-12 flex-wrap items-center justify-between gap-2 bg-muted/20 px-4 py-2"
       >
         <span className="text-sm">
-          <span className="font-medium text-foreground">{label}</span>
-          <span className="text-muted-foreground">
-            {" "}
-            ·{" "}
-            {h
-              ? `${h.name} (${h.company ? "company day off" : "PH holiday"})`
-              : "Day off in your schedule"}
-          </span>
+          <span className="font-medium text-foreground">{templateDay(day.date.toISOString())}</span>
+          <span className="text-muted-foreground"> · {offDayText(day.key)}</span>
         </span>
-        {canAdd && (
+        {!notStarted(day.key) && (
           <Button
             type="button"
             variant="ghost"
@@ -1016,7 +990,7 @@ export function WeeklyReportForm({
   }
   const readyCount = entries.filter((e) => !problemOf(e)).length;
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && !firstWeek) {
     return (
       <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
         No scheduled working days fall in this week.
@@ -1031,7 +1005,7 @@ export function WeeklyReportForm({
       const what =
         entry.attendanceStatus === "ABSENT"
           ? `Absence${note.proofType ? ` · proof: ${PROOF_LABEL[note.proofType] ?? note.proofType}` : ""}`
-          : exceptionsOf(entry, rowOf(entry), shift).map(exceptionText).join(" · ") || "Reason";
+          : exceptionsOf(entry, rowOf(entry), shift).map(exceptionText).join(" · ") || "Remarks";
       return (
         <div className="space-y-1.5 rounded-md bg-notice px-2 py-1.5 text-xs text-notice-foreground">
           <p>
@@ -1041,47 +1015,43 @@ export function WeeklyReportForm({
         </div>
       );
     };
+    // The Actual Work Times column, as the template prints it.
+    const workTimes = (entry: DailyEntryRow) => {
+      if (entry.attendanceStatus === "HOLIDAY") return holidayLabel(entry.reportDate);
+      if (entry.attendanceStatus === "ABSENT") return "Absent";
+      if (!entry.timeIn || !entry.timeOut) {
+        return STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus;
+      }
+      return (
+        <>
+          {rangeText(entry.timeIn, entry.timeOut)}
+          {entry.timeIn2 && entry.timeOut2 && (
+            <>
+              <br />
+              {rangeText(entry.timeIn2, entry.timeOut2)}
+            </>
+          )}
+        </>
+      );
+    };
+    const hoursRendered = (entry: DailyEntryRow) =>
+      entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours);
     return (
       <div data-testid="weekly-report-form" className="space-y-3">
-        <TotalsBar totals={totals} />
-        <WeekTimetable
-          cells={cells.map((c) => ({ ...c, onSelect: undefined }))}
-          label="This week"
-        />
         {/* Phones: one stacked row per day, so the accomplishment text keeps the full width. */}
         <ul className="divide-y sm:hidden">
           {days.map(({ key, date, entry }) =>
             !entry ? (
               <li key={key} className="py-3 text-sm text-muted-foreground">
-                {formatDay(date.toISOString())} · {holidays[key]?.name ?? "Day off"}
+                {templateDay(date.toISOString())} · {offDayText(key)}
               </li>
             ) : (
               <li key={entry.id} className="space-y-1 py-3 text-sm">
                 <p className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="font-medium">
-                    {formatDay(entry.reportDate)} ·{" "}
-                    {entry.attendanceStatus === "HOLIDAY"
-                      ? holidayLabel(entry.reportDate)
-                      : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
-                  </span>
-                  <span className="whitespace-nowrap">
-                    {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
-                    {entry.scheduledHours > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {" "}
-                        / {formatHrsMins(entry.scheduledHours)}
-                      </span>
-                    )}
-                  </span>
+                  <span className="font-medium">{templateDay(entry.reportDate)}</span>
+                  <span className="whitespace-nowrap">{hoursRendered(entry)}</span>
                 </p>
-                {entry.timeIn && entry.timeOut && (
-                  <p className="text-xs text-muted-foreground">
-                    {rangeText(entry.timeIn, entry.timeOut)}
-                    {entry.timeIn2 &&
-                      entry.timeOut2 &&
-                      `, ${rangeText(entry.timeIn2, entry.timeOut2)}`}
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">{workTimes(entry)}</p>
                 {noteLine(entry)}
                 <p className="whitespace-pre-wrap">{entry.accomplishments || "—"}</p>
                 {entry.toolsUsed && (
@@ -1095,92 +1065,98 @@ export function WeeklyReportForm({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">Day</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 pr-3 font-medium">Time</th>
-                <th className="py-2 pr-3 font-medium">Hours</th>
-                <th className="py-2 pr-3 font-medium">Accomplishments</th>
-                <th className="py-2 font-medium">Tools used</th>
+                <th className="py-2 pr-3 font-medium">Date (Day)</th>
+                <th className="py-2 pr-3 font-medium">Actual Work Times</th>
+                <th className="py-2 pr-3 font-medium">Hours Rendered</th>
+                <th className="py-2 font-medium">List of Work Accomplished</th>
               </tr>
             </thead>
             <tbody>
               {days.map(({ key, date, entry }) =>
                 !entry ? (
                   <tr key={key} className="border-b align-top text-muted-foreground last:border-0">
-                    <td className="py-2 pr-3 whitespace-nowrap">{formatDay(date.toISOString())}</td>
-                    <td className="py-2 pr-3" colSpan={5}>
-                      {holidays[key] ? holidayLabel(date.toISOString()) : "Day off in the schedule"}
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {templateDay(date.toISOString())}
+                    </td>
+                    <td className="py-2 pr-3" colSpan={3}>
+                      {offDayText(key)}
                     </td>
                   </tr>
                 ) : (
                   <tr key={entry.id} className="border-b align-top last:border-0">
+                    <td className="py-2 pr-3 whitespace-nowrap">{templateDay(entry.reportDate)}</td>
                     <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                      {formatDay(entry.reportDate)}
+                      {workTimes(entry)}
                     </td>
-                    <td className="py-2 pr-3">
-                      {entry.attendanceStatus === "HOLIDAY"
-                        ? holidayLabel(entry.reportDate)
-                        : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
-                    </td>
-                    <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                      {entry.timeIn && entry.timeOut ? (
-                        <>
-                          {rangeText(entry.timeIn, entry.timeOut)}
-                          {entry.timeIn2 && entry.timeOut2 && (
-                            <>
-                              <br />
-                              {rangeText(entry.timeIn2, entry.timeOut2)}
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 whitespace-nowrap">
-                      {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
-                      {entry.scheduledHours > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {" "}
-                          / {formatHrsMins(entry.scheduledHours)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="space-y-1 py-2 pr-3">
+                    <td className="py-2 pr-3 whitespace-nowrap">{hoursRendered(entry)}</td>
+                    <td className="space-y-1 py-2">
                       <p className="whitespace-pre-wrap">{entry.accomplishments || "—"}</p>
+                      {entry.toolsUsed && (
+                        <p className="text-xs text-muted-foreground">Tools: {entry.toolsUsed}</p>
+                      )}
                       {noteLine(entry)}
                     </td>
-                    <td className="py-2 text-muted-foreground">{entry.toolsUsed ?? "—"}</td>
                   </tr>
                 )
               )}
             </tbody>
           </table>
         </div>
+        <TotalsBar totals={totals} />
       </div>
     );
   }
 
   return (
     <div data-testid="weekly-report-form" className="space-y-4">
-      {/* The week at a glance: select a day to open it, a day off to add it as overtime. */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm font-medium text-foreground">
-            {readyCount} of {entries.length} days ready
-          </p>
-          <TotalsBar totals={totals} />
-        </div>
-        <WeekTimetable
-          cells={cells}
-          label="This week: select a day to open it"
-          legend={["done", "todo", "absent", "off"]}
-        />
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-medium text-foreground">Detailed Time Record</p>
+        <p className="text-xs text-muted-foreground">
+          {readyCount} of {entries.length} days ready
+        </p>
       </div>
 
-      <div className="space-y-2">
+      {firstWeek && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-muted/30 px-3 py-2.5">
+          <Label htmlFor={`first-day-${weeklyReportId}`} className="text-sm">
+            First day of OJT
+          </Label>
+          <select
+            id={`first-day-${weeklyReportId}`}
+            value={firstDayKey || toDateKey(weekStart)}
+            disabled={isPending}
+            onChange={(e) => setFirstDay(e.target.value)}
+            aria-describedby={`first-day-help-${weeklyReportId}`}
+            className="flex h-9 cursor-pointer rounded-md border border-input bg-background px-2 text-sm disabled:cursor-not-allowed"
+          >
+            {Array.from({ length: 7 }, (_, i) => toDateKey(addDays(weekStart, i))).map((key) => (
+              <option key={key} value={key}>
+                {templateDay(key)}
+              </option>
+            ))}
+          </select>
+          <p id={`first-day-help-${weeklyReportId}`} className="text-xs text-muted-foreground">
+            This is your Week No. 1. If you started in the middle of the week, pick the day: the
+            days before it are not counted as absences.
+          </p>
+        </div>
+      )}
+
+      <div className="divide-y rounded-lg border bg-card">
+        <div
+          aria-hidden="true"
+          className={cn(
+            "hidden bg-muted/40 px-4 py-2 text-center text-xs font-semibold text-foreground",
+            ROW_GRID
+          )}
+        >
+          <span>Date (Day)</span>
+          <span>Actual Work Times</span>
+          <span>Hours Rendered</span>
+          <span>List of Work Accomplished</span>
+        </div>
         {days.map((day) => {
-          if (!day.entry) return offDayLine(day, true);
+          if (!day.entry) return offDayLine(day);
           const entry = day.entry;
           const row = rowOf(entry);
           const flag = copyPasteFlags[entry.id];
@@ -1189,215 +1165,154 @@ export function WeeklyReportForm({
           const exceptions = exceptionsOf(entry, row, shift);
           const early = exceptions.some((x) => x.kind === "early");
           const overtime = exceptions.some((x) => x.kind === "overtime");
+          const underTime = exceptions.some((x) => x.kind !== "overtime");
           const needsReason =
             (row.status === "ABSENT" || early) && row.reason.trim().length < DAY_NOTE_MIN;
           const dayLabel = formatDay(entry.reportDate);
-          // Phones get the compact clock ("8a–12p"), so the summary line never cuts off.
-          const shortTimes =
-            row.status === "PRESENT" && valid(row.timeIn) && valid(row.timeOut)
-              ? `${clockShort(row.timeIn)}–${clockShort(row.timeOut)}${row.split && valid(row.timeIn2) && valid(row.timeOut2) ? `, ${clockShort(row.timeIn2)}–${clockShort(row.timeOut2)}` : ""}`
-              : null;
-          const timesText =
-            row.status === "PRESENT"
-              ? valid(row.timeIn) && valid(row.timeOut)
-                ? `${rangeText(row.timeIn, row.timeOut)}${row.split && valid(row.timeIn2) && valid(row.timeOut2) ? `, ${rangeText(row.timeIn2, row.timeOut2)}` : ""}`
-                : "No times yet"
-              : row.status === "HOLIDAY"
-                ? holidayLabel(entry.reportDate)
-                : "Absent";
           return (
-            <details
+            <section
               key={entry.id}
               id={`day-${entry.id}`}
-              open={Boolean(open[entry.id])}
-              onToggle={(e) => {
-                const isOpen = e.currentTarget.open;
-                if (isOpen !== Boolean(open[entry.id])) {
-                  setOpen((prev) => ({ ...prev, [entry.id]: isOpen }));
-                }
-              }}
+              aria-label={dayLabel}
               className={cn(
-                "group/day scroll-mt-6 rounded-lg border bg-card",
-                flag && "border-amber-300",
-                problem && "border-red-300"
+                "scroll-mt-6 space-y-3 border-l-4 border-l-transparent px-3 py-4 sm:px-4",
+                ROW_GRID,
+                flag && "border-l-amber-400",
+                problem && "border-l-red-400"
               )}
             >
-              <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
-                <span className="grid min-w-0 flex-1 grid-cols-1 gap-x-3 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:items-center">
-                  <span className="text-sm font-medium text-foreground">{dayLabel}</span>
-                  <span className="truncate text-xs text-muted-foreground sm:text-sm">
-                    {shortTimes ? (
-                      <>
-                        <span className="sm:hidden">{shortTimes}</span>
-                        <span className="hidden sm:inline">{timesText}</span>
-                      </>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">
+                    {templateDay(entry.reportDate)}
+                  </p>
+                  <span className="flex items-center gap-2 text-xs">
+                    {row.edited && row.dirty && <span className="text-amber-700">Unsaved</span>}
+                    {problem ? (
+                      <span className="rounded-full bg-danger-soft px-2 py-0.5 font-medium text-danger-soft-foreground">
+                        Fix
+                      </span>
+                    ) : needsReason ? (
+                      <span className="rounded-full bg-notice px-2 py-0.5 font-medium text-notice-foreground">
+                        Remarks needed
+                      </span>
+                    ) : ready ? (
+                      <span className="flex items-center gap-1 rounded-full bg-status-done/15 px-2 py-0.5 font-medium text-foreground">
+                        <Check className="size-3" aria-hidden="true" />
+                        Ready
+                      </span>
                     ) : (
-                      timesText
-                    )}
-                    {row.status === "PRESENT" && row.hours !== "" && (
-                      <span className="text-foreground/80">
-                        {" "}
-                        · {formatHrsMins(Number(row.hours))}
+                      <span className="rounded-full border px-2 py-0.5 text-muted-foreground">
+                        To fill in
                       </span>
                     )}
-                    {overtime && <span className="text-foreground/80"> · overtime</span>}
-                    {entry.scheduledHours === 0 && " · outside your schedule"}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2 text-xs">
-                  {row.edited && row.dirty && (
-                    <span className="hidden text-amber-700 sm:inline">Unsaved</span>
-                  )}
-                  {problem ? (
-                    <span className="rounded-full bg-danger-soft px-2 py-0.5 font-medium text-danger-soft-foreground">
-                      Fix
-                    </span>
-                  ) : needsReason ? (
-                    <span className="rounded-full bg-notice px-2 py-0.5 font-medium text-notice-foreground">
-                      Reason needed
-                    </span>
-                  ) : ready && overtime && !row.reason.trim() ? (
-                    // Not a blocker: overtime without a reason simply isn't credited.
-                    <span className="rounded-full bg-notice px-2 py-0.5 font-medium text-notice-foreground">
-                      Say why for overtime
-                    </span>
-                  ) : ready ? (
-                    <span className="flex items-center gap-1 rounded-full bg-status-done/15 px-2 py-0.5 font-medium text-foreground">
-                      <Check className="size-3" aria-hidden="true" />
-                      Ready
-                    </span>
-                  ) : (
-                    <span className="rounded-full border px-2 py-0.5 text-muted-foreground">
-                      To fill in
-                    </span>
-                  )}
-                  <ChevronDown
-                    className="size-4 text-muted-foreground transition-transform duration-200 group-open/day:rotate-180"
-                    aria-hidden="true"
-                  />
-                </span>
-              </summary>
-
-              <div className="space-y-4 border-t px-4 pt-3 pb-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <StatusChips
-                    entryId={entry.id}
-                    dayLabel={dayLabel}
-                    value={row.status}
-                    holiday={Boolean(holidayOn(entry.reportDate))}
-                    disabled={isPending}
-                    onChange={(s) => setStatus(entry, row, s)}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {entry.scheduledHours > 0
-                      ? `${formatHrsMins(entry.scheduledHours)} scheduled`
-                      : "Not a scheduled day: counts as overtime"}
                   </span>
                 </div>
+                <StatusChips
+                  entryId={entry.id}
+                  dayLabel={dayLabel}
+                  value={row.status}
+                  holiday={Boolean(holidayOn(entry.reportDate))}
+                  disabled={isPending}
+                  onChange={(s) => setStatus(entry, row, s)}
+                />
+                {entry.scheduledHours === 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      Not a scheduled day: counts as overtime
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() => removeAddedDay(entry)}
+                      aria-label={`Remove ${dayLabel} from this report`}
+                      className="h-8 cursor-pointer px-2 text-xs text-red-700"
+                    >
+                      {removeArmed === entry.id
+                        ? "Click again to remove (with its text)"
+                        : "Remove this day"}
+                    </Button>
+                  </div>
+                )}
+              </div>
 
+              {row.status === "PRESENT" ? (
+                <fieldset className="min-w-0">
+                  <legend className={cn(COLUMN_LABEL, "mb-1")}>Actual Work Times</legend>
+                  <div className="grid max-w-xs grid-cols-2 items-center gap-x-2 gap-y-1.5 sm:grid-cols-[1.75rem_minmax(0,1fr)_minmax(0,1fr)]">
+                    <span className="hidden sm:block" />
+                    <span className="text-xs text-muted-foreground">Time In</span>
+                    <span className="text-xs text-muted-foreground">Time Out</span>
+                    {TIME_ROWS.map((t) => (
+                      <div key={t.half} className="contents">
+                        <span className="col-span-2 text-xs font-semibold text-foreground sm:col-span-1">
+                          {t.half}
+                        </span>
+                        <Input
+                          id={`${t.inId}-${entry.id}`}
+                          {...fieldProps(entry.id, t.inId)}
+                          aria-label={`${t.half} Time In`}
+                          type="time"
+                          className="min-w-0 px-2"
+                          value={row[t.inKey]}
+                          disabled={isPending}
+                          onChange={(e) => updateTime(entry.id, row, t.inKey, e.target.value)}
+                        />
+                        <Input
+                          id={`${t.outId}-${entry.id}`}
+                          {...fieldProps(entry.id, t.outId)}
+                          aria-label={`${t.half} Time Out`}
+                          type="time"
+                          className="min-w-0 px-2"
+                          value={row[t.outKey]}
+                          disabled={isPending}
+                          onChange={(e) => updateTime(entry.id, row, t.outKey, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : (
+                <p className="text-sm font-medium text-foreground">
+                  {row.status === "HOLIDAY" ? holidayLabel(entry.reportDate) : "Absent"}
+                </p>
+              )}
+
+              <p className="flex items-baseline gap-2 xl:block xl:text-center">
+                <span className={COLUMN_LABEL}>Hours Rendered</span>
+                <output
+                  htmlFor={TIME_ROWS.map(
+                    (t) => `${t.inId}-${entry.id} ${t.outId}-${entry.id}`
+                  ).join(" ")}
+                  className="text-sm font-semibold text-foreground tabular-nums"
+                >
+                  {row.status !== "PRESENT"
+                    ? "0"
+                    : row.hours !== ""
+                      ? formatHrsMins(Number(row.hours))
+                      : "—"}
+                </output>
+              </p>
+
+              <div className="min-w-0 space-y-3">
                 {row.status === "PRESENT" && (
                   <>
-                    <div className="space-y-2">
-                      <div className="grid max-w-md grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label htmlFor={`in-${entry.id}`} className="text-xs">
-                            Time in
-                          </Label>
-                          <Input
-                            id={`in-${entry.id}`}
-                            {...fieldProps(entry.id, "in")}
-                            type="time"
-                            value={row.timeIn}
-                            disabled={isPending}
-                            onChange={(e) =>
-                              updateTimes(entry.id, { ...row, timeIn: e.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor={`out-${entry.id}`} className="text-xs">
-                            Time out
-                          </Label>
-                          <Input
-                            id={`out-${entry.id}`}
-                            {...fieldProps(entry.id, "out")}
-                            type="time"
-                            value={row.timeOut}
-                            disabled={isPending}
-                            onChange={(e) =>
-                              updateTimes(entry.id, { ...row, timeOut: e.target.value })
-                            }
-                          />
-                        </div>
-                        {row.split && (
-                          <>
-                            <div className="space-y-1">
-                              <Label htmlFor={`in2-${entry.id}`} className="text-xs">
-                                Back in
-                              </Label>
-                              <Input
-                                id={`in2-${entry.id}`}
-                                {...fieldProps(entry.id, "in2")}
-                                type="time"
-                                value={row.timeIn2}
-                                disabled={isPending}
-                                onChange={(e) =>
-                                  updateTimes(entry.id, { ...row, timeIn2: e.target.value })
-                                }
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor={`out2-${entry.id}`} className="text-xs">
-                                Out again
-                              </Label>
-                              <Input
-                                id={`out2-${entry.id}`}
-                                {...fieldProps(entry.id, "out2")}
-                                type="time"
-                                value={row.timeOut2}
-                                disabled={isPending}
-                                onChange={(e) =>
-                                  updateTimes(entry.id, { ...row, timeOut2: e.target.value })
-                                }
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <output
-                          htmlFor={`in-${entry.id} out-${entry.id}`}
-                          className="text-muted-foreground"
-                        >
-                          {row.hours !== ""
-                            ? `${formatHrsMins(Number(row.hours))} at work`
-                            : "Hours fill in from your times"}
-                        </output>
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() =>
-                            updateTimes(
-                              entry.id,
-                              row.split
-                                ? { ...row, split: false, timeIn2: "", timeOut2: "" }
-                                : { ...row, split: true }
-                            )
-                          }
-                          className="inline-flex min-h-6 cursor-pointer items-center gap-1 text-primary underline-offset-4 hover:underline"
-                        >
-                          {row.split ? (
-                            <>
-                              <X className="size-3" aria-hidden="true" /> Remove second range
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="size-3" aria-hidden="true" /> Left and came back? Add
-                              a second time range
-                            </>
-                          )}
-                        </button>
-                      </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`acc-${entry.id}`} className={COLUMN_LABEL}>
+                        List of Work Accomplished
+                      </Label>
+                      <Textarea
+                        id={`acc-${entry.id}`}
+                        {...fieldProps(entry.id, "acc")}
+                        rows={3}
+                        value={row.accomplishments}
+                        maxLength={5000}
+                        disabled={isPending}
+                        onChange={(e) => updateRow(entry.id, { accomplishments: e.target.value })}
+                        placeholder="List the work you accomplished this day"
+                      />
                     </div>
 
                     {exceptions.length > 0 && (
@@ -1410,6 +1325,13 @@ export function WeeklyReportForm({
                           id={`why-${entry.id}`}
                           className="text-sm font-medium text-notice-foreground"
                         >
+                          {overtime && underTime
+                            ? "Report on Overtime and UNDER TIME Hours"
+                            : overtime
+                              ? "Report on Overtime Hours"
+                              : "Report on UNDER TIME Hours"}
+                        </p>
+                        <p className="text-xs text-notice-foreground">
                           {exceptions.map(exceptionText).join(" · ")}
                         </p>
                         <Label
@@ -1417,10 +1339,10 @@ export function WeeklyReportForm({
                           className="text-xs text-notice-foreground"
                         >
                           {early
-                            ? "Why did you leave early? (required)"
+                            ? "Remarks: reason for the under time (required)"
                             : overtime
-                              ? "What was the overtime for?"
-                              : "What happened? (optional)"}
+                              ? "Remarks: reason for the off-duty work"
+                              : "Remarks (optional)"}
                         </Label>
                         <Textarea
                           id={`reason-${entry.id}`}
@@ -1439,60 +1361,24 @@ export function WeeklyReportForm({
                         />
                         <p className="text-xs text-notice-foreground/90">
                           {overtime && !row.reason.trim()
-                            ? "Say what the overtime was for: it counts once your adviser accepts it. Under 30 minutes isn't credited."
-                            : "Your adviser decides whether it counts; your supervisor signs it with the weekly report."}
+                            ? "Overtime counts once your adviser accepts the remarks. Under 30 minutes isn't credited."
+                            : "Your adviser decides whether it counts."}
                         </p>
                         <Decisions note={noteOf(entry)} dayLabel={dayLabel} reviewable={false} />
                       </div>
                     )}
-
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
-                      <div className="space-y-1">
-                        <Label htmlFor={`acc-${entry.id}`} className="text-xs">
-                          What you did
-                        </Label>
-                        <Textarea
-                          id={`acc-${entry.id}`}
-                          {...fieldProps(entry.id, "acc")}
-                          rows={3}
-                          value={row.accomplishments}
-                          maxLength={5000}
-                          disabled={isPending}
-                          onChange={(e) => updateRow(entry.id, { accomplishments: e.target.value })}
-                          placeholder="What did you work on and finish today?"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor={`tools-${entry.id}`} className="text-xs">
-                          Tools used <span className="text-muted-foreground">(optional)</span>
-                        </Label>
-                        <Input
-                          id={`tools-${entry.id}`}
-                          {...fieldProps(entry.id, "tools")}
-                          value={row.toolsUsed}
-                          maxLength={500}
-                          disabled={isPending}
-                          onChange={(e) => updateRow(entry.id, { toolsUsed: e.target.value })}
-                          onBlur={() => carryToolsForward(entry.id)}
-                          placeholder="e.g. VS Code, Figma"
-                        />
-                      </div>
-                    </div>
                   </>
                 )}
 
                 {row.status === "ABSENT" && (
                   <div
                     role="group"
-                    aria-labelledby={`why-${entry.id}`}
+                    aria-label={`Absence on ${dayLabel}`}
                     className="space-y-3 rounded-md border bg-muted/30 p-3"
                   >
-                    <p id={`why-${entry.id}`} className="text-sm font-medium text-foreground">
-                      Absent: counts 0 hours
-                    </p>
                     <div className="space-y-1">
                       <Label htmlFor={`reason-${entry.id}`} className="text-xs">
-                        Why were you absent?
+                        Reason for the absence
                       </Label>
                       <Textarea
                         id={`reason-${entry.id}`}
@@ -1561,33 +1447,11 @@ export function WeeklyReportForm({
                       </fieldset>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Your adviser decides whether it is excused. After you submit, your supervisor
-                      signs the absence report together with the weekly report.
+                      Your adviser decides whether it is excused. It prints with this weekly report
+                      for your supervisor to sign.
                     </p>
                     <Decisions note={noteOf(entry)} dayLabel={dayLabel} reviewable={false} />
                   </div>
-                )}
-
-                {row.status === "HOLIDAY" && (
-                  <p className="text-sm text-muted-foreground">
-                    {holidayLabel(entry.reportDate)}: counts 0 hours, nothing to write.
-                  </p>
-                )}
-
-                {entry.scheduledHours === 0 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() => removeAddedDay(entry)}
-                    aria-label={`Remove ${dayLabel} from this report`}
-                    className="h-8 cursor-pointer px-2 text-xs text-red-700"
-                  >
-                    {removeArmed === entry.id
-                      ? "Click again to remove (with its text)"
-                      : "Remove this day"}
-                  </Button>
                 )}
 
                 {problem && (
@@ -1606,10 +1470,12 @@ export function WeeklyReportForm({
                   </p>
                 )}
               </div>
-            </details>
+            </section>
           );
         })}
       </div>
+
+      <TotalsBar totals={totals} />
 
       <details
         open={addOpen}

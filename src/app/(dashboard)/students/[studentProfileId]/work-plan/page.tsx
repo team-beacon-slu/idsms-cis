@@ -2,7 +2,11 @@ import { formatInstant } from "@/lib/documents/html";
 import { redirect } from "next/navigation";
 import { CalendarClock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { getWorkPlanHistory } from "@/lib/services/predeployment/workPlanService";
+import {
+  getLatestApprovedWorkPlanForStudent,
+  getWorkPlanHistory,
+} from "@/lib/services/predeployment/workPlanService";
+import { ScheduleCard } from "../attendance/schedule-card";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Role } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,8 +42,9 @@ export default async function WorkPlanPage(props: {
     throw error;
   }
 
-  const [history, profile] = await Promise.all([
+  const [history, approved, profile] = await Promise.all([
     getWorkPlanHistory(params.studentProfileId),
+    getLatestApprovedWorkPlanForStudent(params.studentProfileId),
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: params.studentProfileId },
       select: { program: true },
@@ -60,7 +65,7 @@ export default async function WorkPlanPage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Work plan"
-        description="Planned deployment tasks, reviewed by the coordinator. A returned plan can be revised and resubmitted."
+        description="Planned tasks and the work schedule for the semester, reviewed by the coordinator. A returned plan can be revised and resubmitted."
       />
 
       {canSubmitNew && (
@@ -154,6 +159,12 @@ export default async function WorkPlanPage(props: {
           </CardContent>
         </Card>
       )}
+
+      <ScheduleCard
+        studentProfileId={params.studentProfileId}
+        role={user.role}
+        workPlan={approved}
+      />
 
       {history.length > 1 && (
         <Card>

@@ -13,7 +13,8 @@ import { loadDayNotes } from "@/lib/services/attendance/reportedTimeRecords";
 import { reportPeriodEnd } from "@/lib/utils/reportWeek";
 import { loadShift } from "@/lib/services/attendance/creditedHours";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { weekNumberOf } from "@/lib/documents/weeklyReportData";
 import { StatusBadge } from "@/components/status-badge";
 import { ClipboardList } from "lucide-react";
 import { WeeklyReportReviewActions } from "./review-actions";
@@ -54,10 +55,13 @@ export default async function WeeklyReportReviewPage(props: {
   if (report!.studentProfileId !== params.studentProfileId) {
     notFound();
   }
-  const student = await prisma.studentProfile.findUnique({
-    where: { id: params.studentProfileId },
-    select: { fullName: true, studentNumber: true },
-  });
+  const [student, weekNo] = await Promise.all([
+    prisma.studentProfile.findUnique({
+      where: { id: params.studentProfileId },
+      select: { fullName: true, studentNumber: true, internshipStartDate: true },
+    }),
+    weekNumberOf(params.studentProfileId, report!.weekStart),
+  ]);
   const awaitingReview = isAwaitingReview(report!);
 
   // FR-AI-05/07: cached hints only, shown while their job is on and the adviser's AI
@@ -113,13 +117,15 @@ export default async function WeeklyReportReviewPage(props: {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ClipboardList className="size-5 text-primary" aria-hidden="true" />
-              <CardTitle>Review Weekly Report</CardTitle>
+              <h1 className="text-lg font-semibold text-foreground">
+                Review Weekly Work Report · Week No. {weekNo}
+              </h1>
             </div>
             <StatusBadge status={report!.status} />
           </div>
           <CardDescription>
-            {displayName(student ?? {})} · Week of {formatCalendarDate(new Date(report!.weekStart))}{" "}
-            –{" "}
+            {displayName(student ?? {})} · WWR{String(weekNo).padStart(2, "0")} ·{" "}
+            {formatCalendarDate(new Date(report!.weekStart))} –{" "}
             {formatCalendarDate(reportPeriodEnd(new Date(report!.weekStart), report!.dailyEntries))}
           </CardDescription>
           <p className="text-xs text-muted-foreground">
@@ -151,6 +157,8 @@ export default async function WeeklyReportReviewPage(props: {
             notes={dayNotes}
             reviewable
             shift={shift}
+            firstWeek={weekNo === 1}
+            firstDay={student?.internshipStartDate?.toISOString() ?? null}
             weekEnd={report!.weekEnd.toISOString()}
             priorAccomplishments={[]}
             totals={{

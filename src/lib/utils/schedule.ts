@@ -84,14 +84,13 @@ export function scheduleCells(config: ScheduleConfig) {
   const end = config.endTime;
   const nextDay = start && end && end <= start ? " (next day)" : "";
   const hrs = `${config.hoursPerDay} ${config.hoursPerDay === 1 ? "hr" : "hrs"}`;
-  const over = dailyHours(config) > MAX_DAILY_HOURS;
   return MONDAY_FIRST.map((d) => {
     const working = days.has(d);
     const times = working && start && end;
     return {
       key: String(d),
       weekday: WEEKDAY_SHORT[d],
-      tone: working ? (over ? ("flag" as const) : ("work" as const)) : ("off" as const),
+      tone: working ? ("work" as const) : ("off" as const),
       label: working ? hrs : "Off",
       short: times ? `${clockShort(start)}-${clockShort(end)}` : undefined,
       detail: times ? `${clock(start)} - ${clock(end)}${nextDay}` : undefined,
@@ -102,9 +101,9 @@ export function scheduleCells(config: ScheduleConfig) {
   });
 }
 
-// The daily limit for interns, cited to DOLE as the team and the faculty adviser specified
-// (Nov 2026): at most 8 working hours a day, with a rest day. Over it is flagged for the
-// adviser and coordinator to talk with the company; never a block.
+// The usual working day: 8 hours, with a rest day. A longer schedule is flagged for the adviser
+// and coordinator to talk with the company; never a block, and not shown to the intern (the
+// faculty adviser, Nov 2026: the rule is understood, stating it only confuses).
 export const MAX_DAILY_HOURS = 8;
 
 // Working hours a day: the scheduled hours, or the shift minus its break if that is longer.
@@ -131,7 +130,7 @@ export function longSchedule(config: ScheduleConfig): { short: string; long: str
     ...(noRestDay ? ["no rest day"] : []),
   ];
   return {
-    short: `Schedule: ${[overDaily ? `${Math.round(daily * 100) / 100} h/day` : "", noRestDay ? "7 days" : ""].filter(Boolean).join(", ")} (DOLE: max ${MAX_DAILY_HOURS} h/day)`,
-    long: `This schedule has ${parts.join(" and ")}. DOLE allows interns at most ${MAX_DAILY_HOURS} working hours a day, with a rest day.`,
+    short: `Schedule: ${[overDaily ? `${Math.round(daily * 100) / 100} h/day` : "", noRestDay ? "7 days" : ""].filter(Boolean).join(", ")}`,
+    long: `This schedule has ${parts.join(" and ")}.`,
   };
 }

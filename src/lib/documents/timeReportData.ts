@@ -8,7 +8,6 @@ import type {
   TimeRow,
 } from "@/lib/documents/timeReportTemplate";
 import { displayNameFromEmail } from "@/lib/utils/displayName";
-import { toDateKey } from "@/lib/utils/reportDeadline";
 
 const TYPE = {
   OT: DeviationType.OVERTIME,
@@ -31,7 +30,6 @@ export async function loadTimeReportData(
         fullName: true,
         user: { select: { email: true } },
         company: { select: { name: true, supervisorName: true } },
-        semester: { select: { weekOneStart: true } },
       },
     }),
     weeklyReportId
@@ -81,9 +79,7 @@ export async function loadTimeReportData(
           select: { reportDate: true },
         })
       : Promise.resolve([]),
-    report
-      ? weekNumberOf(studentProfileId, report.weekStart, profile.semester.weekOneStart)
-      : Promise.resolve(0),
+    report ? weekNumberOf(studentProfileId, report.weekStart) : Promise.resolve(0),
   ]);
 
   const pending = (r: { validationStatus: ValidationStatus }) =>
@@ -137,39 +133,4 @@ export async function loadTimeReportData(
     absences,
     generatedAt: new Date(),
   };
-}
-
-// The weeks (by weekStart key) that have anything for each report, so the weekly
-// list only offers the reports a week actually has.
-export async function timeReportWeeks(studentProfileId: string) {
-  const [requests, absent] = await Promise.all([
-    prisma.deviationReport.findMany({
-      where: { studentProfileId, validationStatus: { not: ValidationStatus.REJECTED } },
-      select: { deviationType: true, date: true, endDate: true },
-    }),
-    prisma.dailyReportEntry.findMany({
-      where: { attendanceStatus: "ABSENT", weeklyReport: { studentProfileId } },
-      select: { reportDate: true },
-    }),
-  ]);
-  return { requests, absentDates: absent.map((e) => toDateKey(e.reportDate)) };
-}
-
-export function timeReportKindsFor(
-  week: { weekStart: Date; weekEnd: Date },
-  { requests, absentDates }: Awaited<ReturnType<typeof timeReportWeeks>>
-): TimeReportKind[] {
-  const inWeek = (from: Date, to: Date | null) =>
-    from <= week.weekEnd && (to ?? from) >= week.weekStart;
-  const has = (t: DeviationType) =>
-    requests.some((r) => r.deviationType === t && inWeek(r.date, r.endDate));
-  const from = toDateKey(week.weekStart);
-  const to = toDateKey(week.weekEnd);
-  return [
-    ...(has(DeviationType.OVERTIME) ? (["OT"] as const) : []),
-    ...(has(DeviationType.UNDERTIME) ? (["UT"] as const) : []),
-    ...(has(DeviationType.ABSENCE) || absentDates.some((d) => d >= from && d <= to)
-      ? (["ABSENCE"] as const)
-      : []),
-  ];
 }

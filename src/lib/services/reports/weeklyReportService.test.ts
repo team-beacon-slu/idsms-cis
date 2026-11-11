@@ -25,6 +25,7 @@ import {
   reviewWeeklyReport_Disregard,
   reviewWeeklyReport_Return,
   saveDailyAccomplishment,
+  setFirstDayOfOjt,
   validateLateSubmissionReason,
 } from "@/lib/services/reports/weeklyReportService";
 
@@ -1294,5 +1295,109 @@ describe("review lifecycle", () => {
         actingUser
       )
     ).rejects.toThrow(WeeklyReportIncompleteError);
+  });
+});
+
+describe("setFirstDayOfOjt (an intern who starts in the middle of Week No. 1)", () => {
+  const day = (d: string) => new Date(`2026-10-${d}T00:00:00Z`);
+  const report = {
+    weekStart: day("05"),
+    weekEnd: day("11"),
+    status: WeeklyReportStatus.PENDING,
+    revisionHistory: [],
+    studentProfileId: "profile-1",
+    studentProfile: { userId: "student-1" },
+    dailyEntries: ["05", "06", "07", "08", "09"].map((d) => ({
+      id: `entry-${d}`,
+      reportDate: day(d),
+      accomplishments: null as string | null,
+    })),
+  };
+
+  beforeEach(() => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue(report as never);
+    prismaMock.weeklyReport.findFirst.mockResolvedValue(null);
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 },
+    } as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      semesterId: "sem-1",
+      internshipStartDate: day("07"),
+      requiredHours: 600,
+    } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+    prismaMock.holidayCalendarEntry.findMany.mockResolvedValue([] as never);
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([] as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.conductRecord.findMany.mockResolvedValue([] as never);
+    prismaMock.weeklyReport.update.mockResolvedValue({} as never);
+  });
+
+  it("drops the days before the first day, so they are neither absences nor days off", async () => {
+    await setFirstDayOfOjt("wr-1", day("07"), "student-1"); // started on Wednesday
+
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: { internshipStartDate: day("07") },
+    });
+    expect(prismaMock.dailyReportEntry.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["entry-05", "entry-06"] } },
+    });
+    // Wednesday to Friday are already in the report: nothing is added twice.
+    expect(prismaMock.dailyReportEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  it("brings the scheduled days back when the first day moves earlier", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      ...report,
+      dailyEntries: report.dailyEntries.slice(2), // Wed to Fri
+    } as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      semesterId: "sem-1",
+      internshipStartDate: day("06"),
+      requiredHours: 600,
+    } as never);
+
+    await setFirstDayOfOjt("wr-1", day("06"), "student-1");
+
+    expect(prismaMock.dailyReportEntry.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.dailyReportEntry.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          weeklyReportId: "wr-1",
+          reportDate: day("06"),
+          attendanceStatus: "SCHEDULED",
+          scheduledHours: 8,
+        },
+      ],
+    });
+  });
+
+  it("never drops a day that already has work written on it", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      ...report,
+      dailyEntries: report.dailyEntries.map((e, i) =>
+        i === 0 ? { ...e, accomplishments: "Orientation with the supervisor" } : e
+      ),
+    } as never);
+
+    await expect(setFirstDayOfOjt("wr-1", day("07"), "student-1")).rejects.toThrow(
+      DailyEntryDateError
+    );
+    expect(prismaMock.dailyReportEntry.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("is set only in the first weekly report, by its owner, inside that week", async () => {
+    await expect(setFirstDayOfOjt("wr-1", day("07"), "student-2")).rejects.toThrow(ForbiddenError);
+    await expect(setFirstDayOfOjt("wr-1", day("12"), "student-1")).rejects.toThrow(
+      "within this report's week"
+    );
+    prismaMock.weeklyReport.findFirst.mockResolvedValue({ id: "wr-earlier" } as never);
+    await expect(setFirstDayOfOjt("wr-1", day("07"), "student-1")).rejects.toThrow(
+      "first weekly report"
+    );
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
   });
 });

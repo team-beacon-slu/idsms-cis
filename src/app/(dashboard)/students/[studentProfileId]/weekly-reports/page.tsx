@@ -27,7 +27,13 @@ import { buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
-import { getWeeklyReportDueDate, isWeeklyReportLate, toDateKey } from "@/lib/utils/reportDeadline";
+import {
+  getWeekStartMonday,
+  getWeeklyReportDueDate,
+  isWeeklyReportLate,
+  toDateKey,
+} from "@/lib/utils/reportDeadline";
+import { weekNumberFrom } from "@/lib/documents/weeklyReportData";
 import {
   CalendarClock,
   ChevronDown,
@@ -42,8 +48,6 @@ import { GenerateWeekButton } from "./generate-week-button";
 import { ReportPdfActions } from "./report-pdf-actions";
 import { QuickApprove } from "./quick-approve";
 import { WithdrawReport } from "./withdraw-report";
-import { TimeReportLinks } from "./time-report-links";
-import { timeReportKindsFor, timeReportWeeks } from "@/lib/documents/timeReportData";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Weekly reports" };
@@ -83,40 +87,34 @@ export default async function WeeklyReportsPage(props: {
   }
 
   // Independent reads, loaded together rather than one after another.
-  const [
-    reports,
-    documents,
-    conduct,
-    shift,
-    holidayList,
-    aiJobs,
-    timeRecords,
-    workPlan,
-    notesByDate,
-  ] = await Promise.all([
-    prisma.weeklyReport.findMany({
-      where: { studentProfileId: params.studentProfileId },
-      orderBy: { weekStart: "desc" },
-      include: { dailyEntries: { orderBy: { reportDate: "asc" } } },
-    }),
-    prisma.generatedDocument.findMany({
-      where: { studentProfileId: params.studentProfileId, documentType: "WEEKLY_REPORT" },
-      select: { periodLabel: true, status: true, referenceCode: true },
-    }),
-    // One query for all weeks; each week counts deductions dated on or before its end (as getConductDeductions does).
-    prisma.conductRecord.findMany({
-      where: { studentProfileId: params.studentProfileId, revokedAt: null },
-      select: { date: true, hoursDeducted: true },
-    }),
-    loadShift(params.studentProfileId),
-    getHolidayCalendarForStudent(params.studentProfileId),
-    jobsOnFor(user),
-    timeReportWeeks(params.studentProfileId),
-    getLatestApprovedWorkPlanForStudent(params.studentProfileId),
-    // Reasons the intern gave on reported days (overtime, undertime, absences) and the
-    // adviser's decision on each, by date.
-    loadDayNotes(params.studentProfileId),
-  ]);
+  const [reports, documents, conduct, shift, holidayList, aiJobs, profile, workPlan, notesByDate] =
+    await Promise.all([
+      prisma.weeklyReport.findMany({
+        where: { studentProfileId: params.studentProfileId },
+        orderBy: { weekStart: "desc" },
+        include: { dailyEntries: { orderBy: { reportDate: "asc" } } },
+      }),
+      prisma.generatedDocument.findMany({
+        where: { studentProfileId: params.studentProfileId, documentType: "WEEKLY_REPORT" },
+        select: { periodLabel: true, status: true, referenceCode: true },
+      }),
+      // One query for all weeks; each week counts deductions dated on or before its end (as getConductDeductions does).
+      prisma.conductRecord.findMany({
+        where: { studentProfileId: params.studentProfileId, revokedAt: null },
+        select: { date: true, hoursDeducted: true },
+      }),
+      loadShift(params.studentProfileId),
+      getHolidayCalendarForStudent(params.studentProfileId),
+      jobsOnFor(user),
+      prisma.studentProfile.findUnique({
+        where: { id: params.studentProfileId },
+        select: { internshipStartDate: true, semester: { select: { weekOneStart: true } } },
+      }),
+      getLatestApprovedWorkPlanForStudent(params.studentProfileId),
+      // Reasons the intern gave on reported days (overtime, undertime, absences) and the
+      // adviser's decision on each, by date.
+      loadDayNotes(params.studentProfileId),
+    ]);
   const schedule = parseScheduleConfig(workPlan?.scheduleConfig);
   const notesFor = (from: Date, to: Date) =>
     Object.fromEntries(
@@ -147,11 +145,9 @@ export default async function WeeklyReportsPage(props: {
     : !shift && scheduledDay
       ? defaultDayTimes(Number(scheduledDay.scheduledHours))
       : null;
-  const usualTools =
-    reports
-      .flatMap((r) => r.dailyEntries)
-      .filter((e) => e.toolsUsed?.trim())
-      .sort((a, b) => b.reportDate.getTime() - a.reportDate.getTime())[0]?.toolsUsed ?? "";
+  // Week No. 1 is the intern's first report (reports are newest first), not the term's week 1.
+  const firstReport = reports[reports.length - 1];
+  const termWeekOne = profile?.semester.weekOneStart ?? null;
   const pdfByWeek = new Map(documents.map((d) => [d.periodLabel, d]));
   const deductionsAsOf = (weekEnd: Date) =>
     Math.round(
@@ -183,11 +179,13 @@ export default async function WeeklyReportsPage(props: {
         <details className="rounded-lg border bg-card px-4 py-3 text-sm">
           <summary className="cursor-pointer font-medium">How signing works</summary>
           <p className="mt-2 text-muted-foreground">
-            After submitting, download the PDF and have your supervisor sign it, with the
-            week&apos;s overtime, under time or absence report if it has one. Upload the signed
-            copies to <span className="font-medium text-foreground">Google Classroom</span> under
-            the file names IDSMS gives them (for example WWR01 LastnameFirstname.pdf); signed
-            documents are never uploaded to IDSMS.
+            After submitting, download the PDF and have your supervisor sign it. A week with
+            overtime, under time or an absence has that report on the next page of the same PDF.
+            Upload the signed copy to{" "}
+            <span className="font-medium text-foreground">Google Classroom</span> under the file
+            name IDSMS gives it (for example WWR01 LastnameFirstname.pdf). WWR01 is the week you
+            started your OJT, even when the class is already in a later week. Signed documents are
+            never uploaded to IDSMS.
           </p>
         </details>
       )}
@@ -253,7 +251,8 @@ export default async function WeeklyReportsPage(props: {
             <CardTitle>Start a weekly report</CardTitle>
             <CardDescription>
               Pick any day in the week. The report lists your work days with your usual times
-              already filled in; you only write what you did and explain a day that was different.
+              already filled in; you only list the work you accomplished and explain a day that was
+              different.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -314,16 +313,33 @@ export default async function WeeklyReportsPage(props: {
               // rest fold to one line so the page isn't every week's every day at once.
               const startOpen = isOwner ? report.id === firstEditableId : index === 0;
               const weekHours = formatHrsMins(Number(report.totalHours));
+              const weekNo = weekNumberFrom(firstReport.weekStart, report.weekStart);
+              // The class may be in a later week than the intern's own count: say which
+              // Google Classroom week this report goes under.
+              const termWeek = termWeekOne
+                ? Math.round(
+                    (report.weekStart.getTime() - getWeekStartMonday(termWeekOne).getTime()) /
+                      (7 * 24 * 60 * 60 * 1000)
+                  ) + 1
+                : null;
               return (
                 <div key={report.id} className="rounded-lg border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        {formatDate(report.weekStart)} –{" "}
-                        {formatDate(reportPeriodEnd(report.weekStart, report.dailyEntries))}
+                        Week No. {weekNo}
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          · {formatDate(report.weekStart)} –{" "}
+                          {formatDate(reportPeriodEnd(report.weekStart, report.dailyEntries))}
+                        </span>
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Due {formatDate(getWeeklyReportDueDate(report.weekEnd))}
+                        WWR{String(weekNo).padStart(2, "0")} · due{" "}
+                        {formatDate(getWeeklyReportDueDate(report.weekEnd))}
+                        {termWeek != null && termWeek > 0 && termWeek !== weekNo && (
+                          <> · goes under Week {termWeek} in Google Classroom</>
+                        )}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -342,11 +358,6 @@ export default async function WeeklyReportsPage(props: {
                           canGenerate
                         />
                       )}
-                      <TimeReportLinks
-                        studentProfileId={params.studentProfileId}
-                        weeklyReportId={report.id}
-                        kinds={timeReportKindsFor(report, timeRecords)}
-                      />
                       {isOwner && awaitingReview && !isWeeklyReportLate(report.weekEnd) && (
                         <WithdrawReport weeklyReportId={report.id} />
                       )}
@@ -421,7 +432,8 @@ export default async function WeeklyReportsPage(props: {
                         editable={editable}
                         shift={shift}
                         usualTimes={usualTimes}
-                        usualTools={usualTools}
+                        firstWeek={report.id === firstReport.id}
+                        firstDay={profile?.internshipStartDate?.toISOString() ?? null}
                         holidays={holidays}
                         notes={notesFor(report.weekStart, report.weekEnd)}
                         reviewable={canReview}

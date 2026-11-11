@@ -2,7 +2,7 @@ import { dailyHours, longSchedule, scheduleCells } from "@/lib/utils/schedule";
 
 const weekdays = [1, 2, 3, 4, 5];
 
-describe("the 8-hours-a-day limit", () => {
+describe("a schedule longer than an 8-hour day (flagged for staff only)", () => {
   it("leaves a normal 8-hour day alone", () => {
     const s = {
       daysOfWeek: weekdays,
@@ -12,14 +12,14 @@ describe("the 8-hours-a-day limit", () => {
       breakMinutes: 60,
     };
     expect(longSchedule(s)).toBeNull();
-    expect(scheduleCells(s).filter((c) => c.tone === "flag")).toHaveLength(0);
   });
 
-  it("flags a 4-day, 10-hour week and marks its work days", () => {
+  it("flags a 4-day, 10-hour week in plain words, and never on the intern's timetable", () => {
     const s = { daysOfWeek: [1, 2, 3, 4], hoursPerDay: 10 };
-    expect(longSchedule(s)?.short).toBe("Schedule: 10 h/day (DOLE: max 8 h/day)");
+    expect(longSchedule(s)?.short).toBe("Schedule: 10 h/day");
     expect(longSchedule(s)?.long).toMatch(/^This schedule has 10 hours of work a day\./);
-    expect(scheduleCells(s).filter((c) => c.tone === "flag")).toHaveLength(4);
+    expect(longSchedule(s)?.long).not.toMatch(/DOLE/);
+    expect(scheduleCells(s).filter((c) => c.tone === "work")).toHaveLength(4);
   });
 
   it("catches a shift longer than the hours it claims", () => {

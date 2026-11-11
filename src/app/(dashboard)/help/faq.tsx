@@ -33,9 +33,10 @@ export const STUDENT: Faq[] = [
         >
           weekly report
         </Link>
-        : mark the day Absent, or enter your real times, and it asks for the reason. There is no
-        separate request; leave itself is approved by your company supervisor. A new schedule is
-        requested on the Attendance page.
+        : mark the day Absent, or enter your real times, and it asks for the remarks. There is no
+        separate request and no separate file: the overtime, under time or absence report prints on
+        the next page of that week&apos;s PDF. Leave itself is approved by your company supervisor.
+        A new work schedule is requested on the Work plan page.
       </>
     ),
   },
