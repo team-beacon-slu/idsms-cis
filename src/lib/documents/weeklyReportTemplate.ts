@@ -1,5 +1,10 @@
 import { escapeHtml, formatInstant } from "@/lib/documents/html";
-import { samcisDocument, supervisorSignature } from "@/lib/documents/slu";
+import { SAMCIS_HEADER, samcisDocument, supervisorSignature } from "@/lib/documents/slu";
+import {
+  renderTimeReportSection,
+  TIME_REPORT_CSS,
+  type TimeReportDocumentData,
+} from "@/lib/documents/timeReportTemplate";
 import { clock } from "@/lib/utils/schedule";
 import { formatHrsMins } from "@/lib/utils/timeMath";
 import { reportDays, reportPeriodEnd } from "@/lib/utils/reportWeek";
@@ -14,6 +19,11 @@ export interface WeeklyReportDocumentData {
   weekEnd: Date;
   weekNumber: number;
   dueDate: Date;
+  // The intern's first day of OJT, when it is known: earlier days of that first week print as
+  // not yet started (never a day off or an absence).
+  firstDay?: Date | null;
+  // The week's Report on Overtime Hours / UNDER TIME Hours / Absences, only those it has.
+  timeReports?: TimeReportDocumentData[];
   student: {
     name: string; // "Last, First M." as entered, or derived from the school email
     email: string;
@@ -55,7 +65,8 @@ export const timeRange = (a: string | null, b: string | null) =>
   a && b ? `${escapeHtml(clock(a))} – ${escapeHtml(clock(b))}` : "—";
 
 // SLU Weekly Work Report (SAMCIS template, long bond). Pure: same input → same HTML.
-// Overtime, under time and absences print as their own reports (timeReportTemplate.ts).
+// The week's overtime, under time and absences follow as sections on the next page, as on
+// SLU's template; a week without any is the report alone.
 export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
   const isPreview = data.referenceCode === null;
   const periodEnd = reportPeriodEnd(data.weekStart, data.entries);
@@ -64,10 +75,11 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
   const rows = reportDays(data.weekStart, data.entries)
     .map(({ date, entry: e }) => {
       if (!e) {
+        const notStarted = data.firstDay != null && date < data.firstDay;
         return `
       <tr>
         <td>${escapeHtml(dayLabel(date))}</td>
-        <td><strong>Day off</strong></td>
+        <td><strong>${notStarted ? "OJT not yet started" : "Day off"}</strong></td>
         <td class="num">0</td>
         <td class="text"></td>
       </tr>`;
@@ -109,6 +121,7 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
     tr.total td.label { border: none; text-align: right; }
     tr.total td.blank { border: none; }
     col.date { width: 1.6in; } col.times { width: 2.1in; } col.hours { width: 1.25in; }
+    ${TIME_REPORT_CSS}
   </style>
   <div class="title">
     <h1>Weekly Work Report</h1>
@@ -148,6 +161,12 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
   </div>
 
   ${supervisorSignature(data.company?.supervisorName)}
+
+  ${
+    data.timeReports?.length
+      ? `<div class="page">${SAMCIS_HEADER}${data.timeReports.map(renderTimeReportSection).join("")}</div>`
+      : ""
+  }
 
   <p class="ref">${
     isPreview

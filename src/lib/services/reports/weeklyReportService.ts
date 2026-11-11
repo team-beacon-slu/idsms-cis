@@ -175,36 +175,7 @@ export async function generateWeeklyReportForm(
     return { weeklyReportId: existing.id, weekStart: normalizedWeekStart, weekEnd };
   }
 
-  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
-  if (!workPlan) {
-    throw new WorkPlanNotApprovedError();
-  }
-  const schedule = workPlan.scheduleConfig as unknown as ConfigureWorkScheduleInput | null;
-  if (!schedule?.daysOfWeek?.length || !schedule.hoursPerDay) {
-    throw new ScheduleNotConfiguredError();
-  }
-
-  const holidays = await getHolidayCalendarForStudent(studentProfileId);
-  const holidayDates = new Set(holidays.filter((h) => h.applicable).map((h) => toDateKey(h.date)));
-  const workingDays = new Set(schedule.daysOfWeek);
-
-  // Applicable holidays on scheduled days get a 0-hour HOLIDAY row so the SLU
-  // template can print "Holiday (PH Calendar)".
-  const dailyEntries: Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[] = [];
-  for (let offset = 0; offset < 7; offset += 1) {
-    const day = addDays(normalizedWeekStart, offset);
-    if (!workingDays.has(day.getUTCDay())) continue;
-    dailyEntries.push(
-      holidayDates.has(toDateKey(day))
-        ? {
-            reportDate: day,
-            attendanceStatus: "HOLIDAY",
-            scheduledHours: schedule.hoursPerDay,
-            actualHours: 0,
-          }
-        : { reportDate: day, attendanceStatus: "SCHEDULED", scheduledHours: schedule.hoursPerDay }
-    );
-  }
+  const dailyEntries = await scheduledEntriesFor(studentProfileId, normalizedWeekStart);
 
   try {
     const report = await prisma.weeklyReport.create({
@@ -229,6 +200,125 @@ export async function generateWeeklyReportForm(
     }
     throw error;
   }
+}
+
+// The rows a week starts with: one per scheduled working day, from the approved work plan's
+// schedule. Days before the intern's first day of OJT are left out (not yet started).
+async function scheduledEntriesFor(
+  studentProfileId: string,
+  weekStart: Date
+): Promise<Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[]> {
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  if (!workPlan) {
+    throw new WorkPlanNotApprovedError();
+  }
+  const schedule = workPlan.scheduleConfig as unknown as ConfigureWorkScheduleInput | null;
+  if (!schedule?.daysOfWeek?.length || !schedule.hoursPerDay) {
+    throw new ScheduleNotConfiguredError();
+  }
+
+  const [holidays, profile] = await Promise.all([
+    getHolidayCalendarForStudent(studentProfileId),
+    prisma.studentProfile.findUnique({
+      where: { id: studentProfileId },
+      select: { internshipStartDate: true },
+    }),
+  ]);
+  const holidayDates = new Set(holidays.filter((h) => h.applicable).map((h) => toDateKey(h.date)));
+  const workingDays = new Set(schedule.daysOfWeek);
+  const firstDay = profile?.internshipStartDate ? toDateKey(profile.internshipStartDate) : "";
+
+  // Applicable holidays on scheduled days get a 0-hour HOLIDAY row so the SLU
+  // template can print "Holiday (PH Calendar)".
+  const dailyEntries: Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[] = [];
+  for (let offset = 0; offset < 7; offset += 1) {
+    const day = addDays(weekStart, offset);
+    if (!workingDays.has(day.getUTCDay()) || toDateKey(day) < firstDay) continue;
+    dailyEntries.push(
+      holidayDates.has(toDateKey(day))
+        ? {
+            reportDate: day,
+            attendanceStatus: "HOLIDAY",
+            scheduledHours: schedule.hoursPerDay,
+            actualHours: 0,
+          }
+        : { reportDate: day, attendanceStatus: "SCHEDULED", scheduledHours: schedule.hoursPerDay }
+    );
+  }
+  return dailyEntries;
+}
+
+// The intern's first day of OJT, set from their first weekly report (Week No. 1). An intern can
+// start in the middle of a week: the days before it leave the report, since not yet started is
+// neither a day off nor an absence (the faculty adviser, Nov 2026). Moving the day earlier
+// brings the scheduled days back. Owner only, while that first report can still be edited.
+export async function setFirstDayOfOjt(
+  weeklyReportId: string,
+  firstDay: Date,
+  studentUserId: string
+): Promise<void> {
+  const report = await prisma.weeklyReport.findUniqueOrThrow({
+    where: { id: weeklyReportId },
+    select: {
+      weekStart: true,
+      weekEnd: true,
+      status: true,
+      revisionHistory: true,
+      studentProfileId: true,
+      studentProfile: { select: { userId: true } },
+      dailyEntries: { select: { id: true, reportDate: true, accomplishments: true } },
+    },
+  });
+  if (report.studentProfile.userId !== studentUserId) {
+    throw new ForbiddenError("Only the student who owns this report can edit it");
+  }
+  if (!isWeeklyReportEditable(report)) throw new WeeklyReportLockedError();
+  const key = toDateKey(firstDay);
+  if (key < toDateKey(report.weekStart) || key > toDateKey(report.weekEnd)) {
+    throw new DailyEntryDateError("Pick a date within this report's week");
+  }
+  const { studentProfileId } = report;
+  const earlier = await prisma.weeklyReport.findFirst({
+    where: { studentProfileId, weekStart: { lt: report.weekStart } },
+    select: { id: true },
+  });
+  if (earlier) {
+    throw new DailyEntryDateError("Your first day of OJT is set in your first weekly report");
+  }
+
+  const remove = report.dailyEntries.filter((e) => toDateKey(e.reportDate) < key);
+  // Written work is never dropped silently: a day with work accomplished was worked.
+  if (remove.some((e) => e.accomplishments?.trim())) {
+    throw new DailyEntryDateError(
+      "A day before that date already has work accomplished saved. Clear it first, or pick an earlier first day."
+    );
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { internshipStartDate: firstDay },
+    });
+    if (remove.length > 0) {
+      await deleteReportedDays(
+        tx,
+        studentProfileId,
+        remove.map((e) => e.reportDate)
+      );
+      await tx.dailyReportEntry.deleteMany({ where: { id: { in: remove.map((e) => e.id) } } });
+    }
+  });
+  // After the date is saved, so the scheduled days come back from the new first day on.
+  const have = new Set(report.dailyEntries.map((e) => toDateKey(e.reportDate)));
+  const add = (await scheduledEntriesFor(studentProfileId, report.weekStart)).filter(
+    (d) => !have.has(toDateKey(new Date(d.reportDate)))
+  );
+  if (add.length > 0) {
+    await prisma.dailyReportEntry.createMany({
+      data: add.map((d) => ({ ...d, weeklyReportId })),
+    });
+  }
+  await calculateWeeklyTotalHours(weeklyReportId);
+  await calculateRunningTotalAndRemaining(studentProfileId, weeklyReportId);
 }
 
 // FR-WR-02 — Owner: KennethRusselAvaricio

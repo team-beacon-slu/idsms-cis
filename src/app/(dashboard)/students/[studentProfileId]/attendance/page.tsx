@@ -7,9 +7,7 @@ import {
   computeProjectedCompletionDate,
   getHoursSummary,
   getHolidayCalendarForStudent,
-  getLatestScheduleChangeStatus,
   listDeviationReportsForStudent,
-  type ScheduleChangeHistoryEntry,
 } from "@/lib/services/attendance/attendanceService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { parseScheduleConfig } from "@/lib/utils/schedule";
@@ -37,7 +35,7 @@ import {
   Paperclip,
   Timer,
 } from "lucide-react";
-import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
+import { ScheduleCard } from "./schedule-card";
 import { AttendanceExportButton } from "./export-button";
 import { HolidayList } from "./holiday-list";
 import { prisma } from "@/lib/prisma";
@@ -131,25 +129,6 @@ export default async function AttendancePage(props: {
     requiredHours > 0 ? Math.min(100, Math.round((renderedHours / requiredHours) * 100)) : 0;
 
   const currentSchedule = parseScheduleConfig(workPlan?.scheduleConfig);
-  const changeHistory = (workPlan?.scheduleChangeHistory ?? []) as ScheduleChangeHistoryEntry[];
-  const latestChangeStatus = getLatestScheduleChangeStatus(changeHistory);
-  const pendingRequest =
-    latestChangeStatus === "PENDING_FACULTY" || latestChangeStatus === "PENDING_COORDINATOR"
-      ? [...changeHistory].reverse().find((entry) => entry.action === "REQUESTED")
-      : undefined;
-  const pendingChange: PendingScheduleChange | null =
-    pendingRequest && latestChangeStatus
-      ? {
-          status: latestChangeStatus,
-          requestedAt: pendingRequest.timestamp,
-          reason: String(pendingRequest.reason ?? ""),
-          newScheduleConfig: parseScheduleConfig(pendingRequest.newScheduleConfig) ?? {
-            daysOfWeek: [],
-            hoursPerDay: 0,
-          },
-        }
-      : null;
-
   // What happened, not where a request stands: overtime and undertime in hours, absences in days.
   const onRecord = deviationReports.filter((r) => r.validationStatus !== "REJECTED");
   const minutesOf = (type: string) =>
@@ -164,7 +143,7 @@ export default async function AttendancePage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Attendance"
-        description="Hours, the deployment schedule, holidays, leave and conduct for this internship."
+        description="Hours, the work schedule, holidays, leave and conduct for this internship."
       />
 
       <Card>
@@ -253,39 +232,12 @@ export default async function AttendancePage(props: {
         />
       </StatStrip>
 
-      <Card id="schedule" className="scroll-mt-6">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Deployment schedule</CardTitle>
-              <CardDescription>
-                Configure or request a change to the weekly schedule.
-              </CardDescription>
-            </div>
-            <AttendanceExportButton studentProfileId={params.studentProfileId} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <AttendanceScheduleForm
-            studentProfileId={params.studentProfileId}
-            workPlanApproved={workPlan != null}
-            currentSchedule={currentSchedule}
-            pendingChange={pendingChange}
-            canEdit={isOwner}
-            review={
-              workPlan &&
-              pendingChange?.status === "PENDING_FACULTY" &&
-              user.role === "FACULTY_ADVISER"
-                ? { workPlanId: workPlan.id, stage: "faculty" }
-                : workPlan &&
-                    pendingChange?.status === "PENDING_COORDINATOR" &&
-                    (user.role === "DEPARTMENT_COORDINATOR" || user.role === "SUPER_ADMIN")
-                  ? { workPlanId: workPlan.id, stage: "coordinator" }
-                  : null
-            }
-          />
-        </CardContent>
-      </Card>
+      <ScheduleCard
+        studentProfileId={params.studentProfileId}
+        role={user.role}
+        workPlan={workPlan}
+        action={<AttendanceExportButton studentProfileId={params.studentProfileId} />}
+      />
 
       <Card>
         <CardHeader>

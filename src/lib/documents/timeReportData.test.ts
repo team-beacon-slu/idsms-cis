@@ -1,12 +1,11 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
-import { loadTimeReportData, timeReportKindsFor } from "@/lib/documents/timeReportData";
+import { loadTimeReportData } from "@/lib/documents/timeReportData";
 
 const d = (s: string) => new Date(`${s}T00:00:00Z`);
 const profile = {
   fullName: "Dela Cruz, Juan P.",
   user: { email: "juan@slu.edu.ph" },
   company: { name: "Acme", supervisorName: "Maria" },
-  semester: { weekOneStart: d("2026-10-05") },
 };
 const week = { weekStart: d("2026-10-05"), weekEnd: d("2026-10-11") };
 const request = (over: object) => ({
@@ -77,20 +76,4 @@ it("adds Absent days no leave covers, in date order", async () => {
 it("refuses a week that belongs to another student", async () => {
   prismaMock.weeklyReport.findFirst.mockResolvedValue(null);
   expect(await loadTimeReportData("p-1", "UT", "someone-elses")).toBeNull();
-});
-
-it("offers each week only the reports it has", () => {
-  expect(
-    timeReportKindsFor(week, {
-      requests: [
-        { deviationType: "OVERTIME", date: d("2026-10-10"), endDate: null },
-        { deviationType: "ABSENCE", date: d("2026-10-02"), endDate: d("2026-10-05") },
-        { deviationType: "UNDERTIME", date: d("2026-10-20"), endDate: null },
-      ] as never,
-      absentDates: [],
-    })
-  ).toEqual(["OT", "ABSENCE"]);
-  expect(timeReportKindsFor(week, { requests: [], absentDates: ["2026-10-08"] })).toEqual([
-    "ABSENCE",
-  ]);
 });

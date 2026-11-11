@@ -9,21 +9,19 @@ const LINKS: Record<TimeReportKind, { slug: string; label: string }> = {
   ABSENCE: { slug: "absences", label: "Absence report" },
 };
 
-// SLU's OT, UT and absence reports as separate PDFs, rendered on request. With
-// `weeklyReportId` they cover that week (attach to its WWR); without, the whole internship.
+// SLU's OT, UT and absence reports for the whole internship (terminal requirements),
+// rendered on request. A week's own sections print inside its Weekly Work Report PDF.
 export function TimeReportLinks({
   studentProfileId,
   kinds,
-  weeklyReportId,
 }: {
   studentProfileId: string;
   kinds: TimeReportKind[];
-  weeklyReportId?: string;
 }) {
   return kinds.map((kind) => (
     <a
       key={kind}
-      href={`/api/students/${studentProfileId}/time-reports/${LINKS[kind].slug}${weeklyReportId ? `?week=${weeklyReportId}` : ""}`}
+      href={`/api/students/${studentProfileId}/time-reports/${LINKS[kind].slug}`}
       download
       className={cn(buttonVariants({ variant: "outline", size: "sm" }), "cursor-pointer gap-1.5")}
     >

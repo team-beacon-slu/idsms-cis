@@ -79,7 +79,7 @@ export default async function SemestersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Academic year</TableHead>
                 <TableHead>Dates</TableHead>
-                <TableHead>Week 1 starts</TableHead>
+                <TableHead>Class week 1 starts</TableHead>
                 <TableHead>Students</TableHead>
                 <TableHead>State</TableHead>
                 {canManage && <TableHead>Actions</TableHead>}

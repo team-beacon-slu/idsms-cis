@@ -119,7 +119,7 @@ describe("setRequiredHoursConfig", () => {
 describe("getRequiredHoursConfig", () => {
   it.each([
     [Program.BSIT, 600],
-    [Program.BSCS, 240],
+    [Program.BSCS, 320],
     [Program.BMMA, 500],
   ])("uses the documented %s default only when unset", async (program, hours) => {
     prismaMock.systemConfig.findUnique.mockResolvedValue(null);

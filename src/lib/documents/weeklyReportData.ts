@@ -8,29 +8,27 @@ import { entryCreditedHours } from "@/lib/utils/creditedHours";
 import { displayNameFromEmail } from "@/lib/utils/displayName";
 import { getWeeklyReportDueDate, getWeekStartMonday, toDateKey } from "@/lib/utils/reportDeadline";
 import type { WeeklyReportDocumentData } from "@/lib/documents/weeklyReportTemplate";
+import { loadTimeReportData } from "@/lib/documents/timeReportData";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Week 1 is faculty-defined per term; without it, the student's first report week is
-// Week 1. A week before the faculty's Week 1 (early starter) still prints as Week 1.
-export async function weekNumberOf(
-  studentProfileId: string,
-  weekStart: Date,
-  weekOneStart: Date | null
-): Promise<number> {
-  const weekOne =
-    weekOneStart ??
-    (
-      await prisma.weeklyReport.findFirst({
-        where: { studentProfileId },
-        orderBy: { weekStart: "asc" },
-        select: { weekStart: true },
-      })
-    )?.weekStart ??
-    weekStart;
+// Week No. 1 (WWR01) is the week the intern started OJT: their first weekly report. It does
+// not follow the term's weeks (the faculty adviser, Nov 2026): an intern who starts in the
+// term's second week still files WWR01 that week.
+export async function weekNumberOf(studentProfileId: string, weekStart: Date): Promise<number> {
+  const first = await prisma.weeklyReport.findFirst({
+    where: { studentProfileId },
+    orderBy: { weekStart: "asc" },
+    select: { weekStart: true },
+  });
+  return weekNumberFrom(first?.weekStart ?? weekStart, weekStart);
+}
+
+// Pure: the 1-based count of weeks from `firstWeekStart` to `weekStart`.
+export function weekNumberFrom(firstWeekStart: Date, weekStart: Date): number {
   return Math.max(
     1,
-    Math.floor((weekStart.getTime() - getWeekStartMonday(weekOne).getTime()) / WEEK_MS) + 1
+    Math.floor((weekStart.getTime() - getWeekStartMonday(firstWeekStart).getTime()) / WEEK_MS) + 1
   );
 }
 
@@ -76,7 +74,7 @@ export async function loadWeeklyReportDocumentData(
           fullName: true,
           user: { select: { email: true } },
           company: { select: { name: true, supervisorName: true } },
-          semester: { select: { weekOneStart: true } },
+          internshipStartDate: true,
         },
       },
     },
@@ -88,11 +86,18 @@ export async function loadWeeklyReportDocumentData(
   const submission = getConfirmedSubmission(report);
   const profile = report.studentProfile;
 
-  const weekNumber = await weekNumberOf(
-    report.studentProfileId,
-    report.weekStart,
-    profile.semester.weekOneStart
-  );
+  const weekNumber = await weekNumberOf(report.studentProfileId, report.weekStart);
+  // The week's overtime, under time and absences print as sections of this report (SLU's
+  // template, page 2), each only when the week has any.
+  const timeReports = (
+    await Promise.all(
+      (["OT", "UT", "ABSENCE"] as const).map((kind) =>
+        loadTimeReportData(report.studentProfileId, kind, report.id)
+      )
+    )
+  )
+    .filter((t) => t != null && (t.rows.length > 0 || t.absences.length > 0))
+    .map((t) => ({ ...t!, week: "IN_WEEKLY_REPORT" as const }));
 
   const holidays = report.dailyEntries.some((e) => e.attendanceStatus === "HOLIDAY")
     ? await getHolidayCalendarForStudent(report.studentProfileId)
@@ -112,6 +117,8 @@ export async function loadWeeklyReportDocumentData(
     weekEnd: report.weekEnd,
     weekNumber,
     dueDate: getWeeklyReportDueDate(report.weekEnd),
+    firstDay: profile.internshipStartDate,
+    timeReports,
     student: {
       name: profile.fullName?.trim() || displayNameFromEmail(profile.user.email),
       email: profile.user.email,

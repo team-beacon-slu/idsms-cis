@@ -78,7 +78,7 @@ export const dailyEntrySchema = z
   .refine(
     (d) => (!d.timeIn2 && !d.timeOut2) || (d.timeIn && d.timeOut && d.timeIn2 && d.timeOut2),
     {
-      message: "Fill in the first time range before adding a second",
+      message: "Enter the AM Time In and Time Out, or leave both PM times empty",
       path: ["timeIn2"],
     }
   )
@@ -91,7 +91,7 @@ export const dailyEntrySchema = z
       !valid(d.timeIn, d.timeOut, d.timeIn2, d.timeOut2) ||
       daySpan([d.timeIn!, d.timeOut!, d.timeIn2!, d.timeOut2!]) <= 24 * 60,
     {
-      message: "The second time range must start after the first one ends, within 24 hours",
+      message: "The PM Time In must be after the AM Time Out, within 24 hours",
       path: ["timeIn2"],
     }
   )
