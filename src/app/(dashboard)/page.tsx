@@ -133,7 +133,7 @@ export default async function DashboardHomePage(props: {
         },
         {
           count: attention.pendingDeviations,
-          label: "Leave & time requests waiting for your adviser",
+          label: "Older leave or time requests waiting for your adviser",
           href: "/leave-requests",
         },
         {

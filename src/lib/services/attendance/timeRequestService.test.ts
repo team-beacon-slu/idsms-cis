@@ -290,6 +290,52 @@ describe("reviewTimeRequest", () => {
       TimeRequestStateError
     );
   });
+
+  // Weekly-report reasons: the adviser can overrule, then change their mind again.
+  const reported = { ...otRow, reviewNote: "Reported in the weekly report" };
+
+  it("marks a weekly-report overtime not accepted, keeping its mark, and takes the credit off", async () => {
+    assigned();
+    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
+      ...reported,
+      validationStatus: ValidationStatus.VALIDATED,
+    } as never);
+    await reviewTimeRequest("tr-1", "RETURN", "Not approved by the company", faculty);
+    expect(prismaMock.deviationReport.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          validationStatus: ValidationStatus.REJECTED,
+          facultyId: "faculty-1",
+          reviewNote: "Reported in the weekly report: Not approved by the company",
+        },
+      })
+    );
+    expect(recomputeCreditedHours).toHaveBeenCalledWith("profile-1", { dates: [otRow.date] });
+  });
+
+  it("accepts a weekly-report reason it had marked not accepted", async () => {
+    assigned();
+    prismaMock.deviationReport.findUniqueOrThrow.mockResolvedValue({
+      ...reported,
+      validationStatus: ValidationStatus.REJECTED,
+      reviewNote: "Reported in the weekly report: No proof",
+    } as never);
+    await expect(reviewTimeRequest("tr-1", "APPROVE", undefined, faculty)).resolves.toEqual({
+      studentProfileId: "profile-1",
+      status: ValidationStatus.VALIDATED,
+    });
+    expect(prismaMock.deviationReport.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "tr-1",
+        validationStatus: { in: [ValidationStatus.PENDING, ValidationStatus.REJECTED] },
+      },
+      data: {
+        validationStatus: ValidationStatus.VALIDATED,
+        facultyId: "faculty-1",
+        reviewNote: "Reported in the weekly report",
+      },
+    });
+  });
 });
 
 describe("isFiledAfterTheFact", () => {

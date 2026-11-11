@@ -56,6 +56,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       timeOut,
       timeIn2,
       timeOut2,
+      note,
     } = dailyEntrySchema.parse(body);
 
     const entryWeeklyReportId = await getDailyReportEntryWeeklyReportId(dailyReportEntryId);
@@ -75,6 +76,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         timeOut: timeOut ?? null,
         timeIn2: timeIn2 ?? null,
         timeOut2: timeOut2 ?? null,
+        note,
       }
     );
     const totalHours = await calculateWeeklyTotalHours(params.id);

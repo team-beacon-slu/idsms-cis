@@ -42,6 +42,7 @@ const row = (over: Partial<ComplianceRow> = {}): ComplianceRow => ({
   status: "ON_TRACK",
   recentWeeks: [],
   attendanceNote: null,
+  scheduleNote: null,
   ...over,
 });
 

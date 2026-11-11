@@ -6,7 +6,12 @@ import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { loadShift } from "@/lib/services/attendance/creditedHours";
-import { defaultDayTimes } from "@/lib/utils/timeMath";
+import { defaultDayTimes, formatHrsMins } from "@/lib/utils/timeMath";
+import { loadDayNotes } from "@/lib/services/attendance/reportedTimeRecords";
+import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
+import { formatSchedule, parseScheduleConfig, scheduleCells } from "@/lib/utils/schedule";
+import { WeekTimetable } from "@/components/week-timetable";
+import { LongScheduleNotice } from "@/components/long-schedule-notice";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
   getConfirmedSubmission,
@@ -22,7 +27,13 @@ import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 import { getWeeklyReportDueDate, isWeeklyReportLate, toDateKey } from "@/lib/utils/reportDeadline";
-import { ClipboardCheck, Hash, MessageSquareWarning } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronDown,
+  ClipboardCheck,
+  Hash,
+  MessageSquareWarning,
+} from "lucide-react";
 import { WeeklyReportForm } from "./weekly-report-form";
 import { jobsOnFor } from "@/lib/ai/jobs";
 import type { AiHints as AiHintsData } from "@/lib/ai/processing";
@@ -71,7 +82,17 @@ export default async function WeeklyReportsPage(props: {
   }
 
   // Independent reads, loaded together rather than one after another.
-  const [reports, documents, conduct, shift, holidayList, aiJobs, timeRecords] = await Promise.all([
+  const [
+    reports,
+    documents,
+    conduct,
+    shift,
+    holidayList,
+    aiJobs,
+    timeRecords,
+    workPlan,
+    notesByDate,
+  ] = await Promise.all([
     prisma.weeklyReport.findMany({
       where: { studentProfileId: params.studentProfileId },
       orderBy: { weekStart: "desc" },
@@ -90,7 +111,16 @@ export default async function WeeklyReportsPage(props: {
     getHolidayCalendarForStudent(params.studentProfileId),
     jobsOnFor(user),
     timeReportWeeks(params.studentProfileId),
+    getLatestApprovedWorkPlanForStudent(params.studentProfileId),
+    // Reasons the intern gave on reported days (overtime, undertime, absences) and the
+    // adviser's decision on each, by date.
+    loadDayNotes(params.studentProfileId),
   ]);
+  const schedule = parseScheduleConfig(workPlan?.scheduleConfig);
+  const notesFor = (from: Date, to: Date) =>
+    Object.fromEntries(
+      Object.entries(notesByDate).filter(([k]) => k >= toDateKey(from) && k <= toDateKey(to))
+    );
   const holidays = Object.fromEntries(
     holidayList
       .filter((h) => h.applicable)
@@ -135,6 +165,8 @@ export default async function WeeklyReportsPage(props: {
     (r) => r.weekStart.getTime() <= now && now < r.weekEnd.getTime() + 24 * 60 * 60 * 1000
   );
   const canReview = !isOwner;
+  // The newest week still being written opens; older unfinished ones wait folded.
+  const firstEditableId = isOwner ? reports.find((r) => isWeeklyReportEditable(r))?.id : undefined;
   // R5: interns see their own plan-coverage pointers (the newest week that has them).
   const coverage = aiJobs.has("coverage")
     ? reports.map((r) => (r.aiHints as AiHintsData | null)?.coverage).find((c) => c?.missing.length)
@@ -157,6 +189,40 @@ export default async function WeeklyReportsPage(props: {
             documents are never uploaded to IDSMS.
           </p>
         </details>
+      )}
+
+      {schedule && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarClock className="size-4 text-primary" aria-hidden="true" />
+                  {isOwner ? "Your work week" : "Work week"}
+                </CardTitle>
+                <CardDescription>
+                  {formatSchedule(schedule)}. Each weekly report lists these days.
+                </CardDescription>
+              </div>
+              <Link
+                href={`/students/${params.studentProfileId}/attendance#schedule`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "cursor-pointer")}
+              >
+                {isOwner ? "Request a schedule change" : "Schedule details"}
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <WeekTimetable
+              cells={scheduleCells(schedule)}
+              label={isOwner ? "Your work week" : "Work week"}
+              legend={["work", "off"]}
+            />
+            <div className="mt-3">
+              <LongScheduleNotice schedule={schedule} forIntern={isOwner} />
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {isOwner && coverage && (
@@ -185,8 +251,8 @@ export default async function WeeklyReportsPage(props: {
           <CardHeader>
             <CardTitle>Start a weekly report</CardTitle>
             <CardDescription>
-              Pick any day in the week. A form is created with one row per scheduled working day,
-              skipping holidays.
+              Pick any day in the week. The report lists your work days with your usual times
+              already filled in; you only write what you did and explain a day that was different.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -243,11 +309,12 @@ export default async function WeeklyReportsPage(props: {
                     .filter(Boolean)
                 : [];
 
+              // Only a week the intern can still edit (or the newest, for staff) starts open; the
+              // rest fold to one line so the page isn't every week's every day at once.
+              const startOpen = isOwner ? report.id === firstEditableId : index === 0;
+              const weekHours = formatHrsMins(Number(report.totalHours));
               return (
-                <div
-                  key={report.id}
-                  className="rounded-lg border p-4 transition-colors duration-200 hover:bg-muted/20"
-                >
+                <div key={report.id} className="rounded-lg border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">
@@ -334,38 +401,53 @@ export default async function WeeklyReportsPage(props: {
                     </div>
                   )}
 
-                  <div className="mt-3">
-                    <WeeklyReportForm
-                      weeklyReportId={report.id}
-                      editable={editable}
-                      shift={shift}
-                      usualTimes={usualTimes}
-                      usualTools={usualTools}
-                      holidays={holidays}
-                      weekEnd={report.weekEnd.toISOString()}
-                      priorAccomplishments={priorAccomplishments}
-                      clarityAi={editable && aiJobs.has("clarity")}
-                      totals={{
-                        totalHours: Number(report.totalHours),
-                        runningTotal: Number(report.runningTotal),
-                        conductDeductions: deductionsAsOf(report.weekEnd),
-                        remainingHours: Number(report.remainingHours),
-                      }}
-                      entries={report.dailyEntries.map((e) => ({
-                        id: e.id,
-                        reportDate: e.reportDate.toISOString(),
-                        scheduledHours: Number(e.scheduledHours),
-                        actualHours: e.actualHours == null ? null : Number(e.actualHours),
-                        accomplishments: e.accomplishments,
-                        toolsUsed: e.toolsUsed,
-                        attendanceStatus: e.attendanceStatus,
-                        timeIn: e.timeIn,
-                        timeOut: e.timeOut,
-                        timeIn2: e.timeIn2,
-                        timeOut2: e.timeOut2,
-                      }))}
-                    />
-                  </div>
+                  <details open={startOpen} className="group/week mt-3">
+                    <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-sm text-primary [&::-webkit-details-marker]:hidden">
+                      <ChevronDown
+                        className="size-4 transition-transform duration-200 group-open/week:rotate-180"
+                        aria-hidden="true"
+                      />
+                      <span className="group-open/week:hidden">
+                        {editable ? "Continue this report" : "Show the days"}
+                      </span>
+                      <span className="hidden group-open/week:inline">Hide the days</span>
+                      <span className="text-muted-foreground tabular-nums">· {weekHours}</span>
+                    </summary>
+                    <div className="mt-3">
+                      <WeeklyReportForm
+                        weeklyReportId={report.id}
+                        editable={editable}
+                        shift={shift}
+                        usualTimes={usualTimes}
+                        usualTools={usualTools}
+                        holidays={holidays}
+                        notes={notesFor(report.weekStart, report.weekEnd)}
+                        reviewable={canReview}
+                        weekEnd={report.weekEnd.toISOString()}
+                        priorAccomplishments={priorAccomplishments}
+                        clarityAi={editable && aiJobs.has("clarity")}
+                        totals={{
+                          totalHours: Number(report.totalHours),
+                          runningTotal: Number(report.runningTotal),
+                          conductDeductions: deductionsAsOf(report.weekEnd),
+                          remainingHours: Number(report.remainingHours),
+                        }}
+                        entries={report.dailyEntries.map((e) => ({
+                          id: e.id,
+                          reportDate: e.reportDate.toISOString(),
+                          scheduledHours: Number(e.scheduledHours),
+                          actualHours: e.actualHours == null ? null : Number(e.actualHours),
+                          accomplishments: e.accomplishments,
+                          toolsUsed: e.toolsUsed,
+                          attendanceStatus: e.attendanceStatus,
+                          timeIn: e.timeIn,
+                          timeOut: e.timeOut,
+                          timeIn2: e.timeIn2,
+                          timeOut2: e.timeOut2,
+                        }))}
+                      />
+                    </div>
+                  </details>
                 </div>
               );
             })

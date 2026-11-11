@@ -30,7 +30,7 @@ const ACTION_LINKS = [
   { suffix: "checklist", label: "Checklist" },
   { suffix: "work-plan", label: "Work plan" },
   { suffix: "attendance", label: "Attendance" },
-  { suffix: "leave-requests", label: "Leave & time" },
+  { suffix: "leave-requests", label: "OT & absences" },
   { suffix: "monthly-reports", label: "Monthly reports" },
 ] as const;
 

@@ -15,7 +15,11 @@ import {
 import { requireRole, requireUserApi } from "@/lib/auth/session";
 import { assertCanAccessStudent } from "@/lib/services/accounts/userService";
 import { handleApiError } from "@/lib/utils/apiError";
-import { notifyScheduleChange } from "@/lib/services/notifications/notificationEvents";
+import {
+  notifyLongSchedule,
+  notifyScheduleChange,
+} from "@/lib/services/notifications/notificationEvents";
+import { longSchedule } from "@/lib/utils/schedule";
 
 // FR-AT-01: initial schedule config, student self-only.
 export async function POST(
@@ -30,6 +34,8 @@ export async function POST(
     const body = scheduleConfigSchema.parse(await req.json());
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await configureWorkSchedule(params.studentProfileId, body, user, ipAddress);
+    const long = longSchedule(body);
+    if (long) waitUntil(notifyLongSchedule(params.studentProfileId, long.long));
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);
@@ -77,7 +83,14 @@ export async function PATCH(
     }
     const ipAddress = req.headers.get("x-forwarded-for");
     const result = await requestScheduleChange(params.studentProfileId, body, user, ipAddress);
-    waitUntil(notifyScheduleChange(params.studentProfileId, "REQUESTED"));
+    waitUntil(
+      notifyScheduleChange(
+        params.studentProfileId,
+        "REQUESTED",
+        undefined,
+        longSchedule(body.newScheduleConfig)?.long
+      )
+    );
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return handleApiError(error);

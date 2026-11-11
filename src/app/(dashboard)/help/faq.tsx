@@ -23,17 +23,19 @@ export const STUDENT: Faq[] = [
     a: "Submit the documents in your Google Classroom. IDSMS only tracks whether each one was received and approved, on your Checklist.",
   },
   {
-    q: "I'll be absent or my schedule changed.",
+    q: "I was absent, worked overtime or left early.",
     a: (
       <>
-        File it under{" "}
+        Report it on that day in your{" "}
         <Link
-          href="/leave-requests"
+          href="/weekly-reports"
           className="font-medium text-primary underline-offset-2 hover:underline"
         >
-          Leave &amp; time requests
-        </Link>{" "}
-        so your adviser can review it.
+          weekly report
+        </Link>
+        : mark the day Absent, or enter your real times, and it asks for the reason. There is no
+        separate request; leave itself is approved by your company supervisor. A new schedule is
+        requested on the Attendance page.
       </>
     ),
   },

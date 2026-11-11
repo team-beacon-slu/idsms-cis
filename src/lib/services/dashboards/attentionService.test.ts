@@ -23,6 +23,11 @@ describe("requestsAwaitingReviewByStudent", () => {
       by: ["studentProfileId"],
       where: {
         validationStatus: "PENDING",
+        // Reasons from weekly reports are reviewed with their week, not counted here.
+        OR: [
+          { reviewNote: null },
+          { NOT: { reviewNote: { startsWith: "Reported in the weekly report" } } },
+        ],
         studentProfile: { OR: [{ classGroupId: "cg-1", semesterId: "s-1" }] },
       },
       _count: { _all: true },

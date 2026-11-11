@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: jest.fn() }),
@@ -31,6 +31,7 @@ const props = {
   priorAccomplishments: [],
 };
 const accomplishments = () => screen.getByPlaceholderText("What did you work on and finish today?");
+const accomplishmentsBox = (id: string) => document.getElementById(`acc-${id}`);
 
 beforeEach(() => {
   localStorage.clear();
@@ -93,17 +94,15 @@ it("prefills new days with the last worked day's tools", () => {
   expect(document.getElementById("tools-wed")).toHaveValue("VS Code, Figma");
 });
 
-it("copies times typed on one day to the later untouched days, but not to edited ones", () => {
-  render(<WeeklyReportForm {...props} entries={week} editable />);
-  fireEvent.change(timeIn("thu"), { target: { value: "10:00" } }); // Thursday is edited
+it("changes only the day whose times were edited, never the rest of the week", () => {
+  const usualTimes = { timeIn: "08:00", timeOut: "19:00", timeIn2: "", timeOut2: "" };
+  render(<WeeklyReportForm {...props} entries={week} editable usualTimes={usualTimes} />);
 
-  fireEvent.change(timeIn("tue"), { target: { value: "09:00" } });
-  fireEvent.change(timeOut("tue"), { target: { value: "17:00" } });
-  fireEvent.change(timeIn("tue"), { target: { value: "09:30" } }); // hour, then minutes
+  fireEvent.change(timeOut("tue"), { target: { value: "17:00" } }); // left early on Tuesday only
 
-  expect(timeIn("wed")).toHaveValue("09:30");
-  expect(timeOut("wed")).toHaveValue("17:00");
-  expect(timeIn("thu")).toHaveValue("10:00");
+  expect(timeOut("tue")).toHaveValue("17:00");
+  expect(timeOut("wed")).toHaveValue("19:00");
+  expect(timeOut("thu")).toHaveValue("19:00");
 });
 
 const tools = (id: string) => document.getElementById(`tools-${id}`) as HTMLInputElement;
@@ -118,7 +117,7 @@ it("carries Tools used to the later blank days once typed, leaving filled ones a
   expect(tools("thu")).toHaveValue("Excel");
 });
 
-it("marks every day that needs fixing on Submit and scrolls to the first", () => {
+it("marks every day that needs fixing on Submit and scrolls to the first", async () => {
   const scroll = jest.fn();
   Element.prototype.scrollIntoView = scroll;
   render(<WeeklyReportForm {...props} entries={week} editable />);
@@ -128,14 +127,18 @@ it("marks every day that needs fixing on Submit and scrolls to the first", () =>
   // One error summary with a link per day, each field flagged and tied to its message.
   const summary = screen.getByRole("alert");
   expect(summary.querySelectorAll("a")).toHaveLength(3);
-  expect(summary).toHaveTextContent("Wed, Oct 21: Enter hours worked");
-  const acc = document.getElementById("hours-wed");
-  expect(acc).toHaveAttribute("aria-invalid", "true");
-  expect(acc).toHaveAttribute("aria-describedby", "problem-wed");
-  expect(document.getElementById("problem-wed")).toHaveTextContent("Enter hours worked");
+  expect(summary).toHaveTextContent("Wed, Oct 21: Enter your time in and time out");
+  const timeInWed = document.getElementById("in-wed");
+  expect(timeInWed).toHaveAttribute("aria-invalid", "true");
+  expect(timeInWed).toHaveAttribute("aria-describedby", "problem-wed");
+  expect(document.getElementById("problem-wed")).toHaveTextContent(
+    "Enter your time in and time out"
+  );
+  // Every day with a problem is opened so its message sits next to the field.
+  expect(document.getElementById("day-thu")).toHaveAttribute("open");
   expect(toast.error).toHaveBeenCalledWith("3 days need fixing; each is marked below");
-  expect(scroll).toHaveBeenCalledTimes(1);
-  expect(document.activeElement).toBe(document.getElementById("hours-tue"));
+  await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(document.activeElement).toBe(document.getElementById("in-tue")));
 });
 
 it("clears a day's error once the intern edits it", () => {
@@ -143,10 +146,10 @@ it("clears a day's error once the intern edits it", () => {
   render(<WeeklyReportForm {...props} entries={week} editable />);
   fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
 
-  fireEvent.change(document.getElementById("hours-tue")!, { target: { value: "8" } });
+  fireEvent.change(timeIn("tue"), { target: { value: "08:00" } });
 
   expect(screen.getByRole("alert").querySelectorAll("a")).toHaveLength(2);
-  expect(document.getElementById("hours-tue")).not.toHaveAttribute("aria-invalid");
+  expect(timeIn("tue")).not.toHaveAttribute("aria-invalid");
 });
 
 it("flags a missing reason for delay on a late report next to the box", () => {
@@ -165,4 +168,87 @@ it("flags a missing reason for delay on a late report next to the box", () => {
   const box = document.getElementById("delay-wr-1");
   expect(box).toHaveAttribute("aria-invalid", "true");
   expect(screen.getByRole("alert")).toHaveTextContent("Reason for delay is required");
+});
+
+const shift = { startMin: 8 * 60, endMin: 17 * 60, breakMinutes: 60, scheduledHours: 8 };
+const reasonBox = (id: string) => document.getElementById(`reason-${id}`) as HTMLTextAreaElement;
+
+it("starts every scheduled day at the schedule's times and opens only the first day to fill", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable shift={shift} />);
+
+  expect(timeIn("thu")).toHaveValue("08:00");
+  expect(timeOut("thu")).toHaveValue("17:00");
+  expect(document.getElementById("day-tue")).toHaveAttribute("open");
+  expect(document.getElementById("day-wed")).not.toHaveAttribute("open");
+});
+
+it("asks for a reason only when the times differ from the schedule", () => {
+  render(<WeeklyReportForm {...props} entries={week} editable shift={shift} />);
+  expect(reasonBox("tue")).toBeNull();
+
+  fireEvent.change(timeOut("tue"), { target: { value: "19:00" } });
+
+  expect(screen.getByText(/Overtime 5:00 pm – 7:00 pm \(2 hrs\)/)).toBeInTheDocument();
+  expect(reasonBox("tue")).not.toBeNull();
+  expect(reasonBox("wed")).toBeNull();
+});
+
+it("won't submit an early leave without a reason, and says so on that day", () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  const work = {
+    tue: "Set up the login page and its validation rules",
+    wed: "Met the client about invoice exports and wrote notes",
+    thu: "Fixed three bugs found by QA in the payroll screen",
+  };
+  const written = week.map((d) => ({
+    ...d,
+    attendanceStatus: "PRESENT",
+    actualHours: 8,
+    timeIn: "08:00",
+    timeOut: "17:00",
+    accomplishments: work[d.id as keyof typeof work],
+  }));
+  render(<WeeklyReportForm {...props} entries={written} editable shift={shift} />);
+  fireEvent.change(timeOut("wed"), { target: { value: "15:00" } });
+
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Wed, Oct 21: Say why you left early (at least 10 characters)"
+  );
+  expect(reasonBox("wed")).toHaveAttribute("aria-invalid", "true");
+});
+
+it("an absent day asks why and for the proof, with no times or accomplishments", () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  render(<WeeklyReportForm {...props} entries={[entry]} editable shift={shift} />);
+
+  fireEvent.click(screen.getByRole("radio", { name: "Absent" }));
+
+  expect(timeIn("e-1")).toBeNull();
+  expect(accomplishmentsBox("e-1")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Say why you were absent");
+
+  fireEvent.change(reasonBox("e-1"), { target: { value: "Fever, saw a doctor" } });
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Choose the proof you'll upload");
+});
+
+it("shows the reasons an intern gave when the week is read-only", () => {
+  const submitted = {
+    ...entry,
+    attendanceStatus: "ABSENT",
+    actualHours: 0,
+  };
+  render(
+    <WeeklyReportForm
+      {...props}
+      entries={[submitted]}
+      editable={false}
+      notes={{ "2026-10-19": { reason: "Fever, saw a doctor", proofType: "MEDICAL_CERTIFICATE" } }}
+    />
+  );
+  expect(screen.getAllByText(/Fever, saw a doctor/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/proof: Medical certificate/).length).toBeGreaterThan(0);
 });

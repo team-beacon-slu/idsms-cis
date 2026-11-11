@@ -13,7 +13,7 @@ import {
 } from "@/lib/services/predeployment/checklistService";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
 import { attendancePattern, patternNote } from "@/lib/utils/attendancePattern";
-import { parseScheduleConfig } from "@/lib/utils/schedule";
+import { longSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
 import { scheduleShift } from "@/lib/utils/timeMath";
 import { formatManilaDateTime } from "@/lib/utils/excelExport";
 import {
@@ -52,6 +52,7 @@ export interface ComplianceRow {
   status: ComplianceStatus;
   recentWeeks: TrackKind[]; // last 8 weeks up to this one, oldest first (the roster's mini track)
   attendanceNote: string | null; // "Absent 3× in 4 weeks" once a pattern reaches the threshold
+  scheduleNote: string | null; // the schedule goes past 8 hours a day
 }
 
 // Spreadsheet shape shared by the F compliance export and the G admin
@@ -295,6 +296,7 @@ export async function getComplianceRows(
       status,
       recentWeeks,
       attendanceNote,
+      scheduleNote: schedule ? (longSchedule(schedule)?.short ?? null) : null,
     };
   });
 }

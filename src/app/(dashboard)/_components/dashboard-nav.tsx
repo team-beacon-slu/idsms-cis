@@ -86,7 +86,7 @@ export function getNavGroups(role: Role, studentProfileId?: string): NavGroup[] 
         items: [
           { href: own("/weekly-reports"), label: "Weekly reports", icon: FileText },
           { href: own("/attendance"), label: "Attendance", icon: Clock },
-          { href: own("/leave-requests"), label: "Leave & time requests", icon: CalendarOff },
+          { href: own("/leave-requests"), label: "Overtime & absences", icon: CalendarOff },
         ],
       },
       {

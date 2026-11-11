@@ -19,9 +19,12 @@ describe("scheduleConfigSchema shift times", () => {
     expect(r).toMatchObject({ startTime: "08:00", endTime: "17:00", breakMinutes: 60 });
   });
 
-  it("rejects an end time that is not after the start time", () => {
+  it("accepts a night shift that ends the next morning, but not equal times", () => {
     expect(() =>
-      scheduleConfigSchema.parse({ ...base, startTime: "17:00", endTime: "08:00" })
+      scheduleConfigSchema.parse({ ...base, startTime: "22:00", endTime: "06:00" })
+    ).not.toThrow();
+    expect(() =>
+      scheduleConfigSchema.parse({ ...base, startTime: "08:00", endTime: "08:00" })
     ).toThrow();
   });
 
