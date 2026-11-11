@@ -252,3 +252,14 @@ it("shows the reasons an intern gave when the week is read-only", () => {
   expect(screen.getAllByText(/Fever, saw a doctor/).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/proof: Medical certificate/).length).toBeGreaterThan(0);
 });
+
+it("lists Monday to Friday for a Mon–Thu schedule: Friday is a day off that can be added", () => {
+  const monThu = ["19", "20", "21", "22"].map((d) => day(`d${d}`, `2026-10-${d}T00:00:00.000Z`));
+  render(
+    <WeeklyReportForm {...props} weekEnd="2026-10-25T00:00:00.000Z" entries={monThu} editable />
+  );
+  expect(screen.getByText(/Fri, Oct 23/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "I worked on Fri, Oct 23" })).toBeInTheDocument();
+  expect(screen.queryByText(/Sat, Oct 24/)).toBeNull();
+  expect(screen.getByRole("list", { name: /This week/ }).children).toHaveLength(5);
+});

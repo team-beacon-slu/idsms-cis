@@ -40,6 +40,7 @@ import {
 } from "@/lib/utils/timeMath";
 import { clock, clockShort, WEEKDAY_LONG, WEEKDAY_SHORT } from "@/lib/utils/schedule";
 import { sendJson } from "@/lib/utils/sendJson";
+import { reportDays, type ReportDay } from "@/lib/utils/reportWeek";
 import { clearDraft, loadDraft, saveDraft } from "@/lib/utils/reportDraft";
 import { detectCopyPasteWarning } from "./copy-paste-warning";
 import { generatePdfInBackground } from "./report-pdf-actions";
@@ -425,7 +426,8 @@ function AddDayControl({
   onAdded: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const min = toDateKey(addDays(weekEnd, -6));
+  // Weekdays are always listed (a day off has its own "I worked this day"); this adds a weekend.
+  const min = toDateKey(addDays(weekEnd, -1));
   const max = toDateKey(weekEnd);
 
   async function add() {
@@ -445,7 +447,7 @@ function AddDayControl({
       return;
     }
     onDate("");
-    toast.success("Day added: fill in its times, what you did and why you worked it");
+    toast.success("Day added: fill in your times, what you did and what the overtime was for");
     onAdded();
   }
 
@@ -453,7 +455,7 @@ function AddDayControl({
     <div className="flex flex-wrap items-end gap-2 pt-2">
       <div className="space-y-1">
         <Label htmlFor={`add-day-${weeklyReportId}`} className="text-xs">
-          Day you worked
+          Saturday or Sunday you worked
         </Label>
         <Input
           id={`add-day-${weeklyReportId}`}
@@ -476,7 +478,6 @@ function AddDayControl({
         <CalendarPlus className="size-3.5" aria-hidden="true" />
         {busy ? "Adding..." : "Add this day"}
       </Button>
-      {disabled && <p className="w-full text-xs text-muted-foreground">Save your changes first.</p>}
     </div>
   );
 }
@@ -904,32 +905,28 @@ export function WeeklyReportForm({
     );
   }
 
-  // The week as seven cells (Mon to Sun): what each day is and whether it is ready.
+  // The report's days: Monday to Friday always, Saturday/Sunday only when worked (SLU policy).
   const weekStart = addDays(weekEndDate, -6);
-  const byDate = new Map(entries.map((e) => [e.reportDate.slice(0, 10), e]));
-  const cells: TimetableCell[] = Array.from({ length: 7 }, (_, i): TimetableCell => {
-    const d = addDays(weekStart, i);
-    const key = toDateKey(d);
+  const days = reportDays(weekStart, entries);
+  const cells: TimetableCell[] = days.map(({ date: d, key, entry }): TimetableCell => {
     const base = {
       key,
       weekday: WEEKDAY_SHORT[d.getUTCDay()],
       date: String(d.getUTCDate()),
     };
     const long = `${WEEKDAY_LONG[d.getUTCDay()]} ${d.getUTCDate()}`;
-    const entry = byDate.get(key);
     if (!entry) {
       const h = holidays[key];
       return {
         ...base,
         tone: h ? "holiday" : "off",
-        label: h ? "Holiday" : "Off",
-        description: `${long}: ${h ? h.name : "not a work day in your schedule"}${editable ? ". Select to add it as a day you worked." : ""}`,
-        onSelect: editable
-          ? () => {
-              setAddDate(key);
-              setAddOpen(true);
-            }
-          : undefined,
+        label: h ? "Holiday" : "Day off",
+        shortLabel: h ? "Holiday" : "Off",
+        description: `${long}: ${h ? h.name : "a day off in your schedule"}`,
+        onSelect: () =>
+          document
+            .getElementById(`off-${weeklyReportId}-${key}`)
+            ?.scrollIntoView({ behavior: "smooth", block: "center" }),
       };
     }
     const row = rowOf(entry);
@@ -962,6 +959,61 @@ export function WeeklyReportForm({
       description: `${long}: ${issue ? issue.message : ready ? "ready" : "not written yet"}${hrs ? `, ${hrs}` : ""}${ot ? ", overtime" : ""}`,
     };
   });
+
+  // A weekday off was worked after all: it joins the report as an overtime day.
+  const [addingDay, setAddingDay] = useState<string | null>(null);
+  async function addWorkedDay(key: string) {
+    setAddingDay(key);
+    const res = await sendJson(`/api/weekly-reports/${weeklyReportId}/entries`, {
+      method: "POST",
+      body: { reportDate: key },
+    });
+    setAddingDay(null);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Day added: fill in your times, what you did and what the overtime was for");
+    router.refresh();
+  }
+
+  // A weekday the schedule has off (or a holiday) with nothing worked: one quiet line.
+  function offDayLine(day: ReportDay<DailyEntryRow>, canAdd: boolean) {
+    const h = holidays[day.key];
+    const label = formatDay(day.date.toISOString());
+    return (
+      <div
+        key={day.key}
+        id={`off-${weeklyReportId}-${day.key}`}
+        className="flex min-h-12 scroll-mt-6 flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/20 px-4 py-2"
+      >
+        <span className="text-sm">
+          <span className="font-medium text-foreground">{label}</span>
+          <span className="text-muted-foreground">
+            {" "}
+            ·{" "}
+            {h
+              ? `${h.name} (${h.company ? "company day off" : "PH holiday"})`
+              : "Day off in your schedule"}
+          </span>
+        </span>
+        {canAdd && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={isPending || addingDay !== null}
+            onClick={() => addWorkedDay(day.key)}
+            aria-label={`I worked on ${label}`}
+            className="h-8 cursor-pointer gap-1 px-2 text-xs text-primary"
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            {addingDay === day.key ? "Adding..." : "I worked this day"}
+          </Button>
+        )}
+      </div>
+    );
+  }
   const readyCount = entries.filter((e) => !problemOf(e)).length;
 
   if (entries.length === 0) {
@@ -998,40 +1050,46 @@ export function WeeklyReportForm({
         />
         {/* Phones: one stacked row per day, so the accomplishment text keeps the full width. */}
         <ul className="divide-y sm:hidden">
-          {entries.map((entry) => (
-            <li key={entry.id} className="space-y-1 py-3 text-sm">
-              <p className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="font-medium">
-                  {formatDay(entry.reportDate)} ·{" "}
-                  {entry.attendanceStatus === "HOLIDAY"
-                    ? holidayLabel(entry.reportDate)
-                    : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
-                </span>
-                <span className="whitespace-nowrap">
-                  {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
-                  {entry.scheduledHours > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {" "}
-                      / {formatHrsMins(entry.scheduledHours)}
-                    </span>
-                  )}
-                </span>
-              </p>
-              {entry.timeIn && entry.timeOut && (
-                <p className="text-xs text-muted-foreground">
-                  {rangeText(entry.timeIn, entry.timeOut)}
-                  {entry.timeIn2 &&
-                    entry.timeOut2 &&
-                    `, ${rangeText(entry.timeIn2, entry.timeOut2)}`}
+          {days.map(({ key, date, entry }) =>
+            !entry ? (
+              <li key={key} className="py-3 text-sm text-muted-foreground">
+                {formatDay(date.toISOString())} · {holidays[key]?.name ?? "Day off"}
+              </li>
+            ) : (
+              <li key={entry.id} className="space-y-1 py-3 text-sm">
+                <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="font-medium">
+                    {formatDay(entry.reportDate)} ·{" "}
+                    {entry.attendanceStatus === "HOLIDAY"
+                      ? holidayLabel(entry.reportDate)
+                      : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
+                    {entry.scheduledHours > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {" "}
+                        / {formatHrsMins(entry.scheduledHours)}
+                      </span>
+                    )}
+                  </span>
                 </p>
-              )}
-              {noteLine(entry)}
-              <p className="whitespace-pre-wrap">{entry.accomplishments || "—"}</p>
-              {entry.toolsUsed && (
-                <p className="text-xs text-muted-foreground">Tools: {entry.toolsUsed}</p>
-              )}
-            </li>
-          ))}
+                {entry.timeIn && entry.timeOut && (
+                  <p className="text-xs text-muted-foreground">
+                    {rangeText(entry.timeIn, entry.timeOut)}
+                    {entry.timeIn2 &&
+                      entry.timeOut2 &&
+                      `, ${rangeText(entry.timeIn2, entry.timeOut2)}`}
+                  </p>
+                )}
+                {noteLine(entry)}
+                <p className="whitespace-pre-wrap">{entry.accomplishments || "—"}</p>
+                {entry.toolsUsed && (
+                  <p className="text-xs text-muted-foreground">Tools: {entry.toolsUsed}</p>
+                )}
+              </li>
+            )
+          )}
         </ul>
         <div className="hidden overflow-x-auto sm:block">
           <table className="w-full text-sm">
@@ -1046,47 +1104,56 @@ export function WeeklyReportForm({
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className="border-b align-top last:border-0">
-                  <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                    {formatDay(entry.reportDate)}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {entry.attendanceStatus === "HOLIDAY"
-                      ? holidayLabel(entry.reportDate)
-                      : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
-                  </td>
-                  <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                    {entry.timeIn && entry.timeOut ? (
-                      <>
-                        {rangeText(entry.timeIn, entry.timeOut)}
-                        {entry.timeIn2 && entry.timeOut2 && (
-                          <>
-                            <br />
-                            {rangeText(entry.timeIn2, entry.timeOut2)}
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 whitespace-nowrap">
-                    {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
-                    {entry.scheduledHours > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {" "}
-                        / {formatHrsMins(entry.scheduledHours)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="space-y-1 py-2 pr-3">
-                    <p className="whitespace-pre-wrap">{entry.accomplishments || "—"}</p>
-                    {noteLine(entry)}
-                  </td>
-                  <td className="py-2 text-muted-foreground">{entry.toolsUsed ?? "—"}</td>
-                </tr>
-              ))}
+              {days.map(({ key, date, entry }) =>
+                !entry ? (
+                  <tr key={key} className="border-b align-top text-muted-foreground last:border-0">
+                    <td className="py-2 pr-3 whitespace-nowrap">{formatDay(date.toISOString())}</td>
+                    <td className="py-2 pr-3" colSpan={5}>
+                      {holidays[key] ? holidayLabel(date.toISOString()) : "Day off in the schedule"}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={entry.id} className="border-b align-top last:border-0">
+                    <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
+                      {formatDay(entry.reportDate)}
+                    </td>
+                    <td className="py-2 pr-3">
+                      {entry.attendanceStatus === "HOLIDAY"
+                        ? holidayLabel(entry.reportDate)
+                        : (STATUS_LABEL[entry.attendanceStatus] ?? entry.attendanceStatus)}
+                    </td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
+                      {entry.timeIn && entry.timeOut ? (
+                        <>
+                          {rangeText(entry.timeIn, entry.timeOut)}
+                          {entry.timeIn2 && entry.timeOut2 && (
+                            <>
+                              <br />
+                              {rangeText(entry.timeIn2, entry.timeOut2)}
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {entry.actualHours == null ? "—" : formatHrsMins(entry.actualHours)}
+                      {entry.scheduledHours > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {" "}
+                          / {formatHrsMins(entry.scheduledHours)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="space-y-1 py-2 pr-3">
+                      <p className="whitespace-pre-wrap">{entry.accomplishments || "—"}</p>
+                      {noteLine(entry)}
+                    </td>
+                    <td className="py-2 text-muted-foreground">{entry.toolsUsed ?? "—"}</td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         </div>
@@ -1112,7 +1179,9 @@ export function WeeklyReportForm({
       </div>
 
       <div className="space-y-2">
-        {entries.map((entry) => {
+        {days.map((day) => {
+          if (!day.entry) return offDayLine(day, true);
+          const entry = day.entry;
           const row = rowOf(entry);
           const flag = copyPasteFlags[entry.id];
           const problem = problems[entry.id];
@@ -1510,7 +1579,7 @@ export function WeeklyReportForm({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    disabled={isPending || hasDirty}
+                    disabled={isPending}
                     onClick={() => removeAddedDay(entry)}
                     aria-label={`Remove ${dayLabel} from this report`}
                     className="h-8 cursor-pointer px-2 text-xs text-red-700"
@@ -1551,13 +1620,13 @@ export function WeeklyReportForm({
       >
         <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-primary underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">
           <Plus className="size-3.5" aria-hidden="true" />
-          Worked a day outside your schedule?
+          Worked on Saturday or Sunday?
         </summary>
         <AddDayControl
           weeklyReportId={weeklyReportId}
           weekEnd={weekEndDate}
           takenDates={entries.map((e) => e.reportDate.slice(0, 10))}
-          disabled={isPending || hasDirty}
+          disabled={isPending}
           date={addDate}
           onDate={setAddDate}
           onAdded={() => router.refresh()}

@@ -2,6 +2,7 @@ import { escapeHtml, formatInstant } from "@/lib/documents/html";
 import { samcisDocument, supervisorSignature } from "@/lib/documents/slu";
 import { clock } from "@/lib/utils/schedule";
 import { formatHrsMins } from "@/lib/utils/timeMath";
+import { reportDays, reportPeriodEnd } from "@/lib/utils/reportWeek";
 
 export interface WeeklyReportDocumentData {
   weeklyReportId: string;
@@ -57,9 +58,20 @@ export const timeRange = (a: string | null, b: string | null) =>
 // Overtime, under time and absences print as their own reports (timeReportTemplate.ts).
 export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
   const isPreview = data.referenceCode === null;
+  const periodEnd = reportPeriodEnd(data.weekStart, data.entries);
 
-  const rows = data.entries
-    .map((e) => {
+  // SLU policy: Monday to Friday, plus a Saturday or Sunday only when worked.
+  const rows = reportDays(data.weekStart, data.entries)
+    .map(({ date, entry: e }) => {
+      if (!e) {
+        return `
+      <tr>
+        <td>${escapeHtml(dayLabel(date))}</td>
+        <td><strong>Day off</strong></td>
+        <td class="num">0</td>
+        <td class="text"></td>
+      </tr>`;
+      }
       let times: string;
       let hours: string;
       if (e.attendanceStatus === "HOLIDAY") {
@@ -100,7 +112,7 @@ export function renderWeeklyReportHtml(data: WeeklyReportDocumentData): string {
   </style>
   <div class="title">
     <h1>Weekly Work Report</h1>
-    <p>Week No. ${escapeHtml(data.weekNumber)} (${escapeHtml(shortDate(data.weekStart))} – ${escapeHtml(shortDate(data.weekEnd))}, ${data.weekEnd.getUTCFullYear()})</p>
+    <p>Week No. ${escapeHtml(data.weekNumber)} (${escapeHtml(shortDate(data.weekStart))} – ${escapeHtml(shortDate(periodEnd))}, ${periodEnd.getUTCFullYear()})</p>
     ${isPreview ? '<p class="watermark">PREVIEW — NOT YET SUBMITTED</p>' : ""}
   </div>
 
