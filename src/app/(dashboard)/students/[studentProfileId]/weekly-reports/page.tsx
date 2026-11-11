@@ -214,6 +214,10 @@ export default async function WeeklyReportsPage(props: {
     (r) => r.weekStart.getTime() <= now && now < r.weekEnd.getTime() + 24 * 60 * 60 * 1000
   );
   const canReview = !isOwner;
+  // The intern's list starts with what they still owe, oldest first, so the week to write is
+  // at the top of the page instead of under every finished week (phone: 2.5 screens down).
+  const owed = isOwner ? reports.filter((r) => isWeeklyReportEditable(r)).reverse() : [];
+  const listed = [...owed, ...reports.filter((r) => !owed.includes(r))];
   // The oldest week still owed opens (reports are newest first): on Monday that is last week's.
   const firstEditableId = isOwner
     ? reports.findLast((r) => isWeeklyReportEditable(r))?.id
@@ -244,7 +248,7 @@ export default async function WeeklyReportsPage(props: {
         </details>
       )}
 
-      {schedule && (
+      {schedule && !isOwner && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -278,27 +282,6 @@ export default async function WeeklyReportsPage(props: {
         </Card>
       )}
 
-      {isOwner && coverage && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Planned tasks not found in your entries</CardTitle>
-            <CardDescription>
-              AI assist compared your approved work plan with your last {coverage.weeks} weeks of
-              entries. &ldquo;Not found&rdquo; is not &ldquo;not done&rdquo;: if you did these,
-              describe them in your entries; if the company hasn&apos;t given you the work, raise it
-              with them. Disagree? Ask for a correction under Account settings › Your data.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc space-y-0.5 pl-5 text-sm text-foreground/85">
-              {coverage.missing.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
       {isOwner && !hasThisWeek && (
         <Card>
           <CardHeader>
@@ -315,20 +298,14 @@ export default async function WeeklyReportsPage(props: {
         </Card>
       )}
 
-      {isOwner && hasThisWeek && (
-        <details className="rounded-lg border bg-card px-4 py-3 text-sm">
-          <summary className="cursor-pointer font-medium">Start a report for another week</summary>
-          <p className="mt-2 mb-3 text-muted-foreground">
-            This week&apos;s report is below. For a missed week, pick any day in it.
-          </p>
-          <GenerateWeekButton studentProfileId={params.studentProfileId} />
-        </details>
-      )}
-
       <Card>
         <CardHeader>
           <CardTitle>All reports ({reports.length})</CardTitle>
-          <CardDescription>Ordered from the most recent week.</CardDescription>
+          <CardDescription>
+            {isOwner
+              ? "Weeks still to submit first, then the rest from the most recent."
+              : "Ordered from the most recent week."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {reports.length === 0 ? (
@@ -342,7 +319,8 @@ export default async function WeeklyReportsPage(props: {
               }
             />
           ) : (
-            reports.map((report, index) => {
+            listed.map((report) => {
+              const index = reports.indexOf(report);
               const submission = getLatestSubmission(report.revisionHistory);
               // PDFs exist only for the submission the student stands behind;
               // one carrying an older reference code (pre-Return) is stale.
@@ -546,6 +524,38 @@ export default async function WeeklyReportsPage(props: {
           )}
         </CardContent>
       </Card>
+
+      {isOwner && coverage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Planned tasks not found in your entries</CardTitle>
+            <CardDescription>
+              AI assist compared your approved work plan with your last {coverage.weeks} weeks of
+              entries. &ldquo;Not found&rdquo; is not &ldquo;not done&rdquo;: if you did these,
+              describe them in your entries; if the company hasn&apos;t given you the work, raise it
+              with them. Disagree? Ask for a correction under Account settings › Your data.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc space-y-0.5 pl-5 text-sm text-foreground/85">
+              {coverage.missing.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {isOwner && hasThisWeek && (
+        <details className="rounded-lg border bg-card px-4 py-3 text-sm">
+          <summary className="cursor-pointer font-medium">Start a report for another week</summary>
+          <p className="mt-2 mb-3 text-muted-foreground">
+            Your weeks since your first report are listed above. Pick a day in another week only if
+            one is missing.
+          </p>
+          <GenerateWeekButton studentProfileId={params.studentProfileId} />
+        </details>
+      )}
     </div>
   );
 }
