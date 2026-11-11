@@ -14,6 +14,7 @@ import {
   timeRequestSchema,
   type TimeRequestInput,
 } from "@/lib/validators/timeRequest";
+import { isReported, reviewNoteFor } from "@/lib/services/attendance/reportedTimeRecords";
 
 type ActingUser = { id: string; role: Role };
 
@@ -144,13 +145,18 @@ export async function reviewTimeRequest(
       date: true,
       endDate: true,
       validationStatus: true,
+      reviewNote: true,
     },
   });
   await assertCanAccessStudent(actingUser, request.studentProfileId);
+  // A reason from a weekly report: the adviser may change their mind either way.
+  const reported = isReported(request.reviewNote);
 
   const from: ValidationStatus[] =
     review.action === "APPROVE"
-      ? [ValidationStatus.PENDING]
+      ? reported
+        ? [ValidationStatus.PENDING, ValidationStatus.REJECTED]
+        : [ValidationStatus.PENDING]
       : [ValidationStatus.PENDING, ValidationStatus.VALIDATED];
   const stateError = new TimeRequestStateError(
     review.action === "APPROVE"
@@ -161,7 +167,8 @@ export async function reviewTimeRequest(
 
   const status =
     review.action === "APPROVE" ? ValidationStatus.VALIDATED : ValidationStatus.REJECTED;
-  const reviewNote = review.action === "RETURN" ? (review.note ?? null) : null;
+  const adviserNote = review.action === "RETURN" ? (review.note ?? null) : null;
+  const reviewNote = reviewNoteFor(request.reviewNote, adviserNote);
   await prisma.$transaction(async (tx) => {
     // Status-guarded write: a concurrent edit or review can't be silently overwritten.
     const { count } = await tx.deviationReport.updateMany({
@@ -178,7 +185,7 @@ export async function reviewTimeRequest(
         ipAddress: ip,
         detail: {
           deviationType: request.deviationType,
-          ...(reviewNote ? { note: reviewNote } : {}),
+          ...(adviserNote ? { note: adviserNote } : {}),
         },
       },
       tx
@@ -199,7 +206,7 @@ export async function reviewTimeRequest(
     request.studentProfileId,
     review.action,
     request,
-    reviewNote ?? undefined
+    adviserNote ?? undefined
   );
   return { studentProfileId: request.studentProfileId, status };
 }

@@ -14,8 +14,9 @@ export const scheduleConfigSchema = z
     message: "Give both a start and an end time",
     path: ["endTime"],
   })
-  .refine((s) => !s.startTime || !s.endTime || parseHHMM(s.endTime) > parseHHMM(s.startTime), {
-    message: "End time must be after start time",
+  // An end before the start is a night shift ending the next morning; only equal is wrong.
+  .refine((s) => !s.startTime || !s.endTime || parseHHMM(s.endTime) !== parseHHMM(s.startTime), {
+    message: "Start and end time can't be the same",
     path: ["endTime"],
   });
 

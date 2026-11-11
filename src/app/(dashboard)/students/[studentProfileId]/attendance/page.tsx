@@ -35,7 +35,6 @@ import {
   FileWarning,
   Hourglass,
   Paperclip,
-  ShieldCheck,
   Timer,
 } from "lucide-react";
 import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
@@ -151,9 +150,15 @@ export default async function AttendancePage(props: {
         }
       : null;
 
-  const pendingCount = deviationReports.filter((r) => r.validationStatus === "PENDING").length;
-  const validatedCount = deviationReports.filter((r) => r.validationStatus === "VALIDATED").length;
-  const rejectedCount = deviationReports.filter((r) => r.validationStatus === "REJECTED").length;
+  // What happened, not where a request stands: overtime and undertime in hours, absences in days.
+  const onRecord = deviationReports.filter((r) => r.validationStatus !== "REJECTED");
+  const minutesOf = (type: string) =>
+    onRecord
+      .filter((r) => r.deviationType === type)
+      .reduce((sum, r) => sum + (r.requestedMinutes ?? 0), 0);
+  const overtimeMinutes = minutesOf("OVERTIME");
+  const undertimeMinutes = minutesOf("UNDERTIME");
+  const absenceCount = onRecord.filter((r) => r.deviationType === "ABSENCE").length;
 
   return (
     <div className="space-y-6">
@@ -229,29 +234,26 @@ export default async function AttendancePage(props: {
 
       <StatStrip>
         <StatCard
-          label="Pending review"
-          value={pendingCount}
+          label="Overtime"
+          value={formatHrsMins(overtimeMinutes / 60)}
           icon={Clock}
-
-          hint="Awaiting faculty validation"
+          hint="Credited when 30 minutes or more, with a reason"
         />
         <StatCard
-          label="Validated"
-          value={validatedCount}
-          icon={ShieldCheck}
-
-          hint="Counted toward hours"
-        />
-        <StatCard
-          label="Rejected"
-          value={rejectedCount}
+          label="Undertime"
+          value={formatHrsMins(undertimeMinutes / 60)}
           icon={FileWarning}
-
-          hint="Excluded from hours"
+          hint="Late arrivals and early leaves"
+        />
+        <StatCard
+          label="Absences"
+          value={absenceCount}
+          icon={CalendarX2}
+          hint={absenceCount === 1 ? "day" : "days"}
         />
       </StatStrip>
 
-      <Card>
+      <Card id="schedule" className="scroll-mt-6">
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -316,14 +318,13 @@ export default async function AttendancePage(props: {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
-                Leave &amp; Time Requests
+                Overtime, undertime &amp; absences
                 <Badge variant="secondary" className="font-normal">
                   {deviationReports.length}
                 </Badge>
               </CardTitle>
               <CardDescription>
-                Leave, overtime and undertime on file. File and review them in the Leave &amp; Time
-                Requests tab.
+                Reported on their days in the weekly reports, with each reason.
               </CardDescription>
             </div>
             <Link
@@ -331,7 +332,7 @@ export default async function AttendancePage(props: {
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-primary transition-colors duration-200 hover:bg-accent"
             >
               <CalendarClock className="size-3.5" aria-hidden="true" />
-              Open Leave &amp; Time Requests
+              See all
             </Link>
           </div>
         </CardHeader>
@@ -340,7 +341,7 @@ export default async function AttendancePage(props: {
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center">
               <CalendarX2 className="size-6 text-muted-foreground" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">
-                No deviation reports have been filed yet.
+                No overtime, undertime or absences yet.
               </p>
             </div>
           ) : (

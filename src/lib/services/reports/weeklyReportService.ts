@@ -15,7 +15,12 @@ import {
   type ConfigureWorkScheduleInput,
 } from "@/lib/services/attendance/attendanceService";
 import { ForbiddenError } from "@/lib/services/accounts/userService";
-import type { AttendanceStatus } from "@/lib/validators/report";
+import type { AttendanceStatus, DayNote } from "@/lib/validators/report";
+import {
+  acceptReportedInWeek,
+  deleteReportedDays,
+  syncReportedDay,
+} from "@/lib/services/attendance/reportedTimeRecords";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
 import {
   creditForEntry,
@@ -398,6 +403,7 @@ export async function saveDailyAccomplishment(
     timeOut?: string | null;
     timeIn2?: string | null;
     timeOut2?: string | null;
+    note?: DayNote; // why the day differs: overtime, undertime or the absence
   } = {}
 ): Promise<{ id: string; hours: number; accomplishments: string }> {
   // Explicit status wins; legacy callers (no status) keep the old
@@ -456,6 +462,27 @@ export async function saveDailyAccomplishment(
     // Workstream L1: store the SLU-credited hours with the row (undefined
     // details keep the stored times, matching the update below).
     const pick = <T>(next: T | undefined, stored: T) => (next !== undefined ? next : stored);
+    const times = {
+      timeIn: pick(details.timeIn, entry.timeIn),
+      timeOut: pick(details.timeOut, entry.timeOut),
+      timeIn2: pick(details.timeIn2, entry.timeIn2),
+      timeOut2: pick(details.timeOut2, entry.timeOut2),
+    };
+    const studentProfileId = entry.weeklyReport.studentProfileId;
+    // The day's overtime / undertime / absence is reported here, before crediting, so this
+    // day's own reported overtime counts.
+    const ranges: Array<[string, string]> = [];
+    if (isPresent && times.timeIn && times.timeOut) ranges.push([times.timeIn, times.timeOut]);
+    if (isPresent && times.timeIn2 && times.timeOut2) ranges.push([times.timeIn2, times.timeOut2]);
+    await syncReportedDay(tx, {
+      studentProfileId,
+      reportDate: entry.reportDate,
+      status,
+      ranges,
+      scheduledHours: Number(entry.scheduledHours),
+      shift: ranges.length ? await loadShift(studentProfileId, tx) : null,
+      note: details.note,
+    });
     const creditedHours = isPresent
       ? creditForEntry(
           {
@@ -463,12 +490,9 @@ export async function saveDailyAccomplishment(
             scheduledHours: entry.scheduledHours,
             actualHours: hours,
             attendanceStatus: status,
-            timeIn: pick(details.timeIn, entry.timeIn),
-            timeOut: pick(details.timeOut, entry.timeOut),
-            timeIn2: pick(details.timeIn2, entry.timeIn2),
-            timeOut2: pick(details.timeOut2, entry.timeOut2),
+            ...times,
           },
-          await loadCreditContext(entry.weeklyReport.studentProfileId, tx)
+          await loadCreditContext(studentProfileId, tx)
         )
       : 0;
 
@@ -615,10 +639,12 @@ export async function removeDailyEntry(
     where: { id: dailyReportEntryId },
     select: {
       scheduledHours: true,
+      reportDate: true,
       weeklyReport: {
         select: {
           status: true,
           revisionHistory: true,
+          studentProfileId: true,
           studentProfile: { select: { userId: true } },
         },
       },
@@ -631,7 +657,11 @@ export async function removeDailyEntry(
   if (Number(entry.scheduledHours) > 0) {
     throw new DailyEntryDateError("Scheduled days can't be removed; mark them Absent instead");
   }
-  await prisma.dailyReportEntry.delete({ where: { id: dailyReportEntryId } });
+  await prisma.$transaction(async (tx) => {
+    // Its reported overtime goes with it.
+    await deleteReportedDays(tx, entry.weeklyReport.studentProfileId, [entry.reportDate]);
+    await tx.dailyReportEntry.delete({ where: { id: dailyReportEntryId } });
+  });
 }
 
 // FR-WR-05 — Owner: Shantea23
@@ -726,7 +756,9 @@ async function assertUndertimeFiled(
     }
   }
   if (missing.length > 0) {
-    throw new WeeklyReportIncompleteError(`File an undertime request for: ${missing.join(", ")}`);
+    throw new WeeklyReportIncompleteError(
+      `Give a reason for leaving early on: ${missing.join(", ")}`
+    );
   }
 }
 
@@ -937,21 +969,31 @@ export async function reviewWeeklyReport_Approve(
   // No dedicated `facultyId` column exists on `WeeklyReport` (see the
   // model in schema.prisma) — `facultyAction` is the only free-text field
   // available to record who reviewed it.
-  const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
-    await assertAwaitingReview(tx, weeklyReportId);
-    const updated = await tx.weeklyReport.update({
-      where: { id: weeklyReportId },
-      data: {
-        status: WeeklyReportStatus.APPROVED,
-        facultyAction: `APPROVED by ${facultyId}`,
-      },
-      select: { id: true, status: true, studentProfileId: true, weekStart: true },
-    });
-    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_APPROVED", ipAddress);
-    return updated;
-  });
+  const { id, status, studentProfileId, weekStart, otDates } = await prisma.$transaction(
+    async (tx) => {
+      await assertAwaitingReview(tx, weeklyReportId);
+      const updated = await tx.weeklyReport.update({
+        where: { id: weeklyReportId },
+        data: {
+          status: WeeklyReportStatus.APPROVED,
+          facultyAction: `APPROVED by ${facultyId}`,
+        },
+        select: { id: true, status: true, studentProfileId: true, weekStart: true, weekEnd: true },
+      });
+      await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_APPROVED", ipAddress);
+      const otDates = await acceptReportedInWeek(
+        tx,
+        updated.studentProfileId,
+        updated.weekStart,
+        updated.weekEnd,
+        facultyId
+      );
+      return { ...updated, otDates };
+    }
+  );
 
-  // This report's hours now count.
+  // Overtime accepted with the week now counts; then this report's hours count.
+  if (otDates.length > 0) await recomputeCreditedHours(studentProfileId, { dates: otDates });
   await computeTotalHoursRendered(studentProfileId);
   await refreshLaterRunningTotals(studentProfileId, weekStart);
 
@@ -1021,16 +1063,26 @@ export async function reviewWeeklyReport_Regard(
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
-    await assertAwaitingReview(tx, weeklyReportId);
-    const updated = await tx.weeklyReport.update({
-      where: { id: weeklyReportId },
-      data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
-      select: { id: true, status: true, studentProfileId: true, weekStart: true },
-    });
-    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_REGARDED", ipAddress);
-    return updated;
-  });
+  const { id, status, studentProfileId, weekStart, otDates } = await prisma.$transaction(
+    async (tx) => {
+      await assertAwaitingReview(tx, weeklyReportId);
+      const updated = await tx.weeklyReport.update({
+        where: { id: weeklyReportId },
+        data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
+        select: { id: true, status: true, studentProfileId: true, weekStart: true, weekEnd: true },
+      });
+      await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_REGARDED", ipAddress);
+      const otDates = await acceptReportedInWeek(
+        tx,
+        updated.studentProfileId,
+        updated.weekStart,
+        updated.weekEnd,
+        facultyId
+      );
+      return { ...updated, otDates };
+    }
+  );
+  if (otDates.length > 0) await recomputeCreditedHours(studentProfileId, { dates: otDates });
   await computeTotalHoursRendered(studentProfileId);
   await refreshLaterRunningTotals(studentProfileId, weekStart);
   return { id, status };
@@ -1062,6 +1114,17 @@ export async function reviewWeeklyReport_Disregard(
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
   return prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
+    const days = await tx.dailyReportEntry.findMany({
+      where: { weeklyReportId },
+      select: { reportDate: true, weeklyReport: { select: { studentProfileId: true } } },
+    });
+    if (days.length > 0) {
+      await deleteReportedDays(
+        tx,
+        days[0].weeklyReport.studentProfileId,
+        days.map((d) => d.reportDate)
+      );
+    }
     await tx.dailyReportEntry.deleteMany({ where: { weeklyReportId } });
     await tx.weeklyReport.delete({ where: { id: weeklyReportId } });
     // The row is gone, so the reason lives in the audit trail.

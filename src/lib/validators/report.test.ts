@@ -1,4 +1,5 @@
 import {
+  rangeMinutes,
   dailyEntrySchema,
   isAttendanceStatus,
   minutesBetween,
@@ -118,6 +119,7 @@ describe("dailyEntrySchema attendance status and times", () => {
         hours: 0,
         accomplishments: "",
         attendanceStatus: "ABSENT",
+        note: { reason: "Sick with a fever", proofType: "MEDICAL_CERTIFICATE" },
       }).success
     ).toBe(true);
     expect(
@@ -130,15 +132,41 @@ describe("dailyEntrySchema attendance status and times", () => {
     ).toBe(false);
   });
 
-  it("rejects time out before time in", () => {
+  it("takes a time out before time in as the next morning (a night shift)", () => {
     const r = dailyEntrySchema.safeParse({
       ...base,
       hours: 8,
       accomplishments: "x",
-      timeIn: "17:00",
-      timeOut: "08:00",
+      timeIn: "22:00",
+      timeOut: "06:00",
     });
-    expect(r.success).toBe(false);
+    expect(r.success).toBe(true);
+    expect(rangeMinutes({ timeIn: "22:00", timeOut: "06:00" })).toBe(480);
+  });
+
+  it("rejects the same time in and out, and a second range overlapping the first", () => {
+    const same = { ...base, hours: 0, accomplishments: "x", timeIn: "08:00", timeOut: "08:00" };
+    expect(dailyEntrySchema.safeParse(same).success).toBe(false);
+    const overlap = {
+      ...base,
+      hours: 4,
+      accomplishments: "x",
+      timeIn: "08:00",
+      timeOut: "12:00",
+      timeIn2: "11:00",
+      timeOut2: "17:00",
+    };
+    expect(dailyEntrySchema.safeParse(overlap).success).toBe(false);
+  });
+
+  it("asks an absent day for its reason and proof, and a reason of 10+ characters", () => {
+    const absent = { ...base, hours: 0, accomplishments: "", attendanceStatus: "ABSENT" };
+    const paths = (v: unknown) =>
+      dailyEntrySchema.safeParse(v).error?.issues.map((i) => i.path.join("."));
+    expect(paths(absent)).toEqual(["note.reason", "note.proofType"]);
+    expect(
+      paths({ ...absent, note: { reason: "sick", proofType: "MEDICAL_CERTIFICATE" } })
+    ).toEqual(["note.reason"]);
   });
 
   it("rejects hours larger than the time window", () => {

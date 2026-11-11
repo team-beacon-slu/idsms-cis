@@ -3,6 +3,7 @@ import { ChecklistStatus, ValidationStatus, WeeklyReportStatus } from "@prisma/c
 import { prisma } from "@/lib/prisma";
 import { isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import { getWeeklyReportDueInstant } from "@/lib/utils/reportDeadline";
+import { NOT_REPORTED_WHERE } from "@/lib/services/attendance/reportedTimeRecords";
 
 const CHECKLIST_ITEM_COUNT = 9; // FR-CK-04
 const DUE_SOON_MS = 48 * 60 * 60 * 1000;
@@ -30,7 +31,11 @@ export async function getAttentionItems(
         select: { status: true, weekEnd: true, revisionHistory: true },
       }),
       prisma.deviationReport.count({
-        where: { studentProfileId, validationStatus: ValidationStatus.PENDING },
+        where: {
+          studentProfileId,
+          validationStatus: ValidationStatus.PENDING,
+          ...NOT_REPORTED_WHERE,
+        },
       }),
       prisma.preDeploymentChecklistItem.count({
         where: { studentProfileId, status: ChecklistStatus.APPROVED },
@@ -74,6 +79,7 @@ export async function requestsAwaitingReviewByStudent(
     by: ["studentProfileId"],
     where: {
       validationStatus: ValidationStatus.PENDING,
+      ...NOT_REPORTED_WHERE, // weekly-report reasons are reviewed with their week
       studentProfile: {
         OR: assigned.map(({ classGroupId, semesterId }) => ({ classGroupId, semesterId })),
       },

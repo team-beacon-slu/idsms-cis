@@ -26,6 +26,7 @@ import {
   getWeeklyReportDueInstant,
   toDateKey,
 } from "@/lib/utils/reportDeadline";
+import { NOT_REPORTED_WHERE } from "@/lib/services/attendance/reportedTimeRecords";
 
 const HOURS_KEY = "notification:deadline_reminder_hours";
 const MOA_KEY = "notification:moa_warning_days";
@@ -186,7 +187,11 @@ export async function sendReviewDigests(now: Date): Promise<number> {
       },
     }),
     prisma.deviationReport.findMany({
-      where: { validationStatus: ValidationStatus.PENDING, studentProfile: inGroups },
+      where: {
+        validationStatus: ValidationStatus.PENDING,
+        studentProfile: inGroups,
+        ...NOT_REPORTED_WHERE,
+      },
       select: { studentProfile: { select: { classGroupId: true, semesterId: true } } },
     }),
     prisma.preDeploymentChecklistItem.findMany({

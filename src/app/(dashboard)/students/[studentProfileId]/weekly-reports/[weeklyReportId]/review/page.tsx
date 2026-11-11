@@ -9,6 +9,8 @@ import {
   isAwaitingReview,
 } from "@/lib/services/reports/weeklyReportService";
 import { WeeklyReportForm } from "../../weekly-report-form";
+import { loadDayNotes } from "@/lib/services/attendance/reportedTimeRecords";
+import { loadShift } from "@/lib/services/attendance/creditedHours";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
@@ -82,6 +84,12 @@ export default async function WeeklyReportReviewPage(props: {
     (await allJobStatuses()).some(
       (s) => REPORT_JOBS.includes(s.job) && s.reason.startsWith("Paused")
     );
+  // The reasons the intern gave on the week's overtime, undertime and absent days, and the shift
+  // they are measured against, so the adviser sees why next to each day.
+  const [dayNotes, shift] = await Promise.all([
+    loadDayNotes(report!.studentProfileId, report!.weekStart, report!.weekEnd),
+    loadShift(report!.studentProfileId),
+  ]);
   const texts: Record<string, string> = Object.fromEntries(
     report!.dailyEntries.map((e) => [e.id, e.accomplishments ?? ""])
   );
@@ -138,6 +146,9 @@ export default async function WeeklyReportReviewPage(props: {
           <WeeklyReportForm
             weeklyReportId={report!.id}
             editable={false}
+            notes={dayNotes}
+            reviewable
+            shift={shift}
             weekEnd={report!.weekEnd.toISOString()}
             priorAccomplishments={[]}
             totals={{

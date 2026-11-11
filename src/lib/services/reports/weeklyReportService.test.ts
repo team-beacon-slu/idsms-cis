@@ -30,6 +30,7 @@ import {
 
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
   // Review actions require a submitted report awaiting review; tests that
   // need another state set their own.
   prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
@@ -912,7 +913,9 @@ describe("recordWeeklyReportSubmission", () => {
       mockReport([{ ...tardyDay, timeIn: "08:00", timeOut2: "16:00" }]);
       prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
       prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
-      await expect(submit()).rejects.toThrow("File an undertime request for: Oct 6 (early leave)");
+      await expect(submit()).rejects.toThrow(
+        "Give a reason for leaving early on: Oct 6 (early leave)"
+      );
     });
 
     it("passes with an undertime request of any status on that date", async () => {
@@ -1101,6 +1104,27 @@ describe("recordWeeklyReportSubmission", () => {
 });
 
 describe("reviewWeeklyReport_Disregard", () => {
+  beforeEach(() => {
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([] as never);
+  });
+
+  it("also removes the overtime, undertime and absences reported in that week", async () => {
+    const day = new Date("2026-10-06T00:00:00Z");
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      { reportDate: day, weeklyReport: { studentProfileId: "sp-1" } },
+    ] as never);
+
+    await reviewWeeklyReport_Disregard("wr-1", "faculty-1");
+
+    expect(prismaMock.deviationReport.deleteMany).toHaveBeenCalledWith({
+      where: {
+        studentProfileId: "sp-1",
+        date: { in: [day] },
+        reviewNote: { startsWith: "Reported in the weekly report" },
+      },
+    });
+  });
+
   it("deletes the report's daily entries before deleting the report itself", async () => {
     prismaMock.dailyReportEntry.deleteMany.mockResolvedValue({ count: 5 } as never);
     prismaMock.weeklyReport.delete.mockResolvedValue({} as never);
