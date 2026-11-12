@@ -127,6 +127,7 @@ export function renderTimeReportSection(data: TimeReportDocumentData): string {
     <table class="grid">${table}
     </table>
     ${data.kind === "ABSENCE" ? '<p class="note" style="margin: 0.15in 0.3in 0">Inform your supervisor whenever you cannot go to work, and your faculty adviser through your supervisor.</p>' : ""}
+    <p class="note" style="margin: 0.1in 0.3in 0"><em>Evidence (a screenshot or document) for each entry is submitted with this report in Google Classroom.</em></p>
     <div class="sign"><div class="line">${escapeHtml(data.company?.supervisorName)}, Date</div></div>
   </section>`;
 }

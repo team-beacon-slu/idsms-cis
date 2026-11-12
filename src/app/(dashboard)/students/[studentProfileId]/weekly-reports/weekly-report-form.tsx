@@ -308,9 +308,9 @@ function dayProblem(entry: DailyEntryRow, row: RowState, shift: Shift | null): D
     return { message: "List the work you accomplished this day", field: "acc" };
   }
   const exceptions = exceptionsOf(entry, row, shift);
-  if (exceptions.some((x) => x.kind === "early") && reason.length < DAY_NOTE_MIN) {
+  if (exceptions.some((x) => x.kind !== "overtime") && reason.length < DAY_NOTE_MIN) {
     return {
-      message: `Say why you left early (at least ${DAY_NOTE_MIN} characters)`,
+      message: `Give remarks for the under time (at least ${DAY_NOTE_MIN} characters)`,
       field: "reason",
     };
   }
@@ -602,6 +602,7 @@ export function WeeklyReportForm({
   reviewable = false,
   firstWeek = false,
   firstDay = null,
+  late: lateOverride,
 }: {
   weeklyReportId: string;
   entries: DailyEntryRow[];
@@ -623,6 +624,8 @@ export function WeeklyReportForm({
   firstWeek?: boolean;
   // The intern's first day of OJT (ISO date), when set: earlier days are "not yet started".
   firstDay?: string | null;
+  // Whether submitting now is late (server rule isSubmissionLate); defaults to the deadline.
+  late?: boolean;
 }) {
   const router = useRouter();
   const holidayOn = (iso: string) => holidays[iso.slice(0, 10)];
@@ -687,7 +690,7 @@ export function WeeklyReportForm({
   }, [editable, draftChecked, weeklyReportId, rows, serverRows]);
 
   const weekEndDate = useMemo(() => new Date(weekEnd), [weekEnd]);
-  const late = isWeeklyReportLate(weekEndDate);
+  const late = lateOverride ?? isWeeklyReportLate(weekEndDate);
   const dueDate = getWeeklyReportDueDate(weekEndDate);
 
   // Entry id → why it was flagged. Previous-week matches take precedence.
@@ -1168,7 +1171,8 @@ export function WeeklyReportForm({
           const problem = problems[entry.id];
           const ready = !problemOf(entry);
           const exceptions = exceptionsOf(entry, row, shift);
-          const early = exceptions.some((x) => x.kind === "early");
+          // Late arrival or early leave: under time, which needs remarks.
+          const early = exceptions.some((x) => x.kind !== "overtime");
           const overtime = exceptions.some((x) => x.kind === "overtime");
           const underTime = exceptions.some((x) => x.kind !== "overtime");
           const needsReason =
@@ -1366,8 +1370,8 @@ export function WeeklyReportForm({
                         />
                         <p className="text-xs text-notice-foreground/90">
                           {overtime && !row.reason.trim()
-                            ? "Overtime counts once your adviser accepts the remarks. Under 30 minutes isn't credited."
-                            : "Your adviser decides whether it counts."}
+                            ? "Overtime counts once your adviser accepts the remarks. Under 30 minutes isn't credited. Upload your evidence (a screenshot or document) with this report in Google Classroom."
+                            : "Your adviser decides whether it counts. Upload your evidence with this report in Google Classroom."}
                         </p>
                         <Decisions note={noteOf(entry)} dayLabel={dayLabel} reviewable={false} />
                       </div>
