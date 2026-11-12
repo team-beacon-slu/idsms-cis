@@ -1,6 +1,6 @@
 # IDSMS-CIS system documentation
 
-_SAMCIS Internship Document Submission and Monitoring System, Saint Louis University. Last updated: 23 October 2026._
+_SAMCIS Internship Document Submission and Monitoring System, Saint Louis University. Last updated: 12 November 2026._
 
 > **Status of this documentation: working draft for adviser review.**
 > The whole app flow is still in the development stage. Most of the flows and rules described here are the project manager's interpretation of SLU's internship instructions (orientation slides, guidelines and faculty answers), not yet confirmed by the adviser. **Any part may change on the adviser's instructions, including parts that are already built** (for example the status-only checklist, the endorsement gate and the hours rules). "Built" means "works in the current build", not "final". Decisions and open questions are listed in [11](11-decisions-and-open-questions.md).

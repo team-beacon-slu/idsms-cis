@@ -1,9 +1,9 @@
 # IDSMS-CIS — Operations Runbook (self-hosted VM)
 
-> **Updated 23 October 2026 (Phase 5, Stage 1):** the stack files live in `deploy/` (`deploy/docker-compose.yml`, `deploy/Caddyfile`, `deploy/Dockerfile`); the app selects MinIO with `STORAGE_DRIVER="s3"`; there are three buckets (`checklist-documents`, `moa-documents`, `generated-documents`). Written for a cloud VM in September 2026; the lab computer replaces the VM.
+> **Updated 12 November 2026 (Phase 5, Stage 1):** the stack files live in `deploy/` (`deploy/docker-compose.yml`, `deploy/Caddyfile`, `deploy/Dockerfile`); the app selects MinIO with `STORAGE_DRIVER="s3"`; there are three buckets (`checklist-documents`, `moa-documents`, `generated-documents`). Written for a cloud VM in September 2026; the lab computer replaces the VM.
 
 This is the standing runbook for the self-hosted deployment: one cloud VM running
-four Docker Compose containers behind Caddy. It is written to survive the
+five Docker Compose containers behind Caddy. It is written to survive the
 capstone team's graduation — every procedure is a concrete, numbered set of
 commands that a new operator can follow without prior context.
 
@@ -14,17 +14,17 @@ commands that a new operator can follow without prior context.
 
 ## 1. System overview
 
-| Piece                | Value                                                                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| VM working directory | `/opt/idsms`                                                                                                                       |
-| Compose project      | `idsms` (`name:` in `docker-compose.yml`)                                                                                          |
-| Containers           | `postgres` (pgvector/pgvector:pg17), `minio`, `app` (`ghcr.io/team-beacon-slu/idsms-cis`), `caddy`; plus the one-shot `minio-init` |
-| Published ports      | `caddy` only: `80`, `443`. Nothing else is reachable from outside the VM.                                                          |
-| Named volumes        | `pg_data`, `minio_data`, `caddy_data`, `caddy_config`                                                                              |
-| Public URL           | `https://<domain>` (set the real host in `Caddyfile` and `NEXTAUTH_URL`)                                                           |
-| Health endpoint      | `GET https://<domain>/api/health` → `{"status":"ok"}` (200) or `{"status":"error"}` (503)                                          |
-| Container registry   | `ghcr.io/team-beacon-slu/idsms-cis` — tags: `stable` (moving) and `sha-<git-sha>` (immutable per build)                            |
-| CI/CD                | `.github/workflows/deploy.yml` (build → push → SSH `docker compose up`)                                                            |
+| Piece                | Value                                                                                                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VM working directory | `/opt/idsms`                                                                                                                                                                                                           |
+| Compose project      | `idsms` (`name:` in `docker-compose.yml`)                                                                                                                                                                              |
+| Containers           | `postgres` (pgvector/pgvector:pg17), `minio` (Chainguard build, pinned by digest), `app` (`ghcr.io/team-beacon-slu/idsms-cis`), `cron` (calls `/api/cron/daily` at 00:00 UTC), `caddy`; plus the one-shot `minio-init` |
+| Published ports      | `caddy` only: `80`, `443`. Nothing else is reachable from outside the VM.                                                                                                                                              |
+| Named volumes        | `pg_data`, `minio_data`, `caddy_data`, `caddy_config`                                                                                                                                                                  |
+| Public URL           | `https://<domain>` (set the real host in `Caddyfile` and `NEXTAUTH_URL`)                                                                                                                                               |
+| Health endpoint      | `GET https://<domain>/api/health` → `{"status":"ok"}` (200) or `{"status":"error"}` (503)                                                                                                                              |
+| Container registry   | `ghcr.io/team-beacon-slu/idsms-cis` — tags: `stable` (moving) and `sha-<git-sha>` (immutable per build)                                                                                                                |
+| CI/CD                | `.github/workflows/deploy.yml` (build → push → SSH `docker compose up`)                                                                                                                                                |
 
 Files that must exist on the VM under `/opt/idsms`:
 
@@ -36,6 +36,8 @@ Files that must exist on the VM under `/opt/idsms`:
   .env                    # compose-only secrets — NEVER committed (see §4)
   backups/                # local staging area for §5 backups
 ```
+
+`docker-compose.yml` reads the app's environment from `${APP_ENV_FILE:-../.env.production}`, a path relative to the compose file. With the compose file in `/opt/idsms/`, set `APP_ENV_FILE=/opt/idsms/.env.production` in `.env` (§4.3), or the app looks for `/opt/.env.production`.
 
 ---
 
@@ -141,6 +143,10 @@ MINIO_SECRET_KEY="<app service-account secret key>"
 MINIO_REGION="us-east-1"
 GEMINI_API_KEY="<from Google AI Studio>"
 RESEND_API_KEY="<from Resend dashboard>"
+CRON_SECRET="<openssl rand -base64 32; same value as in .env>"
+# Email without a domain (Q15): the host's SMTP account; when set, Resend is not used
+SMTP_USER="<sender account>"
+SMTP_PASS="<app password>"
 ```
 
 ### 4.3 On the VM — `/opt/idsms/.env` (compose-only interpolation; **not** read by the app)
@@ -150,6 +156,8 @@ POSTGRES_PASSWORD=<must equal the password embedded in DATABASE_URL/DIRECT_URL>
 MINIO_ROOT_USER=<minio admin user>
 MINIO_ROOT_PASSWORD=<minio admin password, >= 8 chars>
 IMAGE_TAG=stable
+CRON_SECRET=<same value as in .env.production; compose refuses to start without it>
+APP_ENV_FILE=/opt/idsms/.env.production
 ```
 
 > **Resolved in `deploy.yml`:** the deploy job writes `.env.deploy` with only
@@ -255,7 +263,7 @@ pushed **off the VM** (institutional object storage / OneDrive / Backblaze via
 ```cron
 # m  h  dom mon dow  user            command
 30 2   *   *   *     <VM_SSH_USER>   cd /opt/idsms && docker compose exec -T postgres pg_dump -U idsms -Fc idsms > /opt/idsms/backups/db/idsms-$(date +\%Y\%m\%d).dump 2>> /opt/idsms/backups/backup.log && find /opt/idsms/backups/db -name 'idsms-*.dump' -mtime +14 -delete
-45 2   *   *   *     <VM_SSH_USER>   docker run --rm --network idsms_net -v /opt/idsms/backups:/bk --entrypoint sh minio/mc:latest -c "mc alias set local http://minio:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\" && mc mirror --overwrite --remove local/checklist-documents /bk/minio/checklist-documents && mc mirror --overwrite --remove local/moa-documents /bk/minio/moa-documents && mc mirror --overwrite --remove local/generated-documents /bk/minio/generated-documents" >> /opt/idsms/backups/backup.log 2>&1
+45 2   *   *   *     <VM_SSH_USER>   docker run --rm --network idsms_net -v /opt/idsms/backups:/bk --entrypoint sh cgr.dev/chainguard/minio-client@sha256:f0b1d3d6ae12391d9bbe88345dee6da67027c93cda18dc5c9a463c2cc7d61b29 -c "mc alias set local http://minio:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\" && mc mirror --overwrite --remove local/checklist-documents /bk/minio/checklist-documents && mc mirror --overwrite --remove local/moa-documents /bk/minio/moa-documents && mc mirror --overwrite --remove local/generated-documents /bk/minio/generated-documents" >> /opt/idsms/backups/backup.log 2>&1
 15 3   *   *   *     <VM_SSH_USER>   rclone sync /opt/idsms/backups offsite:idsms-backups --backup-dir offsite:idsms-backups-history/$(date +\%F) >> /opt/idsms/backups/backup.log 2>&1
 ```
 
@@ -287,7 +295,7 @@ curl -fsS http://localhost:3000/api/health
 ### 5.4 Restore — MinIO objects (reverse of the mirror)
 
 ```bash
-docker run --rm --network idsms_net -v /opt/idsms/backups:/bk --entrypoint sh minio/mc:latest -c "\
+docker run --rm --network idsms_net -v /opt/idsms/backups:/bk --entrypoint sh cgr.dev/chainguard/minio-client@sha256:f0b1d3d6ae12391d9bbe88345dee6da67027c93cda18dc5c9a463c2cc7d61b29 -c "\
   mc alias set local http://minio:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\" && \
   mc mirror --overwrite /bk/minio/checklist-documents local/checklist-documents && \
   mc mirror --overwrite /bk/minio/moa-documents      local/moa-documents && \n  mc mirror --overwrite /bk/minio/generated-documents local/generated-documents"
@@ -304,7 +312,8 @@ row counts. An untested backup is not a backup.
 
 ### 5.6 Backups while on Supabase (before the lab stack is live)
 
-The `Nightly backup` GitHub Actions workflow (`.github/workflows/backup.yml`) runs at 02:00
+The `Nightly backup` GitHub Actions workflow (`.github/workflows/backup.yml`) is **disabled** until the
+Phase 5 lab server (re-enable with `gh workflow enable backup.yml`). When enabled it runs at 02:00
 Manila every day: `pg_dump` (Postgres 17, `public` schema) through the session pooler,
 encrypted with a passphrase, kept 30 days as a workflow artifact. The daily connection also
 stops the free-plan project from pausing when idle.
@@ -349,7 +358,7 @@ Generated PDFs can be rebuilt; the uploaded files cannot.
 ```bash
 ssh <VM_SSH_USER>@<VM_HOST>
 cd /opt/idsms
-docker compose ps                     # state + health of all four containers
+docker compose ps                     # state + health of all containers
 docker compose logs -f app            # app errors (DB unreachable, bad env, crash loop)
 docker compose logs --tail=100 postgres
 docker compose logs --tail=100 caddy  # TLS / ACME / upstream errors
@@ -390,7 +399,7 @@ All commands in this section run as root — prefix with `sudo` or run in a root
 
 3. Ensure Docker starts on boot: `sudo systemctl enable docker`.
 
-All four containers are `restart: unless-stopped`, so after the ~03:30 reboot
+Every long-running container (postgres, minio, app, cron, caddy) is `restart: unless-stopped`, so after the ~03:30 reboot
 window Docker brings the whole stack back up with no human action. Confirm the
 morning after a reboot with the §6 health check.
 
