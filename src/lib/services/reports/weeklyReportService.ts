@@ -84,12 +84,15 @@ export function isSubmissionLate(
   at: Date = new Date()
 ): boolean {
   const history = getWeeklyReportHistory(report.revisionHistory);
-  if (history.some((h) => h.type === "RETURNED")) {
-    const first = history.find((h) => h.type === "SUBMITTED") as
-      WeeklyReportSubmissionEntry | undefined;
-    if (first) return Boolean(first.late);
-  }
-  return isWeeklyReportLate(report.weekEnd, at);
+  // The submission the adviser returned: the last one before the first return (an earlier one
+  // may have been withdrawn and resubmitted late).
+  const returnedAt = history.findIndex((h) => h.type === "RETURNED");
+  const reviewed = history
+    .slice(0, Math.max(returnedAt, 0))
+    .findLast((h) => h.type === "SUBMITTED") as WeeklyReportSubmissionEntry | undefined;
+  if (!reviewed) return isWeeklyReportLate(report.weekEnd, at);
+  // Older history rows have no `late` flag: work it out from when it was sent.
+  return reviewed.late ?? isWeeklyReportLate(report.weekEnd, new Date(reviewed.timestamp));
 }
 
 // Only these entry types move a report through review; any other history

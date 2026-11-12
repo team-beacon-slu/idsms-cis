@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toDateKey } from "@/lib/utils/reportDeadline";
+import { reportPeriodEnd } from "@/lib/utils/reportWeek";
 import { formatCalendarDate } from "@/lib/documents/html";
 import { GenerateWeekButton } from "./generate-week-button";
 
@@ -71,7 +72,7 @@ export function NotStartedWeek({
   weekNo: number;
   late: boolean;
 }) {
-  const friday = new Date(weekStart.getTime() + 4 * 24 * 60 * 60 * 1000);
+  const end = reportPeriodEnd(weekStart, []); // what a started week with no days shows
   return (
     <div
       id={`week-${toDateKey(weekStart)}`}
@@ -82,7 +83,7 @@ export function NotStartedWeek({
           Week No. {weekNo}
           <span className="font-normal text-muted-foreground">
             {" "}
-            · {formatCalendarDate(weekStart)} – {formatCalendarDate(friday)}
+            · {formatCalendarDate(weekStart)} – {formatCalendarDate(end)}
           </span>
         </p>
         <p

@@ -1425,4 +1425,25 @@ describe("isSubmissionLate (resubmitting after a return)", () => {
     const withdrawn = [submitted(false), { type: "WITHDRAWN", timestamp: "y" }];
     expect(isSubmissionLate({ weekEnd, revisionHistory: withdrawn }, afterDue)).toBe(true);
   });
+
+  it("uses the submission that was returned, not an earlier withdrawn one", () => {
+    const history = [
+      submitted(false),
+      { type: "WITHDRAWN", timestamp: "y" },
+      submitted(true),
+      { type: "RETURNED", timestamp: "z" },
+    ];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: history }, afterDue)).toBe(true);
+  });
+
+  it("works out lateness from the timestamp on old rows without a late flag", () => {
+    const old = (timestamp: string) => [
+      { type: "SUBMITTED", timestamp },
+      { type: "RETURNED", timestamp: "2026-10-20T00:00:00Z" },
+    ];
+    const onTime = old("2026-10-12T02:00:00Z");
+    expect(isSubmissionLate({ weekEnd, revisionHistory: onTime }, afterDue)).toBe(false);
+    const late = old("2026-10-15T02:00:00Z");
+    expect(isSubmissionLate({ weekEnd, revisionHistory: late }, afterDue)).toBe(true);
+  });
 });

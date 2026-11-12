@@ -361,7 +361,8 @@ export async function getWeeklySummaryRows(
       state: reportState(report),
       hours: Math.round(hours * 100) / 100,
       submittedAt: submittedAt ? formatManilaDateTime(submittedAt) : null,
-      late: submittedAt ? isWeeklyReportLate(weekEnd, submittedAt) : false,
+      // The flag stored at submit (a resubmission after a return keeps the first one's lateness).
+      late: submittedAt ? (submission?.late ?? isWeeklyReportLate(weekEnd, submittedAt)) : false,
     };
   });
 }

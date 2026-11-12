@@ -201,7 +201,7 @@ begin
               names[((i - 1) % 6) + 1] || ' (demo ' || i || ')', now(), true);
     insert into student_profiles (id, user_id, student_number, program, class_group_id, semester_id, company_id,
                                   required_hours, full_name, internship_start_date, updated_at)
-      values (sp, uid, format('DEMO-%s', lpad(i::text, 4, '0')), 'BSIT', grp, sem, comp[kind], 486,
+      values (sp, uid, format('DEMO-%s', lpad(i::text, 4, '0')), 'BSIT', grp, sem, comp[kind], 600,
               names[((i - 1) % 6) + 1] || ' (demo ' || i || ')', monday, now());
     insert into work_plans (id, student_profile_id, status, planned_tasks, updated_at)
       values (gen_random_uuid(), sp, 'APPROVED',
