@@ -223,6 +223,8 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(html).toContain("Report on UNDER TIME Hours");
     expect(html).toContain("this section is only included if the student incurred an under time");
     expect(html).toContain("Woke up late.");
+    // Evidence stays in Google Classroom (the faculty adviser, 12 Nov): the PDF says where.
+    expect(html).toContain("submitted with this report in Google Classroom");
     expect(html).toContain("Report on Absences");
     expect(html).toContain("Fever, saw a doctor");
     expect(html).not.toContain("Report on Overtime Hours");

@@ -277,9 +277,29 @@ it("won't submit an early leave without a reason, and says so on that day", () =
   fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
 
   expect(screen.getByRole("alert")).toHaveTextContent(
-    "Wed, Oct 21: Say why you left early (at least 10 characters)"
+    "Wed, Oct 21: Give remarks for the under time (at least 10 characters)"
   );
   expect(reasonBox("wed")).toHaveAttribute("aria-invalid", "true");
+});
+
+it("asks for remarks on a late arrival, as on the template's under time report", () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  const written = {
+    ...entry,
+    attendanceStatus: "PRESENT",
+    actualHours: 8,
+    timeIn: "08:00",
+    timeOut: "12:00",
+    timeIn2: "13:00",
+    timeOut2: "17:00",
+    accomplishments: "Configured the staging server and wrote its runbook",
+  };
+  render(<WeeklyReportForm {...props} entries={[written]} editable shift={shift} />);
+  fireEvent.change(timeIn("e-1"), { target: { value: "08:30" } }); // 30 minutes late
+
+  expect(screen.getByText("Report on UNDER TIME Hours")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Submit and generate PDF/ }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Give remarks for the under time");
 });
 
 it("an absent day asks why and for the proof, with no times or accomplishments", () => {

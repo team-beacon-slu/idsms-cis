@@ -26,6 +26,7 @@ import {
   reviewWeeklyReport_Return,
   saveDailyAccomplishment,
   setFirstDayOfOjt,
+  isSubmissionLate,
   validateLateSubmissionReason,
 } from "@/lib/services/reports/weeklyReportService";
 
@@ -903,11 +904,13 @@ describe("recordWeeklyReportSubmission", () => {
         actingUser
       );
 
-    it("lets a late day through without a request: it is only marked for the adviser (Q6)", async () => {
+    it("asks for remarks on a late arrival too, like an early leave (adviser, 12 Nov)", async () => {
       mockReport([tardyDay]);
       prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
       prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
-      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+      await expect(submit()).rejects.toThrow(
+        "Give remarks for the under time on: Oct 6 (late arrival)"
+      );
     });
 
     it("still blocks an early leave with no undertime request, listing the date", async () => {
@@ -915,7 +918,7 @@ describe("recordWeeklyReportSubmission", () => {
       prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
       prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
       await expect(submit()).rejects.toThrow(
-        "Give a reason for leaving early on: Oct 6 (early leave)"
+        "Give remarks for the under time on: Oct 6 (early leave)"
       );
     });
 
@@ -1399,5 +1402,27 @@ describe("setFirstDayOfOjt (an intern who starts in the middle of Week No. 1)", 
       "first weekly report"
     );
     expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("isSubmissionLate (resubmitting after a return)", () => {
+  const weekEnd = new Date("2026-10-11T00:00:00Z"); // due Tue Oct 13, 11:59 pm
+  const afterDue = new Date("2026-10-15T02:00:00Z");
+  const submitted = (late: boolean) => ({ type: "SUBMITTED", late, timestamp: "x" });
+
+  it("keeps the first submission's on-time status after the adviser returns the week", () => {
+    const history = [submitted(false), { type: "RETURNED", timestamp: "y" }];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: history }, afterDue)).toBe(false);
+  });
+
+  it("stays late when the first submission was late", () => {
+    const history = [submitted(true), { type: "RETURNED", timestamp: "y" }];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: history }, afterDue)).toBe(true);
+  });
+
+  it("counts a first submission, or one after a withdrawal, by the deadline", () => {
+    expect(isSubmissionLate({ weekEnd, revisionHistory: [] }, afterDue)).toBe(true);
+    const withdrawn = [submitted(false), { type: "WITHDRAWN", timestamp: "y" }];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: withdrawn }, afterDue)).toBe(true);
   });
 });

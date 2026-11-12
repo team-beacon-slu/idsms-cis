@@ -76,6 +76,22 @@ export function getLatestSubmission(revisionHistory: unknown): WeeklyReportSubmi
   return null;
 }
 
+// Whether submitting now counts as late. After the adviser returns a week, the resubmission
+// keeps the first submission's lateness: an intern who was on time is not made late (or asked
+// for a reason for delay) by the return. Deductions already count the first submission only.
+export function isSubmissionLate(
+  report: { weekEnd: Date; revisionHistory: unknown },
+  at: Date = new Date()
+): boolean {
+  const history = getWeeklyReportHistory(report.revisionHistory);
+  if (history.some((h) => h.type === "RETURNED")) {
+    const first = history.find((h) => h.type === "SUBMITTED") as
+      WeeklyReportSubmissionEntry | undefined;
+    if (first) return Boolean(first.late);
+  }
+  return isWeeklyReportLate(report.weekEnd, at);
+}
+
 // Only these entry types move a report through review; any other history
 // entry type must never change locked/unlocked state.
 // WITHDRAWN (Q21): the intern took the week back to draft before review and the deadline.
@@ -778,10 +794,10 @@ export async function validateLateSubmissionReason(
 ): Promise<void> {
   const report = await prisma.weeklyReport.findUniqueOrThrow({
     where: { id: weeklyReportId },
-    select: { weekEnd: true },
+    select: { weekEnd: true, revisionHistory: true },
   });
 
-  if (!isWeeklyReportLate(report.weekEnd)) {
+  if (!isSubmissionLate(report)) {
     return;
   }
   if (!reasonForDelay?.trim()) {
@@ -836,18 +852,19 @@ async function assertUndertimeFiled(
     if (e.timeIn2 && e.timeOut2) ranges.push([e.timeIn2, e.timeOut2]);
     const sameDay = requests.filter((r) => toDateKey(r.date) === toDateKey(e.reportDate));
     for (const gap of dayGaps(ranges, shift)) {
-      // Q6: no grace period is set; a late arrival is only marked (an automatic deduction item
-      // the adviser can excuse), so it never blocks submitting. An early leave still needs a request.
-      if (gap.kind === "late") continue;
+      // Under time, late arrival or early leave, carries remarks (the faculty adviser, 12 Nov,
+      // after Q6: the template's UT report has a Remarks column). The adviser still decides.
       // Any status counts here (filing is what the gate asks for); the range must span the gap.
       if (!isGapCovered(gap, sameDay)) {
-        missing.push(`${shortDate(e.reportDate)} (early leave)`);
+        missing.push(
+          `${shortDate(e.reportDate)} (${gap.kind === "late" ? "late arrival" : "early leave"})`
+        );
       }
     }
   }
   if (missing.length > 0) {
     throw new WeeklyReportIncompleteError(
-      `Give a reason for leaving early on: ${missing.join(", ")}`
+      `Give remarks for the under time on: ${missing.join(", ")}`
     );
   }
 }
@@ -897,7 +914,7 @@ export async function recordWeeklyReportSubmission(
     }
     await assertUndertimeFiled(report.studentProfileId, report.dailyEntries, tx);
 
-    const late = isWeeklyReportLate(report.weekEnd, submission.timestamp);
+    const late = isSubmissionLate(report, submission.timestamp);
     const entry: WeeklyReportSubmissionEntry = {
       type: "SUBMITTED",
       timestamp: submission.timestamp.toISOString(),

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// NFR-USA-02: a short first-visit tour on the home page, the four things each role does first.
+// NFR-USA-02: a short first-visit tour on the home page, the first things each role does.
 // Dismissed per browser; Help can show it again. Hidden until mounted, so it never flashes
 // for someone who already closed it.
 export const TOUR_KEY = "idsms-getting-started-dismissed";
@@ -35,9 +35,10 @@ export function stepsFor(role: string, studentProfileId?: string): Step[] {
           href: own(studentProfileId, "/weekly-reports"),
         },
         {
-          label: "Add IDSMS to your phone calendar",
-          detail: "Deadlines and days off, without opening IDSMS.",
-          href: "/calendar",
+          // The faculty adviser, 12 Nov: the calendar is optional; this step is not.
+          label: "Upload the signed report to Google Classroom",
+          detail: "Download the PDF, have your supervisor sign it, upload it under its WWR name.",
+          href: own(studentProfileId, "/weekly-reports"),
         },
       ];
     case "FACULTY_ADVISER":
@@ -56,11 +57,6 @@ export function stepsFor(role: string, studentProfileId?: string): Step[] {
           label: "See each intern",
           detail: "Hours, reports and attendance notes.",
           href: "/my-students",
-        },
-        {
-          label: "Add IDSMS to your phone calendar",
-          detail: "Every deadline of your class groups.",
-          href: "/calendar",
         },
       ];
     case "DEPARTMENT_COORDINATOR":
@@ -157,7 +153,7 @@ export function GettingStarted({
         Getting started
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        The four things to do first. Hide this when you are done.
+        The first things to do. Hide this when you are done.
       </p>
       <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {stepsFor(role, studentProfileId).map((s, i) => (

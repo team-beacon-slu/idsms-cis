@@ -15,10 +15,10 @@ import { reportPeriodEnd } from "@/lib/utils/reportWeek";
 import { LongScheduleNotice } from "@/components/long-schedule-notice";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
-  generateWeeklyReportForm,
   getConfirmedSubmission,
   getLatestSubmission,
   getWeeklyReportHistory,
+  isSubmissionLate,
   isAwaitingReview,
   isWeeklyReportEditable,
 } from "@/lib/services/reports/weeklyReportService";
@@ -49,6 +49,7 @@ import { WeeklyReportForm } from "./weekly-report-form";
 import { jobsOnFor } from "@/lib/ai/jobs";
 import type { AiHints as AiHintsData } from "@/lib/ai/processing";
 import { GenerateWeekButton } from "./generate-week-button";
+import { NotStartedWeek, WeekSection } from "./week-sections";
 import { ReportPdfActions } from "./report-pdf-actions";
 import { QuickApprove } from "./quick-approve";
 import { WithdrawReport } from "./withdraw-report";
@@ -75,38 +76,6 @@ function formatDate(date: Date) {
   });
 }
 
-async function openOwedWeeks(studentProfileId: string) {
-  const [first, profile, have] = await Promise.all([
-    prisma.weeklyReport.findFirst({
-      where: { studentProfileId },
-      orderBy: { weekStart: "asc" },
-      select: { weekStart: true },
-    }),
-    prisma.studentProfile.findUnique({
-      where: { id: studentProfileId },
-      select: {
-        renderedHours: true,
-        requiredHours: true,
-        semester: { select: { archivedAt: true } },
-      },
-    }),
-    prisma.weeklyReport.findMany({ where: { studentProfileId }, select: { weekStart: true } }),
-  ]);
-  // Not started, finished, or a past term: nothing is owed.
-  if (!first || !profile || profile.semester.archivedAt) return;
-  if (Number(profile.renderedHours) >= profile.requiredHours) return;
-  const filed = new Set(have.map((r) => toDateKey(r.weekStart)));
-  const thisWeek = getWeekStartMonday(new Date());
-  // shortcut: at most 8 weeks back per visit, so a long-idle account can't stall the page.
-  let made = 0;
-  for (let w = getWeekStartMonday(first.weekStart); w <= thisWeek && made < 8; w = addDays(w, 7)) {
-    if (filed.has(toDateKey(w))) continue;
-    made += 1;
-    // Idempotent; a missing schedule just leaves the week to the manual start below.
-    await generateWeeklyReportForm(studentProfileId, w).catch(() => {});
-  }
-}
-
 export default async function WeeklyReportsPage(props: {
   params: Promise<{ studentProfileId: string }>;
 }) {
@@ -121,12 +90,6 @@ export default async function WeeklyReportsPage(props: {
     }
     throw error;
   }
-
-  // Once OJT has started (a first report exists), every week owes a report: this week's and any
-  // week skipped since appear by themselves, so nothing is forgotten behind a date picker (the
-  // faculty adviser, Nov 2026: reports are continuous; a week away still needs its report and
-  // proof). The first week stays the intern's own choice, since it fixes Week No. 1.
-  if (user.role === "STUDENT_INTERN") await openOwedWeeks(params.studentProfileId);
 
   // Independent reads, loaded together rather than one after another.
   const [reports, documents, conduct, shift, holidayList, aiJobs, profile, workPlan, notesByDate] =
@@ -208,24 +171,241 @@ export default async function WeeklyReportsPage(props: {
         .reduce((sum, c) => sum + Number(c.hoursDeducted), 0) * 100
     ) / 100;
   const isOwner = user.role === "STUDENT_INTERN";
-  // This week already has its form below: the start card folds away (it is for other weeks).
-  const now = new Date().getTime();
-  const hasThisWeek = reports.some(
-    (r) => r.weekStart.getTime() <= now && now < r.weekEnd.getTime() + 24 * 60 * 60 * 1000
-  );
   const canReview = !isOwner;
-  // The intern's list starts with what they still owe, oldest first, so the week to write is
-  // at the top of the page instead of under every finished week (phone: 2.5 screens down).
-  const owed = isOwner ? reports.filter((r) => isWeeklyReportEditable(r)).reverse() : [];
-  const listed = [...owed, ...reports.filter((r) => !owed.includes(r))];
-  // The oldest week still owed opens (reports are newest first): on Monday that is last week's.
-  const firstEditableId = isOwner
-    ? reports.findLast((r) => isWeeklyReportEditable(r))?.id
-    : undefined;
+  // The intern's weeks, as in Google Classroom (Jay and the faculty adviser, 12 Nov): To do (this
+  // week, last week until its Tuesday, and returned weeks), Missing (past its Tuesday and not in),
+  // Submitted (in review or done). Oldest first in To do and Missing, newest first in Submitted.
+  const sectionOf = (r: (typeof reports)[number]): "todo" | "missing" | "submitted" =>
+    !isWeeklyReportEditable(r)
+      ? "submitted"
+      : r.status === "RETURNED" || !isWeeklyReportLate(r.weekEnd)
+        ? "todo"
+        : "missing";
+  const todo = reports.filter((r) => sectionOf(r) === "todo").reverse();
+  const missing = reports.filter((r) => sectionOf(r) === "missing").reverse();
+  const submitted = reports.filter((r) => sectionOf(r) === "submitted");
+  // Weeks since the first report with no report yet: shown with a Start button, never created
+  // on their own (opening the page writes nothing).
+  const notStarted: { weekStart: Date; late: boolean }[] = [];
+  if (isOwner && firstReport) {
+    const filed = new Set(reports.map((r) => toDateKey(r.weekStart)));
+    const thisWeek = getWeekStartMonday(new Date());
+    for (let w = getWeekStartMonday(firstReport.weekStart); w <= thisWeek; w = addDays(w, 7)) {
+      if (!filed.has(toDateKey(w))) {
+        notStarted.push({ weekStart: w, late: isWeeklyReportLate(addDays(w, 6)) });
+      }
+    }
+  }
+  const notStartedTodo = notStarted.filter((w) => !w.late);
+  const notStartedMissing = notStarted.filter((w) => w.late);
+  const todoCount = todo.length + notStartedTodo.length;
+  const missingCount = missing.length + notStartedMissing.length;
+  // One week opens: the first still to do, else the first missing one.
+  const firstEditableId = isOwner ? (todo[0] ?? missing[0])?.id : undefined;
+  const listed = reports;
   // R5: interns see their own plan-coverage pointers (the newest week that has them).
   const coverage = aiJobs.has("coverage")
     ? reports.map((r) => (r.aiHints as AiHintsData | null)?.coverage).find((c) => c?.missing.length)
     : undefined;
+
+  function renderWeek(report: (typeof reports)[number]) {
+    const index = reports.indexOf(report);
+    const submission = getLatestSubmission(report.revisionHistory);
+    // PDFs exist only for the submission the student stands behind;
+    // one carrying an older reference code (pre-Return) is stale.
+    const confirmed = getConfirmedSubmission(report);
+    const pdf = pdfByWeek.get(toDateKey(report.weekStart));
+    const pdfStatus =
+      confirmed && pdf?.referenceCode === confirmed.referenceCode ? pdf.status : null;
+    const awaitingReview = isAwaitingReview(report);
+    const editable = isOwner && isWeeklyReportEditable(report);
+    const feedback = getWeeklyReportHistory(report.revisionHistory).filter(
+      (entry) => entry.type !== "SUBMITTED" && typeof entry.notes === "string"
+    );
+    // Reports are sorted newest first, so the previous week is the next one. Only an
+    // editable week runs the copy check, so only it is sent the text (item 40: payload).
+    const priorAccomplishments = editable
+      ? (reports[index + 1]?.dailyEntries ?? []).map((e) => e.accomplishments ?? "").filter(Boolean)
+      : [];
+
+    // Only a week the intern can still edit (or the newest, for staff) starts open; the
+    // rest fold to one line so the page isn't every week's every day at once.
+    const startOpen = isOwner ? report.id === firstEditableId : index === 0;
+    const weekHours = formatHrsMins(Number(report.totalHours));
+    const weekNo = weekNumberFrom(firstReport.weekStart, report.weekStart);
+    // The class may be in a later week than the intern's own count: say which
+    // Google Classroom week this report goes under.
+    const termWeek = termWeekOne
+      ? Math.round(
+          (report.weekStart.getTime() - getWeekStartMonday(termWeekOne).getTime()) /
+            (7 * 24 * 60 * 60 * 1000)
+        ) + 1
+      : null;
+    return (
+      <div
+        key={report.id}
+        id={`week-${toDateKey(report.weekStart)}`}
+        className="scroll-mt-6 rounded-lg border p-4"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Week No. {weekNo}
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                · {formatDate(report.weekStart)} –{" "}
+                {formatDate(reportPeriodEnd(report.weekStart, report.dailyEntries))}
+              </span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              WWR{String(weekNo).padStart(2, "0")} · due{" "}
+              {formatDate(getWeeklyReportDueDate(report.weekEnd))}
+              {termWeek != null && termWeek > 0 && termWeek !== weekNo && (
+                <> · goes under Week {termWeek} in Google Classroom</>
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {awaitingReview ? (
+              <Badge variant="secondary">Submitted · awaiting review</Badge>
+            ) : report.status === "PENDING" ? (
+              isWeeklyReportLate(report.weekEnd) ? (
+                // Past its Tuesday: say so before Submit asks for the reason.
+                <Badge variant="destructive">Overdue · not submitted</Badge>
+              ) : (
+                <Badge variant="outline">Draft</Badge>
+              )
+            ) : (
+              <StatusBadge status={report.status} />
+            )}
+            {submission?.late && <Badge variant="destructive">Late</Badge>}
+            {confirmed && (
+              <ReportPdfActions
+                endpoint={`/api/weekly-reports/${report.id}/pdf`}
+                status={pdfStatus}
+                canGenerate
+              />
+            )}
+            {isOwner && awaitingReview && !isWeeklyReportLate(report.weekEnd) && (
+              <WithdrawReport weeklyReportId={report.id} />
+            )}
+            {canReview && awaitingReview && <QuickApprove weeklyReportId={report.id} />}
+            {canReview && (
+              <Link
+                href={`/students/${params.studentProfileId}/weekly-reports/${report.id}/review`}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "cursor-pointer transition-colors duration-200"
+                )}
+              >
+                Review
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {isOwner && report.id === newestSubmittedId && (
+          <ol className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+            {[
+              "Download the PDF",
+              "Have your HTE supervisor sign it",
+              `Upload it to Google Classroom as ${sluFileName({ kind: "WWR", week: weekNo }, pdfName)}`,
+            ].map((step, i) => (
+              <li key={step} className="flex items-start gap-2 rounded-md bg-muted/40 px-3 py-2">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {i + 1}
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {submission && (awaitingReview || report.status !== "PENDING") && (
+          <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <Hash className="size-3.5" aria-hidden="true" />
+            <span className="font-mono text-foreground">{submission.referenceCode}</span>· submitted{" "}
+            {formatInstant(new Date(submission.timestamp))}
+            {submission.reasonForDelay && <> · delay reason: {submission.reasonForDelay}</>}
+          </p>
+        )}
+
+        {(feedback.length > 0 || report.facultyAction) && (
+          // Amber only when the report came back for changes; otherwise neutral.
+          <div
+            className={cn(
+              "mt-3 space-y-1 rounded-md border p-3 text-sm",
+              report.status === "RETURNED" ? "border-notice-border bg-notice" : "bg-muted/50"
+            )}
+          >
+            <p className="flex items-center gap-1.5 font-medium text-foreground">
+              <MessageSquareWarning className="size-4" aria-hidden="true" />
+              Faculty feedback
+            </p>
+            {feedback.map((entry, i) => (
+              <p key={i} className="text-muted-foreground">
+                {String(entry.notes)}
+              </p>
+            ))}
+            {feedback.length === 0 && report.facultyAction && (
+              <p className="text-muted-foreground">{describeFacultyAction(report.facultyAction)}</p>
+            )}
+          </div>
+        )}
+
+        <details open={startOpen} className="group/week mt-3">
+          <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-sm text-primary [&::-webkit-details-marker]:hidden">
+            <ChevronDown
+              className="size-4 transition-transform duration-200 group-open/week:rotate-180"
+              aria-hidden="true"
+            />
+            <span className="group-open/week:hidden">
+              {editable ? "Continue this report" : "Show the days"}
+            </span>
+            <span className="hidden group-open/week:inline">Hide the days</span>
+            <span className="text-muted-foreground tabular-nums">· {weekHours}</span>
+          </summary>
+          <div className="mt-3">
+            <WeeklyReportForm
+              weeklyReportId={report.id}
+              editable={editable}
+              shift={shift}
+              usualTimes={usualTimes}
+              firstWeek={report.id === firstReport.id}
+              firstDay={profile?.internshipStartDate?.toISOString() ?? null}
+              // A resubmission after a return keeps the first submission's lateness.
+              late={isSubmissionLate(report)}
+              holidays={holidays}
+              notes={notesFor(report.weekStart, report.weekEnd)}
+              reviewable={canReview}
+              weekEnd={report.weekEnd.toISOString()}
+              priorAccomplishments={priorAccomplishments}
+              clarityAi={editable && aiJobs.has("clarity")}
+              totals={{
+                totalHours: Number(report.totalHours),
+                runningTotal: Number(report.runningTotal),
+                conductDeductions: deductionsAsOf(report.weekEnd),
+                remainingHours: Number(report.remainingHours),
+              }}
+              entries={report.dailyEntries.map((e) => ({
+                id: e.id,
+                reportDate: e.reportDate.toISOString(),
+                scheduledHours: Number(e.scheduledHours),
+                actualHours: e.actualHours == null ? null : Number(e.actualHours),
+                accomplishments: e.accomplishments,
+                toolsUsed: e.toolsUsed,
+                attendanceStatus: e.attendanceStatus,
+                timeIn: e.timeIn,
+                timeOut: e.timeOut,
+                timeIn2: e.timeIn2,
+                timeOut2: e.timeOut2,
+              }))}
+            />
+          </div>
+        </details>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -282,14 +462,13 @@ export default async function WeeklyReportsPage(props: {
         </Card>
       )}
 
-      {isOwner && !hasThisWeek && (
+      {isOwner && reports.length === 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Start a weekly report</CardTitle>
+            <CardTitle>Start your first weekly report</CardTitle>
             <CardDescription>
-              Pick any day in the week. The report lists your work days with your usual times
-              already filled in; you only list the work you accomplished and explain a day that was
-              different.
+              Pick a day in the week you started your OJT: that week is your WWR01. The report lists
+              your work days with your usual times already filled in.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -298,237 +477,95 @@ export default async function WeeklyReportsPage(props: {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All reports ({reports.length})</CardTitle>
-          <CardDescription>
-            {isOwner
-              ? "Weeks still to submit first, then the rest from the most recent."
-              : "Ordered from the most recent week."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {reports.length === 0 ? (
-            <EmptyState
-              icon={ClipboardCheck}
-              title="No weekly reports yet"
-              description={
-                isOwner
-                  ? "Start your first report above once your work schedule is set."
-                  : "Submitted reports will appear here, most recent first."
-              }
-            />
-          ) : (
-            listed.map((report) => {
-              const index = reports.indexOf(report);
-              const submission = getLatestSubmission(report.revisionHistory);
-              // PDFs exist only for the submission the student stands behind;
-              // one carrying an older reference code (pre-Return) is stale.
-              const confirmed = getConfirmedSubmission(report);
-              const pdf = pdfByWeek.get(toDateKey(report.weekStart));
-              const pdfStatus =
-                confirmed && pdf?.referenceCode === confirmed.referenceCode ? pdf.status : null;
-              const awaitingReview = isAwaitingReview(report);
-              const editable = isOwner && isWeeklyReportEditable(report);
-              const feedback = getWeeklyReportHistory(report.revisionHistory).filter(
-                (entry) => entry.type !== "SUBMITTED" && typeof entry.notes === "string"
-              );
-              // Reports are sorted newest first, so the previous week is the next one. Only an
-              // editable week runs the copy check, so only it is sent the text (item 40: payload).
-              const priorAccomplishments = editable
-                ? (reports[index + 1]?.dailyEntries ?? [])
-                    .map((e) => e.accomplishments ?? "")
-                    .filter(Boolean)
-                : [];
+      {!isOwner && (
+        <Card>
+          <CardHeader>
+            <CardTitle>All reports ({reports.length})</CardTitle>
+            <CardDescription>
+              {isOwner
+                ? "Weeks still to submit first, then the rest from the most recent."
+                : "Ordered from the most recent week."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {reports.length === 0 ? (
+              <EmptyState
+                icon={ClipboardCheck}
+                title="No weekly reports yet"
+                description={
+                  isOwner
+                    ? "Start your first report above once your work schedule is set."
+                    : "Submitted reports will appear here, most recent first."
+                }
+              />
+            ) : (
+              listed.map((report) => renderWeek(report))
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-              // Only a week the intern can still edit (or the newest, for staff) starts open; the
-              // rest fold to one line so the page isn't every week's every day at once.
-              const startOpen = isOwner ? report.id === firstEditableId : index === 0;
-              const weekHours = formatHrsMins(Number(report.totalHours));
-              const weekNo = weekNumberFrom(firstReport.weekStart, report.weekStart);
-              // The class may be in a later week than the intern's own count: say which
-              // Google Classroom week this report goes under.
-              const termWeek = termWeekOne
-                ? Math.round(
-                    (report.weekStart.getTime() - getWeekStartMonday(termWeekOne).getTime()) /
-                      (7 * 24 * 60 * 60 * 1000)
-                  ) + 1
-                : null;
+      {isOwner && reports.length > 0 && (
+        <div className="space-y-3">
+          <WeekSection
+            title="To do"
+            count={todoCount}
+            hint={
+              todo.some((r) => r.status === "RETURNED")
+                ? `${todo.filter((r) => r.status === "RETURNED").length} returned by your adviser`
+                : todoCount > 0
+                  ? "due Tuesday"
+                  : "nothing to write right now"
+            }
+            open={todoCount > 0}
+          >
+            {notStartedTodo.map((w) => (
+              <NotStartedWeek
+                key={toDateKey(w.weekStart)}
+                studentProfileId={params.studentProfileId}
+                weekStart={w.weekStart}
+                weekNo={weekNumberFrom(firstReport.weekStart, w.weekStart)}
+                late={false}
+              />
+            ))}
+            {todo.map((r) => renderWeek(r))}
+          </WeekSection>
+          <WeekSection
+            title="Missing"
+            count={missingCount}
+            hint={missingCount > 0 ? "past the Tuesday deadline: still to submit" : "none"}
+            tone="alert"
+            open={todoCount === 0 && missingCount > 0}
+          >
+            {notStartedMissing.map((w) => (
+              <NotStartedWeek
+                key={toDateKey(w.weekStart)}
+                studentProfileId={params.studentProfileId}
+                weekStart={w.weekStart}
+                weekNo={weekNumberFrom(firstReport.weekStart, w.weekStart)}
+                late
+              />
+            ))}
+            {missing.map((r) => renderWeek(r))}
+          </WeekSection>
+          <WeekSection
+            title="Submitted"
+            count={submitted.length}
+            hint={(() => {
+              const waiting = submitted.filter((r) => isAwaitingReview(r)).length;
+              const done = submitted.length - waiting;
               return (
-                <div
-                  key={report.id}
-                  id={`week-${toDateKey(report.weekStart)}`}
-                  className="scroll-mt-6 rounded-lg border p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        Week No. {weekNo}
-                        <span className="font-normal text-muted-foreground">
-                          {" "}
-                          · {formatDate(report.weekStart)} –{" "}
-                          {formatDate(reportPeriodEnd(report.weekStart, report.dailyEntries))}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        WWR{String(weekNo).padStart(2, "0")} · due{" "}
-                        {formatDate(getWeeklyReportDueDate(report.weekEnd))}
-                        {termWeek != null && termWeek > 0 && termWeek !== weekNo && (
-                          <> · goes under Week {termWeek} in Google Classroom</>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {awaitingReview ? (
-                        <Badge variant="secondary">Submitted · awaiting review</Badge>
-                      ) : report.status === "PENDING" ? (
-                        isWeeklyReportLate(report.weekEnd) ? (
-                          // Past its Tuesday: say so before Submit asks for the reason.
-                          <Badge variant="destructive">Overdue · not submitted</Badge>
-                        ) : (
-                          <Badge variant="outline">Draft</Badge>
-                        )
-                      ) : (
-                        <StatusBadge status={report.status} />
-                      )}
-                      {submission?.late && <Badge variant="destructive">Late</Badge>}
-                      {confirmed && (
-                        <ReportPdfActions
-                          endpoint={`/api/weekly-reports/${report.id}/pdf`}
-                          status={pdfStatus}
-                          canGenerate
-                        />
-                      )}
-                      {isOwner && awaitingReview && !isWeeklyReportLate(report.weekEnd) && (
-                        <WithdrawReport weeklyReportId={report.id} />
-                      )}
-                      {canReview && awaitingReview && <QuickApprove weeklyReportId={report.id} />}
-                      {canReview && (
-                        <Link
-                          href={`/students/${params.studentProfileId}/weekly-reports/${report.id}/review`}
-                          className={cn(
-                            buttonVariants({ variant: "outline", size: "sm" }),
-                            "cursor-pointer transition-colors duration-200"
-                          )}
-                        >
-                          Review
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-
-                  {isOwner && report.id === newestSubmittedId && (
-                    <ol className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-                      {[
-                        "Download the PDF",
-                        "Have your HTE supervisor sign it",
-                        `Upload it to Google Classroom as ${sluFileName({ kind: "WWR", week: weekNo }, pdfName)}`,
-                      ].map((step, i) => (
-                        <li
-                          key={step}
-                          className="flex items-start gap-2 rounded-md bg-muted/40 px-3 py-2"
-                        >
-                          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                            {i + 1}
-                          </span>
-                          {step}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-
-                  {submission && (awaitingReview || report.status !== "PENDING") && (
-                    <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                      <Hash className="size-3.5" aria-hidden="true" />
-                      <span className="font-mono text-foreground">{submission.referenceCode}</span>·
-                      submitted {formatInstant(new Date(submission.timestamp))}
-                      {submission.reasonForDelay && (
-                        <> · delay reason: {submission.reasonForDelay}</>
-                      )}
-                    </p>
-                  )}
-
-                  {(feedback.length > 0 || report.facultyAction) && (
-                    // Amber only when the report came back for changes; otherwise neutral.
-                    <div
-                      className={cn(
-                        "mt-3 space-y-1 rounded-md border p-3 text-sm",
-                        report.status === "RETURNED"
-                          ? "border-notice-border bg-notice"
-                          : "bg-muted/50"
-                      )}
-                    >
-                      <p className="flex items-center gap-1.5 font-medium text-foreground">
-                        <MessageSquareWarning className="size-4" aria-hidden="true" />
-                        Faculty feedback
-                      </p>
-                      {feedback.map((entry, i) => (
-                        <p key={i} className="text-muted-foreground">
-                          {String(entry.notes)}
-                        </p>
-                      ))}
-                      {feedback.length === 0 && report.facultyAction && (
-                        <p className="text-muted-foreground">
-                          {describeFacultyAction(report.facultyAction)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <details open={startOpen} className="group/week mt-3">
-                    <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-sm text-primary [&::-webkit-details-marker]:hidden">
-                      <ChevronDown
-                        className="size-4 transition-transform duration-200 group-open/week:rotate-180"
-                        aria-hidden="true"
-                      />
-                      <span className="group-open/week:hidden">
-                        {editable ? "Continue this report" : "Show the days"}
-                      </span>
-                      <span className="hidden group-open/week:inline">Hide the days</span>
-                      <span className="text-muted-foreground tabular-nums">· {weekHours}</span>
-                    </summary>
-                    <div className="mt-3">
-                      <WeeklyReportForm
-                        weeklyReportId={report.id}
-                        editable={editable}
-                        shift={shift}
-                        usualTimes={usualTimes}
-                        firstWeek={report.id === firstReport.id}
-                        firstDay={profile?.internshipStartDate?.toISOString() ?? null}
-                        holidays={holidays}
-                        notes={notesFor(report.weekStart, report.weekEnd)}
-                        reviewable={canReview}
-                        weekEnd={report.weekEnd.toISOString()}
-                        priorAccomplishments={priorAccomplishments}
-                        clarityAi={editable && aiJobs.has("clarity")}
-                        totals={{
-                          totalHours: Number(report.totalHours),
-                          runningTotal: Number(report.runningTotal),
-                          conductDeductions: deductionsAsOf(report.weekEnd),
-                          remainingHours: Number(report.remainingHours),
-                        }}
-                        entries={report.dailyEntries.map((e) => ({
-                          id: e.id,
-                          reportDate: e.reportDate.toISOString(),
-                          scheduledHours: Number(e.scheduledHours),
-                          actualHours: e.actualHours == null ? null : Number(e.actualHours),
-                          accomplishments: e.accomplishments,
-                          toolsUsed: e.toolsUsed,
-                          attendanceStatus: e.attendanceStatus,
-                          timeIn: e.timeIn,
-                          timeOut: e.timeOut,
-                          timeIn2: e.timeIn2,
-                          timeOut2: e.timeOut2,
-                        }))}
-                      />
-                    </div>
-                  </details>
-                </div>
+                [waiting && `${waiting} awaiting review`, done && `${done} approved or accepted`]
+                  .filter(Boolean)
+                  .join(" · ") || "none yet"
               );
-            })
-          )}
-        </CardContent>
-      </Card>
+            })()}
+            open={false}
+          >
+            {submitted.map((r) => renderWeek(r))}
+          </WeekSection>
+        </div>
+      )}
 
       {isOwner && coverage && (
         <Card>
@@ -551,14 +588,13 @@ export default async function WeeklyReportsPage(props: {
         </Card>
       )}
 
-      {isOwner && hasThisWeek && (
+      {isOwner && reports.length > 0 && (
         <details className="rounded-lg border bg-card px-4 py-3 text-sm">
           <summary className="flex min-h-6 cursor-pointer items-center font-medium">
             Start a report for another week
           </summary>
           <p className="mt-2 mb-3 text-muted-foreground">
-            Your weeks since your first report are listed above. Pick a day in another week only if
-            one is missing.
+            Weeks since your first report are listed above. Use this only for a week before it.
           </p>
           <GenerateWeekButton studentProfileId={params.studentProfileId} />
         </details>
