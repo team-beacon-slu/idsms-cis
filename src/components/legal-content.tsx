@@ -66,7 +66,10 @@ export function PrivacyNoticeBody() {
             certificate or parent consent) was submitted and approved. The documents themselves stay
             in Google Classroom; IDSMS records only the status.
           </li>
-          <li>Leave and time requests, conduct records and the reasons given for them.</li>
+          <li>
+            Overtime, under time and absences reported in weekly reports, conduct records and the
+            reasons given for them.
+          </li>
           <li>
             Security records: sign-in attempts, the IP address of actions, and an audit log of
             changes.

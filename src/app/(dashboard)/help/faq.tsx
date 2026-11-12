@@ -67,8 +67,8 @@ export const FACULTY: Faq[] = [
     a: "On My students, use the bulk endorsement button for a class group. You confirm your password before the letters are made.",
   },
   {
-    q: "An intern asked for leave or a schedule change.",
-    a: "Your dashboard lists requests waiting for you. Open the intern's Leave & time requests to approve or decline it.",
+    q: "An intern reported overtime, under time or an absence.",
+    a: "Your dashboard lists the reasons waiting for you. Open the week to review it, or the intern's Overtime & absences, and choose Accept or Not accepted.",
   },
 ];
 

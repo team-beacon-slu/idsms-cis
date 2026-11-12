@@ -4,7 +4,7 @@
 
 _Last updated: 12 November 2026. Audience: IT office, maintainers, developers. Status labels: **Built**, **In progress**, **Planned**._
 
-This is the technical design document (TDD) for IDSMS-CIS as built on `develop` (version 0.5.0 and later). File paths are relative to the repository root.
+This is the technical design document (TDD) for IDSMS-CIS as built on `develop` (version 0.6.0). File paths are relative to the repository root.
 
 ## 1. Architecture
 
