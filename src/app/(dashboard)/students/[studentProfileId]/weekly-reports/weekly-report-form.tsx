@@ -1171,12 +1171,10 @@ export function WeeklyReportForm({
           const problem = problems[entry.id];
           const ready = !problemOf(entry);
           const exceptions = exceptionsOf(entry, row, shift);
-          // Late arrival or early leave: under time, which needs remarks.
-          const early = exceptions.some((x) => x.kind !== "overtime");
           const overtime = exceptions.some((x) => x.kind === "overtime");
           const underTime = exceptions.some((x) => x.kind !== "overtime");
           const needsReason =
-            (row.status === "ABSENT" || early) && row.reason.trim().length < DAY_NOTE_MIN;
+            (row.status === "ABSENT" || underTime) && row.reason.trim().length < DAY_NOTE_MIN;
           const dayLabel = formatDay(entry.reportDate);
           return (
             <section
@@ -1347,7 +1345,7 @@ export function WeeklyReportForm({
                           htmlFor={`reason-${entry.id}`}
                           className="text-xs text-notice-foreground"
                         >
-                          {early
+                          {underTime
                             ? "Remarks: reason for the under time (required)"
                             : overtime
                               ? "Remarks: reason for the off-duty work"

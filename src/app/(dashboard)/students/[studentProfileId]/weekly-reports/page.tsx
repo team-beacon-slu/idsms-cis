@@ -117,7 +117,9 @@ export default async function WeeklyReportsPage(props: {
           internshipStartDate: true,
           fullName: true,
           user: { select: { email: true } },
-          semester: { select: { weekOneStart: true } },
+          renderedHours: true,
+          requiredHours: true,
+          semester: { select: { weekOneStart: true, archivedAt: true } },
         },
       }),
       getLatestApprovedWorkPlanForStudent(params.studentProfileId),
@@ -187,7 +189,12 @@ export default async function WeeklyReportsPage(props: {
   // Weeks since the first report with no report yet: shown with a Start button, never created
   // on their own (opening the page writes nothing).
   const notStarted: { weekStart: Date; late: boolean }[] = [];
-  if (isOwner && firstReport) {
+  // Finished the hours, or a past term: nothing more is owed (same rule as the reminders).
+  const done =
+    !profile ||
+    profile.semester.archivedAt != null ||
+    Number(profile.renderedHours) >= profile.requiredHours;
+  if (isOwner && firstReport && !done) {
     const filed = new Set(reports.map((r) => toDateKey(r.weekStart)));
     const thisWeek = getWeekStartMonday(new Date());
     for (let w = getWeekStartMonday(firstReport.weekStart); w <= thisWeek; w = addDays(w, 7)) {
@@ -200,9 +207,8 @@ export default async function WeeklyReportsPage(props: {
   const notStartedMissing = notStarted.filter((w) => w.late);
   const todoCount = todo.length + notStartedTodo.length;
   const missingCount = missing.length + notStartedMissing.length;
-  // One week opens: the first still to do, else the first missing one.
-  const firstEditableId = isOwner ? (todo[0] ?? missing[0])?.id : undefined;
-  const listed = reports;
+  // One week opens: the oldest overdue one, else the first still to do.
+  const firstEditableId = isOwner ? (missing[0] ?? todo[0])?.id : undefined;
   // R5: interns see their own plan-coverage pointers (the newest week that has them).
   const coverage = aiJobs.has("coverage")
     ? reports.map((r) => (r.aiHints as AiHintsData | null)?.coverage).find((c) => c?.missing.length)
@@ -481,25 +487,17 @@ export default async function WeeklyReportsPage(props: {
         <Card>
           <CardHeader>
             <CardTitle>All reports ({reports.length})</CardTitle>
-            <CardDescription>
-              {isOwner
-                ? "Weeks still to submit first, then the rest from the most recent."
-                : "Ordered from the most recent week."}
-            </CardDescription>
+            <CardDescription>Ordered from the most recent week.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {reports.length === 0 ? (
               <EmptyState
                 icon={ClipboardCheck}
                 title="No weekly reports yet"
-                description={
-                  isOwner
-                    ? "Start your first report above once your work schedule is set."
-                    : "Submitted reports will appear here, most recent first."
-                }
+                description="Submitted reports will appear here, most recent first."
               />
             ) : (
-              listed.map((report) => renderWeek(report))
+              reports.map((report) => renderWeek(report))
             )}
           </CardContent>
         </Card>
@@ -535,7 +533,7 @@ export default async function WeeklyReportsPage(props: {
             count={missingCount}
             hint={missingCount > 0 ? "past the Tuesday deadline: still to submit" : "none"}
             tone="alert"
-            open={todoCount === 0 && missingCount > 0}
+            open={missingCount > 0}
           >
             {notStartedMissing.map((w) => (
               <NotStartedWeek
@@ -594,7 +592,9 @@ export default async function WeeklyReportsPage(props: {
             Start a report for another week
           </summary>
           <p className="mt-2 mb-3 text-muted-foreground">
-            Weeks since your first report are listed above. Use this only for a week before it.
+            Weeks since your first report are listed above. Use this only if your OJT started before
+            your first report: that week becomes your Week No. 1 (WWR01) and the weeks after it are
+            numbered again, so rename any PDF you already uploaded.
           </p>
           <GenerateWeekButton studentProfileId={params.studentProfileId} />
         </details>
