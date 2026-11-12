@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { BrandMark, BrandTile } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar } from "@/components/avatar";
+import { initials } from "@/lib/utils/displayName";
 import { AccountMenu } from "./account-menu";
 import { NotificationBell } from "./notification-bell";
 
@@ -339,7 +340,7 @@ export function DashboardNav({
         <NotificationBell className="ml-auto" />
         <Link
           href="/profile"
-          aria-label={`Account settings for ${name}`}
+          aria-label={`${initials(name)}, account settings for ${name}`}
           className="grid size-11 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-ring"
         >
           <Avatar name={name} className="size-8 text-xs" />

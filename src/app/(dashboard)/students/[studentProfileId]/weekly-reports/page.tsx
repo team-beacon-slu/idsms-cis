@@ -553,7 +553,9 @@ export default async function WeeklyReportsPage(props: {
 
       {isOwner && hasThisWeek && (
         <details className="rounded-lg border bg-card px-4 py-3 text-sm">
-          <summary className="cursor-pointer font-medium">Start a report for another week</summary>
+          <summary className="flex min-h-6 cursor-pointer items-center font-medium">
+            Start a report for another week
+          </summary>
           <p className="mt-2 mb-3 text-muted-foreground">
             Your weeks since your first report are listed above. Pick a day in another week only if
             one is missing.

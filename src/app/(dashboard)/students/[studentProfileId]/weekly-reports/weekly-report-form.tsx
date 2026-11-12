@@ -983,7 +983,7 @@ export function WeeklyReportForm({
             size="sm"
             disabled={isPending || addingDay !== null}
             onClick={() => addWorkedDay(day.key)}
-            aria-label={`I worked on ${label}`}
+            aria-label={`I worked this day: ${label}`}
             className="h-8 cursor-pointer gap-1 px-2 text-xs text-primary"
           >
             <Plus className="size-3.5" aria-hidden="true" />

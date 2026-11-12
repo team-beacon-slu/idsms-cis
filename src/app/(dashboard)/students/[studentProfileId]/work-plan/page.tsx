@@ -100,7 +100,12 @@ export default async function WorkPlanPage(props: {
             )}
 
             {rows.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div
+                tabIndex={0}
+                role="region"
+                aria-label="Planned tasks"
+                className="overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
                 <table className="w-full min-w-[40rem] border-collapse text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
