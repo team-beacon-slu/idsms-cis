@@ -1,12 +1,11 @@
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
-import { loadTimeReportData, timeReportKindsFor } from "@/lib/documents/timeReportData";
+import { loadTimeReportData } from "@/lib/documents/timeReportData";
 
 const d = (s: string) => new Date(`${s}T00:00:00Z`);
 const profile = {
   fullName: "Dela Cruz, Juan P.",
   user: { email: "juan@slu.edu.ph" },
   company: { name: "Acme", supervisorName: "Maria" },
-  semester: { weekOneStart: d("2026-10-05") },
 };
 const week = { weekStart: d("2026-10-05"), weekEnd: d("2026-10-11") };
 const request = (over: object) => ({
@@ -63,8 +62,8 @@ it("adds Absent days no leave covers, in date order", async () => {
     }),
   ] as never);
   prismaMock.dailyReportEntry.findMany.mockResolvedValue([
-    { reportDate: d("2026-10-07") }, // covered by the leave
-    { reportDate: d("2026-10-05") },
+    { reportDate: d("2026-10-07"), attendanceStatus: "ABSENT" }, // covered by the leave
+    { reportDate: d("2026-10-05"), attendanceStatus: "ABSENT" },
   ] as never);
   const data = (await loadTimeReportData("p-1", "ABSENCE"))!;
   expect(data.week).toBeNull();
@@ -79,18 +78,17 @@ it("refuses a week that belongs to another student", async () => {
   expect(await loadTimeReportData("p-1", "UT", "someone-elses")).toBeNull();
 });
 
-it("offers each week only the reports it has", () => {
-  expect(
-    timeReportKindsFor(week, {
-      requests: [
-        { deviationType: "OVERTIME", date: d("2026-10-10"), endDate: null },
-        { deviationType: "ABSENCE", date: d("2026-10-02"), endDate: d("2026-10-05") },
-        { deviationType: "UNDERTIME", date: d("2026-10-20"), endDate: null },
-      ] as never,
-      absentDates: [],
-    })
-  ).toEqual(["OT", "ABSENCE"]);
-  expect(timeReportKindsFor(week, { requests: [], absentDates: ["2026-10-08"] })).toEqual([
-    "ABSENCE",
-  ]);
+it("leaves out a whole-day leave on a day the weekly report says was worked", async () => {
+  // An old leave request for Wednesday, but the intern came in and reported 10 hours that day:
+  // printing it under "Report on Absences" would contradict the time record on page 1.
+  prismaMock.deviationReport.findMany.mockResolvedValue([
+    request({ date: d("2026-10-07"), validationStatus: "PENDING" }),
+    request({ date: d("2026-10-08"), startTime: "13:00", endTime: "17:00" }), // half day: kept
+  ] as never);
+  prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+    { reportDate: d("2026-10-07"), attendanceStatus: "PRESENT" },
+    { reportDate: d("2026-10-08"), attendanceStatus: "PRESENT" },
+  ] as never);
+  const data = (await loadTimeReportData("p-1", "ABSENCE", "wr-1"))!;
+  expect(data.absences.map((a) => a.date.toISOString().slice(0, 10))).toEqual(["2026-10-08"]);
 });

@@ -77,9 +77,24 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(html).toContain("IT-MMA/CS-CAD Department");
     expect(html).toContain("Saint Louis University, Baguio City");
     expect(html).toContain("Weekly Work Report");
-    expect(html).toContain("Week No. 3 (Oct 5 – Oct 11, 2026)");
+    // SLU policy: a weekly report covers Monday to Friday.
+    expect(html).toContain("Week No. 3 (Oct 5 – Oct 9, 2026)");
     expect(html).toContain("Name: <strong>Dela Cruz, Juan P.</strong>");
     expect(html).toContain("<strong>Company</strong>: Acme Corp");
+  });
+
+  it("lists Monday to Friday, a weekday off as a day off, and a weekend only when worked", () => {
+    const html = renderWeeklyReportHtml(sample());
+    expect(html).toContain("Oct 9 (Friday)");
+    expect(html).toMatch(/Oct 9 \(Friday\)<\/td>\s*<td><strong>Day off<\/strong>/);
+    expect(html).not.toContain("Saturday");
+    const worked = renderWeeklyReportHtml(
+      sample({
+        entries: [entry(), entry({ reportDate: new Date("2026-10-10T00:00:00Z") })],
+      })
+    );
+    expect(worked).toContain("Oct 10 (Saturday)");
+    expect(worked).toContain("Week No. 3 (Oct 5 – Oct 10, 2026)");
   });
 
   it("prints the detailed time record with both ranges and N hrs M mins", () => {
@@ -152,12 +167,81 @@ describe("renderWeeklyReportHtml (SLU Weekly Work Report)", () => {
     expect(renderWeeklyReportHtml(data)).toContain("Less conduct deductions (to date)");
   });
 
-  it("leaves OT and UT to their own reports but keeps SLU's notes", () => {
+  it("is the main report alone when the week has no overtime, under time or absence", () => {
     const html = renderWeeklyReportHtml(sample());
     expect(html).not.toContain("Report on Overtime Hours");
     expect(html).not.toContain("Report on UNDER TIME Hours");
+    expect(html).not.toContain("Report on Absences");
     expect(html).toContain("at least 30 minutes of off-duty time");
     expect(html).toContain("Extending the hours to compensate for tardiness is impermissible.");
+  });
+
+  it("prints the week's under time and absence sections on the next page of the same PDF", () => {
+    const section = {
+      student: { name: "Dela Cruz, Juan P." },
+      company: { name: "Acme", supervisorName: "Maria Santos" },
+      week: "IN_WEEKLY_REPORT" as const,
+      generatedAt: new Date("2026-10-12T02:00:00Z"),
+    };
+    const html = renderWeeklyReportHtml(
+      sample({
+        timeReports: [
+          {
+            ...section,
+            kind: "UT",
+            rows: [
+              {
+                date: new Date("2026-10-06T00:00:00Z"),
+                startTime: "08:00",
+                endTime: "08:30",
+                minutes: 30,
+                reason: "Woke up late.",
+              },
+            ],
+            absences: [],
+          },
+          {
+            ...section,
+            kind: "ABSENCE",
+            rows: [],
+            absences: [
+              {
+                date: new Date("2026-10-07T00:00:00Z"),
+                endDate: null,
+                startTime: null,
+                endTime: null,
+                kind: "EMERGENCY",
+                reason: "Fever, saw a doctor",
+                proof: "MEDICAL_CERTIFICATE",
+              },
+            ],
+          },
+        ],
+      })
+    );
+    expect(html).toContain('<div class="page">');
+    expect(html).toContain("Report on UNDER TIME Hours");
+    expect(html).toContain("this section is only included if the student incurred an under time");
+    expect(html).toContain("Woke up late.");
+    // Evidence stays in Google Classroom (the faculty adviser, 12 Nov): the PDF says where.
+    expect(html).toContain("submitted with this report in Google Classroom");
+    expect(html).toContain("Report on Absences");
+    expect(html).toContain("Fever, saw a doctor");
+    expect(html).not.toContain("Report on Overtime Hours");
+    // The main report still comes first.
+    expect(html.indexOf("Detailed Time Record")).toBeLessThan(html.indexOf('<div class="page">'));
+  });
+
+  it("prints the days before the intern's first day of OJT as not yet started, not a day off", () => {
+    const html = renderWeeklyReportHtml(
+      sample({
+        firstDay: new Date("2026-10-07T00:00:00Z"), // started on Wednesday
+        entries: [entry({ reportDate: new Date("2026-10-07T00:00:00Z") })],
+      })
+    );
+    expect(html.match(/OJT not yet started/g)).toHaveLength(2); // Monday and Tuesday
+    expect(html.match(/Day off/g)).toHaveLength(2); // Thursday and Friday
+    expect(html).not.toContain("Absent");
   });
 
   it("prints on SLU long bond in Calibri, with the totals inside the time record", () => {

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { getLatestScheduleChangeStatus } from "@/lib/services/attendance/attendanceService";
 import { getExpiringMoaRecords } from "@/lib/services/predeployment/companyService";
 import { displayName } from "@/lib/utils/displayName";
+import { NOT_REPORTED_WHERE } from "@/lib/services/attendance/reportedTimeRecords";
 
 export type WaitingItem = { key: string; intern: string; what: string; href: string };
 
@@ -63,6 +64,7 @@ export async function getAdviserWaiting(facultyId: string) {
     prisma.deviationReport.findMany({
       where: {
         validationStatus: ValidationStatus.PENDING,
+        ...NOT_REPORTED_WHERE, // weekly-report reasons are reviewed with their week
         studentProfile: { deletedAt: null, ...inGroups },
       },
       orderBy: { date: "asc" },

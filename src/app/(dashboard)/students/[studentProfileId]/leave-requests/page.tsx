@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
-import { CalendarX2 } from "lucide-react";
+import Link from "next/link";
+import { CalendarX2, ClipboardCheck } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { adviserNoteOf, isReported } from "@/lib/services/attendance/reportedTimeRecords";
 import { requireUserPage } from "@/lib/auth/session";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { listTimeRequests } from "@/lib/services/attendance/timeRequestService";
@@ -10,14 +14,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { TimeReportLinks } from "../weekly-reports/time-report-links";
 import { safeInternalPath } from "@/lib/utils/safeInternalPath";
-import { EditRequestButton, RequestForm, type RequestFormValues } from "./request-form";
+import { EditRequestButton, type RequestFormValues } from "./request-form";
 import { RequestReviewActions } from "./request-review-actions";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Leave & time requests" };
+export const metadata: Metadata = { title: "Overtime, undertime & absences" };
 
-// Workstream L1 — "Leave & Time Requests" tab. The intern files and edits
-// requests; the assigned adviser, coordinator or Super Admin reviews them.
+// Overtime, undertime and absences on record. Since Nov 2026 (adviser feedback) the intern
+// reports them on the day in the weekly report, and the adviser's say is the week's review;
+// requests filed the old way stay listed, editable and reviewable here until they are done.
 
 const TYPE_LABEL: Record<string, string> = {
   ABSENCE: "Leave",
@@ -33,7 +38,6 @@ const STATUS: Record<string, { label: string; className: string }> = {
   },
   REJECTED: { label: "Returned", className: "border-red-300 text-red-800" },
 };
-const PREFILL_KEYS = ["deviationType", "date", "startTime", "endTime"] as const;
 
 const fmtDate = (d: Date) =>
   d.toLocaleDateString("en-PH", {
@@ -59,35 +63,34 @@ export default async function LeaveRequestsPage(props: {
 
   const requests = await listTimeRequests(params.studentProfileId);
   const isOwner = user.role === "STUDENT_INTERN";
-  // Prefill from the weekly report's "file an undertime request" link.
-  const prefill: Partial<RequestFormValues> = {};
-  for (const key of PREFILL_KEYS) {
-    const value = searchParams[key];
-    if (typeof value === "string") prefill[key] = value;
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Leave & time requests"
-        description="Leave, overtime and undertime, reviewed by the faculty adviser. Approved overtime is credited to rendered hours."
+        title="Overtime, undertime & absences"
+        description="Every overtime, early leave and absence on record, with its reason."
       />
 
       {isOwner && (
         <Card>
           <CardHeader>
-            <CardTitle>New request</CardTitle>
+            <CardTitle>Report it on the day, in your weekly report</CardTitle>
             <CardDescription>
-              File overtime before you work it and undertime for an early leave. A late arrival is
-              marked for your adviser to decide; you may file undertime to explain it.
+              Worked late, left early or were absent? Open that day in your weekly report: it
+              notices the change from your times and asks for the reason there. Leave itself is
+              approved by your company supervisor.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RequestForm
-              studentProfileId={params.studentProfileId}
-              initial={prefill}
-              returnTo={safeInternalPath(searchParams.returnTo) ?? undefined}
-            />
+            <Link
+              href={
+                safeInternalPath(searchParams.returnTo) ??
+                `/students/${params.studentProfileId}/weekly-reports`
+              }
+              className={cn(buttonVariants(), "gap-1.5")}
+            >
+              <ClipboardCheck className="size-4" aria-hidden="true" />
+              Open my weekly report
+            </Link>
           </CardContent>
         </Card>
       )}
@@ -97,8 +100,8 @@ export default async function LeaveRequestsPage(props: {
           <CardTitle>Reports for your terminal requirements</CardTitle>
           <CardDescription>
             SLU&apos;s reports on off-duty (overtime) hours, under time and absences for the whole
-            internship, from the requests on record. Have your supervisor sign them; each
-            week&apos;s own reports are on the Weekly reports page.
+            internship, from the records below. Have your supervisor sign them; each week&apos;s own
+            reports are on the Weekly reports page.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
@@ -112,7 +115,7 @@ export default async function LeaveRequestsPage(props: {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            Requests
+            On record
             <Badge variant="secondary" className="font-normal">
               {requests.length}
             </Badge>
@@ -122,15 +125,31 @@ export default async function LeaveRequestsPage(props: {
           {requests.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center">
               <CalendarX2 className="size-6 text-muted-foreground" aria-hidden="true" />
-              <p className="text-sm text-muted-foreground">No requests have been filed yet.</p>
+              <p className="text-sm text-muted-foreground">
+                No overtime, undertime or absences yet.
+              </p>
             </div>
           ) : (
             <ul className="divide-y">
               {requests.map((r) => {
                 const type = TYPE_LABEL[r.deviationType] ?? r.deviationType;
                 const label = `${type} on ${fmtDate(r.date)}`;
-                const status = STATUS[r.validationStatus] ?? STATUS.PENDING;
-                const editable = r.validationStatus !== "VALIDATED";
+                // Reported in a weekly report: edited on that day; the adviser accepts it or not.
+                const reported = isReported(r.reviewNote);
+                const base = STATUS[r.validationStatus] ?? STATUS.PENDING;
+                const status = reported
+                  ? {
+                      label:
+                        r.validationStatus === "PENDING"
+                          ? "Reported · waiting for adviser"
+                          : r.validationStatus === "VALIDATED"
+                            ? "Reported · accepted"
+                            : "Reported · not accepted",
+                      className: base.className,
+                    }
+                  : base;
+                const note = adviserNoteOf(r.reviewNote);
+                const editable = !reported && r.validationStatus !== "VALIDATED";
                 const initial: RequestFormValues = {
                   deviationType: r.deviationType,
                   requestKind: r.requestKind ?? "ANTICIPATED",
@@ -168,8 +187,8 @@ export default async function LeaveRequestsPage(props: {
                           ` · ${formatHrsMins(r.requestedMinutes / 60)}`}
                       </p>
                       <p className="text-sm whitespace-pre-wrap text-foreground">{r.reason}</p>
-                      {r.validationStatus === "REJECTED" && r.reviewNote && (
-                        <p className="text-sm text-red-700">Adviser&apos;s note: {r.reviewNote}</p>
+                      {r.validationStatus === "REJECTED" && note && (
+                        <p className="text-sm text-red-700">Adviser&apos;s note: {note}</p>
                       )}
                     </div>
                     {isOwner && editable && (
@@ -180,11 +199,16 @@ export default async function LeaveRequestsPage(props: {
                         label={label}
                       />
                     )}
-                    {!isOwner && r.validationStatus !== "REJECTED" && (
+                    {!isOwner && (reported || r.validationStatus !== "REJECTED") && (
                       <RequestReviewActions
                         requestId={r.id}
                         label={label}
-                        canApprove={r.validationStatus === "PENDING"}
+                        canApprove={
+                          r.validationStatus === "PENDING" ||
+                          (reported && r.validationStatus === "REJECTED")
+                        }
+                        canReturn={r.validationStatus !== "REJECTED"}
+                        wording={reported ? "reason" : "request"}
                       />
                     )}
                   </li>

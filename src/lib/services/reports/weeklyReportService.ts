@@ -15,7 +15,12 @@ import {
   type ConfigureWorkScheduleInput,
 } from "@/lib/services/attendance/attendanceService";
 import { ForbiddenError } from "@/lib/services/accounts/userService";
-import type { AttendanceStatus } from "@/lib/validators/report";
+import type { AttendanceStatus, DayNote } from "@/lib/validators/report";
+import {
+  acceptReportedInWeek,
+  deleteReportedDays,
+  syncReportedDay,
+} from "@/lib/services/attendance/reportedTimeRecords";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
 import {
   creditForEntry,
@@ -69,6 +74,25 @@ export function getLatestSubmission(revisionHistory: unknown): WeeklyReportSubmi
     if (history[i].type === "SUBMITTED") return history[i] as WeeklyReportSubmissionEntry;
   }
   return null;
+}
+
+// Whether submitting now counts as late. After the adviser returns a week, the resubmission
+// keeps the first submission's lateness: an intern who was on time is not made late (or asked
+// for a reason for delay) by the return. Deductions already count the first submission only.
+export function isSubmissionLate(
+  report: { weekEnd: Date; revisionHistory: unknown },
+  at: Date = new Date()
+): boolean {
+  const history = getWeeklyReportHistory(report.revisionHistory);
+  // The submission the adviser returned: the last one before the first return (an earlier one
+  // may have been withdrawn and resubmitted late).
+  const returnedAt = history.findIndex((h) => h.type === "RETURNED");
+  const reviewed = history
+    .slice(0, Math.max(returnedAt, 0))
+    .findLast((h) => h.type === "SUBMITTED") as WeeklyReportSubmissionEntry | undefined;
+  if (!reviewed) return isWeeklyReportLate(report.weekEnd, at);
+  // Older history rows have no `late` flag: work it out from when it was sent.
+  return reviewed.late ?? isWeeklyReportLate(report.weekEnd, new Date(reviewed.timestamp));
 }
 
 // Only these entry types move a report through review; any other history
@@ -170,36 +194,7 @@ export async function generateWeeklyReportForm(
     return { weeklyReportId: existing.id, weekStart: normalizedWeekStart, weekEnd };
   }
 
-  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
-  if (!workPlan) {
-    throw new WorkPlanNotApprovedError();
-  }
-  const schedule = workPlan.scheduleConfig as unknown as ConfigureWorkScheduleInput | null;
-  if (!schedule?.daysOfWeek?.length || !schedule.hoursPerDay) {
-    throw new ScheduleNotConfiguredError();
-  }
-
-  const holidays = await getHolidayCalendarForStudent(studentProfileId);
-  const holidayDates = new Set(holidays.filter((h) => h.applicable).map((h) => toDateKey(h.date)));
-  const workingDays = new Set(schedule.daysOfWeek);
-
-  // Applicable holidays on scheduled days get a 0-hour HOLIDAY row so the SLU
-  // template can print "Holiday (PH Calendar)".
-  const dailyEntries: Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[] = [];
-  for (let offset = 0; offset < 7; offset += 1) {
-    const day = addDays(normalizedWeekStart, offset);
-    if (!workingDays.has(day.getUTCDay())) continue;
-    dailyEntries.push(
-      holidayDates.has(toDateKey(day))
-        ? {
-            reportDate: day,
-            attendanceStatus: "HOLIDAY",
-            scheduledHours: schedule.hoursPerDay,
-            actualHours: 0,
-          }
-        : { reportDate: day, attendanceStatus: "SCHEDULED", scheduledHours: schedule.hoursPerDay }
-    );
-  }
+  const dailyEntries = await scheduledEntriesFor(studentProfileId, normalizedWeekStart);
 
   try {
     const report = await prisma.weeklyReport.create({
@@ -224,6 +219,125 @@ export async function generateWeeklyReportForm(
     }
     throw error;
   }
+}
+
+// The rows a week starts with: one per scheduled working day, from the approved work plan's
+// schedule. Days before the intern's first day of OJT are left out (not yet started).
+async function scheduledEntriesFor(
+  studentProfileId: string,
+  weekStart: Date
+): Promise<Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[]> {
+  const workPlan = await getLatestApprovedWorkPlanForStudent(studentProfileId);
+  if (!workPlan) {
+    throw new WorkPlanNotApprovedError();
+  }
+  const schedule = workPlan.scheduleConfig as unknown as ConfigureWorkScheduleInput | null;
+  if (!schedule?.daysOfWeek?.length || !schedule.hoursPerDay) {
+    throw new ScheduleNotConfiguredError();
+  }
+
+  const [holidays, profile] = await Promise.all([
+    getHolidayCalendarForStudent(studentProfileId),
+    prisma.studentProfile.findUnique({
+      where: { id: studentProfileId },
+      select: { internshipStartDate: true },
+    }),
+  ]);
+  const holidayDates = new Set(holidays.filter((h) => h.applicable).map((h) => toDateKey(h.date)));
+  const workingDays = new Set(schedule.daysOfWeek);
+  const firstDay = profile?.internshipStartDate ? toDateKey(profile.internshipStartDate) : "";
+
+  // Applicable holidays on scheduled days get a 0-hour HOLIDAY row so the SLU
+  // template can print "Holiday (PH Calendar)".
+  const dailyEntries: Prisma.DailyReportEntryCreateWithoutWeeklyReportInput[] = [];
+  for (let offset = 0; offset < 7; offset += 1) {
+    const day = addDays(weekStart, offset);
+    if (!workingDays.has(day.getUTCDay()) || toDateKey(day) < firstDay) continue;
+    dailyEntries.push(
+      holidayDates.has(toDateKey(day))
+        ? {
+            reportDate: day,
+            attendanceStatus: "HOLIDAY",
+            scheduledHours: schedule.hoursPerDay,
+            actualHours: 0,
+          }
+        : { reportDate: day, attendanceStatus: "SCHEDULED", scheduledHours: schedule.hoursPerDay }
+    );
+  }
+  return dailyEntries;
+}
+
+// The intern's first day of OJT, set from their first weekly report (Week No. 1). An intern can
+// start in the middle of a week: the days before it leave the report, since not yet started is
+// neither a day off nor an absence (the faculty adviser, Nov 2026). Moving the day earlier
+// brings the scheduled days back. Owner only, while that first report can still be edited.
+export async function setFirstDayOfOjt(
+  weeklyReportId: string,
+  firstDay: Date,
+  studentUserId: string
+): Promise<void> {
+  const report = await prisma.weeklyReport.findUniqueOrThrow({
+    where: { id: weeklyReportId },
+    select: {
+      weekStart: true,
+      weekEnd: true,
+      status: true,
+      revisionHistory: true,
+      studentProfileId: true,
+      studentProfile: { select: { userId: true } },
+      dailyEntries: { select: { id: true, reportDate: true, accomplishments: true } },
+    },
+  });
+  if (report.studentProfile.userId !== studentUserId) {
+    throw new ForbiddenError("Only the student who owns this report can edit it");
+  }
+  if (!isWeeklyReportEditable(report)) throw new WeeklyReportLockedError();
+  const key = toDateKey(firstDay);
+  if (key < toDateKey(report.weekStart) || key > toDateKey(report.weekEnd)) {
+    throw new DailyEntryDateError("Pick a date within this report's week");
+  }
+  const { studentProfileId } = report;
+  const earlier = await prisma.weeklyReport.findFirst({
+    where: { studentProfileId, weekStart: { lt: report.weekStart } },
+    select: { id: true },
+  });
+  if (earlier) {
+    throw new DailyEntryDateError("Your first day of OJT is set in your first weekly report");
+  }
+
+  const remove = report.dailyEntries.filter((e) => toDateKey(e.reportDate) < key);
+  // Written work is never dropped silently: a day with work accomplished was worked.
+  if (remove.some((e) => e.accomplishments?.trim())) {
+    throw new DailyEntryDateError(
+      "A day before that date already has work accomplished saved. Clear it first, or pick an earlier first day."
+    );
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { internshipStartDate: firstDay },
+    });
+    if (remove.length > 0) {
+      await deleteReportedDays(
+        tx,
+        studentProfileId,
+        remove.map((e) => e.reportDate)
+      );
+      await tx.dailyReportEntry.deleteMany({ where: { id: { in: remove.map((e) => e.id) } } });
+    }
+  });
+  // After the date is saved, so the scheduled days come back from the new first day on.
+  const have = new Set(report.dailyEntries.map((e) => toDateKey(e.reportDate)));
+  const add = (await scheduledEntriesFor(studentProfileId, report.weekStart)).filter(
+    (d) => !have.has(toDateKey(new Date(d.reportDate)))
+  );
+  if (add.length > 0) {
+    await prisma.dailyReportEntry.createMany({
+      data: add.map((d) => ({ ...d, weeklyReportId })),
+    });
+  }
+  await calculateWeeklyTotalHours(weeklyReportId);
+  await calculateRunningTotalAndRemaining(studentProfileId, weeklyReportId);
 }
 
 // FR-WR-02 — Owner: KennethRusselAvaricio
@@ -398,6 +512,7 @@ export async function saveDailyAccomplishment(
     timeOut?: string | null;
     timeIn2?: string | null;
     timeOut2?: string | null;
+    note?: DayNote; // why the day differs: overtime, undertime or the absence
   } = {}
 ): Promise<{ id: string; hours: number; accomplishments: string }> {
   // Explicit status wins; legacy callers (no status) keep the old
@@ -456,6 +571,27 @@ export async function saveDailyAccomplishment(
     // Workstream L1: store the SLU-credited hours with the row (undefined
     // details keep the stored times, matching the update below).
     const pick = <T>(next: T | undefined, stored: T) => (next !== undefined ? next : stored);
+    const times = {
+      timeIn: pick(details.timeIn, entry.timeIn),
+      timeOut: pick(details.timeOut, entry.timeOut),
+      timeIn2: pick(details.timeIn2, entry.timeIn2),
+      timeOut2: pick(details.timeOut2, entry.timeOut2),
+    };
+    const studentProfileId = entry.weeklyReport.studentProfileId;
+    // The day's overtime / undertime / absence is reported here, before crediting, so this
+    // day's own reported overtime counts.
+    const ranges: Array<[string, string]> = [];
+    if (isPresent && times.timeIn && times.timeOut) ranges.push([times.timeIn, times.timeOut]);
+    if (isPresent && times.timeIn2 && times.timeOut2) ranges.push([times.timeIn2, times.timeOut2]);
+    await syncReportedDay(tx, {
+      studentProfileId,
+      reportDate: entry.reportDate,
+      status,
+      ranges,
+      scheduledHours: Number(entry.scheduledHours),
+      shift: ranges.length ? await loadShift(studentProfileId, tx) : null,
+      note: details.note,
+    });
     const creditedHours = isPresent
       ? creditForEntry(
           {
@@ -463,12 +599,9 @@ export async function saveDailyAccomplishment(
             scheduledHours: entry.scheduledHours,
             actualHours: hours,
             attendanceStatus: status,
-            timeIn: pick(details.timeIn, entry.timeIn),
-            timeOut: pick(details.timeOut, entry.timeOut),
-            timeIn2: pick(details.timeIn2, entry.timeIn2),
-            timeOut2: pick(details.timeOut2, entry.timeOut2),
+            ...times,
           },
-          await loadCreditContext(entry.weeklyReport.studentProfileId, tx)
+          await loadCreditContext(studentProfileId, tx)
         )
       : 0;
 
@@ -615,10 +748,12 @@ export async function removeDailyEntry(
     where: { id: dailyReportEntryId },
     select: {
       scheduledHours: true,
+      reportDate: true,
       weeklyReport: {
         select: {
           status: true,
           revisionHistory: true,
+          studentProfileId: true,
           studentProfile: { select: { userId: true } },
         },
       },
@@ -631,7 +766,11 @@ export async function removeDailyEntry(
   if (Number(entry.scheduledHours) > 0) {
     throw new DailyEntryDateError("Scheduled days can't be removed; mark them Absent instead");
   }
-  await prisma.dailyReportEntry.delete({ where: { id: dailyReportEntryId } });
+  await prisma.$transaction(async (tx) => {
+    // Its reported overtime goes with it.
+    await deleteReportedDays(tx, entry.weeklyReport.studentProfileId, [entry.reportDate]);
+    await tx.dailyReportEntry.delete({ where: { id: dailyReportEntryId } });
+  });
 }
 
 // FR-WR-05 — Owner: Shantea23
@@ -658,10 +797,10 @@ export async function validateLateSubmissionReason(
 ): Promise<void> {
   const report = await prisma.weeklyReport.findUniqueOrThrow({
     where: { id: weeklyReportId },
-    select: { weekEnd: true },
+    select: { weekEnd: true, revisionHistory: true },
   });
 
-  if (!isWeeklyReportLate(report.weekEnd)) {
+  if (!isSubmissionLate(report)) {
     return;
   }
   if (!reasonForDelay?.trim()) {
@@ -716,17 +855,20 @@ async function assertUndertimeFiled(
     if (e.timeIn2 && e.timeOut2) ranges.push([e.timeIn2, e.timeOut2]);
     const sameDay = requests.filter((r) => toDateKey(r.date) === toDateKey(e.reportDate));
     for (const gap of dayGaps(ranges, shift)) {
-      // Q6: no grace period is set; a late arrival is only marked (an automatic deduction item
-      // the adviser can excuse), so it never blocks submitting. An early leave still needs a request.
-      if (gap.kind === "late") continue;
+      // Under time, late arrival or early leave, carries remarks (the faculty adviser, 12 Nov,
+      // after Q6: the template's UT report has a Remarks column). The adviser still decides.
       // Any status counts here (filing is what the gate asks for); the range must span the gap.
       if (!isGapCovered(gap, sameDay)) {
-        missing.push(`${shortDate(e.reportDate)} (early leave)`);
+        missing.push(
+          `${shortDate(e.reportDate)} (${gap.kind === "late" ? "late arrival" : "early leave"})`
+        );
       }
     }
   }
   if (missing.length > 0) {
-    throw new WeeklyReportIncompleteError(`File an undertime request for: ${missing.join(", ")}`);
+    throw new WeeklyReportIncompleteError(
+      `Give remarks for the under time on: ${missing.join(", ")}`
+    );
   }
 }
 
@@ -775,7 +917,7 @@ export async function recordWeeklyReportSubmission(
     }
     await assertUndertimeFiled(report.studentProfileId, report.dailyEntries, tx);
 
-    const late = isWeeklyReportLate(report.weekEnd, submission.timestamp);
+    const late = isSubmissionLate(report, submission.timestamp);
     const entry: WeeklyReportSubmissionEntry = {
       type: "SUBMITTED",
       timestamp: submission.timestamp.toISOString(),
@@ -937,21 +1079,31 @@ export async function reviewWeeklyReport_Approve(
   // No dedicated `facultyId` column exists on `WeeklyReport` (see the
   // model in schema.prisma) — `facultyAction` is the only free-text field
   // available to record who reviewed it.
-  const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
-    await assertAwaitingReview(tx, weeklyReportId);
-    const updated = await tx.weeklyReport.update({
-      where: { id: weeklyReportId },
-      data: {
-        status: WeeklyReportStatus.APPROVED,
-        facultyAction: `APPROVED by ${facultyId}`,
-      },
-      select: { id: true, status: true, studentProfileId: true, weekStart: true },
-    });
-    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_APPROVED", ipAddress);
-    return updated;
-  });
+  const { id, status, studentProfileId, weekStart, otDates } = await prisma.$transaction(
+    async (tx) => {
+      await assertAwaitingReview(tx, weeklyReportId);
+      const updated = await tx.weeklyReport.update({
+        where: { id: weeklyReportId },
+        data: {
+          status: WeeklyReportStatus.APPROVED,
+          facultyAction: `APPROVED by ${facultyId}`,
+        },
+        select: { id: true, status: true, studentProfileId: true, weekStart: true, weekEnd: true },
+      });
+      await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_APPROVED", ipAddress);
+      const otDates = await acceptReportedInWeek(
+        tx,
+        updated.studentProfileId,
+        updated.weekStart,
+        updated.weekEnd,
+        facultyId
+      );
+      return { ...updated, otDates };
+    }
+  );
 
-  // This report's hours now count.
+  // Overtime accepted with the week now counts; then this report's hours count.
+  if (otDates.length > 0) await recomputeCreditedHours(studentProfileId, { dates: otDates });
   await computeTotalHoursRendered(studentProfileId);
   await refreshLaterRunningTotals(studentProfileId, weekStart);
 
@@ -1021,16 +1173,26 @@ export async function reviewWeeklyReport_Regard(
   facultyId: string,
   ipAddress?: string | null
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
-  const { id, status, studentProfileId, weekStart } = await prisma.$transaction(async (tx) => {
-    await assertAwaitingReview(tx, weeklyReportId);
-    const updated = await tx.weeklyReport.update({
-      where: { id: weeklyReportId },
-      data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
-      select: { id: true, status: true, studentProfileId: true, weekStart: true },
-    });
-    await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_REGARDED", ipAddress);
-    return updated;
-  });
+  const { id, status, studentProfileId, weekStart, otDates } = await prisma.$transaction(
+    async (tx) => {
+      await assertAwaitingReview(tx, weeklyReportId);
+      const updated = await tx.weeklyReport.update({
+        where: { id: weeklyReportId },
+        data: { status: WeeklyReportStatus.REGARDED, facultyAction: `REGARDED by ${facultyId}` },
+        select: { id: true, status: true, studentProfileId: true, weekStart: true, weekEnd: true },
+      });
+      await logReview(tx, facultyId, weeklyReportId, "WEEKLY_REPORT_REGARDED", ipAddress);
+      const otDates = await acceptReportedInWeek(
+        tx,
+        updated.studentProfileId,
+        updated.weekStart,
+        updated.weekEnd,
+        facultyId
+      );
+      return { ...updated, otDates };
+    }
+  );
+  if (otDates.length > 0) await recomputeCreditedHours(studentProfileId, { dates: otDates });
   await computeTotalHoursRendered(studentProfileId);
   await refreshLaterRunningTotals(studentProfileId, weekStart);
   return { id, status };
@@ -1062,6 +1224,17 @@ export async function reviewWeeklyReport_Disregard(
 ): Promise<{ id: string; status: WeeklyReportStatus }> {
   return prisma.$transaction(async (tx) => {
     await assertAwaitingReview(tx, weeklyReportId);
+    const days = await tx.dailyReportEntry.findMany({
+      where: { weeklyReportId },
+      select: { reportDate: true, weeklyReport: { select: { studentProfileId: true } } },
+    });
+    if (days.length > 0) {
+      await deleteReportedDays(
+        tx,
+        days[0].weeklyReport.studentProfileId,
+        days.map((d) => d.reportDate)
+      );
+    }
     await tx.dailyReportEntry.deleteMany({ where: { weeklyReportId } });
     await tx.weeklyReport.delete({ where: { id: weeklyReportId } });
     // The row is gone, so the reason lives in the audit trail.

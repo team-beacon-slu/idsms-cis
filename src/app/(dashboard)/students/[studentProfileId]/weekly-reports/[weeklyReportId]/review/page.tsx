@@ -9,8 +9,12 @@ import {
   isAwaitingReview,
 } from "@/lib/services/reports/weeklyReportService";
 import { WeeklyReportForm } from "../../weekly-report-form";
+import { loadDayNotes } from "@/lib/services/attendance/reportedTimeRecords";
+import { reportPeriodEnd } from "@/lib/utils/reportWeek";
+import { loadShift } from "@/lib/services/attendance/creditedHours";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { weekNumberOf } from "@/lib/documents/weeklyReportData";
 import { StatusBadge } from "@/components/status-badge";
 import { ClipboardList } from "lucide-react";
 import { WeeklyReportReviewActions } from "./review-actions";
@@ -51,10 +55,13 @@ export default async function WeeklyReportReviewPage(props: {
   if (report!.studentProfileId !== params.studentProfileId) {
     notFound();
   }
-  const student = await prisma.studentProfile.findUnique({
-    where: { id: params.studentProfileId },
-    select: { fullName: true, studentNumber: true },
-  });
+  const [student, weekNo] = await Promise.all([
+    prisma.studentProfile.findUnique({
+      where: { id: params.studentProfileId },
+      select: { fullName: true, studentNumber: true, internshipStartDate: true },
+    }),
+    weekNumberOf(params.studentProfileId, report!.weekStart),
+  ]);
   const awaitingReview = isAwaitingReview(report!);
 
   // FR-AI-05/07: cached hints only, shown while their job is on and the adviser's AI
@@ -72,7 +79,16 @@ export default async function WeeklyReportReviewPage(props: {
         left: queue.filter((q) => q.id !== report!.id).length,
       }
     : null;
-  const flags = queueReasons(report!, { on, similarityThreshold });
+  // The reasons the intern gave on the week's overtime, undertime and absent days, and the shift
+  // they are measured against, so the adviser sees why next to each day.
+  const [dayNotes, shift] = await Promise.all([
+    loadDayNotes(report!.studentProfileId, report!.weekStart, report!.weekEnd),
+    loadShift(report!.studentProfileId),
+  ]);
+  const undecided = Object.values(dayNotes)
+    .flatMap((n) => n.records)
+    .filter((r) => r.status === "PENDING").length;
+  const flags = queueReasons({ ...report!, undecided }, { on, similarityThreshold });
   // Hints vanish while a job is paused (provider limit): say so, so "no copy warning" is not
   // read as "no copying". Looked up only when no report hint job is on.
   const REPORT_JOBS: JobId[] = ["copy", "coverage", "tone", "summary"];
@@ -104,13 +120,16 @@ export default async function WeeklyReportReviewPage(props: {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ClipboardList className="size-5 text-primary" aria-hidden="true" />
-              <CardTitle>Review Weekly Report</CardTitle>
+              <h1 className="text-lg font-semibold text-foreground">
+                Review Weekly Work Report · Week No. {weekNo}
+              </h1>
             </div>
             <StatusBadge status={report!.status} />
           </div>
           <CardDescription>
-            {displayName(student ?? {})} · Week of {formatCalendarDate(new Date(report!.weekStart))}{" "}
-            – {formatCalendarDate(new Date(report!.weekEnd))}
+            {displayName(student ?? {})} · WWR{String(weekNo).padStart(2, "0")} ·{" "}
+            {formatCalendarDate(new Date(report!.weekStart))} –{" "}
+            {formatCalendarDate(reportPeriodEnd(new Date(report!.weekStart), report!.dailyEntries))}
           </CardDescription>
           <p className="text-xs text-muted-foreground">
             Supervisor-signed copies are submitted on Google Classroom, not in IDSMS.
@@ -138,6 +157,11 @@ export default async function WeeklyReportReviewPage(props: {
           <WeeklyReportForm
             weeklyReportId={report!.id}
             editable={false}
+            notes={dayNotes}
+            reviewable
+            shift={shift}
+            firstWeek={weekNo === 1}
+            firstDay={student?.internshipStartDate?.toISOString() ?? null}
             weekEnd={report!.weekEnd.toISOString()}
             priorAccomplishments={[]}
             totals={{

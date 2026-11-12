@@ -1,5 +1,7 @@
 # SLU template alignment
 
+> **Status (12 Nov 2026):** Done. PRs #161–#165 are merged. Of "Still outside IDSMS", items 1–3 were built in #169 (prefilled waiver PDF, notification of retraction with placement history, company visit record), and the intern home now asks for the certificate of completion within two weeks (item 4). The weekly report was aligned with the SLU template again after adviser feedback (#211).
+
 Compared against the SAMCIS IT-MMA/CS-CAD templates Jay shared (Drive folder `templates`,
 "final version"): OJT Documentation Guidelines, Weekly Work Report & JLE Templates, Technical
 Report (IT 421/CS 331/MMA 421), Parental Consent / Waiver, FM-VAA-052 HTE Evaluation Form, the

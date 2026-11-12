@@ -11,6 +11,7 @@ const total = jest.mocked(computeTotalHoursRendered);
 const projection = jest.mocked(computeProjectedCompletionDate);
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
   jest.clearAllMocks();
   // Regard needs a submitted report awaiting review.
   prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
@@ -34,7 +35,7 @@ it("records REGARDED, audits it, and refreshes hours for the report's owner", as
   expect(prismaMock.weeklyReport.update).toHaveBeenCalledWith({
     where: { id: "wr-1" },
     data: { status: WeeklyReportStatus.REGARDED, facultyAction: "REGARDED by faculty-1" },
-    select: { id: true, status: true, studentProfileId: true, weekStart: true },
+    select: { id: true, status: true, studentProfileId: true, weekStart: true, weekEnd: true },
   });
   expect(total).toHaveBeenCalledWith("profile-1");
   // The projection is read-only, computed where it's shown; nothing to refresh here.

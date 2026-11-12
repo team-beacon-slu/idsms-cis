@@ -38,7 +38,7 @@ export async function getAiSettings(): Promise<AiSettings> {
     similarityThreshold:
       typeof threshold === "number" && threshold >= THRESHOLD_MIN && threshold <= THRESHOLD_MAX
         ? threshold
-        : 0.7,
+        : 0.85, // golden set 2026-10-25: 0.70 flagged 9 of 18 routine entries (PRD NFR-AI-02)
     minSentimentConfidence:
       typeof confidence === "number" && confidence > 0 && confidence < 1 ? confidence : 0.6,
     privacyApprovedBy: typeof approvedBy === "string" && approvedBy.trim() ? approvedBy : null,

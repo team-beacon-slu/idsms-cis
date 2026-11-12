@@ -31,7 +31,6 @@ export async function loadTimeReportData(
         fullName: true,
         user: { select: { email: true } },
         company: { select: { name: true, supervisorName: true } },
-        semester: { select: { weekOneStart: true } },
       },
     }),
     weeklyReportId
@@ -44,7 +43,7 @@ export async function loadTimeReportData(
   if (!profile || (weeklyReportId && !report)) return null;
   const range = report ? { gte: report.weekStart, lte: report.weekEnd } : undefined;
 
-  const [requests, absentDays, weekNumber] = await Promise.all([
+  const [requests, reportedDays, weekNumber] = await Promise.all([
     prisma.deviationReport.findMany({
       where: {
         studentProfileId,
@@ -73,17 +72,15 @@ export async function loadTimeReportData(
     kind === "ABSENCE"
       ? prisma.dailyReportEntry.findMany({
           where: {
-            attendanceStatus: "ABSENT",
+            attendanceStatus: { in: ["ABSENT", "PRESENT"] },
             weeklyReport: { studentProfileId },
             ...(range ? { reportDate: range } : {}),
           },
           orderBy: { reportDate: "asc" },
-          select: { reportDate: true },
+          select: { reportDate: true, attendanceStatus: true },
         })
       : Promise.resolve([]),
-    report
-      ? weekNumberOf(studentProfileId, report.weekStart, profile.semester.weekOneStart)
-      : Promise.resolve(0),
+    report ? weekNumberOf(studentProfileId, report.weekStart) : Promise.resolve(0),
   ]);
 
   const pending = (r: { validationStatus: ValidationStatus }) =>
@@ -102,16 +99,33 @@ export async function loadTimeReportData(
 
   let absences: AbsenceRow[] = [];
   if (kind === "ABSENCE") {
-    const leaves = requests.map((r) => ({
-      date: r.date,
-      endDate: r.endDate,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      kind: r.requestKind,
-      reason: r.reason,
-      proof: r.proofType,
-      pending: pending(r),
-    }));
+    const absentDays = reportedDays.filter((e) => e.attendanceStatus === "ABSENT");
+    // A whole-day leave on a day the weekly report says was worked (an old request the intern
+    // then came in for) is not an absence: printing it would contradict page 1.
+    const worked = new Set(
+      reportedDays
+        .filter((e) => e.attendanceStatus === "PRESENT")
+        .map((e) => toDateKey(e.reportDate))
+    );
+    const leaves = requests
+      .filter(
+        (r) =>
+          !(
+            !r.startTime &&
+            (!r.endDate || toDateKey(r.endDate) === toDateKey(r.date)) &&
+            worked.has(toDateKey(r.date))
+          )
+      )
+      .map((r) => ({
+        date: r.date,
+        endDate: r.endDate,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        kind: r.requestKind,
+        reason: r.reason,
+        proof: r.proofType,
+        pending: pending(r),
+      }));
     // A day marked Absent that no leave covers is still an absence to report.
     const covered = (d: Date) => leaves.some((l) => l.date <= d && (l.endDate ?? l.date) >= d);
     const unfiled = absentDays
@@ -137,39 +151,4 @@ export async function loadTimeReportData(
     absences,
     generatedAt: new Date(),
   };
-}
-
-// The weeks (by weekStart key) that have anything for each report, so the weekly
-// list only offers the reports a week actually has.
-export async function timeReportWeeks(studentProfileId: string) {
-  const [requests, absent] = await Promise.all([
-    prisma.deviationReport.findMany({
-      where: { studentProfileId, validationStatus: { not: ValidationStatus.REJECTED } },
-      select: { deviationType: true, date: true, endDate: true },
-    }),
-    prisma.dailyReportEntry.findMany({
-      where: { attendanceStatus: "ABSENT", weeklyReport: { studentProfileId } },
-      select: { reportDate: true },
-    }),
-  ]);
-  return { requests, absentDates: absent.map((e) => toDateKey(e.reportDate)) };
-}
-
-export function timeReportKindsFor(
-  week: { weekStart: Date; weekEnd: Date },
-  { requests, absentDates }: Awaited<ReturnType<typeof timeReportWeeks>>
-): TimeReportKind[] {
-  const inWeek = (from: Date, to: Date | null) =>
-    from <= week.weekEnd && (to ?? from) >= week.weekStart;
-  const has = (t: DeviationType) =>
-    requests.some((r) => r.deviationType === t && inWeek(r.date, r.endDate));
-  const from = toDateKey(week.weekStart);
-  const to = toDateKey(week.weekEnd);
-  return [
-    ...(has(DeviationType.OVERTIME) ? (["OT"] as const) : []),
-    ...(has(DeviationType.UNDERTIME) ? (["UT"] as const) : []),
-    ...(has(DeviationType.ABSENCE) || absentDates.some((d) => d >= from && d <= to)
-      ? (["ABSENCE"] as const)
-      : []),
-  ];
 }

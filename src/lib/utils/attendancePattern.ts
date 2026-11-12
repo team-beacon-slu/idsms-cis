@@ -1,6 +1,6 @@
 // Habitual absence or lateness for the faculty roster: counts over the last four weeks, so an
 // adviser sees a pattern without opening every week. Pure: the compliance query passes its rows.
-import { parseHHMM, type Shift } from "@/lib/utils/timeMath";
+import { dayTimeline, type Shift } from "@/lib/utils/timeMath";
 
 export const PATTERN_DAYS = 28;
 export const PATTERN_THRESHOLD = 3;
@@ -33,7 +33,7 @@ export function attendancePattern(
       e.attendanceStatus === "PRESENT" &&
       shift &&
       e.timeIn &&
-      parseHHMM(e.timeIn) > shift.startMin
+      dayTimeline([[e.timeIn, e.timeIn]], shift)[0][0] > shift.startMin
     )
       lateArrivals++;
   }

@@ -12,8 +12,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
-import { formatSchedule, WEEKDAY_SHORT, type ScheduleConfig } from "@/lib/utils/schedule";
-import { parseHHMM } from "@/lib/utils/timeMath";
+import {
+  formatSchedule,
+  scheduleCells,
+  WEEKDAY_SHORT,
+  type ScheduleConfig,
+} from "@/lib/utils/schedule";
+import { WeekTimetable } from "@/components/week-timetable";
+import { LongScheduleNotice } from "@/components/long-schedule-notice";
+import { parseHHMM, spanMinutes } from "@/lib/utils/timeMath";
 import { sendJson } from "@/lib/utils/sendJson";
 
 // FR-AT-01, FR-AT-08 — Owner: gu457 (Ulrich)
@@ -142,6 +149,11 @@ function ScheduleFields({
             onChange={(e) => setShift({ endTime: e.target.value })}
             className="w-32"
           />
+          {schedule.startTime &&
+            schedule.endTime &&
+            parseHHMM(schedule.endTime) < parseHHMM(schedule.startTime) && (
+              <p className="text-xs text-muted-foreground">Night shift: ends the next morning</p>
+            )}
         </div>
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-break`}>Break (minutes)</Label>
@@ -172,13 +184,20 @@ function ScheduleFields({
           />
         </div>
       </div>
+      {schedule.daysOfWeek.length > 0 && schedule.hoursPerDay > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Preview of your week</p>
+          <WeekTimetable cells={scheduleCells(schedule)} label="Preview of the new schedule" />
+          <LongScheduleNotice schedule={schedule} forIntern />
+        </div>
+      )}
     </div>
   );
 }
 
 function shiftHours(s: ScheduleConfig): number | null {
   if (!s.startTime || !s.endTime) return null;
-  return (parseHHMM(s.endTime) - parseHHMM(s.startTime) - (s.breakMinutes ?? 0)) / 60;
+  return (spanMinutes(s.startTime, s.endTime) - (s.breakMinutes ?? 0)) / 60;
 }
 
 function validateSchedule(schedule: ScheduleConfig): string | null {
@@ -187,12 +206,8 @@ function validateSchedule(schedule: ScheduleConfig): string | null {
     return "Hours per day must be between 1 and 24";
   }
   if (!schedule.startTime !== !schedule.endTime) return "Give both a start and an end time";
-  if (
-    schedule.startTime &&
-    schedule.endTime &&
-    parseHHMM(schedule.endTime) <= parseHHMM(schedule.startTime)
-  ) {
-    return "End time must be after start time";
+  if (schedule.startTime && schedule.endTime && schedule.endTime === schedule.startTime) {
+    return "Start and end time can't be the same";
   }
   return null;
 }
@@ -336,12 +351,20 @@ export function AttendanceScheduleForm({
   // ── Mode 2: schedule exists → show it, allow a change request (FR-AT-08) ──
   return (
     <div data-testid="attendance-schedule-form" className="space-y-4">
-      <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4">
-        <Clock3 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-        <div>
-          <p className="text-sm font-medium text-foreground">Current schedule</p>
-          <p className="text-sm text-muted-foreground">{formatSchedule(currentSchedule)}</p>
+      <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+        <div className="flex items-start gap-3">
+          <Clock3 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Your work week</p>
+            <p className="text-sm text-muted-foreground">{formatSchedule(currentSchedule)}</p>
+          </div>
         </div>
+        <WeekTimetable
+          cells={scheduleCells(currentSchedule)}
+          label="Your work week"
+          legend={["work", "off"]}
+        />
+        <LongScheduleNotice schedule={currentSchedule} forIntern={canEdit} />
       </div>
 
       {pendingChange ? (
@@ -356,6 +379,13 @@ export function AttendanceScheduleForm({
           <p className="text-sm text-muted-foreground">
             New schedule: {formatSchedule(pendingChange.newScheduleConfig)}
           </p>
+          {pendingChange.newScheduleConfig.daysOfWeek.length > 0 && (
+            <WeekTimetable
+              cells={scheduleCells(pendingChange.newScheduleConfig)}
+              label="Requested new work week"
+            />
+          )}
+          <LongScheduleNotice schedule={pendingChange.newScheduleConfig} forIntern={canEdit} />
           <p className="text-sm text-muted-foreground">Reason: {pendingChange.reason}</p>
           <p className="text-xs text-muted-foreground">
             Requested {formatInstant(new Date(pendingChange.requestedAt))}

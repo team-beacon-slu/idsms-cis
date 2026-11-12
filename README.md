@@ -7,7 +7,7 @@
 ## 🚀 Key Features
 
 - **Compliance Gating**: Blocks the endorsement letter until every required pre-deployment item is approved (tracked by status; the files stay in Google Classroom).
-- **Automated Tracking**: Real-time hour computation, deviation report validation, and projected completion dates.
+- **Automated Tracking**: Real-time hour computation, overtime, undertime and absences reported on the day in the weekly report (the adviser accepts them in the review), and projected completion dates.
 - **Unified Calendar**: Role-specific views for deadlines, holidays, and OJT milestones.
 - **AI Assist**: Advisory hints for faculty (similar days, planned tasks not found, the intern's own sentences, a review queue, topic search, a clarity coach and help answers) through a plug-in provider port (Gemini today; any OpenAI-compatible server later). Every user can switch it off; it never decides anything.
 - **Document Generation**: Server-side Puppeteer rendering for traceable PDFs (Endorsement Letters, Weekly/Monthly Reports).
@@ -23,7 +23,7 @@
 | **Framework**      | Next.js 16 (App Router)                                       |
 | **Language**       | TypeScript                                                    |
 | **Styling**        | Tailwind CSS 4, shadcn/ui, light and dark themes              |
-| **Database**       | PostgreSQL 15 via Supabase (with `pgvector` extension)        |
+| **Database**       | PostgreSQL 17 via Supabase (with `pgvector` extension)        |
 | **ORM**            | Prisma 7                                                      |
 | **Authentication** | NextAuth.js v4.24.x                                           |
 | **AI Services**    | Google Gemini API (on for the beta; provider set in Settings) |
@@ -84,7 +84,7 @@ Double-click **`scripts/start-idsms.cmd`**. It installs what is missing on the f
    # buckets, indexes, constraints) and many ALTER tables db push creates.
    ```
 
-   Also requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` as of Phase 2 (file uploads for MOA records and deviation proofs go through Supabase Storage) — see `.env.example`.
+   Also requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (generated PDFs, uploaded work plan PDFs and older MOA files go through Supabase Storage; set `STORAGE_DRIVER="s3"` and the `MINIO_*` values for MinIO instead) — see `.env.example`.
 
 5. **Run the development server**
    ```bash
@@ -100,13 +100,13 @@ The root holds only this README, the folders below, and the config files each to
 
 ```text
 /.config                  # Prisma CLI config (prisma.ts)
-/.github                  # CI workflow and CONTRIBUTING.md
+/.github                  # Workflows (CI, deploy, backup) and CONTRIBUTING.md
 /.husky, /.devcontainer   # Git hooks; Codespaces setup
 /cypress                  # End-to-end tests and their config (Phase 5)
 /deploy                   # Self-hosting stack for the lab computer: Docker, compose, runbook
 /docs                     # All documentation, including the PRD; start at docs/README.md
 /prisma                   # schema.prisma, migrations_manual/, seed scripts
-/scripts                  # One-off scripts (AI golden-set evaluation)
+/scripts                  # One-off scripts (AI golden-set evaluation, Windows launcher)
 /src
   /app                    # Next.js App Router: (auth), (legal), (dashboard) pages and /api routes
     /(dashboard)/_components  # The signed-in shell: menu, account menu, bell, role dashboards

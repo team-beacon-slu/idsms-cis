@@ -7,9 +7,7 @@ import {
   computeProjectedCompletionDate,
   getHoursSummary,
   getHolidayCalendarForStudent,
-  getLatestScheduleChangeStatus,
   listDeviationReportsForStudent,
-  type ScheduleChangeHistoryEntry,
 } from "@/lib/services/attendance/attendanceService";
 import { getLatestApprovedWorkPlanForStudent } from "@/lib/services/predeployment/workPlanService";
 import { parseScheduleConfig } from "@/lib/utils/schedule";
@@ -35,10 +33,9 @@ import {
   FileWarning,
   Hourglass,
   Paperclip,
-  ShieldCheck,
   Timer,
 } from "lucide-react";
-import { AttendanceScheduleForm, type PendingScheduleChange } from "./schedule-form";
+import { ScheduleCard } from "./schedule-card";
 import { AttendanceExportButton } from "./export-button";
 import { HolidayList } from "./holiday-list";
 import { prisma } from "@/lib/prisma";
@@ -132,34 +129,21 @@ export default async function AttendancePage(props: {
     requiredHours > 0 ? Math.min(100, Math.round((renderedHours / requiredHours) * 100)) : 0;
 
   const currentSchedule = parseScheduleConfig(workPlan?.scheduleConfig);
-  const changeHistory = (workPlan?.scheduleChangeHistory ?? []) as ScheduleChangeHistoryEntry[];
-  const latestChangeStatus = getLatestScheduleChangeStatus(changeHistory);
-  const pendingRequest =
-    latestChangeStatus === "PENDING_FACULTY" || latestChangeStatus === "PENDING_COORDINATOR"
-      ? [...changeHistory].reverse().find((entry) => entry.action === "REQUESTED")
-      : undefined;
-  const pendingChange: PendingScheduleChange | null =
-    pendingRequest && latestChangeStatus
-      ? {
-          status: latestChangeStatus,
-          requestedAt: pendingRequest.timestamp,
-          reason: String(pendingRequest.reason ?? ""),
-          newScheduleConfig: parseScheduleConfig(pendingRequest.newScheduleConfig) ?? {
-            daysOfWeek: [],
-            hoursPerDay: 0,
-          },
-        }
-      : null;
-
-  const pendingCount = deviationReports.filter((r) => r.validationStatus === "PENDING").length;
-  const validatedCount = deviationReports.filter((r) => r.validationStatus === "VALIDATED").length;
-  const rejectedCount = deviationReports.filter((r) => r.validationStatus === "REJECTED").length;
+  // What happened, not where a request stands: overtime and undertime in hours, absences in days.
+  const onRecord = deviationReports.filter((r) => r.validationStatus !== "REJECTED");
+  const minutesOf = (type: string) =>
+    onRecord
+      .filter((r) => r.deviationType === type)
+      .reduce((sum, r) => sum + (r.requestedMinutes ?? 0), 0);
+  const overtimeMinutes = minutesOf("OVERTIME");
+  const undertimeMinutes = minutesOf("UNDERTIME");
+  const absenceCount = onRecord.filter((r) => r.deviationType === "ABSENCE").length;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Attendance"
-        description="Hours, the deployment schedule, holidays, leave and conduct for this internship."
+        description="Hours, the work schedule, holidays, leave and conduct for this internship."
       />
 
       <Card>
@@ -229,61 +213,31 @@ export default async function AttendancePage(props: {
 
       <StatStrip>
         <StatCard
-          label="Pending review"
-          value={pendingCount}
+          label="Overtime"
+          value={formatHrsMins(overtimeMinutes / 60)}
           icon={Clock}
-
-          hint="Awaiting faculty validation"
+          hint="Credited when 30 minutes or more, with a reason"
         />
         <StatCard
-          label="Validated"
-          value={validatedCount}
-          icon={ShieldCheck}
-
-          hint="Counted toward hours"
-        />
-        <StatCard
-          label="Rejected"
-          value={rejectedCount}
+          label="Undertime"
+          value={formatHrsMins(undertimeMinutes / 60)}
           icon={FileWarning}
-
-          hint="Excluded from hours"
+          hint="Late arrivals and early leaves"
+        />
+        <StatCard
+          label="Absences"
+          value={absenceCount}
+          icon={CalendarX2}
+          hint={absenceCount === 1 ? "day" : "days"}
         />
       </StatStrip>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Deployment schedule</CardTitle>
-              <CardDescription>
-                Configure or request a change to the weekly schedule.
-              </CardDescription>
-            </div>
-            <AttendanceExportButton studentProfileId={params.studentProfileId} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <AttendanceScheduleForm
-            studentProfileId={params.studentProfileId}
-            workPlanApproved={workPlan != null}
-            currentSchedule={currentSchedule}
-            pendingChange={pendingChange}
-            canEdit={isOwner}
-            review={
-              workPlan &&
-              pendingChange?.status === "PENDING_FACULTY" &&
-              user.role === "FACULTY_ADVISER"
-                ? { workPlanId: workPlan.id, stage: "faculty" }
-                : workPlan &&
-                    pendingChange?.status === "PENDING_COORDINATOR" &&
-                    (user.role === "DEPARTMENT_COORDINATOR" || user.role === "SUPER_ADMIN")
-                  ? { workPlanId: workPlan.id, stage: "coordinator" }
-                  : null
-            }
-          />
-        </CardContent>
-      </Card>
+      <ScheduleCard
+        studentProfileId={params.studentProfileId}
+        role={user.role}
+        workPlan={workPlan}
+        action={<AttendanceExportButton studentProfileId={params.studentProfileId} />}
+      />
 
       <Card>
         <CardHeader>
@@ -316,14 +270,13 @@ export default async function AttendancePage(props: {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
-                Leave &amp; Time Requests
+                Overtime, undertime &amp; absences
                 <Badge variant="secondary" className="font-normal">
                   {deviationReports.length}
                 </Badge>
               </CardTitle>
               <CardDescription>
-                Leave, overtime and undertime on file. File and review them in the Leave &amp; Time
-                Requests tab.
+                Reported on their days in the weekly reports, with each reason.
               </CardDescription>
             </div>
             <Link
@@ -331,7 +284,7 @@ export default async function AttendancePage(props: {
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-primary transition-colors duration-200 hover:bg-accent"
             >
               <CalendarClock className="size-3.5" aria-hidden="true" />
-              Open Leave &amp; Time Requests
+              See all
             </Link>
           </div>
         </CardHeader>
@@ -340,7 +293,7 @@ export default async function AttendancePage(props: {
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center">
               <CalendarX2 className="size-6 text-muted-foreground" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">
-                No deviation reports have been filed yet.
+                No overtime, undertime or absences yet.
               </p>
             </div>
           ) : (

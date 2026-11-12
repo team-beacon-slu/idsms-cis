@@ -1,16 +1,25 @@
 # Phase 5 Plan — Lab Server Hosting, Optimization, Hardening & UAT
 
-Date: 2026-10-11 · Status: **planned, starts after the Phase 4 feature freeze**
+> **Status (12 Nov 2026):** Partly done. Stage 1 is built and verified locally: switchable storage and the `deploy/` stack (PR #123, which superseded PR #50), memory caps and log rotation (PR #203), and a nightly GitHub backup of the Supabase database (PR #139, disabled until Phase 5). Stages 0 and 2–7 have not started; the H decisions, the tunnel and the pull-based deploy script are still open. Facts (paths, containers, migration count, env vars) were corrected against the repo on 12 Nov 2026.
+
+Date: 2026-10-11
 Decision (PM, 2026-10-11): IDSMS moves off Vercel + managed Supabase onto **one dedicated
 computer in the lab**. That machine hosts the database, file storage and the website. Phase 5
 adds **no product features**. All functionality is finished in Phase 4 (see the "Feature
-freeze" item in `2026-10-11-phase4-roadmap.md` §4).
+freeze" item in [`2026-10-11-phase4-roadmap.md`](../archive/plans/2026-10-11-phase4-roadmap.md) §4).
 
 Builds on PR #50 (`feature/vm-migration-artifacts`), which already implements the self-hosted
 stack for a cloud VM: `Dockerfile` (standalone Next.js), `docker-compose.yml`
 (Postgres+pgvector, MinIO, app, Caddy), `src/lib/storage.ts` on S3/MinIO with app-proxied
 downloads, `/api/health`, `OPERATIONS.md`, and `docs/migration/from-supabase.md`. PR #50 is
 **conflicting with `develop`** and assumes a public cloud VM. This plan adapts it to a lab PC.
+
+> **Since then (Stage 1, PR #123):** PR #50 was closed and its work ported onto `develop`. The
+> files now live in `deploy/` (`deploy/Dockerfile`, `deploy/docker-compose.yml`,
+> `deploy/Caddyfile`, `deploy/OPERATIONS.md`); `src/lib/storage.ts` switches between Supabase and
+> MinIO with `STORAGE_DRIVER`; the data migration guide is
+> [`phase5-migrate-from-supabase.md`](phase5-migrate-from-supabase.md) (there is no
+> `docs/migration/` folder). The app is on Next.js 16 and Prisma 7.
 
 ---
 
@@ -35,7 +44,7 @@ downloads, `/api/health`, `OPERATIONS.md`, and `docs/migration/from-supabase.md`
 | **H2** | How do off-campus interns reach it: a tunnel (we own a cheap domain and use Cloudflare Tunnel), or SLU IT gives a static IP/port-forward + subdomain? | Without one of these, only people inside the lab network can use the site.                                                                                                                                                           | Cloudflare Tunnel + a team-bought domain                                                                  |
 | **H3** | Who has physical and admin access, and is the PC on 24/7 (including semester breaks and holidays)?                                                    | Downtime = students can't submit before the Tuesday deadline.                                                                                                                                                                        | Always on, UPS attached, 1 named admin + 1 backup admin                                                   |
 | **H4** | Off-site backup target (department Google Drive, an external drive taken home weekly, cloud bucket)?                                                  | A disk failure or theft must not lose a semester of compliance records (FR-DB-07).                                                                                                                                                   | Encrypted nightly dump uploaded to a department Google Drive via `rclone`                                 |
-| **H5** | Does the lab network allow outbound HTTPS (for Resend email, Gemini AI, the tunnel)?                                                                  | Email and AI depend on outbound internet (portability rule 7).                                                                                                                                                                       | Assume yes; verify in stage 0                                                                             |
+| **H5** | Does the lab network allow outbound HTTPS and SMTP (for email over SMTP or Resend, Gemini AI, the tunnel)?                                            | Email and AI depend on outbound internet (portability rule 7).                                                                                                                                                                       | Assume yes; verify in stage 0                                                                             |
 | **H6** | Does the system stay on Supabase until the defense and move after, or move before the defense?                                                        | Moving right before a defense is the riskiest timing.                                                                                                                                                                                | Move **at least 2 weeks before** the defense, with Supabase kept read-only as a fallback until UAT passes |
 
 ## 3. Stages
@@ -45,7 +54,7 @@ Each stage ends with a check that must pass before the next one starts.
 ### Stage 0: Survey the lab PC (½ day)
 
 - Record H1, H3 and H5 facts in `OPERATIONS.md` (specs, OS, IP on the LAN, who has keys).
-- `docker run hello-world`, plus an outbound check: `curl -I https://api.resend.com`, `curl -I https://generativelanguage.googleapis.com`.
+- `docker run hello-world`, plus an outbound check: `curl -I https://generativelanguage.googleapis.com`, and for email either the SMTP host (`nc -vz smtp.gmail.com 465`, the default in `.env.example`) or `curl -I https://api.resend.com`.
 - **Check:** Docker runs; outbound HTTPS works or is documented as blocked.
 
 ### Stage 1: Bring PR #50 up to date with Phase 4 (1–2 days, on a dev laptop) — **Done 23 October 2026**
@@ -53,17 +62,17 @@ Each stage ends with a check that must pass before the next one starts.
 Done by porting PR #50 onto `develop` (not a rebase), then building and running the stack locally. Result:
 
 - `src/lib/storage.ts` has a `STORAGE_DRIVER` switch: `supabase` (default, unchanged) or `s3` (MinIO). Every Phase 4 behaviour is kept on both: upload checks, `uploadPdfBuffer`, deletes, and signed links. On S3, signed links go through `/api/storage/download` and are absolute, because `NextResponse.redirect` needs that.
-- `/api/health` checks the database. The stack lives in `deploy/`: `Dockerfile` (standalone build, Alpine Chromium, non-root), `docker-compose.yml` (Postgres + pgvector, MinIO, bucket setup for all three buckets, app, the daily `cron` service, Caddy), `Caddyfile` and `OPERATIONS.md`. The data migration guide is [phase5-migrate-from-supabase.md](phase5-migrate-from-supabase.md).
+- `/api/health` checks the database. The stack lives in `deploy/`: `Dockerfile` (standalone build, Alpine Chromium, non-root), `docker-compose.yml` (`postgres` = pgvector on Postgres 17, the same major version as Supabase; `minio`; the one-shot `minio-init` that creates all three buckets; `app`; the daily `cron` service; `caddy`), `Caddyfile` and `OPERATIONS.md`. PR #203 later added memory caps per container (the stack tops out near 5 GB) and log rotation. The data migration guide is [phase5-migrate-from-supabase.md](phase5-migrate-from-supabase.md).
 - **MinIO images:** MinIO stopped publishing community images. Docker Hub removed them in September 2026 and quay.io now refuses anonymous pulls. The stack uses Chainguard's free MinIO build, pinned by digest. On Docker Desktop that build only runs as root (see the comment in the compose file); check again on the lab computer.
 - **Verified locally:** the image builds (about 1.5 GB, mostly Chromium) and the stack becomes healthy. `/api/health` reports ok, the sign-in page renders, and a file put in MinIO downloads through a signed link (a tampered link gets 403). Chromium in the container renders PDFs. The cron container reaches the cron route (wrong secret 401).
-- **Still open (needs the H answers):** the `cloudflared` tunnel or an IT-provided address.
+- **Still open (needs the H answers):** the `cloudflared` tunnel or an IT-provided address, and the pull-based `scripts/deploy.sh` (not written; `.github/workflows/deploy.yml` still deploys over SSH with its `push:` trigger commented out).
 
 Original task list, kept for reference:
 
 - Rebase `feature/vm-migration-artifacts` onto `develop` after the Phase 4 freeze, and resolve conflicts:
   - `storage.ts` must keep Phase 4's `uploadPdfBuffer` and signed-URL behaviour on top of S3.
   - `.env.example` must merge both sets of variables.
-  - `next.config.mjs` must keep `serverComponentsExternalPackages`.
+  - `next.config.mjs` must keep `serverComponentsExternalPackages` (on Next 16 this is `serverExternalPackages`).
   - `package.json`: the AWS SDK alongside puppeteer.
 - Dockerfile: add Chromium and fonts (`fonts-noto`/`font-liberation` so PDFs render text), and set `PUPPETEER_EXECUTABLE_PATH`.
 - `docker-compose.yml`:
@@ -82,15 +91,18 @@ Original task list, kept for reference:
   - Firewall: no inbound ports, since the tunnel is outbound-only.
   - SSH only from the LAN, if Linux.
   - Disk encryption if the PC can leave the room.
-- Install Docker and the compose plugin, clone the repo, and create `.env.production` from `.env.example`. The secrets (`NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`, MinIO keys, `CRON_SECRET`, tunnel token, Resend/Gemini keys) are new values, never the dev ones.
-- `docker compose up -d`, then apply the Prisma schema and every file in `prisma/migrations_manual/` in number order, except 003/004 (Supabase-bucket SQL, replaced by `minio-init`). That is 001, 002, 005 through the highest number (015 as of 2026-10-23).
+- Install Docker and the compose plugin, clone the repo, and create two env files (see `deploy/OPERATIONS.md` §4):
+  - `.env.production` (the app's), from `.env.example`: `STORAGE_DRIVER="s3"`, the `MINIO_*` keys, `DATABASE_URL`/`DIRECT_URL` pointing at the `postgres` container, `NEXTAUTH_URL`, `CRON_SECRET`, email (`SMTP_USER`/`SMTP_PASS`/`EMAIL_FROM`, or `RESEND_*`) and `GEMINI_API_KEY`;
+  - `deploy/.env` (compose only): `POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `CRON_SECRET` (the same value), and `APP_ENV_FILE` if `.env.production` is not at the repo root.
+  - The secrets (`NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`, MinIO keys, `CRON_SECRET`, tunnel token, SMTP/Resend and Gemini keys) are new values, never the dev ones, except `STUDENT_DEFAULT_PASSWORD_PEPPER`, which must be copied from the current deployment (see the migration guide, Stage 0).
+- `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`. On an **empty** install, then run `npx prisma db push` and every file in `prisma/migrations_manual/` in number order, except 003/004 (Supabase-bucket SQL, replaced by `minio-init`). That is 001, 002 and 005–031 (031 is the highest as of 12 Nov 2026). When the data comes from Supabase (Stage 3), skip this step: the dump carries the schema, policies and triggers.
 - **Check:** `/api/health` reports green over the tunnel URL; login works from a phone on mobile data (proves off-campus reach).
 
 ### Stage 3: Migrate data from Supabase (½ day + rehearsal)
 
-- Follow `docs/migration/from-supabase.md`:
-  - `pg_dump` the Supabase database (data only, schema from Prisma), then restore.
-  - Copy every Storage object (checklist, MOA, generated documents) into the matching MinIO buckets with `rclone`, keeping the object paths identical so stored paths stay valid.
+- Follow [`phase5-migrate-from-supabase.md`](phase5-migrate-from-supabase.md):
+  - `pg_dump` (version 17) the Supabase database, schema and data together in one custom-format dump, then restore it into the empty `postgres` container.
+  - Copy every Storage object (checklist, MOA, generated documents) into the matching MinIO buckets with `mc mirror`, keeping the object paths identical so stored paths stay valid.
 - **Rehearse once on a copy** and compare row counts per table and object counts per bucket.
 - Decide what to do with test data (R3): drop the test accounts and demo data before go-live unless UAT needs them.
 - **Check:** counts match; a known student's checklist files and PDFs open in the new system.
@@ -121,7 +133,8 @@ Original task list, kept for reference:
 
 ### Stage 6: Operations — backups, monitoring, runbook (1 day)
 
-- Nightly `pg_dump` (compressed, encrypted) plus a MinIO mirror to a second disk and the off-site target (H4), keeping 14 daily and 8 weekly copies. **Test a full restore onto a spare machine/VM before go-live.**
+- Nightly `pg_dump` (compressed, encrypted) plus a MinIO mirror to a second disk and the off-site target (H4), keeping 14 daily and 8 weekly copies. **Test a full restore onto a spare machine/VM before go-live.** The host cron entries are already drafted in `deploy/OPERATIONS.md` §5.
+- The GitHub nightly backup (`.github/workflows/backup.yml`, PR #139) dumps the **Supabase** database and is disabled until Phase 5 (decision 7 Nov 2026: backups belong to the lab server). To cover the Supabase side while moving, set its `DATABASE_BACKUP_URL` and `BACKUP_PASSPHRASE` secrets and run `gh workflow enable backup.yml`; disable it again after cutover.
 - Monitoring:
   - An external uptime check on `/api/health` (UptimeRobot/Healthchecks.io, free tier) that alerts the admin's email.
   - Disk-space alert at 80%.

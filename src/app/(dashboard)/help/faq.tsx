@@ -23,17 +23,20 @@ export const STUDENT: Faq[] = [
     a: "Submit the documents in your Google Classroom. IDSMS only tracks whether each one was received and approved, on your Checklist.",
   },
   {
-    q: "I'll be absent or my schedule changed.",
+    q: "I was absent, worked overtime or left early.",
     a: (
       <>
-        File it under{" "}
+        Report it on that day in your{" "}
         <Link
-          href="/leave-requests"
+          href="/weekly-reports"
           className="font-medium text-primary underline-offset-2 hover:underline"
         >
-          Leave &amp; time requests
-        </Link>{" "}
-        so your adviser can review it.
+          weekly report
+        </Link>
+        : mark the day Absent, or enter your real times, and it asks for the remarks. There is no
+        separate request and no separate file: the overtime, under time or absence report prints on
+        the next page of that week&apos;s PDF. Leave itself is approved by your company supervisor.
+        A new work schedule is requested on the Work plan page.
       </>
     ),
   },
@@ -64,8 +67,8 @@ export const FACULTY: Faq[] = [
     a: "On My students, use the bulk endorsement button for a class group. You confirm your password before the letters are made.",
   },
   {
-    q: "An intern asked for leave or a schedule change.",
-    a: "Your dashboard lists requests waiting for you. Open the intern's Leave & time requests to approve or decline it.",
+    q: "An intern reported overtime, under time or an absence.",
+    a: "Your dashboard lists the reasons waiting for you. Open the week to review it, or the intern's Overtime & absences, and choose Accept or Not accepted.",
   },
 ];
 

@@ -5,6 +5,7 @@ import { z } from "zod";
 export const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24-hour)");
 
 const MIN_CREDITED_OT_MINUTES = 30;
+const DAY_MIN = 24 * 60;
 
 export function parseHHMM(t: string): number {
   if (!timeOfDay.safeParse(t).success) throw new Error(`Invalid time "${t}", expected HH:MM`);
@@ -40,16 +41,56 @@ export function scheduleShift(schedule: {
   hoursPerDay: number;
 }): Shift | null {
   if (!schedule.startTime || !schedule.endTime) return null;
+  const startMin = parseHHMM(schedule.startTime);
+  const end = parseHHMM(schedule.endTime);
   return {
-    startMin: parseHHMM(schedule.startTime),
-    endMin: parseHHMM(schedule.endTime),
+    startMin,
+    // A night shift (e.g. 22:00 to 06:00, a US company) ends the next morning.
+    endMin: end <= startMin ? end + DAY_MIN : end,
     breakMinutes: schedule.breakMinutes ?? 0,
     scheduledHours: schedule.hoursPerDay,
   };
 }
 
 export function toHHMM(minutes: number): string {
+  minutes = ((minutes % DAY_MIN) + DAY_MIN) % DAY_MIN; // past midnight on a night shift
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+// Minutes from `a` to `b`; an earlier `b` is the next morning (a night shift). 0 when equal.
+export function spanMinutes(a: string, b: string): number {
+  return (parseHHMM(b) - parseHHMM(a) + DAY_MIN) % DAY_MIN;
+}
+
+// A day's time ranges as minutes on one timeline that runs past midnight: a time earlier than
+// the one before it is the next day. On an overnight shift an arrival more than 12 hours
+// before the start (00:30 for a 22:00 shift) is after midnight, so it is late, not early.
+export function dayTimeline(
+  ranges: Array<[string, string]>,
+  shift: Shift | null = null
+): Array<[number, number]> {
+  let offset =
+    shift &&
+    ranges.length &&
+    shift.endMin > DAY_MIN &&
+    parseHHMM(ranges[0][0]) < shift.startMin - 720
+      ? DAY_MIN
+      : 0;
+  let prev = -Infinity;
+  return ranges.map(([a, b]) => {
+    let start = parseHHMM(a) + offset;
+    if (start < prev) {
+      offset += DAY_MIN;
+      start += DAY_MIN;
+    }
+    let end = parseHHMM(b) + offset;
+    if (end <= start) {
+      offset += DAY_MIN;
+      end += DAY_MIN;
+    }
+    prev = end;
+    return [start, end] as [number, number];
+  });
 }
 
 export interface DayGap {
@@ -62,8 +103,9 @@ export interface DayGap {
 // need an undertime request before the week can be submitted.
 export function dayGaps(ranges: Array<[string, string]>, shift: Shift | null): DayGap[] {
   if (!shift || ranges.length === 0) return [];
-  const firstIn = parseHHMM(ranges[0][0]);
-  const lastOut = parseHHMM(ranges[ranges.length - 1][1]);
+  const line = dayTimeline(ranges, shift);
+  const firstIn = line[0][0];
+  const lastOut = line[line.length - 1][1];
   const gaps: DayGap[] = [];
   if (firstIn > shift.startMin) {
     gaps.push({ kind: "late", start: toHHMM(shift.startMin), end: toHHMM(firstIn) });
@@ -82,8 +124,63 @@ export function isGapCovered(
 ): boolean {
   return requests.some(
     (r) =>
-      r.startTime != null && r.endTime != null && r.startTime <= gap.start && r.endTime >= gap.end
+      (r.startTime === gap.start && r.endTime === gap.end) || // exact, also past midnight
+      (r.startTime != null && r.endTime != null && r.startTime <= gap.start && r.endTime >= gap.end)
   );
+}
+
+export interface DayException {
+  kind: "overtime" | "late" | "early";
+  start: string | null; // "HH:MM"; null when a schedule without times can't place it
+  end: string | null;
+  minutes: number;
+}
+
+// What makes a worked day differ from the schedule, read straight from its times: late
+// arrival and early leave (dayGaps) and overtime before the shift or after it. A day off
+// worked is overtime in full. The weekly report asks for a reason only when this is non-empty.
+export function dayExceptions(
+  ranges: Array<[string, string]>,
+  shift: Shift | null,
+  scheduledDay: boolean,
+  scheduledHours: number
+): DayException[] {
+  if (ranges.length === 0) return [];
+  const line = dayTimeline(ranges, shift);
+  const worked = line.reduce((sum, [a, b]) => sum + (b - a), 0);
+  const first = line[0][0];
+  const last = line[line.length - 1][1];
+  if (!scheduledDay) {
+    return [{ kind: "overtime", start: toHHMM(first), end: toHHMM(last), minutes: worked }];
+  }
+  if (!shift) {
+    // No shift times (older schedules): compare the hours worked with the hours scheduled.
+    const extra = worked - Math.round(scheduledHours * 60);
+    if (extra > 0) return [{ kind: "overtime", start: null, end: null, minutes: extra }];
+    if (extra < 0) return [{ kind: "early", start: null, end: null, minutes: -extra }];
+    return [];
+  }
+  const out: DayException[] = dayGaps(ranges, shift).map((g) => ({
+    ...g,
+    minutes: g.kind === "late" ? first - shift.startMin : shift.endMin - last,
+  }));
+  if (first < shift.startMin) {
+    out.push({
+      kind: "overtime",
+      start: toHHMM(first),
+      end: toHHMM(shift.startMin),
+      minutes: shift.startMin - first,
+    });
+  }
+  if (last > shift.endMin) {
+    out.push({
+      kind: "overtime",
+      start: toHHMM(shift.endMin),
+      end: toHHMM(last),
+      minutes: last - shift.endMin,
+    });
+  }
+  return out;
 }
 
 export interface DayCreditInput {
@@ -108,7 +205,7 @@ export interface DayCredit {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function computeDayCredit(input: DayCreditInput): DayCredit {
-  const ranges = input.ranges.map(([a, b]) => [parseHHMM(a), parseHHMM(b)] as [number, number]);
+  const ranges = dayTimeline(input.ranges, input.shift);
   const workedMin = ranges.length
     ? ranges.reduce((sum, [a, b]) => sum + (b - a), 0)
     : Math.round(Number(input.actualHours ?? 0) * 60);

@@ -166,7 +166,7 @@ export async function notifyWorkPlanReviewed(
     title: `Work plan ${action === "APPROVE" ? "approved" : "returned for revision"}`,
     body:
       action === "APPROVE"
-        ? "Your work plan was approved. You can now set your deployment schedule."
+        ? "Your work plan was approved. You can now set your work schedule."
         : "Your work plan was returned — check the reviewer's comments.",
     link: `/students/${studentProfileId}/work-plan`,
     email: true,
@@ -177,7 +177,8 @@ export async function notifyWorkPlanReviewed(
 export async function notifyScheduleChange(
   studentProfileId: string,
   stage: "REQUESTED" | "PENDING_COORDINATOR" | "APPROVED" | "REJECTED",
-  reason?: string
+  reason?: string,
+  longNote?: string | null // the requested schedule goes past 8 hours a day
 ) {
   const link = `/students/${studentProfileId}/attendance`;
   if (stage === "APPROVED" || stage === "REJECTED") {
@@ -206,8 +207,32 @@ export async function notifyScheduleChange(
         stage === "REQUESTED"
           ? "Schedule change awaiting your validation"
           : "Schedule change awaiting final approval",
-      body: "An intern asked to change their work schedule. Review it on their Attendance page.",
+      body: `An intern asked to change their work schedule. Review it on their Attendance page.${longNote ? `\n${longNote}` : ""}`,
       link,
+      email: true,
+    });
+  } catch (error) {
+    console.error("Notification recipient lookup failed", { trigger: "SCHEDULE_CHANGE", error });
+  }
+}
+
+// A schedule set past the daily limit (8 working hours a day, a rest day): the adviser and the
+// coordinator decide what to do (talk to the company, or pull the intern out). Sent once,
+// when the schedule is saved; the flag itself stays on their screens while it lasts.
+export async function notifyLongSchedule(studentProfileId: string, note: string) {
+  try {
+    const [faculty, staff] = await Promise.all([
+      getAssignedFacultyIds(studentProfileId),
+      getDepartmentStaffIds(),
+    ]);
+    const userIds = [...new Set([...faculty, ...staff])];
+    if (userIds.length === 0) return;
+    await notify({
+      userIds,
+      trigger: "SCHEDULE_CHANGE",
+      title: "An intern's schedule is over 8 hours a day",
+      body: `${note}\nTalk with the company about an 8-hour schedule, or decide whether the intern should stay.`,
+      link: `/students/${studentProfileId}/attendance#schedule`,
       email: true,
     });
   } catch (error) {

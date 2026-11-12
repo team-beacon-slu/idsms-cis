@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 12 November 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
 IDSMS processes students' personal data, so it must comply with the **Data Privacy Act of 2012 (RA 10173)**, its implementing rules and SLU's data privacy policy. This document lists the measures in place, in plain language. Technical details are in [08. Technical design](08-technical-design.md).
 
@@ -16,13 +16,13 @@ IDSMS processes students' personal data, so it must comply with the **Data Priva
 
 ## 2. No sensitive documents (D2 and D7)
 
-| What                                                                                               | Where it lives                                                                                                                         |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Supervisor-signed weekly/monthly reports, signatures                                               | Google Classroom (D2, PR #80 removed the signed-copy upload)                                                                           |
-| Medical certificates, psychological clearance, parent's consent and other pre-deployment documents | Google Classroom (D7, PR #85: the checklist records status only)                                                                       |
-| Post-internship certificates (CPO attendance, HTE completion)                                      | Google Classroom; status tracking is **Built** (#89)                                                                                   |
-| Proof for leave, overtime and undertime                                                            | Today: optional upload on deviation reports. L1 proposes Google Classroom only, with IDSMS tracking status; pending confirmation (Q19) |
-| Wet-signed MOA                                                                                     | Drive link and status only, no upload (**Built**, #105)                                                                                |
+| What                                                                                               | Where it lives                                                                                   |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Supervisor-signed weekly/monthly reports, signatures                                               | Google Classroom (D2, PR #80 removed the signed-copy upload)                                     |
+| Medical certificates, psychological clearance, parent's consent and other pre-deployment documents | Google Classroom (D7, PR #85: the checklist records status only)                                 |
+| Post-internship certificates (CPO attendance, HTE completion)                                      | Google Classroom; status tracking is **Built** (#89)                                             |
+| Proof for leave, overtime and undertime                                                            | Google Classroom (Q19 answered: IDSMS records only which proof it is and accepts no proof files) |
+| Wet-signed MOA                                                                                     | Drive link and status only, no upload (**Built**, #105)                                          |
 
 IDSMS keeps only the **status** (Pending, Approved, Returned), who reviewed it and when, and the reviewer's note.
 
@@ -37,7 +37,7 @@ IDSMS keeps only the **status** (Pending, Approved, Returned), who reviewed it a
 | Companies and supervisor contact                                   | Database                                   | Any signed-in user (company details are not sensitive)       |
 | MOA records                                                        | Database; optional PDF in a private bucket | Faculty, coordinator, Super Admin only (FR-MOA-07)           |
 | Generated PDFs                                                     | Private storage bucket                     | The student and authorised staff, via 5-minute signed links  |
-| Deviation proof files (still uploadable; see Q19)                  | Private storage bucket                     | The student and authorised staff, via 5-minute signed links  |
+| Uploaded work plan PDFs (the company's own template)               | Private storage bucket                     | The student and authorised staff, via 5-minute signed links  |
 | Notifications                                                      | Database                                   | The recipient                                                |
 | Audit log (actions, IP addresses)                                  | Database (`audit_logs`)                    | Super Admin                                                  |
 | Data requests                                                      | Database                                   | The requester (own status), Super Admin                      |
@@ -103,17 +103,14 @@ The audit log records sign-in attempts (successful, failed, locked, inactive), r
 
 ## 10. Third parties
 
-| Service            | Data sent                                                         | Status                                                        |
-| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------- |
-| Vercel, Supabase   | Hosting of the app, database and files                            | **Built** (development); replaced in Phase 5                  |
-| Resend (email)     | Recipient email, notification text                                | **Built**, active only with a sending domain (Q15)            |
-| Google Gemini (AI) | Report text with names removed, only with approval under RA 10173 | **Built** (#90), switched off by default until approved (Q16) |
+| Service                                     | Data sent                              | Status                                                                                                           |
+| ------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Vercel, Supabase                            | Hosting of the app, database and files | **Built** (development); replaced in Phase 5                                                                     |
+| Email (SMTP account of the host, or Resend) | Recipient email, notification text     | **Built**, active once the host sets `SMTP_USER` / `SMTP_PASS` (Q15 answered); users can switch email off        |
+| Google Gemini (AI)                          | Report text with names removed         | **Built**; on for the beta (Q16 answered): each AI job has a switch in Settings and each user can turn hints off |
 
 ## 11. Open points
 
-- Q15: sending email domain from SLU.
-- Q16: approval to send anonymised report text to Google's AI.
-- Q17: who manages the lab computer in Phase 5 (backups, updates, physical security).
+- Phase 5: the school's technical faculty looks after the lab computer, with the Super Admin and the adviser (Q17 answered).
 - Phase 5 hardening: secrets rotation before the pilot, re-verifying the audit-log triggers on the new database, nightly off-site backups with a tested restore, and cleaning test accounts from the shared development database.
 - **Consent (FR-CK-05 / NFR-DP-03) is handled under D7:** consent forms such as the Parent's Consent and Undertaking and the Data Privacy orientation are submitted in Google Classroom, and IDSMS records only their status as checklist items. No separate consent capture is built.
-- Q19: whether leave, OT and UT proof stays as an upload or moves to Google Classroom.

@@ -589,8 +589,9 @@ export async function getRequiredHoursConfig(program: Program): Promise<number> 
     where: { configKey: REQUIRED_HOURS_CONFIG_KEY(program) },
     select: { configValue: true },
   });
-  // PRD section 1 defaults apply only until an administrator configures the program.
-  const defaults: Record<Program, number> = { BSIT: 600, BSCS: 240, BMMA: 500 };
+  // The faculty adviser's figures (Nov 2026): BMMA 500, BSIT 600, BSCS 320. They follow the
+  // curriculum, so they apply only until the coordinator sets the program's hours in Settings.
+  const defaults: Record<Program, number> = { BSIT: 600, BSCS: 320, BMMA: 500 };
   if (!config) return defaults[program];
   const hours = config.configValue;
   if (typeof hours !== "number" || !Number.isSafeInteger(hours) || hours <= 0) {

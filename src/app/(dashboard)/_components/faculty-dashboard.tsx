@@ -56,7 +56,7 @@ export async function FacultyDashboard({ facultyId }: { facultyId: string }) {
       items.push({
         key: `${r.studentProfileId}-lr`,
         name,
-        what: plural(pending, "leave or time request", "leave or time requests"),
+        what: plural(pending, "overtime or absence reason", "overtime or absence reasons"),
         href: `/students/${r.studentProfileId}/leave-requests`,
       });
     }

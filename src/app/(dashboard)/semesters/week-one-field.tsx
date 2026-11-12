@@ -7,7 +7,8 @@ import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Workstream L1: the faculty-defined Week 1 start that numbers weekly reports.
+// The class's Week 1 for the term. It no longer numbers weekly reports (WWR01 is the week
+// each intern started); an intern who starts later is told which class week to upload under.
 export function WeekOneField({
   semesterId,
   name,
@@ -32,7 +33,7 @@ export function WeekOneField({
       toast.error(res.error);
       return;
     }
-    toast.success(`Week 1 for ${name} saved`);
+    toast.success(`Class week 1 for ${name} saved`);
     router.refresh();
   }
 
@@ -40,7 +41,7 @@ export function WeekOneField({
     <div className="flex items-center gap-2">
       <Input
         type="date"
-        aria-label={`Week 1 starts (${name})`}
+        aria-label={`Class week 1 starts (${name})`}
         value={date}
         disabled={pending}
         onChange={(e) => setDate(e.target.value)}

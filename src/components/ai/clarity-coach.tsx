@@ -51,7 +51,7 @@ export function ClarityCoach({ days, aiOn }: { days: Day[]; aiOn: boolean }) {
           ))}
         </ul>
       ) : (
-        <p className="text-foreground/85">Every day says what you did.</p>
+        <p className="text-foreground/85">Every day lists its work accomplished.</p>
       )}
       <p className="text-xs text-muted-foreground">
         Only you see this; your adviser does not. It never changes your entries, and you can submit

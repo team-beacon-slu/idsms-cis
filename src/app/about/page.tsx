@@ -187,14 +187,14 @@ function HoursExample() {
     <div>
       <p className="flex items-baseline justify-between">
         <span className="font-display text-2xl font-semibold tabular-nums">312</span>
-        <span className="text-muted-foreground tabular-nums">of 486 hours</span>
+        <span className="text-muted-foreground tabular-nums">of 600 hours</span>
       </p>
       <div
         role="img"
-        aria-label="312 of 486 hours"
+        aria-label="312 of 600 hours"
         className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
       >
-        <div className="h-full w-[64%] rounded-full bg-primary" />
+        <div className="h-full w-[52%] rounded-full bg-primary" />
       </div>
       <p className="mt-2 text-muted-foreground">Projected finish: Dec 11</p>
     </div>

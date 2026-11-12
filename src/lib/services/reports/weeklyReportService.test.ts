@@ -25,11 +25,14 @@ import {
   reviewWeeklyReport_Disregard,
   reviewWeeklyReport_Return,
   saveDailyAccomplishment,
+  setFirstDayOfOjt,
+  isSubmissionLate,
   validateLateSubmissionReason,
 } from "@/lib/services/reports/weeklyReportService";
 
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
   // Review actions require a submitted report awaiting review; tests that
   // need another state set their own.
   prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
@@ -901,18 +904,22 @@ describe("recordWeeklyReportSubmission", () => {
         actingUser
       );
 
-    it("lets a late day through without a request: it is only marked for the adviser (Q6)", async () => {
+    it("asks for remarks on a late arrival too, like an early leave (adviser, 12 Nov)", async () => {
       mockReport([tardyDay]);
       prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
       prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
-      await expect(submit()).resolves.toEqual(expect.objectContaining({ type: "SUBMITTED" }));
+      await expect(submit()).rejects.toThrow(
+        "Give remarks for the under time on: Oct 6 (late arrival)"
+      );
     });
 
     it("still blocks an early leave with no undertime request, listing the date", async () => {
       mockReport([{ ...tardyDay, timeIn: "08:00", timeOut2: "16:00" }]);
       prismaMock.workPlan.findFirst.mockResolvedValue(shiftPlan as never);
       prismaMock.deviationReport.findMany.mockResolvedValue([] as never);
-      await expect(submit()).rejects.toThrow("File an undertime request for: Oct 6 (early leave)");
+      await expect(submit()).rejects.toThrow(
+        "Give remarks for the under time on: Oct 6 (early leave)"
+      );
     });
 
     it("passes with an undertime request of any status on that date", async () => {
@@ -1101,6 +1108,27 @@ describe("recordWeeklyReportSubmission", () => {
 });
 
 describe("reviewWeeklyReport_Disregard", () => {
+  beforeEach(() => {
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([] as never);
+  });
+
+  it("also removes the overtime, undertime and absences reported in that week", async () => {
+    const day = new Date("2026-10-06T00:00:00Z");
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([
+      { reportDate: day, weeklyReport: { studentProfileId: "sp-1" } },
+    ] as never);
+
+    await reviewWeeklyReport_Disregard("wr-1", "faculty-1");
+
+    expect(prismaMock.deviationReport.deleteMany).toHaveBeenCalledWith({
+      where: {
+        studentProfileId: "sp-1",
+        date: { in: [day] },
+        reviewNote: { startsWith: "Reported in the weekly report" },
+      },
+    });
+  });
+
   it("deletes the report's daily entries before deleting the report itself", async () => {
     prismaMock.dailyReportEntry.deleteMany.mockResolvedValue({ count: 5 } as never);
     prismaMock.weeklyReport.delete.mockResolvedValue({} as never);
@@ -1270,5 +1298,152 @@ describe("review lifecycle", () => {
         actingUser
       )
     ).rejects.toThrow(WeeklyReportIncompleteError);
+  });
+});
+
+describe("setFirstDayOfOjt (an intern who starts in the middle of Week No. 1)", () => {
+  const day = (d: string) => new Date(`2026-10-${d}T00:00:00Z`);
+  const report = {
+    weekStart: day("05"),
+    weekEnd: day("11"),
+    status: WeeklyReportStatus.PENDING,
+    revisionHistory: [],
+    studentProfileId: "profile-1",
+    studentProfile: { userId: "student-1" },
+    dailyEntries: ["05", "06", "07", "08", "09"].map((d) => ({
+      id: `entry-${d}`,
+      reportDate: day(d),
+      accomplishments: null as string | null,
+    })),
+  };
+
+  beforeEach(() => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue(report as never);
+    prismaMock.weeklyReport.findFirst.mockResolvedValue(null);
+    prismaMock.workPlan.findFirst.mockResolvedValue({
+      id: "wp-1",
+      scheduleConfig: { daysOfWeek: [1, 2, 3, 4, 5], hoursPerDay: 8 },
+    } as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      semesterId: "sem-1",
+      internshipStartDate: day("07"),
+      requiredHours: 600,
+    } as never);
+    prismaMock.studentProfile.findUniqueOrThrow.mockResolvedValue({ requiredHours: 600 } as never);
+    prismaMock.holidayCalendarEntry.findMany.mockResolvedValue([] as never);
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([] as never);
+    prismaMock.weeklyReport.findMany.mockResolvedValue([] as never);
+    prismaMock.conductRecord.findMany.mockResolvedValue([] as never);
+    prismaMock.weeklyReport.update.mockResolvedValue({} as never);
+  });
+
+  it("drops the days before the first day, so they are neither absences nor days off", async () => {
+    await setFirstDayOfOjt("wr-1", day("07"), "student-1"); // started on Wednesday
+
+    expect(prismaMock.studentProfile.update).toHaveBeenCalledWith({
+      where: { id: "profile-1" },
+      data: { internshipStartDate: day("07") },
+    });
+    expect(prismaMock.dailyReportEntry.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["entry-05", "entry-06"] } },
+    });
+    // Wednesday to Friday are already in the report: nothing is added twice.
+    expect(prismaMock.dailyReportEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  it("brings the scheduled days back when the first day moves earlier", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      ...report,
+      dailyEntries: report.dailyEntries.slice(2), // Wed to Fri
+    } as never);
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      semesterId: "sem-1",
+      internshipStartDate: day("06"),
+      requiredHours: 600,
+    } as never);
+
+    await setFirstDayOfOjt("wr-1", day("06"), "student-1");
+
+    expect(prismaMock.dailyReportEntry.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.dailyReportEntry.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          weeklyReportId: "wr-1",
+          reportDate: day("06"),
+          attendanceStatus: "SCHEDULED",
+          scheduledHours: 8,
+        },
+      ],
+    });
+  });
+
+  it("never drops a day that already has work written on it", async () => {
+    prismaMock.weeklyReport.findUniqueOrThrow.mockResolvedValue({
+      ...report,
+      dailyEntries: report.dailyEntries.map((e, i) =>
+        i === 0 ? { ...e, accomplishments: "Orientation with the supervisor" } : e
+      ),
+    } as never);
+
+    await expect(setFirstDayOfOjt("wr-1", day("07"), "student-1")).rejects.toThrow(
+      DailyEntryDateError
+    );
+    expect(prismaMock.dailyReportEntry.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+
+  it("is set only in the first weekly report, by its owner, inside that week", async () => {
+    await expect(setFirstDayOfOjt("wr-1", day("07"), "student-2")).rejects.toThrow(ForbiddenError);
+    await expect(setFirstDayOfOjt("wr-1", day("12"), "student-1")).rejects.toThrow(
+      "within this report's week"
+    );
+    prismaMock.weeklyReport.findFirst.mockResolvedValue({ id: "wr-earlier" } as never);
+    await expect(setFirstDayOfOjt("wr-1", day("07"), "student-1")).rejects.toThrow(
+      "first weekly report"
+    );
+    expect(prismaMock.studentProfile.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("isSubmissionLate (resubmitting after a return)", () => {
+  const weekEnd = new Date("2026-10-11T00:00:00Z"); // due Tue Oct 13, 11:59 pm
+  const afterDue = new Date("2026-10-15T02:00:00Z");
+  const submitted = (late: boolean) => ({ type: "SUBMITTED", late, timestamp: "x" });
+
+  it("keeps the first submission's on-time status after the adviser returns the week", () => {
+    const history = [submitted(false), { type: "RETURNED", timestamp: "y" }];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: history }, afterDue)).toBe(false);
+  });
+
+  it("stays late when the first submission was late", () => {
+    const history = [submitted(true), { type: "RETURNED", timestamp: "y" }];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: history }, afterDue)).toBe(true);
+  });
+
+  it("counts a first submission, or one after a withdrawal, by the deadline", () => {
+    expect(isSubmissionLate({ weekEnd, revisionHistory: [] }, afterDue)).toBe(true);
+    const withdrawn = [submitted(false), { type: "WITHDRAWN", timestamp: "y" }];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: withdrawn }, afterDue)).toBe(true);
+  });
+
+  it("uses the submission that was returned, not an earlier withdrawn one", () => {
+    const history = [
+      submitted(false),
+      { type: "WITHDRAWN", timestamp: "y" },
+      submitted(true),
+      { type: "RETURNED", timestamp: "z" },
+    ];
+    expect(isSubmissionLate({ weekEnd, revisionHistory: history }, afterDue)).toBe(true);
+  });
+
+  it("works out lateness from the timestamp on old rows without a late flag", () => {
+    const old = (timestamp: string) => [
+      { type: "SUBMITTED", timestamp },
+      { type: "RETURNED", timestamp: "2026-10-20T00:00:00Z" },
+    ];
+    const onTime = old("2026-10-12T02:00:00Z");
+    expect(isSubmissionLate({ weekEnd, revisionHistory: onTime }, afterDue)).toBe(false);
+    const late = old("2026-10-15T02:00:00Z");
+    expect(isSubmissionLate({ weekEnd, revisionHistory: late }, afterDue)).toBe(true);
   });
 });

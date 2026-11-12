@@ -155,4 +155,16 @@ describe("queueReasons (job 7)", () => {
       )
     ).toEqual(["An entry is addressed to the AI", "1 vague day"]);
   });
+
+  it("flags a week with overtime, under time or absence reasons still to decide", () => {
+    const clear = [entries[1]];
+    const ctx = { on: new Set<never>(), similarityThreshold: 0.7 };
+    // Without this, "Approve the N with nothing flagged" would accept them unseen.
+    expect(
+      queueReasons({ aiHints: null, similarityScore: null, dailyEntries: clear, undecided: 2 }, ctx)
+    ).toEqual(["2 overtime, under time or absence reasons to decide"]);
+    expect(
+      queueReasons({ aiHints: null, similarityScore: null, dailyEntries: clear, undecided: 0 }, ctx)
+    ).toEqual([]);
+  });
 });

@@ -13,7 +13,7 @@ import { sendJson } from "@/lib/utils/sendJson";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 const WORK_MODALITIES = ["ON_SITE", "WORK_FROM_HOME", "HYBRID"] as const;
 
@@ -78,13 +78,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
 
   return (
     <Card className="max-w-2xl">
-      <CardHeader>
-        <CardTitle>Register a company</CardTitle>
-        <CardDescription>
-          FR-MOA-01: any student or staff member can register a host company.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-2">
             <Label htmlFor="name">Company name</Label>
@@ -142,7 +136,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="workModality">Work modality</Label>
+            <Label htmlFor="workModality">Work setup</Label>
             <select
               id="workModality"
               {...register("workModality")}
@@ -175,6 +169,7 @@ export function CompanyForm({ showPositionTitle }: { showPositionTitle: boolean 
               <Label htmlFor="supervisorContact">Supervisor contact</Label>
               <Input
                 id="supervisorContact"
+                placeholder="Email or mobile number"
                 {...register("supervisorContact")}
                 {...errorProps(
                   "supervisorContact",

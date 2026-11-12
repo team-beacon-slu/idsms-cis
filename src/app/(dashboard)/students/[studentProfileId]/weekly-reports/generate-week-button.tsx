@@ -18,9 +18,16 @@ function localDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function GenerateWeekButton({ studentProfileId }: { studentProfileId: string }) {
+// With `weekStart` it starts that exact week (a week listed as not started) in one tap.
+export function GenerateWeekButton({
+  studentProfileId,
+  weekStart,
+}: {
+  studentProfileId: string;
+  weekStart?: string; // "YYYY-MM-DD"
+}) {
   const router = useRouter();
-  const [weekOf, setWeekOf] = useState(() => localDateKey(new Date()));
+  const [weekOf, setWeekOf] = useState(() => weekStart ?? localDateKey(new Date()));
   const [isPending, setIsPending] = useState(false);
 
   async function generate(e: React.FormEvent) {
@@ -37,6 +44,22 @@ export function GenerateWeekButton({ studentProfileId }: { studentProfileId: str
     }
     toast.success("Weekly report ready — fill in each day below");
     router.refresh();
+  }
+
+  if (weekStart) {
+    return (
+      <form onSubmit={generate}>
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={isPending}
+          className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
+        >
+          <CalendarPlus className="size-4" aria-hidden="true" />
+          {isPending ? "Preparing..." : "Start this week"}
+        </Button>
+      </form>
+    );
   }
 
   return (

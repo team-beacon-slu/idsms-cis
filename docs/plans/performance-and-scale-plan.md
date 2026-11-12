@@ -1,6 +1,8 @@
 # Plan: a fast IDSMS that survives accidents and 2,000 interns
 
-_23 October 2026. Status: **Phase 0 done (see its results); Phases 1–4 proposed**. Revised after an LLM council review (five independent reviewers plus anonymous peer review). The first draft was a speed plan; the council's main finding was that **the accident we cannot undo, losing interns' data, was not covered at all**. This version puts data safety first, then measurement, then speed._
+> **Status (12 Nov 2026):** Partly done. Built: Phase 0 (#127), the slow-connection and trimming work (#129–#131), batched adviser tallies and staff calendars (#133, #135), the per-intern query guard (#151), the 14-day PDF prune (#141), the daily cleanup of expired sessions (#204, Phase 4 housekeeping) and the maintenance banner (#185). The GitHub nightly backup (#139) is disabled: backups and the restore drill (Phase 1) move to the Phase 5 lab server (decision 7 Nov 2026). Not done: the Phase 2 load test and the Phase 3 items it would justify.
+
+_23 October 2026. Status when written: **Phase 0 done (see its results); Phases 1–4 proposed**. Revised after an LLM council review (five independent reviewers plus anonymous peer review). The first draft was a speed plan; the council's main finding was that **the accident we cannot undo, losing interns' data, was not covered at all**. This version puts data safety first, then measurement, then speed._
 
 ## 1. What we measured
 

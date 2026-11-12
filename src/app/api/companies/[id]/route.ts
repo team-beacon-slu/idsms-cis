@@ -14,7 +14,10 @@ const STAFF_ROLES: Role[] = [Role.FACULTY_ADVISER, Role.DEPARTMENT_COORDINATOR, 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
-    await requireUserApi();
+    // Staff only: the record holds the supervisor's name and contact. Interns see their own
+    // company on its page (read on the server), never through this route.
+    const user = await requireUserApi();
+    requireRole(user, STAFF_ROLES);
     const company = await getCompany(params.id);
     if (!company) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

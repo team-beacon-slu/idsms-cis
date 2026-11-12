@@ -2,7 +2,11 @@ import { formatInstant } from "@/lib/documents/html";
 import { redirect } from "next/navigation";
 import { CalendarClock } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
-import { getWorkPlanHistory } from "@/lib/services/predeployment/workPlanService";
+import {
+  getLatestApprovedWorkPlanForStudent,
+  getWorkPlanHistory,
+} from "@/lib/services/predeployment/workPlanService";
+import { ScheduleCard } from "../attendance/schedule-card";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
 import { Role } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,8 +42,9 @@ export default async function WorkPlanPage(props: {
     throw error;
   }
 
-  const [history, profile] = await Promise.all([
+  const [history, approved, profile] = await Promise.all([
     getWorkPlanHistory(params.studentProfileId),
+    getLatestApprovedWorkPlanForStudent(params.studentProfileId),
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: params.studentProfileId },
       select: { program: true },
@@ -60,7 +65,7 @@ export default async function WorkPlanPage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Work plan"
-        description="Planned deployment tasks, reviewed by the coordinator. A returned plan can be revised and resubmitted."
+        description="Planned tasks and the work schedule for the semester, reviewed by the coordinator. A returned plan can be revised and resubmitted."
       />
 
       {canSubmitNew && (
@@ -95,7 +100,12 @@ export default async function WorkPlanPage(props: {
             )}
 
             {rows.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div
+                tabIndex={0}
+                role="region"
+                aria-label="Planned tasks"
+                className="overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
                 <table className="w-full min-w-[40rem] border-collapse text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
@@ -154,6 +164,12 @@ export default async function WorkPlanPage(props: {
           </CardContent>
         </Card>
       )}
+
+      <ScheduleCard
+        studentProfileId={params.studentProfileId}
+        role={user.role}
+        workPlan={approved}
+      />
 
       {history.length > 1 && (
         <Card>

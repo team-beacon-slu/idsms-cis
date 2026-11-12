@@ -26,7 +26,7 @@ export default async function BulkImportPage() {
       <div>
         <Link
           href="/users"
-          className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
+          className="inline-flex min-h-6 cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           Back to users

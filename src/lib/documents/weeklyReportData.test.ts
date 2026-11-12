@@ -52,33 +52,54 @@ const row = {
 };
 
 describe("SLU Weekly Work Report fields", () => {
-  it("numbers the week from the faculty-defined Week 1 (late starter at Week 3)", async () => {
+  it("numbers the week from the intern's own first report, not the term's Week 1", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue({
       ...row,
       studentProfile: {
         ...row.studentProfile,
-        semester: { weekOneStart: new Date("2026-09-23T00:00:00Z") }, // a Wednesday
+        semester: { weekOneStart: new Date("2026-08-10T00:00:00Z") }, // the class is at week 9
       },
     } as never);
     const data = await loadWeeklyReportDocumentData("wr-1");
-    expect(data!.weekNumber).toBe(3);
+    expect(data!.weekNumber).toBe(3); // first report 2026-09-21, this one 2026-10-05
   });
 
-  it("never prints Week 0 or below for a report before the faculty Week 1", async () => {
-    prismaMock.weeklyReport.findUnique.mockResolvedValue({
-      ...row,
-      studentProfile: {
-        ...row.studentProfile,
-        semester: { weekOneStart: new Date("2026-10-19T00:00:00Z") },
-      },
-    } as never);
+  it("prints Week No. 1 for the week the intern started, whenever in the term that is", async () => {
+    prismaMock.weeklyReport.findFirst.mockResolvedValue({ weekStart: row.weekStart } as never);
+    prismaMock.weeklyReport.findUnique.mockResolvedValue(row as never);
     expect((await loadWeeklyReportDocumentData("wr-1"))!.weekNumber).toBe(1);
   });
 
-  it("falls back to the student's first report week as Week 1", async () => {
+  it("carries the week's overtime, under time and absence sections, only those it has", async () => {
     prismaMock.weeklyReport.findUnique.mockResolvedValue(row as never);
-    const data = await loadWeeklyReportDocumentData("wr-1");
-    expect(data!.weekNumber).toBe(3); // first report 2026-09-21, this one 2026-10-05
+    prismaMock.studentProfile.findUnique.mockResolvedValue(row.studentProfile as never);
+    prismaMock.weeklyReport.findFirst.mockResolvedValue({
+      weekStart: row.weekStart,
+      weekEnd: row.weekEnd,
+    } as never);
+    prismaMock.dailyReportEntry.findMany.mockResolvedValue([]);
+    prismaMock.deviationReport.findMany.mockImplementation(((args: {
+      where: { deviationType: string };
+    }) =>
+      Promise.resolve(
+        args.where.deviationType === "OVERTIME"
+          ? [
+              {
+                date: new Date("2026-10-05T00:00:00Z"),
+                endDate: null,
+                startTime: "17:00",
+                endTime: "19:00",
+                requestedMinutes: 120,
+                reason: "Finished the client deployment",
+                requestKind: null,
+                proofType: null,
+                validationStatus: "VALIDATED",
+              },
+            ]
+          : []
+      )) as never);
+    const data = (await loadWeeklyReportDocumentData("wr-1"))!;
+    expect(data.timeReports?.map((t) => [t.kind, t.week])).toEqual([["OT", "IN_WEEKLY_REPORT"]]);
   });
 
   it("uses the full name as entered, else a name from the school email", async () => {

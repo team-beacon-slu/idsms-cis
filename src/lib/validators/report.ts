@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { timeOfDay } from "@/lib/utils/timeMath";
+import { PROOF_TYPES } from "@/lib/validators/timeRequest";
+import { dayTimeline, spanMinutes, timeOfDay } from "@/lib/utils/timeMath";
 
 export const weeklyReportGenerateSchema = z.object({
   weekStart: z.coerce.date(),
@@ -16,23 +17,51 @@ export function isAttendanceStatus(value: string): value is AttendanceStatus {
 
 export { timeOfDay };
 
+// Minutes worked between two times; a time out earlier than time in is the next morning.
 export function minutesBetween(timeIn: string, timeOut: string): number {
-  const [inH, inM] = timeIn.split(":").map(Number);
-  const [outH, outM] = timeOut.split(":").map(Number);
-  return outH * 60 + outM - (inH * 60 + inM);
+  return valid(timeIn, timeOut) ? spanMinutes(timeIn, timeOut) : NaN;
 }
+
+// The cross-field checks below only judge well-formed times; timeOfDay reports the rest.
+const valid = (...times: Array<string | null | undefined>) =>
+  times.every((t) => t != null && timeOfDay.safeParse(t).success);
+
+export const DAY_NOTE_MIN = 10;
+export const dayNoteSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .max(500, "Keep the reason under 500 characters")
+    .refine((r) => r.length === 0 || r.length >= DAY_NOTE_MIN, {
+      message: `Give a reason of at least ${DAY_NOTE_MIN} characters`,
+    }),
+  proofType: z.enum(PROOF_TYPES).optional(),
+  requestKind: z.enum(["ANTICIPATED", "EMERGENCY"]).optional(),
+});
+export type DayNote = z.infer<typeof dayNoteSchema>;
 
 export const dailyEntrySchema = z
   .object({
     dailyReportEntryId: z.uuid(),
     hours: z.number().min(0).max(24),
-    accomplishments: z.string().trim().max(5000),
-    toolsUsed: z.string().trim().max(500).optional(),
+    accomplishments: z.string().trim().max(5000, "Keep this under 5,000 characters"),
+    toolsUsed: z.string().trim().max(500, "Keep the tools under 500 characters").optional(),
     attendanceStatus: z.enum(ATTENDANCE_STATUSES).default("PRESENT"),
     timeIn: timeOfDay.optional(),
     timeOut: timeOfDay.optional(),
     timeIn2: timeOfDay.optional(),
     timeOut2: timeOfDay.optional(),
+    // Why this day differs from the schedule (overtime, undertime or an absence): reported on
+    // the day itself instead of a separate request (adviser feedback, Nov 2026).
+    note: dayNoteSchema.optional(),
+  })
+  .refine((d) => d.attendanceStatus !== "ABSENT" || (d.note?.reason.length ?? 0) > 0, {
+    message: "Say why you were absent",
+    path: ["note", "reason"],
+  })
+  .refine((d) => d.attendanceStatus !== "ABSENT" || Boolean(d.note?.proofType), {
+    message: "Choose the proof you will attach in Google Classroom",
+    path: ["note", "proofType"],
   })
   .refine((d) => d.attendanceStatus !== "PRESENT" || d.accomplishments.length > 0, {
     message: "Accomplishments are required",
@@ -42,26 +71,31 @@ export const dailyEntrySchema = z
     message: "Absent and holiday days must have 0 hours",
     path: ["hours"],
   })
-  .refine((d) => !d.timeIn || !d.timeOut || minutesBetween(d.timeIn, d.timeOut) > 0, {
-    message: "Time out must be after time in",
+  .refine((d) => !valid(d.timeIn, d.timeOut) || minutesBetween(d.timeIn!, d.timeOut!) > 0, {
+    message: "Time in and time out can't be the same",
     path: ["timeOut"],
   })
   .refine(
     (d) => (!d.timeIn2 && !d.timeOut2) || (d.timeIn && d.timeOut && d.timeIn2 && d.timeOut2),
     {
-      message: "Fill in the first time range before adding a second",
+      message: "Enter the AM Time In and Time Out, or leave both PM times empty",
       path: ["timeIn2"],
     }
   )
-  .refine((d) => !d.timeIn2 || !d.timeOut2 || minutesBetween(d.timeIn2, d.timeOut2) > 0, {
-    message: "Time out must be after time in",
+  .refine((d) => !valid(d.timeIn2, d.timeOut2) || minutesBetween(d.timeIn2!, d.timeOut2!) > 0, {
+    message: "Time in and time out can't be the same",
     path: ["timeOut2"],
   })
-  .refine((d) => !d.timeOut || !d.timeIn2 || minutesBetween(d.timeOut, d.timeIn2) >= 0, {
-    message: "The second time range must start after the first one ends",
-    path: ["timeIn2"],
-  })
-  .refine((d) => !d.timeIn || !d.timeOut || d.hours * 60 <= rangeMinutes(d) + 0.5, {
+  .refine(
+    (d) =>
+      !valid(d.timeIn, d.timeOut, d.timeIn2, d.timeOut2) ||
+      daySpan([d.timeIn!, d.timeOut!, d.timeIn2!, d.timeOut2!]) <= 24 * 60,
+    {
+      message: "The PM Time In must be after the AM Time Out, within 24 hours",
+      path: ["timeIn2"],
+    }
+  )
+  .refine((d) => !valid(d.timeIn, d.timeOut) || d.hours * 60 <= rangeMinutes(d) + 0.5, {
     message: "Hours can't exceed the time between time in and time out",
     path: ["hours"],
   });
@@ -73,9 +107,18 @@ export function rangeMinutes(d: {
   timeIn2?: string | null;
   timeOut2?: string | null;
 }): number {
-  const first = d.timeIn && d.timeOut ? minutesBetween(d.timeIn, d.timeOut) : 0;
-  const second = d.timeIn2 && d.timeOut2 ? minutesBetween(d.timeIn2, d.timeOut2) : 0;
+  const first = valid(d.timeIn, d.timeOut) ? minutesBetween(d.timeIn!, d.timeOut!) : 0;
+  const second = valid(d.timeIn2, d.timeOut2) ? minutesBetween(d.timeIn2!, d.timeOut2!) : 0;
   return first + second;
+}
+
+// First time in to last time out, on one timeline that runs past midnight.
+function daySpan([in1, out1, in2, out2]: string[]) {
+  const line = dayTimeline([
+    [in1, out1],
+    [in2, out2],
+  ]);
+  return line[1][1] - line[0][0];
 }
 
 export const weeklyReportSubmitSchema = z.object({

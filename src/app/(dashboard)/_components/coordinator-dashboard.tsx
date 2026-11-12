@@ -172,7 +172,9 @@ export async function CoordinatorDashboard({
                 label="Needs attention"
                 value={p.needsAttention}
                 icon={TriangleAlert}
-                action
+                // The intern's move (a report or checklist item missing), not the coordinator's:
+                // "Waiting on you" above holds the coordinator's own decisions.
+                hint="interns behind on a report or checklist"
               />
             </StatStrip>
           </section>

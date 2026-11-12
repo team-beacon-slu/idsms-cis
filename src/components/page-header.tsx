@@ -33,7 +33,7 @@ export function PageHeader({
               <p className="mt-2 max-w-3xl text-[15px] text-white/85">{description}</p>
             )}
           </div>
-          {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+          {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
         </div>
         {children && <div className="relative mt-6">{children}</div>}
       </div>
@@ -55,7 +55,7 @@ export function PageHeader({
           <p className="mt-2.5 max-w-3xl text-[15px] text-muted-foreground">{description}</p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }

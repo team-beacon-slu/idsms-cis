@@ -4,7 +4,11 @@ import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    // Focusable so a table wider than the screen can be scrolled by keyboard (WCAG 2.1.1).
+    <div
+      tabIndex={0}
+      className="relative w-full overflow-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   )
