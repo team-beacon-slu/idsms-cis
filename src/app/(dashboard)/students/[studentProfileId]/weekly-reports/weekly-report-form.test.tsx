@@ -341,7 +341,9 @@ it("lists Monday to Friday for a Mon–Thu schedule: Friday is a day off that ca
     <WeeklyReportForm {...props} weekEnd="2026-10-25T00:00:00.000Z" entries={monThu} editable />
   );
   expect(screen.getByText("Oct 23 (Friday)")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "I worked on Fri, Oct 23" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "I worked this day: Fri, Oct 23" })
+  ).toBeInTheDocument();
   expect(screen.queryByText(/Oct 24/)).toBeNull(); // Saturday: only when worked
   expect(screen.getAllByRole("region")).toHaveLength(4); // one section per reported day
 });
