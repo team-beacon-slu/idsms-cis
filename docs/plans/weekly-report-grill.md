@@ -94,3 +94,9 @@ set attendance_status = 'SCHEDULED', actual_hours = null, credited_hours = null,
 where weekly_report_id = '3a1eb9e0-10a2-4b3c-8ea0-f8183da1e5a3';
 update weekly_reports set total_hours = 0 where id = '3a1eb9e0-10a2-4b3c-8ea0-f8183da1e5a3';
 ```
+
+**12 Nov 2026 beta sample data** (to delete after the defence): interns `student2.test`,
+`student3.test`, `student4.test` (listed in the gitignored TEST_ACCOUNTS.md), each with a submitted
+Nov 2–8 week, and four companies named "(test data)" with their own work plans and days off (Nov 18
+class suspension, Nov 20 anniversary, Nov 26 Thanksgiving, Dec 7 team building). The same day all
+BSIT interns on the beta were moved from 486 to 600 required hours (curriculum).

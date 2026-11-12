@@ -55,7 +55,7 @@ Weekly report review is limited to the assigned faculty adviser. Whether a secon
 ### Coming with Workstream L1 (In progress, not available yet)
 
 - The review page and PDF follow **SLU's Weekly Work Report** layout: two time ranges per day, "N hrs M mins", beginning and ending totals, and Overtime and Under Time sections.
-- **Leave & Time Requests:** students file leave, overtime and undertime requests. You **Approve**, or **Return** with a note. An overtime request filed after the date is labelled **"Filed after the fact"**. Pending requests appear on the student's attendance page and as a count on your dashboard.
+- **Overtime, under time and absences** are reported by the intern on the day inside the weekly report, with remarks. Approving the week accepts the pending ones; you can mark any one **Not accepted** with a note, and hours follow. Weeks with undecided reasons are flagged in the review queue.
 - Credited hours follow SLU's rules automatically (see [07](07-business-rules.md), section 4).
 
 ## 5. Endorsement letters

@@ -77,11 +77,11 @@ Steps 11 and 12 change when **Workstream L1 (In progress)** ships: the daily tim
 
 The following is designed and approved but **not available yet**:
 
-- **Leave & Time Requests tab** (students): file leave (planned or emergency, full or partial day), overtime and undertime requests, each with a reason. Faculty approve or return them with a note. Proposed (pending confirmation, Q19): proof stays in Google Classroom.
+- **Overtime, under time and absences** (built, 11 Nov 2026): reported on the day inside the weekly report with remarks; the adviser accepts them or not. Proof stays in Google Classroom (Q19).
 - **Two time ranges per day** (morning and afternoon) in the daily time record, and a per-student shift (start, end, lunch break; default 8:00–5:00 with 1 hour).
 - **SLU credited-hours rules:** only time inside the shift counts; time outside counts only as approved overtime of at least 30 minutes; no offsetting on a late day; tardiness and early leave become undertime that needs a reason before the week can be submitted.
 - **SLU Weekly Work Report layout** for the preview and PDF, including the "Report on Overtime Hours" and "Report on Under Time Hours" sections signed by the supervisor.
-- **Week numbers** based on a "Week 1 starts" date per semester.
+- **Week numbers** (built, 11 Nov 2026): WWR01 is the intern's own first OJT week.
 
 The rules and worked examples are in [07. Business rules](07-business-rules.md), section 4.
 

@@ -63,7 +63,9 @@ Shows your weekly report deadlines (red), Philippine holidays (gray), approved d
 
 ## 8. Weekly Reports (`/weekly-reports`)
 
-- **Start a weekly report:** pick the week. IDSMS creates one row per scheduled working day (holidays you marked are skipped).
+- **Your weeks** are sorted like Google Classroom: **To do**, **Missing** (past the Tuesday deadline) and **Submitted**, each folded with a count. Weeks are never created for you: a missing week shows **Start this week**.
+- **Start your first weekly report:** pick a day in the week you started your OJT; that week is **WWR01**. If you started mid-week, set **First day of OJT**: earlier days print as "OJT not yet started", not absences.
+- IDSMS creates one row per scheduled working day; your host company's holidays and days off are 0-hour Holiday rows.
 - **For each day:** choose **Present**, **Absent** or **Holiday**; enter time in and time out (optional), hours, accomplishments and tools used. Absent and holiday days count 0 hours. Hours cannot exceed the time between time in and time out.
 - **Copy-paste warning:** if a day's text is nearly identical to another day or to last week, IDSMS warns you to revise it.
 - **Running totals:** this week, running total and remaining hours.
@@ -71,24 +73,21 @@ Shows your weekly report deadlines (red), Philippine holidays (gray), approved d
 - **Deadline:** **Tuesday 11:59 PM (Manila)** of the following week. After that the report is marked **late** and you must type a **reason for delay** to submit.
 - **After review:**
   - **Approved** or **Regarded:** hours count. Download the PDF, have your supervisor sign it, and post the signed copy in **Google Classroom**.
-  - **Returned:** read the adviser's note, edit and resubmit. Hours do not count until approved.
+  - **Returned:** read the adviser's note, edit and resubmit. Hours do not count until approved. If your first submission was on time, the resubmission stays on time.
   - **Disregarded:** the submission is removed (for example, the wrong week); start that week again.
 - **Download / Regenerate PDF:** if the PDF failed to generate, use Regenerate.
 
-### Coming with Workstream L1 (In progress, not available yet)
+### SLU hours rules
 
 - **Two time ranges per day** (morning and afternoon), shown as "N hrs M mins".
-- Only time **within your shift** counts. Arriving late or leaving early creates an **undertime** entry; you must add a reason (or a leave request) before the week can be submitted.
+- Only time **within your shift** counts. Arriving late or leaving early is **under time**: give remarks for that day before the week can be submitted. Overtime and absences are reported on the day too; evidence (screenshots) goes to Google Classroom with the report.
 - The preview and PDF follow **SLU's Weekly Work Report** layout, with "Week No. N", beginning and ending totals, and the Overtime and Under Time sections for your supervisor to sign.
 
-## 9. Leave & Time Requests (coming with Workstream L1)
+## 9. Overtime & absences (`/leave-requests`)
 
-**In progress, not available yet.** A new tab will let you:
+A list of every overtime, under time and absence you reported in your weekly reports, with its reason and whether your adviser accepted it. Nothing is filed here: report them on the day in the weekly report.
 
-- file **leave** (planned or emergency; whole day, several days or part of a day), **overtime** (file it **before** working it) and **undertime** requests, each with a reason;
-- see each request's status (Pending, Approved, Returned with a note) and edit a returned request.
-
-Rules: overtime counts only if approved and at least **30 minutes**; extra time on a day you were late is never credited (no offsetting). Under the L1 proposal (pending confirmation, Q19), proof (medical certificate, memo, screenshot) goes to Google Classroom with that week's report.
+Rules: overtime counts only if accepted and at least **30 minutes**; extra time on a day you were late is never credited (no offsetting). Proof goes to Google Classroom with that week's report.
 
 ## 10. Monthly Reports (`/monthly-reports`)
 
