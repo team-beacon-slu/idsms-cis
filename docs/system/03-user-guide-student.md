@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 12 November 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
-This guide describes every screen a student sees. The left menu (a slide-out menu on phones) is grouped: **Dashboard**; **Every week:** Weekly reports, Attendance, Leave & time requests; **Requirements:** Checklist, Work plan, Monthly reports, Final report; **Reference:** Companies, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office.
+This guide describes every screen a student sees. The left menu (a slide-out menu on phones) is grouped: **Dashboard**; **Every week:** Weekly reports, Attendance, Overtime & absences; **Requirements:** Checklist, Work plan, Monthly reports, Final report; **Reference:** My company, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office.
 
 > **Golden rule (decisions D2 and D7):** never upload signed documents, signatures, medical certificates or psychological records to IDSMS. Those go to **Google Classroom**. IDSMS records their status and produces the PDFs you print for signing.
 
@@ -20,17 +20,17 @@ Your session ends after **30 minutes of inactivity**. Sign in again to continue.
 
 ## 2. Dashboard (`/`)
 
-- **Needs attention** (amber card): counts of weekly reports returned for revision, weekly reports due within 48 hours, deviation reports awaiting validation, and checklist items not yet approved. Each line links to the right page.
+- **Needs attention** (amber card): counts of weekly reports returned for revision, weekly reports due within 48 hours, overtime, under time or absence reasons waiting for your adviser, and checklist items not yet approved. Each line links to the right page.
 - **Hours:** confirmed hours over required hours (for example "212 / 600"), with "+N hrs pending review" for submitted weeks the adviser has not reviewed yet.
 - **Pre-deployment requirements:** the status of each checklist item.
 - **Weekly report history:** your weeks, newest first, with status and reference code.
 - **Final report cover:** locked until your confirmed hours reach the threshold (shown as "Unlocks at N confirmed hours (x / N so far)"); then a button generates the PDF.
 - **Quick links** to your main pages.
 
-## 3. Companies (`/companies`)
+## 3. My company (`/companies`)
 
-- Lists registered host companies (HTEs) with their work modality. You can search and open a company.
-- **Register a company** (`/companies/new`): company name, address, work modality (on-site, work from home, hybrid), supervisor name and contact, and your position title.
+- **My company** opens your own host company (HTE). Students do not see the list of all companies.
+- If you have none yet, it opens **Register your host company** (`/companies/new`): company name, address, work modality (on-site, work from home, hybrid), supervisor name and contact, and your position title. Your adviser verifies it and the coordinator records the MOA.
 - MOA records are visible to staff only.
 
 ## 4. Calendar (`/calendar`)
@@ -39,11 +39,11 @@ Shows your weekly report deadlines (red), Philippine holidays (gray), approved d
 
 ## 5. Checklist (`/checklist`)
 
-- The 9 pre-deployment requirements with their status: **Pending**, **Approved** or **Returned**, plus the reviewer's note when returned.
-- **Status only (D7):** submit the documents in Google Classroom. Your adviser records the status here. There is no upload button.
+- The required pre-deployment requirements with their status: **Pending**, **Uploaded to Classroom**, **Approved** or **Returned**, plus the reviewer's note when returned.
+- **Status only (D7):** upload each document to Google Classroom, then choose **I uploaded it to Classroom** here. Your adviser checks it there and approves or returns it. No file is uploaded to IDSMS.
 - **Work Plan** and **MOA** show "Tracked automatically": they follow your work plan's approval and your company's MOA.
-- The **endorsement letter** section stays locked until all 9 items are Approved; once your adviser generates it, you can download it here.
-- **Planned:** the Super Admin will choose which items are required; some items (for example "Proof of corporate legitimacy" or "Internship agreement") will only apply to some students.
+- The **endorsement letter** section stays locked until every required item is Approved; once your adviser generates it, you can download it here.
+- The Super Admin chooses which items are required; some items (for example "Proof of corporate legitimacy" or "Internship agreement") apply only to some students.
 
 ## 6. Work Plan (`/work-plan`)
 
@@ -56,9 +56,8 @@ Shows your weekly report deadlines (red), Philippine holidays (gray), approved d
 
 - **Hours rendered** (confirmed), **hours remaining** and **projected completion**. If you have submitted weeks still under review you will see "+N hrs pending faculty review".
 - **Deployment Schedule:** once your work plan is approved, set your **working days** and **hours per day**. Later changes go through **Schedule change requested**: give a reason; your adviser validates it and the coordinator approves it; you get a notification with the result. A change only affects future days.
-- **Holidays:** Philippine holidays are pre-loaded; mark which ones apply to your company.
-- **Report a Deviation:** report an absence, overtime or undertime for a date, with a reason. Today an optional proof file (PDF up to 5 MB, JPG/PNG up to 2 MB) can be attached. L1 proposes replacing deviation proof uploads with status-only requests (proof in Google Classroom); pending confirmation (Q19). Today students can still upload a proof file.
-- **Deviation report history:** all your reports and their validation status.
+- **Holidays:** Philippine holidays this semester plus your host company's own days off. You follow your company's days off, not the school's. Untick a holiday your company works through so it appears on the weekly report. Companies outside the Philippines get no Philippine holidays.
+- **Overtime, undertime & absences:** a read-only list of what you reported in your weekly reports, with each reason; **See all** opens the full page (section 9). Nothing is filed here.
 - **Export:** download your attendance log as a CSV file.
 
 ## 8. Weekly Reports (`/weekly-reports`)
@@ -66,10 +65,11 @@ Shows your weekly report deadlines (red), Philippine holidays (gray), approved d
 - **Your weeks** are sorted like Google Classroom: **To do**, **Missing** (past the Tuesday deadline) and **Submitted**, each folded with a count. Weeks are never created for you: a missing week shows **Start this week**.
 - **Start your first weekly report:** pick a day in the week you started your OJT; that week is **WWR01**. If you started mid-week, set **First day of OJT**: earlier days print as "OJT not yet started", not absences.
 - IDSMS creates one row per scheduled working day; your host company's holidays and days off are 0-hour Holiday rows.
-- **For each day:** choose **Present**, **Absent** or **Holiday**; enter time in and time out (optional), hours, accomplishments and tools used. Absent and holiday days count 0 hours. Hours cannot exceed the time between time in and time out.
-- **Copy-paste warning:** if a day's text is nearly identical to another day or to last week, IDSMS warns you to revise it.
+- **For each day:** choose **Present** or **Absent** (holidays and days off are filled in for you); enter time in and time out (required for a present day), accomplishments and tools used. **Hours Rendered** is worked out from your times; you do not type it. Absent and holiday days count 0 hours.
+- **Copy-paste check:** if a day's text is nearly identical to another day or to last week, it is flagged and the week cannot be submitted until you rewrite it.
 - **Running totals:** this week, running total and remaining hours.
 - **Preview** the report, then **Submit**. Every day must be filled in. You get a reference code (WR-…).
+- **Take back to fix:** until your adviser reviews the week, and before the deadline, you can take a submitted week back to draft, fix it and submit again.
 - **Deadline:** **Tuesday 11:59 PM (Manila)** of the following week. After that the report is marked **late** and you must type a **reason for delay** to submit.
 - **After review:**
   - **Approved** or **Regarded:** hours count. Download the PDF, have your supervisor sign it, and post the signed copy in **Google Classroom**.
@@ -81,7 +81,7 @@ Shows your weekly report deadlines (red), Philippine holidays (gray), approved d
 
 - **Two time ranges per day** (morning and afternoon), shown as "N hrs M mins".
 - Only time **within your shift** counts. Arriving late or leaving early is **under time**: give remarks for that day before the week can be submitted. Overtime and absences are reported on the day too; evidence (screenshots) goes to Google Classroom with the report.
-- The preview and PDF follow **SLU's Weekly Work Report** layout, with "Week No. N", beginning and ending totals, and the Overtime and Under Time sections for your supervisor to sign.
+- The preview and PDF follow **SLU's Weekly Work Report** layout, with "Week No. N", beginning and ending totals, as one PDF: the Overtime, Under Time and Absence sections are added only when the week has them.
 
 ## 9. Overtime & absences (`/leave-requests`)
 
@@ -96,7 +96,7 @@ Rules: overtime counts only if accepted and at least **30 minutes**; extra time 
 
 ## 11. Notifications (bell and `/notifications`)
 
-The bell shows unread notifications: report submitted, report returned (with the note), deadline reminders (about 48 and 24 hours before), checklist status changes, work plan reviewed, deviation validated, endorsement letter ready. Click one to open the related page; mark one or all as read. Email copies arrive only once SLU provides a sending email domain.
+The bell shows unread notifications: report submitted, report returned (with the note), deadline reminders (about 48 and 24 hours before), checklist status changes, work plan reviewed, overtime or absence reason decided, endorsement letter ready. Click one to open the related page; mark one or all as read. Email copies are sent when the host's email (SMTP) is set up; you can switch email off in **Account settings**.
 
 ## 12. Profile (`/profile`)
 

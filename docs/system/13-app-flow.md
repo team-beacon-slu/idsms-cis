@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 12 November 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
-This document shows how people move through IDSMS: the screen map per role, the main user flows, the life cycle (states) of each important record, and the key behind-the-scenes sequences. Everything is derived from the code (`src/app/**`, `src/app/(dashboard)/dashboard-nav.tsx`, `src/lib/services/**`). Planned and in-progress parts are marked. Each flow describes the system's intended behaviour; it is not based on usability testing, which is planned for Phase 5.
+This document shows how people move through IDSMS: the screen map per role, the main user flows, the life cycle (states) of each important record, and the key behind-the-scenes sequences. Everything is derived from the code (`src/app/**`, `src/app/(dashboard)/_components/dashboard-nav.tsx`, `src/lib/services/**`). Planned and in-progress parts are marked. Each flow describes the system's intended behaviour; it is not based on usability testing, which is planned for Phase 5.
 
 Related documents: [02. Internship lifecycle](02-internship-lifecycle.md) (the business journey), [08. Technical design](08-technical-design.md) (API routes), [14. Data schema](14-data-schema.md) (the records behind the states).
 
@@ -14,24 +14,33 @@ Related documents: [02. Internship lifecycle](02-internship-lifecycle.md) (the b
 
 The left menu is built in `dashboard-nav.tsx`. Every role also has the notification bell (opens `/notifications`) and **Sign out**.
 
-| Menu item       | Path                   | Student | Faculty | Coordinator | Super Admin |
-| --------------- | ---------------------- | :-----: | :-----: | :---------: | :---------: |
-| Dashboard       | `/`                    |   Yes   |   Yes   |     Yes     |     Yes     |
-| Users           | `/users`               |         |         |     Yes     |     Yes     |
-| Semesters       | `/semesters`           |         |         |  View only  |     Yes     |
-| Audit log       | `/audit-log`           |         |         |             |     Yes     |
-| Export Center   | `/admin/export-center` |         |         |             |     Yes     |
-| Companies       | `/companies`           |   Yes   |   Yes   |     Yes     |     Yes     |
-| Calendar        | `/calendar`            |   Yes   |   Yes   |     Yes     |     Yes     |
-| My Students     | `/my-students`         |         |   Yes   |             |             |
-| Checklist       | `/checklist`           |   Yes   |         |             |             |
-| Work Plan       | `/work-plan`           |   Yes   |         |             |             |
-| Attendance      | `/attendance`          |   Yes   |         |             |             |
-| Weekly Reports  | `/weekly-reports`      |   Yes   |         |             |             |
-| Monthly Reports | `/monthly-reports`     |   Yes   |         |             |             |
-| Profile         | `/profile`             |   Yes   |   Yes   |     Yes     |     Yes     |
+| Menu item           | Path                                  | Student | Faculty |  Coordinator   | Super Admin |
+| ------------------- | ------------------------------------- | :-----: | :-----: | :------------: | :---------: |
+| Dashboard           | `/`                                   |   Yes   |   Yes   |      Yes       |     Yes     |
+| Weekly reports      | `/students/{id}/weekly-reports`       |   Yes   |         |                |             |
+| Attendance          | `/students/{id}/attendance`           |   Yes   |         |                |             |
+| Overtime & absences | `/students/{id}/leave-requests`       |   Yes   |         |                |             |
+| Checklist           | `/students/{id}/checklist`            |   Yes   |         |                |             |
+| Work plan           | `/students/{id}/work-plan`            |   Yes   |         |                |             |
+| Monthly reports     | `/students/{id}/monthly-reports`      |   Yes   |         |                |             |
+| Final report        | `/students/{id}/final-report`         |   Yes   |         |                |             |
+| My students         | `/my-students`                        |         |   Yes   |                |             |
+| Review queue        | `/review-queue`                       |         |   Yes   |                |             |
+| Users               | `/users`                              |         |         |      Yes       |     Yes     |
+| Class groups        | `/class-groups`                       |         |         |      Yes       |     Yes     |
+| Semesters           | `/semesters`                          |         |         |   View only    |     Yes     |
+| Final reports       | `/final-reports`                      |         |         |      Yes       |     Yes     |
+| Search entries      | `/search`                             |         |   Yes   |      Yes       |     Yes     |
+| Settings            | `/settings`                           |         |         | Required hours |     Yes     |
+| Audit log           | `/audit-log`                          |         |         |                |     Yes     |
+| Export center       | `/admin/export-center`                |         |         |                |     Yes     |
+| Companies           | `/companies` (students: "My company") |   Yes   |   Yes   |      Yes       |     Yes     |
+| Calendar            | `/calendar`                           |   Yes   |   Yes   |      Yes       |     Yes     |
+| Help                | `/help`                               |   Yes   |   Yes   |      Yes       |     Yes     |
 
-The student shortcuts (`/checklist`, `/work-plan`, `/attendance`, `/weekly-reports`, `/monthly-reports`) redirect to the student's own pages under `/students/{studentProfileId}/…`, which staff reach from dashboards, My Students or Users.
+Account settings (`/profile`) opens from the account menu at the bottom of the sidebar, not from the menu list.
+
+The student menu links straight to the student's own pages; the shortcuts (`/checklist`, `/work-plan`, `/attendance`, `/weekly-reports`, `/monthly-reports`, `/leave-requests`) redirect to the student's own pages under `/students/{studentProfileId}/…`, which staff reach from dashboards, My Students or Users.
 
 ### 1.2 Sitemap
 
@@ -64,8 +73,11 @@ graph LR
         SWV["weekly-reports/[id]/preview"]
         SWR["weekly-reports/[id]/review<br/>(faculty)"]
         SM["monthly-reports"]
+        LT["leave-requests<br/>(Overtime & absences list)"]
+        FRS["final-report"]
         SW --> SWV
         SW --> SWR
+        SW --> LT
     end
     D --> SC
     D --> SW
@@ -77,6 +89,11 @@ graph LR
         MS["/my-students (faculty)"]
         AL["/audit-log (SA)"]
         EC["/admin/export-center (SA)"]
+        CG["/class-groups"]
+        FR["/final-reports"]
+        SR["/search"]
+        SET["/settings"]
+        RQ["/review-queue (faculty)"]
         U --> UI
     end
     D --> U
@@ -84,32 +101,31 @@ graph LR
     MS --> SC
     D --> AL
     D --> EC
-
-    LT["Leave & Time Requests tab<br/>(In progress, L1)"]
-    D -.-> LT
+    D --> RQ
+    RQ --> SWR
 ```
 
 ### 1.3 Screen inventory and states
 
-| Screen                                    | Role(s)                              | Main states shown                                                                                                                                         |
-| ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/login`                                  | Public                               | Default; error message for wrong password, locked account (with time), inactive account                                                                   |
-| `/change-password`                        | Signed in                            | Forced ("Set a new password") or voluntary ("Change your password"); validation errors                                                                    |
-| `/auth/reset-password`, `/[token]`        | Public                               | Request sent; invalid or expired link; new password set                                                                                                   |
-| `/` (Dashboard)                           | All                                  | Student: "Needs attention" card only when something needs action; final report cover locked/unlocked. Staff: empty tables when no students; filters       |
-| `/checklist` → `/students/{id}/checklist` | Student, staff                       | Per item Pending / Approved / Returned (with note); "Tracked automatically" for Work Plan and MOA; endorsement letter locked until 9/9, then downloadable |
-| `/work-plan`                              | Student, staff                       | No plan; Submitted; Approved (locked); Returned with reviewer feedback; history                                                                           |
-| `/attendance`                             | Student, staff                       | "The work schedule can be set once the work plan is approved"; schedule set; schedule change pending; pending hours line only when > 0                    |
-| `/weekly-reports`                         | Student, staff                       | "No weekly reports yet"; Draft; "Submitted · awaiting review"; Returned; Approved / Regarded; PDF Generated / Failed (Regenerate)                         |
-| `/weekly-reports/[id]/review`             | Faculty                              | Read-only report with late reason; four action buttons; Return needs a note                                                                               |
-| `/monthly-reports`                        | Student, staff                       | "No weekly reports yet — monthly reports roll up approved weekly reports"; eligible month; submitted with PDF                                             |
-| `/companies`, `/companies/[id]`           | All (MOA section staff only)         | "No companies found"; MOA list with status badges and allowed next statuses; verified flag                                                                |
-| `/users`, `/users/import`                 | Coordinator, Super Admin             | Locked / inactive badges; import result with failed rows and a credentials download                                                                       |
-| `/semesters`                              | Coordinator (read-only), Super Admin | "No semesters yet"; active; archived ("Read-only")                                                                                                        |
-| `/audit-log`                              | Super Admin                          | "No matching entries"; filtered list                                                                                                                      |
-| `/admin/export-center`                    | Super Admin                          | Export cards; inline password form; "No exports yet"; data requests with days left (overdue in red); retention flags                                      |
-| `/notifications`                          | All                                  | Unread / read; empty                                                                                                                                      |
-| `/profile`                                | All                                  | Legal name (students); "Your data" request open / none                                                                                                    |
+| Screen                                    | Role(s)                                      | Main states shown                                                                                                                                                                                             |
+| ----------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`                                  | Public                                       | Default; error message for wrong password, locked account (with time), inactive account                                                                                                                       |
+| `/change-password`                        | Signed in                                    | Forced ("Set a new password") or voluntary ("Change your password"); validation errors                                                                                                                        |
+| `/auth/reset-password`, `/[token]`        | Public                                       | Request sent; invalid or expired link; new password set                                                                                                                                                       |
+| `/` (Dashboard)                           | All                                          | Student: "Needs attention" card only when something needs action; final report cover locked/unlocked. Staff: empty tables when no students; filters                                                           |
+| `/checklist` → `/students/{id}/checklist` | Student, staff                               | Per item Pending / Uploaded to Classroom / Approved / Returned (with note); "Tracked automatically" for Work Plan and MOA; endorsement letter locked until every required item is Approved, then downloadable |
+| `/work-plan`                              | Student, staff                               | No plan; Submitted; Approved (locked); Returned with reviewer feedback; history                                                                                                                               |
+| `/attendance`                             | Student, staff                               | "The work schedule can be set once the work plan is approved"; schedule set; schedule change pending; pending hours line only when > 0                                                                        |
+| `/weekly-reports`                         | Student, staff                               | "No weekly reports yet"; Draft; "Submitted · awaiting review" (Take back to fix before review and deadline); Returned; Approved / Regarded; PDF Generated / Failed (Regenerate)                               |
+| `/weekly-reports/[id]/review`             | Faculty                                      | Read-only report with late reason; four action buttons; Return and Disregard need a note                                                                                                                      |
+| `/monthly-reports`                        | Student, staff                               | "No weekly reports yet — monthly reports roll up approved weekly reports"; eligible month; submitted with PDF                                                                                                 |
+| `/companies`, `/companies/[id]`           | All (MOA section staff only)                 | "No companies found"; MOA list with status badges and allowed next statuses; verified flag                                                                                                                    |
+| `/users`, `/users/import`                 | Coordinator, Super Admin                     | Locked / inactive badges; import result with failed rows and a credentials download                                                                                                                           |
+| `/semesters`                              | Coordinator (class week 1 only), Super Admin | "No semesters yet"; active; archived ("Read-only")                                                                                                                                                            |
+| `/audit-log`                              | Super Admin                                  | "No matching entries"; filtered list                                                                                                                                                                          |
+| `/admin/export-center`                    | Super Admin                                  | Export cards; inline password form; "No exports yet"; data requests with days left (overdue in red); retention flags                                                                                          |
+| `/notifications`                          | All                                          | Unread / read; empty                                                                                                                                                                                          |
+| `/profile`                                | All                                          | Legal name (students); "Your data" request open / none                                                                                                                                                        |
 
 ## 2. User flows
 
@@ -143,20 +159,20 @@ flowchart TD
 
 Notes: sessions expire after 30 minutes of inactivity. A reset does not lift a lock early.
 
-### 2.2 Student (Built, with L1 changes marked)
+### 2.2 Student (Built)
 
 ```mermaid
 flowchart TD
     S0([First login]) --> S1["Account settings: set legal name"]
-    S1 --> S2["Checklist: see status of 9 items<br/>(files go to Google Classroom)"]
-    S2 --> S3["Companies: register host company"]
+    S1 --> S2["Checklist: upload to Google Classroom,<br/>mark Uploaded to Classroom"]
+    S2 --> S3["My company: register your host company"]
     S3 --> S4["Work Plan: submit planned tasks"]
     S4 --> S5{Coordinator<br/>decision}
     S5 -- Returned --> S4
     S5 -- Approved --> S6["Attendance: set working days<br/>and hours per day"]
-    S6 --> S7["Wait for endorsement letter<br/>(all 9 items Approved)"]
-    S7 --> W1["Weekly Reports: start the week"]
-    W1 --> W2["Each day: Present / Absent / Holiday,<br/>time in/out, hours, accomplishments"]
+    S6 --> S7["Wait for endorsement letter<br/>(every required item Approved)"]
+    S7 --> W1["Weekly Reports: Start this week<br/>(WWR01 = first OJT week)"]
+    W1 --> W2["Each day: Present / Absent / Holiday,<br/>two time ranges, accomplishments;<br/>remarks for OT, late, early leave"]
     W2 --> W3["Preview"]
     W3 --> W4{"Past Tuesday<br/>11:59 PM Manila?"}
     W4 -- Yes --> W5["Enter reason for delay"] --> W6
@@ -171,7 +187,7 @@ flowchart TD
     W8 --> FC{"Confirmed hours ≥<br/>final threshold?"}
     FC -- Yes --> FC2["Dashboard: generate final report cover (FC-…)"]
     S1 -.-> DR["Account settings: Request my data<br/>(any time)"]
-    W2 -.-> L1["In progress (L1): two time ranges,<br/>undertime gate, Leave & Time Requests"]
+    W6 -.-> WD["Take back to fix<br/>(before review and deadline)"] -.-> W2
 ```
 
 ### 2.3 Faculty adviser (Built)
@@ -192,13 +208,13 @@ flowchart TD
     C4 -- "Yes, underlying record not approved" --> C5["Blocked with message"]
     C4 -- "No, or record approved" --> C6["Approved; student notified"]
     C3 -- "Return (note required)" --> C7["Returned; student notified"]
-    C6 --> E1{"All 9 Approved?"}
+    C6 --> E1{"All required items Approved?"}
     E1 -- Yes --> E2["Generate endorsement letter (one student)"]
-    F0 --> E3["Bulk endorsement for a class group"]
+    F0 --> E3["My students: bulk endorsement for a class group"]
     E3 --> E4["Re-enter password"]
     E4 --> E5["Letters for eligible students (max 40);<br/>others skipped and listed"]
-    F0 --> X1["Export to Excel / Weekly summary"]
-    F0 --> A1["Student attendance: validate deviations;<br/>validate schedule change (step 1)"]
+    F0 --> X1["My students: Export to Excel / Weekly summary"]
+    F0 --> A1["Overtime & absences: Accept / Not accepted;<br/>Attendance: approve schedule change (step 1)"]
 ```
 
 ### 2.4 Coordinator (Built)
@@ -210,12 +226,12 @@ flowchart TD
     U1 --> U2["Validation per row"]
     U2 --> U3["Download credentials sheet;<br/>hand out privately"]
     K0 --> CM1["Companies: register / edit / verify"]
-    CM1 --> CM2["Add MOA record<br/>(Drive link or PDF, dates, programs)"]
+    CM1 --> CM2["Add MOA record<br/>(Drive link, dates, programs)"]
     CM2 --> CM3["Move MOA through stages<br/>to Approved / Active"]
     CM3 --> CM4["Daily job warns before expiry"]
     K0 --> WP1["Student work plan: Approve / Return"]
     K0 --> SC1["Schedule change: final approval<br/>(after faculty step)"]
-    K0 --> SM1["Semesters: view (read-only)"]
+    K0 --> SM1["Semesters: view; set class week 1"]
 ```
 
 ### 2.5 Super Admin (Built)
@@ -223,7 +239,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A0([Dashboard]) --> A1["Users: activate/deactivate,<br/>force logout, unlock, import"]
-    A1 --> A2["Settings: required hours per program;<br/>reminder hours; MOA warning days"]
+    A0 --> A2["Settings: checklist items, required hours,<br/>reminders, MOA warning days, deductions, AI"]
     A0 --> A3["Semesters: create, activate (one active),<br/>archive (keeps data)"]
     A0 --> A4["Audit log: filter, export (≤10,000 rows)"]
     A0 --> A5["Export Center"]
@@ -237,7 +253,7 @@ flowchart TD
     R2 -- "Delete (password)" --> R4["File removed; flag DELETED"]
 ```
 
-**Planned for the Super Admin and faculty:** class group & staff management screens (Q20), choosing required checklist items, the deduction matrix (L2).
+Class group & staff management screens (Q20), choosing required checklist items and the deduction matrix (L2) are built; see the coordinator and Super Admin guides.
 
 ## 3. State diagrams
 
@@ -254,6 +270,7 @@ stateDiagram-v2
     Submitted --> Returned: faculty Return (note)
     Submitted --> [*]: faculty Disregard<br/>(row deleted)
     Returned --> Submitted: student edits and resubmits
+    Submitted --> Draft: student Take back to fix<br/>(before review and deadline)
     Approved --> [*]
     Regarded --> [*]
     note right of Approved: Approved and Regarded are final;<br/>their hours are confirmed
@@ -263,7 +280,7 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING: created at import (9 per student)
+    [*] --> PENDING: created at import (one per checklist item)
     PENDING --> APPROVED: staff Approve<br/>(Work Plan/MOA need approved record)
     PENDING --> RETURNED: staff Return (note required)
     RETURNED --> APPROVED: staff Approve after fix in Google Classroom
@@ -329,7 +346,7 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING: quarterly scan finds file<br/>3+ years after semester end
+    [*] --> PENDING: quarterly scan finds file<br/>more than 2 years after semester end
     PENDING --> KEPT: Super Admin Keep
     PENDING --> DELETED: Super Admin Delete (password)
     KEPT --> [*]
@@ -361,20 +378,20 @@ stateDiagram-v2
     Active --> Active: forced logout / password reset<br/>(sessions ended)
 ```
 
-### 3.10 Time request (In progress, L1)
+### 3.10 Overtime, under time or absence (Built)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Pending: student files leave / OT / UT with reason
-    Pending --> Approved: adviser approves
-    Pending --> Returned: adviser returns with note
-    Returned --> Pending: student edits and resubmits
-    Approved --> [*]: affects credited hours<br/>(OT ≥ 30 min, capped)
+    [*] --> Pending: intern reports it on the day<br/>in the weekly report, with remarks
+    Pending --> Accepted: adviser accepts<br/>(or approves the week)
+    Pending --> NotAccepted: adviser marks Not accepted
+    Accepted --> [*]: affects credited hours<br/>(OT ≥ 30 min, capped)
+    NotAccepted --> [*]
 ```
 
-Stored as the existing `ValidationStatus` (`PENDING`, `VALIDATED`, `REJECTED`) shown as Pending / Approved / Returned.
+There are no request forms (since 11 Nov 2026). Stored as the existing `ValidationStatus` (`PENDING`, `VALIDATED`, `REJECTED`) shown as Waiting for your adviser / Accepted / Not accepted.
 
-### 3.11 Conduct record (Planned, L2)
+### 3.11 Conduct record (Built, L2)
 
 ```mermaid
 stateDiagram-v2
@@ -410,7 +427,7 @@ sequenceDiagram
     S->>API: POST /api/weekly-reports/{id}/submit (reasonForDelay?)
     API->>WR: validateLateSubmissionReason (Tuesday 23:59 Manila)
     API->>WR: generateReportReferenceCode (WR-…)
-    WR->>DB: status PENDING + SUBMITTED entry (late flag); audit
+    WR->>DB: status PENDING + SUBMITTED entry (late flag), audit
     API-->>S: in-app notice to student and assigned faculty
     F->>API: PATCH /api/weekly-reports/{id}/review {action, notes}
     API->>API: requireRole FACULTY_ADVISER + assertCanAccessStudent
@@ -436,11 +453,11 @@ sequenceDiagram
     participant DOC as documentService
     participant N as notify
     F->>API: POST /api/class-groups/{id}/endorsement-letters {password}
-    API->>API: requireRole; faculty must advise this class group
+    API->>API: requireRole, faculty must advise this class group
     API->>AUTH: verifyCredentials (failures count toward lockout)
     AUTH-->>API: ok / 401 / 423 locked
     loop each student (max 40)
-        API->>CK: isEndorsementGateSatisfied (9/9 Approved)
+        API->>CK: isEndorsementGateSatisfied (required items Approved)
         alt gate satisfied and legal name + company present
             API->>DOC: generateEndorsementLetterPdf (EL-…)
             DOC-->>API: GENERATED
@@ -488,7 +505,7 @@ sequenceDiagram
     participant AU as auditService
     A->>UI: choose export and semester, enter password
     UI->>API: {password, semesterId?}
-    API->>API: requireRole SUPER_ADMIN; valid kind
+    API->>API: requireRole SUPER_ADMIN, valid kind
     API->>AUTH: verifyCredentials
     alt wrong password or locked
         AUTH-->>UI: 401 / 423, message shown inline
@@ -503,17 +520,17 @@ sequenceDiagram
 
 These points rest on the PM's interpretation of SLU's instructions and are open to the adviser's revision ([11](11-decisions-and-open-questions.md)):
 
-| Point                           | Current behaviour                              | Could change if…                                                                   | Question |
-| ------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------- | -------- |
-| Status-only checklist (D7)      | Files in Google Classroom; IDSMS tracks status | The adviser wants documents in IDSMS                                               | Q1       |
-| Endorsement gate                | All 9 items must be Approved                   | Required/optional items are chosen                                                 | Q2       |
-| Endorsement before MOA approval | Not possible                                   | A per-student override is added                                                    | Q4       |
-| Who finalises hours             | Assigned faculty adviser only                  | A second confirmation is required                                                  | Q3       |
-| Hours rules (L1)                | Student-entered hours in approved weeks        | SLU credited-hours rules ship (shift window, OT ≥ 30 min, no offsetting, no grace) | Q6       |
-| Week numbering                  | No week numbers yet                            | "Week 1 starts" date per semester                                                  | Q8       |
-| Deviation proof                 | Optional upload                                | Moves to Google Classroom with status only                                         | Q19      |
-| Monthly report                  | Built from approved weeks                      | SLU monthly journal template                                                       | Q7       |
-| Deductions                      | None                                           | SLU matrix (L2)                                                                    | Q9–Q12   |
-| Class groups and staff accounts | No screens (database / API)                    | Screens for faculty or Super Admin                                                 | Q20      |
-| Email                           | In-app only without a domain                   | Sending domain provided                                                            | Q15      |
-| Hosting                         | Vercel + Supabase                              | Lab computer                                                                       | Q17      |
+| Point                           | Current behaviour                                                             | Could change if…                     | Question |
+| ------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------ | -------- |
+| Status-only checklist (D7)      | Files in Google Classroom; IDSMS tracks status                                | The adviser wants documents in IDSMS | Q1       |
+| Endorsement gate                | Every required item must be Approved (the Super Admin chooses required items) | A different set of items is required | Q2       |
+| Endorsement before MOA approval | Per-student override with a reason (adviser or coordinator)                   | Only one role may allow it           | Q4       |
+| Who finalises hours             | Assigned faculty adviser only                                                 | A second confirmation is required    | Q3       |
+| Hours rules                     | SLU credited-hours rules (shift window, OT ≥ 30 min, no offsetting, no grace) | A few late minutes need no remarks   | Q6       |
+| Week numbering                  | WWR01 is the intern's first OJT week                                          | —                                    | Q8       |
+| OT, UT and absence proof        | Proof in Google Classroom; IDSMS records only the proof type                  | —                                    | Q19      |
+| Monthly report                  | SLU Journal on Learning Experience (JLE) template                             | —                                    | Q7       |
+| Deductions                      | SLU matrix (L2), editable by the Super Admin                                  | Faculty revise the values            | Q9–Q12   |
+| Class groups and staff accounts | Screens for the coordinator and Super Admin                                   | —                                    | Q20      |
+| Email                           | Sent through the host's own SMTP when configured; per-user switch             | —                                    | Q15      |
+| Hosting                         | Vercel + Supabase                                                             | Lab computer                         | Q17      |

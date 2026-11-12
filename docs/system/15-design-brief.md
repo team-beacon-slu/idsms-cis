@@ -2,7 +2,7 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 23 October 2026. Audience: designers, front-end maintainers, the adviser. Items labelled **Recommendation (not built)** are suggestions, not current behaviour._
+_Last updated: 12 November 2026. Audience: designers, front-end maintainers, the adviser. Items labelled **Recommendation (not built)** are suggestions, not current behaviour._
 
 This brief describes the IDSMS-CIS user interface as built (Next.js 16, Tailwind CSS 4, shadcn/ui components, and the BEACON identity from PRs #104, #106 and #107) and the rules new screens should follow. Sources: `src/app/globals.css` (all tokens), `src/app/layout.tsx`, `src/components/**`, `src/app/(dashboard)/**`, `src/lib/documents/**`.
 
@@ -28,7 +28,7 @@ IDSMS is an institutional work tool for SAMCIS, Saint Louis University. People u
 
 1. **Status first.** Every record shows its state as a text badge; the next action is next to it.
 2. **Rules visible at the point of action.** Deadlines, locks and gates are explained where the user hits them (for example "The work schedule can be set once the work plan is approved").
-3. **Inline over modal.** Confirmations and password re-checks appear inline in the card or row (Export Center), not in pop-up dialogs, keeping context and focus. The bulk endorsement password prompt is the one dialog today.
+3. **Inline over modal.** Confirmations and password re-checks appear inline in the card or row (Export Center), not in pop-up dialogs, keeping context and focus. The bulk endorsement password prompt and the first-visit privacy consent are the only dialogs today.
 4. **Never colour alone.** Colour supports the text label; it never replaces it.
 5. **Server is the source of truth.** The UI never computes official hours or deadlines on its own; it shows what the server returns, in Manila time.
 6. **Calm density.** Data-dense tables for staff, generous spacing and one primary action for students.
@@ -64,14 +64,14 @@ Surfaces use light frosted glass (`glass` utilities) over a soft coloured backdr
 
 ## 5. Typography
 
-| Use            | As built                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------ |
-| UI font        | DM Sans (`--font-dm-sans`, loaded with `next/font`)                                                    |
-| Display font   | Bricolage Grotesque (`--font-bricolage`, class `font-display`) for headings, the brand and big numbers |
-| Page title     | Shared `PageHeader` component: `text-2xl font-semibold tracking-tight` plus a one-line description     |
-| Body           | `text-sm` in tables and forms, `text-base` elsewhere                                                   |
-| Secondary text | `text-sm text-muted-foreground`; hints `text-xs`                                                       |
-| PDFs           | Arial/Helvetica 11 pt; letterhead 14 pt bold navy                                                      |
+| Use            | As built                                                                                                 |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| UI font        | DM Sans (`--font-dm-sans`, loaded with `next/font`)                                                      |
+| Display font   | Bricolage Grotesque (`--font-bricolage`, class `font-display`) for headings, the brand and big numbers   |
+| Page title     | Shared `PageHeader` component: `text-2xl font-semibold tracking-tight` plus a one-line description       |
+| Body           | `text-sm` in tables and forms, `text-base` elsewhere                                                     |
+| Secondary text | `text-sm text-muted-foreground`; hints `text-xs`                                                         |
+| PDFs           | SLU template fonts: Calibri (Carlito), Cambria (Caladea), Century Gothic (Didact Gothic); Arial fallback |
 
 ## 6. Layout and spacing
 
@@ -83,24 +83,24 @@ Surfaces use light frosted glass (`glass` utilities) over a soft coloured backdr
 
 ## 7. Component inventory
 
-| Component                                                        | Source                                                        | Notes                                                                                                                    |
-| ---------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Button, Input, Label, Textarea, Card, Table, Badge, Form, Dialog | `src/components/ui/*` (shadcn/ui, Radix)                      | Dialog is used only for the bulk endorsement password prompt (the mobile nav is a custom drawer); prefer inline patterns |
-| Toaster                                                          | `ui/sonner.tsx` (sonner)                                      | Short success/error confirmations after actions                                                                          |
-| StatusBadge                                                      | `components/status-badge.tsx`                                 | Text label + tinted background + dot; humanises enum values ("For Hte Review")                                           |
-| StatCard                                                         | `components/stat-card.tsx`                                    | Label, big value, optional hint, tinted icon (aria-hidden)                                                               |
-| EmptyState                                                       | `components/empty-state.tsx`                                  | Dashed border, icon, title, description, optional action                                                                 |
-| ComplianceTable                                                  | `components/compliance-table.tsx`                             | Shared staff table: hours bar, pending hours, checklist x/9, due-week state, status                                      |
-| AuthShell                                                        | `components/auth-shell.tsx`                                   | Two-panel sign-in and reset pages                                                                                        |
-| PasswordAction                                                   | `admin/export-center/password-action.tsx`                     | Inline password re-check form with confirm/cancel, focus kept in the form                                                |
-| NotificationBell                                                 | `(dashboard)/notification-bell.tsx`                           | Unread count, links to `/notifications`                                                                                  |
-| PageHeader                                                       | `components/page-header.tsx`                                  | Page title, one-line description, optional actions; one per page                                                         |
-| BrandMark, Avatar                                                | `components/brand-mark.tsx`, `avatar.tsx`                     | Lighthouse logo; initials avatar for the signed-in account                                                               |
-| AccountMenu, ThemeChoice                                         | `(dashboard)/account-menu.tsx`, `components/theme-toggle.tsx` | Who is signed in, Account settings, theme, privacy, terms, sign out                                                      |
-| PasswordInput                                                    | `components/ui/password-input.tsx`                            | Show/Hide button, Caps Lock hint, hides again on submit                                                                  |
-| InternCharts                                                     | `components/intern-charts.tsx`                                | Staff home charts with a screen-reader table version                                                                     |
-| SiteFooter                                                       | `components/site-footer.tsx`                                  | SLU links (new tab), Help, Privacy, Terms, copyright                                                                     |
-| Icons                                                            | lucide-react                                                  | Always with a visible text label or `aria-hidden` when decorative                                                        |
+| Component                                                        | Source                                                                    | Notes                                                                                                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Button, Input, Label, Textarea, Card, Table, Badge, Form, Dialog | `src/components/ui/*` (shadcn/ui, Radix)                                  | Dialog is used only for the bulk endorsement password prompt and the privacy consent (the mobile nav is a custom drawer); prefer inline patterns |
+| Toaster                                                          | `ui/sonner.tsx` (sonner)                                                  | Short success/error confirmations after actions                                                                                                  |
+| StatusBadge                                                      | `components/status-badge.tsx`                                             | Text label + tinted background + dot; humanises enum values ("For Hte Review")                                                                   |
+| StatCard                                                         | `components/stat-card.tsx`                                                | Label, big value, optional hint, tinted icon (aria-hidden)                                                                                       |
+| EmptyState                                                       | `components/empty-state.tsx`                                              | Dashed border, icon, title, description, optional action                                                                                         |
+| ComplianceTable                                                  | `components/compliance-table.tsx`                                         | Shared staff table: hours bar, pending hours, checklist approved/required, due-week state, status                                                |
+| AuthShell                                                        | `components/auth-shell.tsx`                                               | Two-panel sign-in and reset pages                                                                                                                |
+| PasswordAction                                                   | `admin/export-center/password-action.tsx`                                 | Inline password re-check form with confirm/cancel, focus kept in the form                                                                        |
+| NotificationBell                                                 | `(dashboard)/_components/notification-bell.tsx`                           | Unread count, links to `/notifications`                                                                                                          |
+| PageHeader                                                       | `components/page-header.tsx`                                              | Page title, one-line description, optional actions; one per page                                                                                 |
+| BrandMark, Avatar                                                | `components/brand-mark.tsx`, `avatar.tsx`                                 | Lighthouse logo; initials avatar for the signed-in account                                                                                       |
+| AccountMenu, ThemeChoice                                         | `(dashboard)/_components/account-menu.tsx`, `components/theme-toggle.tsx` | Who is signed in, Account settings, theme, privacy, terms, sign out                                                                              |
+| PasswordInput                                                    | `components/ui/password-input.tsx`                                        | Show/Hide button, Caps Lock hint, hides again on submit                                                                                          |
+| InternCharts                                                     | `components/intern-charts.tsx`                                            | Staff home charts with a screen-reader table version                                                                                             |
+| SiteFooter                                                       | `components/site-footer.tsx`                                              | SLU links (new tab), Help, Privacy, Terms, copyright                                                                                             |
+| Icons                                                            | lucide-react                                                              | Always with a visible text label or `aria-hidden` when decorative                                                                                |
 
 ## 8. Interaction patterns
 
@@ -114,7 +114,7 @@ Surfaces use light frosted glass (`glass` utilities) over a soft coloured backdr
 | Feedback          | Buttons show pending state; toasts confirm success or show the server's error message                                                                      |
 | Locks             | Locked features explain the condition ("Unlocks at 500 confirmed hours (212 / 500 so far)")                                                                |
 | Downloads         | Files download through the app's own routes (signed links); failed PDFs show Regenerate                                                                    |
-| Warnings          | Copy-paste warnings sit next to the affected day, not only at the top                                                                                      |
+| Warnings          | Copy-paste flags sit next to the affected day and block submitting until rewritten                                                                         |
 | Time              | Manila time everywhere; deadlines stated with the time ("Tuesday 11:59 PM")                                                                                |
 
 ## 9. Role dashboards
@@ -122,7 +122,7 @@ Surfaces use light frosted glass (`glass` utilities) over a soft coloured backdr
 | Role                      | Layout                                                                                                                                                                                                                                                                  |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Student                   | Greeting hero; when every required hour is confirmed it says so and offers **Submit final report**; confirmed-hours ring; "Your weeks" track; next deadline; submission streak; **Needs attention** list; pre-deployment requirements; recent weeks; final report cover |
-| Faculty                   | Greeting hero; stat cards; charts of where interns stand and weekly report status; My students table; Export to Excel and Weekly summary; bulk endorsement per class group                                                                                              |
+| Faculty                   | Greeting hero; stat cards; charts of where interns stand and weekly report status; Waiting for your review; Interns table (exports and bulk endorsement letters are on My students)                                                                                     |
 | Coordinator / Super Admin | Greeting hero; stat cards per program; charts (where interns stand, weekly reports over 8 weeks, hours completed); host-company cards; filters (semester, program, status); all-students compliance table; exports                                                      |
 
 ## 10. Accessibility
@@ -141,27 +141,23 @@ As built:
 
 **Recommendation (not built)**, from the ui-ux-pro-max accessibility and forms guidelines:
 
-- Announce asynchronous changes (toasts, unread count) with a single `role="status"` message that has context ("3 unread notifications"), not a bare number.
-- Wrap wide staff tables in a horizontally scrollable region (or card layout on phones) so nothing overflows at 375 px.
 - Keep focus visible under the fixed mobile top bar (`scroll-padding-top`), per WCAG 2.2 "Focus not obscured".
-- Show form errors next to each field plus a short summary on long forms (weekly report).
 - Ensure touch targets of at least 44 × 44 px for the day-status selector and row actions on phones.
-- Respect `prefers-reduced-motion` for the drawer and hover transitions.
 - Run an automated audit (axe) and a keyboard-only walkthrough as part of Phase 5 UAT.
 
 ## 11. Responsive behaviour
 
 - Breakpoints: Tailwind defaults (`sm` 640, `md` 768, `lg` 1024, `xl` 1280 px). The sidebar appears at `md`.
 - Students are expected to use phones; their pages are single-column with stacked cards.
-- Staff tables are designed for desktop; on phones they need horizontal scrolling (see recommendation above).
+- Staff tables are designed for desktop; on phones they scroll horizontally inside their card (#98).
 - Test widths: 375, 768, 1024, 1440 px.
 
 ## 12. PDF and print design
 
 - PDFs are rendered on the server from HTML templates (`src/lib/documents/*`) with Chromium, so they look the same everywhere.
-- Common elements: text letterhead (SAMCIS, Saint Louis University, navy rule), reference code and generation time, Manila dates, Arial 11 pt.
-- Documents: weekly report, monthly report, endorsement letter, final report cover.
-- **In progress (L1):** the weekly report follows SLU's Weekly Work Report template: header with school and department, "Week No. N (date range)", "Name: Last, First M.", Company; a Detailed Time Record table (Date (Day) | Actual Work Times with up to two ranges | Hours Rendered as "N hrs M mins" | Work Accomplishment); holiday rows "Holiday (PH Calendar)"; beginning, week and ending totals; supervisor signature block; optional "Report on Overtime Hours" and "Report on Under Time Hours" sections, each with its own supervisor signature line and SLU's notes.
+- Common elements: text letterhead (SAMCIS, Saint Louis University, navy rule), reference code and generation time, Manila dates, SLU template fonts.
+- Documents: weekly report, monthly journal (JLE), OT, UT and absence reports, endorsement letter, final report cover, technical report, HTE evaluation, waiver and retraction notice.
+- **Built:** the weekly report follows SLU's Weekly Work Report template: header with school and department, "Week No. N (date range)", "Name: Last, First M.", Company; a Detailed Time Record table (Date (Day) | Actual Work Times with up to two ranges | Hours Rendered as "N hrs M mins" | Work Accomplishment); holiday rows "Holiday (PH Calendar)"; beginning, week and ending totals; supervisor signature block; optional "Report on Overtime Hours" and "Report on Under Time Hours" sections, each with its own supervisor signature line and SLU's notes.
 - **Recommendation (not built):** replace the text letterhead with SLU's official letterhead (logo and seal) once supplied.
 
 ## 13. Content and copy guidelines

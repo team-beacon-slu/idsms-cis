@@ -2,9 +2,9 @@
 
 > Draft for adviser review — flows and rules may change; see [README](README.md).
 
-_Last updated: 23 October 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
+_Last updated: 12 November 2026. Status labels: **Built**, **In progress**, **Planned** (see the [index](README.md))._
 
-The Super Admin has every coordinator capability (see the [coordinator guide](05-user-guide-coordinator.md)) plus system settings and the privacy tools. The left menu shows **Dashboard**; **Manage:** Users, Class groups, Semesters, Final reports; **Records:** Audit log, Export center, Settings; **Reference:** Companies, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office.
+The Super Admin has every coordinator capability (see the [coordinator guide](05-user-guide-coordinator.md)) plus system settings and the privacy tools. The left menu shows **Dashboard**; **Manage:** Users, Class groups, Semesters, Final reports, Search entries; **Records:** Audit log, Export center, Settings; **Reference:** Companies, Calendar, Help. At the bottom of the menu, the **account menu** (your name and initials) opens **Account settings**, the theme (light, dark or system), the privacy notice, the terms of use and **Sign out**. The notification bell sits at the top; on a computer the menu can be collapsed to icons. Every page ends with a footer linking to the SLU website, SLU Portal, Library and Data Protection Office.
 
 > **Password re-check.** Sensitive actions (Export Center downloads, data request exports, deleting a retained file, bulk endorsement letters) ask for **your password again**. Wrong passwords count toward the 5-attempt lockout, the same as at sign-in.
 
@@ -21,12 +21,16 @@ The department dashboard (see the coordinator guide): summary cards, program car
 | **Unlock**                | Clears a lockout after 5 failed sign-ins (otherwise it lifts after 15 minutes).                                                    |
 | **Import**                | Bulk student import from CSV or Excel (see the coordinator guide).                                                                 |
 
-**Settings cards on this page (Super Admin only):**
-
-- **Required internship hours** per program. Defaults: **BSIT 600, BMMA 500, BSCS 320** (curriculum, Q5). A change applies to students imported afterwards; it does not rewrite existing students' required hours.
-- **Notification settings:** reminder hours before the weekly report deadline (1 to 3 values, each 16 to 168 hours; default 48 and 24) and the MOA expiry warning window (1 to 180 days; default 30).
-
 Create a single faculty, coordinator or Super Admin account with **New staff account** on the Users page; the temporary password is shown once. Students are created only by the class-list import. Class groups and adviser assignments are managed on the **Class groups** page (also available to the coordinator).
+
+## 2a. Settings (`/settings`)
+
+- **Checklist requirements:** which items are required.
+- **Notice to everyone:** a banner shown to all users.
+- **Required internship hours** per program. Defaults: **BSIT 600, BMMA 500, BSCS 320** (curriculum, Q5). A change applies to students imported afterwards; it does not rewrite existing students' required hours. The coordinator can also change these.
+- **Notifications:** reminder hours before the weekly report deadline (1 to 3 values, each 16 to 168 hours; default 48 and 24) and the MOA expiry warning window (1 to 180 days; default 30). Failed emails in the last 7 days are shown; the daily job resends them.
+- **Deductions:** the SLU deduction matrix and the hours a conduct record deducts.
+- **AI assist:** the AI switches and settings (advisory hints only).
 
 ## 3. Semesters (`/semesters`)
 
@@ -66,20 +70,20 @@ Exports never include passwords, tokens or storage file paths. Cells that a spre
 
 ### File retention review
 
-- Stored files (deviation proofs, legacy checklist files and generated PDFs) from semesters that ended more than **2 years** ago are flagged by a scan that runs every 90 days.
+- Stored files (older deviation proofs, legacy checklist files and generated PDFs) from semesters that ended more than **2 years** ago are flagged by a scan that runs every 90 days.
 - For each flagged file you see the student, file type, semester end and when it was flagged. Choose **Keep** or **Delete** (password required). **Nothing is deleted automatically.**
 
 ## 6. Everything else
 
-Companies, MOAs, checklist review, work plan approval, schedule-change final approval, deviation validation, endorsement letters (single and bulk) and calendars work as described in the faculty and coordinator guides, for all students.
+Companies, MOAs, checklist review, work plan approval, schedule-change final approval, accepting overtime, under time and absences, endorsement letters (single and bulk) and calendars work as described in the faculty and coordinator guides, for all students.
 
-## 7. Coming later
+## 7. Status of later features
 
 | Feature                                                                                                                                                 | Status                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
 | Choose which checklist items are required (dashboards show "x/required")                                                                                | **Built** (#105)                 |
 | Class group & staff management screens (create, rename, delete class groups; assign advisers; create staff accounts)                                    | **Built**                        |
 | Edit the SLU deduction matrix (categories, tiers, ADVISER and WWR points, total-at-count or per-incident) and the default hours per demerit (default 0) | **Built** (L2)                   |
-| "Week 1 starts" date per semester (Semesters page)                                                                                                      | **Built** (L1)                   |
+| "Class week 1 starts" date per semester (Semesters page); it no longer numbers weekly reports (WWR01 is the intern's first OJT week)                    | **Built**                        |
 | AI similarity threshold (0.60 to 0.85) with golden-set evaluation shown before each change                                                              | **Built** (D; off until enabled) |
 | Move hosting to the SAMCIS lab computer; backups, monitoring, operations runbook                                                                        | **Planned** (Phase 5)            |

@@ -174,7 +174,7 @@ branch to add more work, just `git push` again.
 route`). Writing `Closes #12` in the PR description automatically closes that
    issue when the PR merges.
 3. Submit the PR. This does **not** merge anything yet — it just opens it for review.
-4. Wait for CI to run (lint, typecheck, `prisma validate`, build) and for a teammate
+4. Wait for CI to run (lint, typecheck, `prisma validate`, tests, build) and for a teammate
    to review it. Both must pass before it can merge — branch protection enforces
    this on `develop` and `main`.
 
@@ -298,7 +298,7 @@ before committing — a wrong resolution can silently delete someone else's work
   checkpoints.
 - PR review is required before merge — branch protection enforces this on both
   `main` and `develop`.
-- CI (lint, typecheck, `prisma validate`, build) must pass before merge.
+- CI (lint, typecheck, `prisma validate`, tests, build) must pass before merge.
 
 ## Code organization
 
@@ -308,7 +308,7 @@ All business logic lives in `/src/lib/services/` — never directly in page file
 
 We're on Prisma with a Supabase Postgres backend. Edit `prisma/schema.prisma`, then run `npx prisma db push` — **not** `prisma migrate dev`. This project has no migration history (schema changes have always gone through `db push`), so `migrate dev` sees the entire existing schema as "drift" and wants to reset the database to establish a baseline, which would drop all data on our shared dev project. Confirmed this the hard way during Phase 1; stick with `db push`.
 
-Anything Prisma can't express at all (a Postgres extension, an RLS policy, a Storage bucket) goes in a hand-written SQL file under `prisma/migrations_manual/`, run once by hand in the Supabase SQL editor **after** the `db push` that creates the tables it touches (numbered in the order they need to run — `001_...` before `002_...`, etc.). The folder holds 001–015 today; a fresh database needs every file applied in order (see the README's database step). Ordinary schema changes (new columns, new tables) don't need a file here — `db push` alone handles those.
+Anything Prisma can't express at all (a Postgres extension, an RLS policy, a Storage bucket) goes in a hand-written SQL file under `prisma/migrations_manual/`, run once by hand in the Supabase SQL editor **after** the `db push` that creates the tables it touches (numbered in the order they need to run — `001_...` before `002_...`, etc.). The folder holds 001–031 today; a fresh database needs every file applied in order (see the README's database step). Ordinary schema changes (new columns, new tables) don't need a file here — `db push` alone handles those.
 
 ## Tests
 
