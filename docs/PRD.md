@@ -37,7 +37,7 @@ This revision resolves every open defect from the pre-build architecture and pro
 
 ## Problem Statement
 
-Saint Louis University's SAMCIS department oversees internship programs for three degree programs — BSIT (600 hours), BSCS (240 hours), and BMMA (500 hours) — all of which are governed by CHED CMO No. 104, Series of 2017 (the Student Internship Program in the Philippines / SIPP). The internship lifecycle spans three phases: **pre-deployment**, **active deployment**, and **post-deployment**, each requiring structured document submission, review, and approval workflows involving students, faculty advisers, department coordinators, and host training establishments (HTEs).
+Saint Louis University's SAMCIS department oversees internship programs for three degree programs — BSIT (600 hours), BSCS (320 hours), and BMMA (500 hours) — all of which are governed by CHED CMO No. 104, Series of 2017 (the Student Internship Program in the Philippines / SIPP). The internship lifecycle spans three phases: **pre-deployment**, **active deployment**, and **post-deployment**, each requiring structured document submission, review, and approval workflows involving students, faculty advisers, department coordinators, and host training establishments (HTEs).
 
 Currently, the institution relies primarily on **Google Classroom** supplemented by email, spreadsheets, and manual processes. This general-purpose platform was designed for coursework management and lacks the compliance-enforcement capabilities required by SIPP. Specific, documented pain points derived from student intern interviews include:
 

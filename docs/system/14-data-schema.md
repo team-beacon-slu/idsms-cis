@@ -306,7 +306,7 @@ erDiagram
 
 | Key                                       | Value                                  | Default when unset                                                                |
 | ----------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
-| `required_hours:BSIT` / `:BSCS` / `:BMMA` | Integer hours                          | 600 / 240 / 500                                                                   |
+| `required_hours:BSIT` / `:BSCS` / `:BMMA` | Integer hours                          | 600 / 320 / 500                                                                   |
 | `final_report_threshold:{PROGRAM}`        | Integer hours                          | BSIT 500; others ⌈5/6 × required hours⌉; never above the student's required hours |
 | `notification:deadline_reminder_hours`    | Array of 1–3 distinct integers, 16–168 | `[48, 24]`                                                                        |
 | `notification:moa_warning_days`           | Integer 1–180                          | 30                                                                                |

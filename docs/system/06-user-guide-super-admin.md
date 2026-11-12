@@ -23,7 +23,7 @@ The department dashboard (see the coordinator guide): summary cards, program car
 
 **Settings cards on this page (Super Admin only):**
 
-- **Required internship hours** per program. Defaults: **BSIT 600, BMMA 500, BSCS 240** (BSCS is open question Q5). A change applies to students imported afterwards; it does not rewrite existing students' required hours.
+- **Required internship hours** per program. Defaults: **BSIT 600, BMMA 500, BSCS 320** (curriculum, Q5). A change applies to students imported afterwards; it does not rewrite existing students' required hours.
 - **Notification settings:** reminder hours before the weekly report deadline (1 to 3 values, each 16 to 168 hours; default 48 and 24) and the MOA expiry warning window (1 to 180 days; default 30).
 
 Create a single faculty, coordinator or Super Admin account with **New staff account** on the Users page; the temporary password is shown once. Students are created only by the class-list import. Class groups and adviser assignments are managed on the **Class groups** page (also available to the coordinator).

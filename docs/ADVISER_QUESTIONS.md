@@ -75,17 +75,17 @@ More detail: [system documentation](system/README.md), starting with the [produc
 
 ### Q5. How many hours must BSCS interns complete? — _Answered (Nov 2026)_
 
-- **Answer:** A setting. The coordinator and the Super Admin set each program's hours in Settings (coordinators got access in Nov 2026).
+- **Answer:** A setting. The coordinator and the Super Admin set each program's hours in Settings (coordinators got access in Nov 2026). On 11 Nov 2026 the faculty adviser gave the curriculum hours: BMMA 500, BSIT 600, BSCS 320; these are now the defaults. Each intern keeps the hours set when their account was created.
 
 - **The question:** Is **240 hours** right for BSCS, or should BSCS follow IT at 600?
 - **Why we ask:** SLU's slide lists BSIT 600 and BMMA 500 but not BSCS.
-- **What IDSMS does today:** BSIT 600, BMMA 500, BSCS 240. The Super Admin can change any of them in Settings.
+- **What IDSMS does today:** BSIT 600, BMMA 500, BSCS 320 (the curriculum hours the faculty adviser gave on 11 Nov 2026). The Super Admin can change any of them in Settings.
 - **Options:** **A.** 240. **B.** 600. **C.** Another number.
 - **If you choose B or C:** It is a setting; it takes a minute.
 
-### Q6. Is there a grace period for lateness? — _Answered (Nov 2026)_
+### Q6. Is there a grace period for lateness? — _Answered (Nov 2026); one follow-up open_
 
-- **Answer:** No fixed grace period. A time-in after the shift starts is **marked late**, and the faculty adviser decides: leave it as late, or **Excuse** it. A late arrival no longer blocks submitting the week (an early leave still needs an undertime request).
+- **Answer:** No fixed grace period. A time-in after the shift starts is **marked late**, and the faculty adviser decides: leave it as late, or **Excuse** it. **Updated 12 Nov 2026:** a late arrival, like an early leave, is under time and needs remarks on that day in the weekly report before the week can be submitted (there are no separate request forms since 11 Nov). **Still open:** should a few minutes late (for example 5) need no remarks?
 
 - **The question:** Please confirm there is **no grace period**: any time-in after the shift starts counts as late.
 - **What IDSMS does today:** No grace period. A late intern files an undertime (or leave) request for that day before submitting the week. Time outside the shift only counts as approved overtime of at least 30 minutes, and extra time never makes up for a late day. Example: a shift of 8:00–5:00 with lunch, in at 7:55 and out at 5:15, gives **8 hours**.
@@ -103,7 +103,7 @@ More detail: [system documentation](system/README.md), starting with the [produc
 ### Q8. Who sets the "Week 1 starts" date each semester? — _Has a working default_
 
 - **The question:** Week numbers on the weekly report start from a "Week 1" date. Should the coordinator set one date for everyone, or should each faculty adviser set it for their own class?
-- **What IDSMS does today:** The coordinator or Super Admin sets one date per semester. A student who deploys later starts at Week 2 or 3.
+- **What IDSMS does today:** Since 11 Nov 2026 (faculty adviser) the weekly report's Week No. 1 (WWR01) is the intern's own first OJT week, even if they file it later. The semester date is no longer used for the report number.
 - **Options:** **A.** Coordinator or Super Admin, one date per semester. **B.** Each faculty adviser, one date per class group.
 - **We recommend:** A.
 - **If you choose B:** We move the date to each class group. About a day.
@@ -257,8 +257,8 @@ Write a letter, "OK", or a short note. Questions are grouped by topic, so the nu
 | 2   | Required checklist items           | A (all nine)             |             |
 | 3   | Adviser approval is final          | A (adviser only)         |             |
 | 4   | Start before MOA approval          | A (adviser, coordinator) |             |
-| 5   | BSCS required hours                | 240                      |             |
-| 6   | Grace period for lateness          | A (none)                 |             |
+| 5   | BSCS required hours                | 320 (curriculum)         |             |
+| 6   | Grace period for lateness          | A (none); remarks needed |             |
 | 7   | Monthly journal template           | — (please share)         |             |
 | 8   | Who sets Week 1                    | A (coordinator)          |             |
 | 9   | Deduction tiers                    | A (total at count)       |             |
