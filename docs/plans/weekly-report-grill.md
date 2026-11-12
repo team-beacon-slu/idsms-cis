@@ -1,5 +1,7 @@
 # Weekly report: adviser feedback, intern grill and the plan (11 Nov 2026)
 
+> **Status (12 Nov 2026):** Active. §1–§3 were built in #209, with follow-ups #210–#219 (Monday-to-Friday weeks, SLU template, To do / Missing / Submitted sections). From §4, item 4 ("Same reason and proof as …" for other absent days) is built (#212); items 1–3 are not built, and the live checks in items 5–6 are not recorded as done.
+
 Source: Ria Andrea Fernandez's findings, the team lead's follow-ups, and a walkthrough of the
 intern flow on local dev (`:3100`, test intern `student.test`), done as a first-time intern with
 low computer literacy, on a phone (360 px) and a laptop (1280 px), with deliberately bad input.

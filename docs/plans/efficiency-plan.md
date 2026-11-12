@@ -1,5 +1,7 @@
 # Efficiency plan: fewer clicks, no lost work, less waiting
 
+> **Status (12 Nov 2026):** Done. All six phases merged (#175–#180, plan #174); migrations 027 (checklist "Uploaded to Classroom") and 028 (foreign-key indexes) are applied to the beta. D4 was closed on 7 Nov (every staff test account accepted the consent dialog). Overtime, undertime and absences were later moved onto the weekly report itself (#209), which supersedes the time-request parts of items 22 and 25 for those cases.
+
 Written 5 Nov 2026 from seven read-only audits of `develop` at cd52f15 and the live beta
 (student, adviser and coordinator test accounts; nothing was submitted or changed):
 

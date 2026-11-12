@@ -1,6 +1,8 @@
 # AI assist plan: AI that points to what interns actually wrote
 
-_24 October 2026. **Status: design locked, nothing new built yet.** It went through two LLM councils (five advisors, anonymous peer review and a chairman each time) and two grills (AI grill Q1–Q4 and job grill Q1–Q9). Jay (PM) made every product call; this document records them. Supporting research: [`docs/reference/hte-evaluation-research.md`](../reference/hte-evaluation-research.md)._
+> **Status (12 Nov 2026):** Partly done. Steps 1–6 of §14a are built and on in the beta (PR #155), with a faster chat model and tolerant answer checks (#157), fewer Gemini calls (#168), hint confidence from advisers' ratings (#191) and the 0.85 copy threshold with a status-only checklist hint (#208). Not done: the SLU-hardware model (Gemini serves every job on the beta, as approved by the DPO for beta testers), and the adviser's confirmation of the golden labels.
+
+_24 October 2026. Status when written: **design locked, nothing new built yet.** It went through two LLM councils (five advisors, anonymous peer review and a chairman each time) and two grills (AI grill Q1–Q4 and job grill Q1–Q9). Jay (PM) made every product call; this document records them. Supporting research: [`docs/reference/hte-evaluation-research.md`](../reference/hte-evaluation-research.md)._
 
 **In one paragraph:** IDSMS ships AI at go-live because the capstone's theme is advancement through modern technology. Its AI **assists and never decides**: it searches, compares and quotes the interns' own words, and every hint links back to the entries it came from. **Interns' words are read only by models on SLU hardware;** Gemini sees only non-personal text, plus beta testers who agreed to it. Any model can be plugged in from a settings page, but no job goes live on a model it hasn't been tested on, and a job that misbehaves switches itself off where IT can see it.
 

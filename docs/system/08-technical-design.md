@@ -144,334 +144,334 @@ Each service's test sits next to it (`fooService.test.ts`). Route-specific compo
 
 ## 5. API route inventory
 
-All routes are under `src/app/api/`. "Signed in" means any active user; "own or assigned" means `assertCanAccessStudent`: the student themself, a faculty adviser assigned to the student's class group for that semester, or a coordinator / Super Admin. Roles: SA = Super Admin, DC = Internship coordinator, FA = Faculty adviser, SI = Student intern.
+All routes are under `src/app/api/`. Roles: SA = Super Admin, DC = Internship coordinator, FA = Faculty adviser, SI = Student intern. "Signed in" means any signed-in, active user, whatever their role. "(own)" means the user can act only on their own record. "Own or assigned" means `assertCanAccessStudent`: the student themself, a faculty adviser assigned to the student's class group for that semester, or any coordinator or Super Admin. "FA (assigned)" means a faculty adviser only for the students they advise. "Signed link" means no session; an HMAC-signed link is the permission. "Public" means no sign-in.
 
-Generated from `src/app/api/**/route.ts` on 12 Nov 2026 (119 route files, 150 handlers). Roles: the role check at the route; "Signed in" means the route only checks the session and the service narrows it.
+Generated from `src/app/api/**/route.ts` (119 route files, 150 handlers), then checked by hand on 12 Nov 2026. The Roles column shows who can actually succeed, including checks made in the service the route calls.
 
 #### Per student (`/api/students/[studentProfileId]/…`)
 
-| Method | Path                                                       | Roles           | Purpose                                                                                        |
-| ------ | ---------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------- |
-| GET    | `/api/students/[studentProfileId]/attendance-export`       | Own or assigned | Attendance CSV                                                                                 |
-| GET    | `/api/students/[studentProfileId]/attendance-summary`      | Own or assigned | Confirmed/pending hours, projection                                                            |
-| GET    | `/api/students/[studentProfileId]/checklist`               | Own or assigned | Checklist progress                                                                             |
-| GET    | `/api/students/[studentProfileId]/company-evaluation/pdf`  | Signed in       | The intern's own filled-in FM-VAA-052 as a PDF (for Google Classroom and the technical         |
-| POST   | `/api/students/[studentProfileId]/company-evaluation`      | Signed in       | Company view: the intern evaluates their host company (the service checks the role and hours). |
-| GET    | `/api/students/[studentProfileId]/conduct-records`         | Own or assigned | Workstream L2: the intern and their staff read conduct records; staff issue them.              |
-| POST   | `/api/students/[studentProfileId]/conduct-records`         | Signed in       | Workstream L2: the intern and their staff read conduct records; staff issue them.              |
-| POST   | `/api/students/[studentProfileId]/deductions/disputes`     | Signed in       | Go-live item 5: the intern disputes a deduction (the service checks the role).                 |
-| POST   | `/api/students/[studentProfileId]/deductions/excuse`       | Signed in       | Workstream L2: excuse an automatic deduction item (reason code + note).                        |
-| GET    | `/api/students/[studentProfileId]/deductions`              | Own or assigned | Workstream L2: the intern's tally and automatic items (intern and their staff).                |
-| GET    | `/api/students/[studentProfileId]/deviations`              | Own or assigned | Deviation reports                                                                              |
-| GET    | `/api/students/[studentProfileId]/endorsement-letter`      | Own or assigned | Download endorsement letter                                                                    |
-| POST   | `/api/students/[studentProfileId]/endorsement-letter`      | SA, DC, FA      | Generate (9/9 gate)                                                                            |
-| GET    | `/api/students/[studentProfileId]/final-cover`             | Own or assigned | Download final report cover                                                                    |
-| POST   | `/api/students/[studentProfileId]/final-cover`             | SI              | Generate (hours threshold)                                                                     |
-| GET    | `/api/students/[studentProfileId]/final-report/pdf`        | Own or assigned | The intern generates it once the coordinator has approved the report.                          |
-| POST   | `/api/students/[studentProfileId]/final-report/pdf`        | SI              | Workstream H: anyone with access to the student downloads the generated PDF.                   |
-| GET    | `/api/students/[studentProfileId]/final-report`            | Own or assigned | Workstream H: the intern's final report (gate + content); the intern saves drafts.             |
-| PUT    | `/api/students/[studentProfileId]/final-report`            | SI              | Workstream H: the intern's final report (gate + content); the intern saves drafts.             |
-| POST   | `/api/students/[studentProfileId]/final-report/submit`     | SI              | Workstream H: the intern submits the final report for the coordinator's review.                |
-| GET    | `/api/students/[studentProfileId]/holidays`                | Own or assigned | Holiday calendar                                                                               |
-| PATCH  | `/api/students/[studentProfileId]/holidays`                | SI              | Mark holidays applicable                                                                       |
-| POST   | `/api/students/[studentProfileId]/holidays`                | Signed in       | Add a company day off for this intern                                                          |
-| DELETE | `/api/students/[studentProfileId]/holidays`                | Signed in       | Remove a company day off                                                                       |
-| PUT    | `/api/students/[studentProfileId]/monthly-reports/journal` | SI              | Save the intern's Journal on Learning Experience for a month (draft until submitted).          |
-| POST   | `/api/students/[studentProfileId]/monthly-reports`         | SI              | List / submit monthly reports                                                                  |
-| GET    | `/api/students/[studentProfileId]/monthly-reports`         | Own or assigned | List / submit monthly reports                                                                  |
-| POST   | `/api/students/[studentProfileId]/retraction`              | Signed in       | The intern's notification of retraction for their current host company.                        |
-| POST   | `/api/students/[studentProfileId]/schedule`                | SI              | Configure schedule / request a schedule change                                                 |
-| PATCH  | `/api/students/[studentProfileId]/schedule`                | SI              | Configure schedule / request a schedule change                                                 |
-| POST   | `/api/students/[studentProfileId]/start-before-moa`        | Signed in       | Staff only (checked in the service, with record access for faculty advisers).                  |
-| GET    | `/api/students/[studentProfileId]/time-reports/[kind]`     | Own or assigned | The overtime, under time or absence report as a PDF, rendered on request from the              |
-| GET    | `/api/students/[studentProfileId]/time-requests`           | Own or assigned | Workstream L1: the intern's leave / OT / UT requests. JSON only — no                           |
-| POST   | `/api/students/[studentProfileId]/time-requests`           | SI              | Workstream L1: the intern's leave / OT / UT requests. JSON only — no                           |
-| GET    | `/api/students/[studentProfileId]/waiver`                  | Own or assigned | SAMCIS's parental consent, waiver and undertaking, prefilled for the intern to print.          |
-| POST   | `/api/students/[studentProfileId]/weekly-reports`          | SI              | Create the form for a week                                                                     |
-| GET    | `/api/students/[studentProfileId]/weekly-reports`          | Own or assigned | List weekly reports                                                                            |
-| GET    | `/api/students/[studentProfileId]/work-plans/pdf`          | Own or assigned | The latest work plan as a printable PDF, for the committee and the supervisor to sign.         |
-| POST   | `/api/students/[studentProfileId]/work-plans/read`         | SI              | AI assist reads the intern's uploaded work plan and suggests its rows and the company's        |
-| GET    | `/api/students/[studentProfileId]/work-plans`              | Own or assigned | Work plan history / submit                                                                     |
-| POST   | `/api/students/[studentProfileId]/work-plans`              | Own or assigned | Work plan history / submit                                                                     |
+| Method | Path                                                       | Roles                                                 | Purpose                                                                                                  |
+| ------ | ---------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/students/[studentProfileId]/attendance-export`       | Own or assigned                                       | Download the intern's attendance log as CSV.                                                             |
+| GET    | `/api/students/[studentProfileId]/attendance-summary`      | Own or assigned                                       | Return the intern's rendered hours and projected completion date.                                        |
+| GET    | `/api/students/[studentProfileId]/checklist`               | Own or assigned                                       | Return the intern's pre-deployment checklist progress.                                                   |
+| GET    | `/api/students/[studentProfileId]/company-evaluation/pdf`  | SI (own)                                              | Download the intern's filled-in host company evaluation (FM-VAA-052) as a PDF.                           |
+| POST   | `/api/students/[studentProfileId]/company-evaluation`      | SI (own)                                              | Submit the intern's evaluation of their host company once all hours are confirmed.                       |
+| GET    | `/api/students/[studentProfileId]/conduct-records`         | Own or assigned                                       | List the intern's conduct records.                                                                       |
+| POST   | `/api/students/[studentProfileId]/conduct-records`         | FA (assigned), DC, SA                                 | Issue a conduct record (a manual deduction) to the intern.                                               |
+| POST   | `/api/students/[studentProfileId]/deductions/disputes`     | SI (own)                                              | Dispute a deduction on the intern's record.                                                              |
+| POST   | `/api/students/[studentProfileId]/deductions/excuse`       | FA (assigned), DC, SA                                 | Excuse an automatic deduction item with a reason.                                                        |
+| GET    | `/api/students/[studentProfileId]/deductions`              | Own or assigned                                       | Return the intern's deduction tally and automatic deduction items.                                       |
+| GET    | `/api/students/[studentProfileId]/deviations`              | Own or assigned                                       | List the intern's old deviation reports (read only).                                                     |
+| GET    | `/api/students/[studentProfileId]/endorsement-letter`      | Own or assigned                                       | Download the intern's endorsement letter.                                                                |
+| POST   | `/api/students/[studentProfileId]/endorsement-letter`      | FA (assigned), DC, SA                                 | Generate the endorsement letter once the required checklist items are approved.                          |
+| GET    | `/api/students/[studentProfileId]/final-cover`             | Own or assigned                                       | Download the final report cover page.                                                                    |
+| POST   | `/api/students/[studentProfileId]/final-cover`             | SI (own)                                              | Generate the final report cover page once the intern reaches the hours threshold.                        |
+| GET    | `/api/students/[studentProfileId]/final-report/pdf`        | Own or assigned                                       | Download the generated final technical report PDF.                                                       |
+| POST   | `/api/students/[studentProfileId]/final-report/pdf`        | SI (own)                                              | Generate the final technical report PDF after the coordinator approves the report.                       |
+| GET    | `/api/students/[studentProfileId]/final-report`            | Own or assigned                                       | Return the final report's unlock state and content.                                                      |
+| PUT    | `/api/students/[studentProfileId]/final-report`            | SI (own)                                              | Save a draft of the intern's final report.                                                               |
+| POST   | `/api/students/[studentProfileId]/final-report/submit`     | SI (own)                                              | Submit the final report for the coordinator's review.                                                    |
+| GET    | `/api/students/[studentProfileId]/holidays`                | Own or assigned                                       | Return the holidays and company days off that apply to the intern.                                       |
+| PATCH  | `/api/students/[studentProfileId]/holidays`                | SI (own)                                              | Mark whether a holiday applies to the intern.                                                            |
+| POST   | `/api/students/[studentProfileId]/holidays`                | Own or assigned                                       | Add a day off for the intern's host company.                                                             |
+| DELETE | `/api/students/[studentProfileId]/holidays`                | SI (own, only days they added); FA (assigned), DC, SA | Remove a company day off.                                                                                |
+| PUT    | `/api/students/[studentProfileId]/monthly-reports/journal` | SI (own)                                              | Save the intern's Journal on Learning Experience for a month.                                            |
+| POST   | `/api/students/[studentProfileId]/monthly-reports`         | SI (own)                                              | Submit a monthly report once every week of the month is Approved or Regarded.                            |
+| GET    | `/api/students/[studentProfileId]/monthly-reports`         | Own or assigned                                       | List the intern's monthly reports.                                                                       |
+| POST   | `/api/students/[studentProfileId]/retraction`              | SI (own)                                              | File a notification of retraction from the current host company.                                         |
+| POST   | `/api/students/[studentProfileId]/schedule`                | SI (own)                                              | Set the intern's work schedule.                                                                          |
+| PATCH  | `/api/students/[studentProfileId]/schedule`                | SI (own)                                              | Request a schedule change, with an optional supporting document.                                         |
+| POST   | `/api/students/[studentProfileId]/start-before-moa`        | FA (assigned), DC, SA                                 | Allow or stop the intern starting before the MOA is approved.                                            |
+| GET    | `/api/students/[studentProfileId]/time-reports/[kind]`     | Own or assigned                                       | Render the overtime, under time or absence report as a PDF, for one week or the whole internship.        |
+| GET    | `/api/students/[studentProfileId]/time-requests`           | Own or assigned                                       | List the intern's leave, overtime and under time requests.                                               |
+| POST   | `/api/students/[studentProfileId]/time-requests`           | SI (own)                                              | File a leave, overtime or under time request.                                                            |
+| GET    | `/api/students/[studentProfileId]/waiver`                  | Own or assigned                                       | Download the parental consent, waiver and undertaking, prefilled for printing.                           |
+| POST   | `/api/students/[studentProfileId]/weekly-reports`          | SI (own)                                              | Create the weekly report form for a given week.                                                          |
+| GET    | `/api/students/[studentProfileId]/weekly-reports`          | Own or assigned                                       | List the intern's weekly reports.                                                                        |
+| GET    | `/api/students/[studentProfileId]/work-plans/pdf`          | Own or assigned                                       | Download the latest work plan as a printable PDF.                                                        |
+| POST   | `/api/students/[studentProfileId]/work-plans/read`         | SI (own)                                              | Have AI assist read an uploaded work plan PDF and suggest rows and company days off (nothing is stored). |
+| GET    | `/api/students/[studentProfileId]/work-plans`              | Own or assigned                                       | List the intern's work plan history.                                                                     |
+| POST   | `/api/students/[studentProfileId]/work-plans`              | Own or assigned                                       | Submit a work plan (rows, the company's PDF, or both) for the coordinator's review.                      |
 
 #### `account`
 
-| Method | Path                               | Roles     | Purpose                                                                                 |
-| ------ | ---------------------------------- | --------- | --------------------------------------------------------------------------------------- |
-| PATCH  | `/api/account/email-notifications` | Signed in | The signed-in person's own email switch (their row only). Off keeps notices in the bell |
+| Method | Path                               | Roles           | Purpose                                            |
+| ------ | ---------------------------------- | --------------- | -------------------------------------------------- |
+| PATCH  | `/api/account/email-notifications` | Signed in (own) | Turn the user's own email notifications on or off. |
 
 #### `admin`
 
-| Method | Path                                   | Roles | Purpose                                                                                                  |
-| ------ | -------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------- |
-| POST   | `/api/admin/data-requests/[id]/export` | SA    | Personal-data workbook for a request                                                                     |
-| POST   | `/api/admin/data-requests/[id]/fulfil` | SA    | Mark request fulfilled                                                                                   |
-| POST   | `/api/admin/exports/[kind]`            | SA    | Export Center workbook (`users`, `students`, `attendance`, `reports`, `checklist`, `companies`); audited |
-| POST   | `/api/admin/retention/[id]/delete`     | SA    | Delete a flagged file                                                                                    |
-| POST   | `/api/admin/retention/[id]/keep`       | SA    | Keep a flagged file                                                                                      |
+| Method | Path                                   | Roles | Purpose                                                                                                     |
+| ------ | -------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/admin/data-requests/[id]/export` | SA    | Export the personal-data workbook for a data request (password re-entry).                                   |
+| POST   | `/api/admin/data-requests/[id]/fulfil` | SA    | Mark a data request fulfilled and tell the requester.                                                       |
+| POST   | `/api/admin/exports/[kind]`            | SA    | Export a bulk workbook of users, students, attendance, reports, checklist or companies (password re-entry). |
+| POST   | `/api/admin/retention/[id]/delete`     | SA    | Permanently delete a file flagged by the retention check (password re-entry).                               |
+| POST   | `/api/admin/retention/[id]/keep`       | SA    | Keep a file flagged by the retention check.                                                                 |
 
 #### `ai`
 
-| Method | Path                | Roles      | Purpose                                                                                |
-| ------ | ------------------- | ---------- | -------------------------------------------------------------------------------------- |
-| PATCH  | `/api/ai/assist`    | Signed in  | The signed-in person's own AI assist switch (their row only).                          |
-| POST   | `/api/ai/clarity`   | SI         | Job 8 with the model: a second look that only picks from the same fixed questions. The |
-| POST   | `/api/ai/companies` | SA, DC     | The rules (same or near name) already group these; the AI adds only what they miss.    |
-| POST   | `/api/ai/feedback`  | SA, DC, FA | R2: staff rate a hint Correct / Not right. The rating only counts toward switching the |
-| POST   | `/api/ai/help`      | Signed in  | Job 9: which help question (for this person's role) answers theirs, or none. It only   |
+| Method | Path                | Roles           | Purpose                                                                     |
+| ------ | ------------------- | --------------- | --------------------------------------------------------------------------- |
+| PATCH  | `/api/ai/assist`    | Signed in (own) | Turn the user's own AI assist on or off.                                    |
+| POST   | `/api/ai/clarity`   | SI              | Suggest questions for daily entries that are too vague (nothing is stored). |
+| POST   | `/api/ai/companies` | DC, SA          | Suggest duplicate companies that the name rules missed.                     |
+| POST   | `/api/ai/feedback`  | FA, DC, SA      | Rate an AI hint as right or not right.                                      |
+| POST   | `/api/ai/help`      | Signed in       | Match the user's question to an existing help question for their role.      |
 
 #### `audit-logs`
 
-| Method | Path                     | Roles | Purpose                              |
-| ------ | ------------------------ | ----- | ------------------------------------ |
-| GET    | `/api/audit-logs/export` | SA    | Audit log to Excel (max 10,000 rows) |
+| Method | Path                     | Roles | Purpose                                            |
+| ------ | ------------------------ | ----- | -------------------------------------------------- |
+| GET    | `/api/audit-logs/export` | SA    | Export the audit log to Excel (up to 10,000 rows). |
 
 #### `auth`
 
-| Method | Path                               | Roles     | Purpose                                                    |
-| ------ | ---------------------------------- | --------- | ---------------------------------------------------------- |
-| GET    | `/api/auth/[...nextauth]`          | Public    | NextAuth sign-in/sign-out (credentials, database sessions) |
-| POST   | `/api/auth/[...nextauth]`          | Public    | NextAuth sign-in/sign-out (credentials, database sessions) |
-| POST   | `/api/auth/change-password`        | Signed in | Change own password (forced on first login)                |
-| POST   | `/api/auth/reset-password/confirm` | Public    | Set a new password; revokes sessions                       |
-| POST   | `/api/auth/reset-password/request` | Public    | Send a 1-hour reset link                                   |
+| Method | Path                               | Roles                | Purpose                                                                              |
+| ------ | ---------------------------------- | -------------------- | ------------------------------------------------------------------------------------ |
+| GET    | `/api/auth/[...nextauth]`          | Public               | NextAuth sign-in and sign-out.                                                       |
+| POST   | `/api/auth/[...nextauth]`          | Public               | NextAuth sign-in and sign-out.                                                       |
+| POST   | `/api/auth/change-password`        | Signed in (own)      | Change the user's own password, including a temporary one.                           |
+| POST   | `/api/auth/reset-password/confirm` | Public (reset token) | Set a new password from a reset link and end all sessions.                           |
+| POST   | `/api/auth/reset-password/request` | Public               | Email a 1-hour reset link (the reply is the same whether or not the account exists). |
 
 #### `calendar`
 
-| Method | Path                 | Roles       | Purpose                                                      |
-| ------ | -------------------- | ----------- | ------------------------------------------------------------ |
-| GET    | `/api/calendar/feed` | Signed link | The viewer's calendar as .ics for a phone (HMAC-signed link) |
-| GET    | `/api/calendar`      | Signed in   | Role-specific calendar events                                |
+| Method | Path                 | Roles       | Purpose                                                         |
+| ------ | -------------------- | ----------- | --------------------------------------------------------------- |
+| GET    | `/api/calendar/feed` | Signed link | Serve the user's calendar as an .ics feed for a phone calendar. |
+| GET    | `/api/calendar`      | Signed in   | Return the calendar events for the user's role.                 |
 
 #### `checklist-items`
 
-| Method | Path                                 | Roles                 | Purpose                                                                                |
-| ------ | ------------------------------------ | --------------------- | -------------------------------------------------------------------------------------- |
-| PATCH  | `/api/checklist-items/[id]/review`   | FA, DC, SA (assigned) | Approve or Return (note required on Return)                                            |
-| POST   | `/api/checklist-items/[id]/uploaded` | Signed in             | The intern marks one requirement "Uploaded to Classroom" (027). Owner-only, checked in |
-| POST   | `/api/checklist-items/bulk-review`   | SA, DC, FA            | One notice per intern, not one per item.                                               |
+| Method | Path                                 | Roles                 | Purpose                                                            |
+| ------ | ------------------------------------ | --------------------- | ------------------------------------------------------------------ |
+| PATCH  | `/api/checklist-items/[id]/review`   | FA (assigned), DC, SA | Approve or return a checklist item (a note is required to return). |
+| POST   | `/api/checklist-items/[id]/uploaded` | SI (own)              | Mark a requirement as uploaded to Google Classroom.                |
+| POST   | `/api/checklist-items/bulk-review`   | FA (assigned), DC, SA | Approve many checklist items at once from the class grid.          |
 
 #### `class-group-advisers`
 
-| Method | Path                             | Roles  | Purpose                              |
-| ------ | -------------------------------- | ------ | ------------------------------------ |
-| DELETE | `/api/class-group-advisers/[id]` | SA, DC | Remove an adviser from a class group |
+| Method | Path                             | Roles  | Purpose                               |
+| ------ | -------------------------------- | ------ | ------------------------------------- |
+| DELETE | `/api/class-group-advisers/[id]` | DC, SA | Remove an adviser from a class group. |
 
 #### `class-groups`
 
-| Method | Path                                                   | Roles      | Purpose                                                                     |
-| ------ | ------------------------------------------------------ | ---------- | --------------------------------------------------------------------------- |
-| POST   | `/api/class-groups/[classGroupId]/advisers`            | SA, DC     | Assign an adviser to a class group                                          |
-| POST   | `/api/class-groups/[classGroupId]/endorsement-letters` | SA, DC, FA | Bulk letters (max 40)                                                       |
-| PATCH  | `/api/class-groups/[classGroupId]`                     | SA, DC     | Rename or edit a class group                                                |
-| DELETE | `/api/class-groups/[classGroupId]`                     | SA, DC     | Delete an empty class group                                                 |
-| POST   | `/api/class-groups/copy-advisers`                      | SA, DC     | Efficiency item 29: copy last semester's adviser assignments into this one. |
-| POST   | `/api/class-groups`                                    | SA, DC     | Create a class group                                                        |
+| Method | Path                                                   | Roles                  | Purpose                                                                     |
+| ------ | ------------------------------------------------------ | ---------------------- | --------------------------------------------------------------------------- |
+| POST   | `/api/class-groups/[classGroupId]/advisers`            | DC, SA                 | Assign an adviser to a class group.                                         |
+| POST   | `/api/class-groups/[classGroupId]/endorsement-letters` | FA (own class), DC, SA | Generate endorsement letters for a class group (max 40, password re-entry). |
+| PATCH  | `/api/class-groups/[classGroupId]`                     | DC, SA                 | Rename or edit a class group.                                               |
+| DELETE | `/api/class-groups/[classGroupId]`                     | DC, SA                 | Delete a class group that has no students.                                  |
+| POST   | `/api/class-groups/copy-advisers`                      | DC, SA                 | Copy last semester's adviser assignments into the chosen semester.          |
+| POST   | `/api/class-groups`                                    | DC, SA                 | Create a class group.                                                       |
 
 #### `companies`
 
-| Method | Path                         | Roles      | Purpose                                                                                  |
-| ------ | ---------------------------- | ---------- | ---------------------------------------------------------------------------------------- |
-| POST   | `/api/companies/[id]/join`   | SI         | Self-only: the profile comes from the session, never the request.                        |
-| GET    | `/api/companies/[id]/moa`    | SA, DC, FA | List / add MOA records (Drive link or PDF)                                               |
-| POST   | `/api/companies/[id]/moa`    | SA, DC, FA | List / add MOA records (Drive link or PDF)                                               |
-| PUT    | `/api/companies/[id]/reply`  | Signed in  | Company view: the coordinator records the company's reply (the service checks the role). |
-| GET    | `/api/companies/[id]`        | Signed in  | Company details                                                                          |
-| PATCH  | `/api/companies/[id]`        | SA, DC, FA | Edit company; set verified                                                               |
-| POST   | `/api/companies/[id]/visits` | Signed in  | Record SAMCIS's company visit (adviser, coordinator, admin).                             |
-| POST   | `/api/companies/merge`       | SA, DC     | Merge duplicate company records                                                          |
-| GET    | `/api/companies`             | SA, DC, FA | List/search companies                                                                    |
-| POST   | `/api/companies`             | Signed in  | Register a company                                                                       |
-| GET    | `/api/companies/similar`     | Signed in  | FR-MOA-02: any signed-in user, same as the company list (companies aren't sensitive).    |
+| Method | Path                         | Roles      | Purpose                                                                                              |
+| ------ | ---------------------------- | ---------- | ---------------------------------------------------------------------------------------------------- |
+| POST   | `/api/companies/[id]/join`   | SI (own)   | Choose an existing company as the intern's host company.                                             |
+| GET    | `/api/companies/[id]/moa`    | FA, DC, SA | List a company's MOA records.                                                                        |
+| POST   | `/api/companies/[id]/moa`    | FA, DC, SA | Add an MOA record (Google Drive link or uploaded file).                                              |
+| PUT    | `/api/companies/[id]/reply`  | DC, SA     | Record the company's reply to intern feedback.                                                       |
+| GET    | `/api/companies/[id]`        | FA, DC, SA | Return one company record (it holds the supervisor's contact, so staff only).                        |
+| PATCH  | `/api/companies/[id]`        | FA, DC, SA | Edit a company or mark it verified.                                                                  |
+| POST   | `/api/companies/[id]/visits` | FA, DC, SA | Record a company visit or supervisor check-in.                                                       |
+| POST   | `/api/companies/merge`       | DC, SA     | Merge duplicate company records.                                                                     |
+| GET    | `/api/companies`             | FA, DC, SA | List or search companies.                                                                            |
+| POST   | `/api/companies`             | Signed in  | Register a company; a student links it to their own record, staff only to a student they can access. |
+| GET    | `/api/companies/similar`     | Signed in  | Find companies with a similar name (id, name and address only).                                      |
 
 #### `company-days`
 
-| Method | Path                     | Roles  | Purpose                                                                           |
-| ------ | ------------------------ | ------ | --------------------------------------------------------------------------------- |
-| DELETE | `/api/company-days/[id]` | SA, DC | Remove a company day off                                                          |
-| POST   | `/api/company-days`      | SA, DC | Company days off: the coordinator (or Super Admin) adds one for any host company. |
+| Method | Path                     | Roles  | Purpose                             |
+| ------ | ------------------------ | ------ | ----------------------------------- |
+| DELETE | `/api/company-days/[id]` | DC, SA | Remove a company day off.           |
+| POST   | `/api/company-days`      | DC, SA | Add a day off for any host company. |
 
 #### `compliance`
 
-| Method | Path                             | Roles      | Purpose                   |
-| ------ | -------------------------------- | ---------- | ------------------------- |
-| GET    | `/api/compliance/export`         | SA, DC, FA | Compliance table to Excel |
-| GET    | `/api/compliance/weekly-summary` | SA, DC, FA | Weekly summary to Excel   |
+| Method | Path                             | Roles                    | Purpose                                           |
+| ------ | -------------------------------- | ------------------------ | ------------------------------------------------- |
+| GET    | `/api/compliance/export`         | FA (own classes), DC, SA | Export the compliance table to Excel.             |
+| GET    | `/api/compliance/weekly-summary` | FA (own classes), DC, SA | Export one week's weekly report summary to Excel. |
 
 #### `conduct-records`
 
-| Method | Path                               | Roles     | Purpose                                                               |
-| ------ | ---------------------------------- | --------- | --------------------------------------------------------------------- |
-| POST   | `/api/conduct-records/[id]/revoke` | Signed in | Workstream L2: revoke a conduct record with a reason (never deleted). |
+| Method | Path                               | Roles                 | Purpose                                                     |
+| ------ | ---------------------------------- | --------------------- | ----------------------------------------------------------- |
+| POST   | `/api/conduct-records/[id]/revoke` | FA (assigned), DC, SA | Revoke a conduct record with a reason (it stays on record). |
 
 #### `config`
 
-| Method | Path                         | Roles      | Purpose                                                                    |
-| ------ | ---------------------------- | ---------- | -------------------------------------------------------------------------- |
-| GET    | `/api/config/ai`             | Public     | NFR-AI-03 threshold preview; R3 golden-set test; guardrail 2 re-embedding. |
-| POST   | `/api/config/ai`             | Public     | AI settings, connections and the transparency panel (Super Admin only).    |
-| PATCH  | `/api/config/ai`             | Public     | AI settings, connections and the transparency panel (Super Admin only).    |
-| PATCH  | `/api/config/checklist`      | SA         | Super Admin chooses which checklist items gate the endorsement letter.     |
-| PATCH  | `/api/config/deductions`     | SA         | Validate both parts before saving either, so a bad value saves nothing.    |
-| PATCH  | `/api/config/maintenance`    | SA         | NFR-REL-01: Super Admin only. An empty message clears the banner.          |
-| GET    | `/api/config/notifications`  | SA, DC, FA | Reminder settings                                                          |
-| PATCH  | `/api/config/notifications`  | SA         | Change reminder settings                                                   |
-| GET    | `/api/config/required-hours` | Signed in  | Required hours per program                                                 |
-| PATCH  | `/api/config/required-hours` | SA, DC     | Change required hours                                                      |
+| Method | Path                         | Roles      | Purpose                                                                         |
+| ------ | ---------------------------- | ---------- | ------------------------------------------------------------------------------- |
+| GET    | `/api/config/ai`             | SA         | Return the AI settings, connections and transparency panel.                     |
+| POST   | `/api/config/ai`             | SA         | Preview a threshold, run the AI test sets, or re-embed the reports.             |
+| PATCH  | `/api/config/ai`             | SA         | Change the AI threshold, on/off switch or connections, or switch a job back on. |
+| PATCH  | `/api/config/checklist`      | SA         | Choose which checklist items gate the endorsement letter.                       |
+| PATCH  | `/api/config/deductions`     | SA         | Edit the deduction matrix and the default hours per conduct record.             |
+| PATCH  | `/api/config/maintenance`    | SA         | Set or clear the maintenance banner.                                            |
+| GET    | `/api/config/notifications`  | FA, DC, SA | Return the reminder settings.                                                   |
+| PATCH  | `/api/config/notifications`  | SA         | Change the reminder settings.                                                   |
+| GET    | `/api/config/required-hours` | Signed in  | Return the required hours for a program.                                        |
+| PATCH  | `/api/config/required-hours` | DC, SA     | Change the required hours for a program.                                        |
 
 #### `cron`
 
-| Method | Path              | Roles         | Purpose   |
-| ------ | ----------------- | ------------- | --------- |
-| GET    | `/api/cron/daily` | Cron (secret) | Daily job |
+| Method | Path              | Roles         | Purpose                                                             |
+| ------ | ----------------- | ------------- | ------------------------------------------------------------------- |
+| GET    | `/api/cron/daily` | Cron (secret) | Run the daily job: reminders, the AI catch-up and old PDF clean-up. |
 
 #### `data-requests`
 
-| Method | Path                 | Roles     | Purpose                             |
-| ------ | -------------------- | --------- | ----------------------------------- |
-| POST   | `/api/data-requests` | Signed in | Create own DSAR (one open per user) |
+| Method | Path                 | Roles           | Purpose                                                                |
+| ------ | -------------------- | --------------- | ---------------------------------------------------------------------- |
+| POST   | `/api/data-requests` | Signed in (own) | Ask for a copy of one's own personal data (one open request per user). |
 
 #### `deduction-disputes`
 
-| Method | Path                                   | Roles     | Purpose                                                           |
-| ------ | -------------------------------------- | --------- | ----------------------------------------------------------------- |
-| POST   | `/api/deduction-disputes/[id]/decline` | Signed in | Go-live item 5: staff keep the deduction and tell the intern why. |
+| Method | Path                                   | Roles                 | Purpose                                              |
+| ------ | -------------------------------------- | --------------------- | ---------------------------------------------------- |
+| POST   | `/api/deduction-disputes/[id]/decline` | FA (assigned), DC, SA | Decline a deduction dispute and tell the intern why. |
 
 #### `deduction-exceptions`
 
-| Method | Path                                      | Roles     | Purpose                                            |
-| ------ | ----------------------------------------- | --------- | -------------------------------------------------- |
-| POST   | `/api/deduction-exceptions/[id]/withdraw` | Signed in | Workstream L2: withdraw an excuse (never deleted). |
+| Method | Path                                      | Roles                 | Purpose                                  |
+| ------ | ----------------------------------------- | --------------------- | ---------------------------------------- |
+| POST   | `/api/deduction-exceptions/[id]/withdraw` | FA (assigned), DC, SA | Withdraw an excuse (it stays on record). |
 
 #### `department-events`
 
-| Method | Path                          | Roles  | Purpose                                                                        |
-| ------ | ----------------------------- | ------ | ------------------------------------------------------------------------------ |
-| DELETE | `/api/department-events/[id]` | SA, DC | Remove a department event                                                      |
-| POST   | `/api/department-events`      | SA, DC | Department events on every calendar this semester (coordinator / Super Admin). |
+| Method | Path                          | Roles  | Purpose                                                 |
+| ------ | ----------------------------- | ------ | ------------------------------------------------------- |
+| DELETE | `/api/department-events/[id]` | DC, SA | Remove a department event.                              |
+| POST   | `/api/department-events`      | DC, SA | Add a department event to every calendar this semester. |
 
 #### `deviations`
 
-| Method | Path                         | Roles           | Purpose                     |
-| ------ | ---------------------------- | --------------- | --------------------------- |
-| GET    | `/api/deviations/[id]/proof` | Own or assigned | Signed URL for a proof file |
+| Method | Path                         | Roles           | Purpose                                              |
+| ------ | ---------------------------- | --------------- | ---------------------------------------------------- |
+| GET    | `/api/deviations/[id]/proof` | Own or assigned | Open a deviation report's proof file or Google link. |
 
 #### `final-reports`
 
-| Method | Path                             | Roles     | Purpose                                                               |
-| ------ | -------------------------------- | --------- | --------------------------------------------------------------------- |
-| POST   | `/api/final-reports/[id]/review` | Signed in | Workstream H (FR-FT-03): coordinator / Super Admin approve or return. |
+| Method | Path                             | Roles  | Purpose                                     |
+| ------ | -------------------------------- | ------ | ------------------------------------------- |
+| POST   | `/api/final-reports/[id]/review` | DC, SA | Approve or return an intern's final report. |
 
 #### `health`
 
-| Method | Path          | Roles  | Purpose                                                                       |
-| ------ | ------------- | ------ | ----------------------------------------------------------------------------- |
-| GET    | `/api/health` | Public | Unauthenticated and side-effect-free: the Docker healthcheck, the deploy gate |
+| Method | Path          | Roles  | Purpose                                               |
+| ------ | ------------- | ------ | ----------------------------------------------------- |
+| GET    | `/api/health` | Public | Report that the app is up and can reach the database. |
 
 #### `moa`
 
-| Method | Path            | Roles      | Purpose                  |
-| ------ | --------------- | ---------- | ------------------------ |
-| GET    | `/api/moa/[id]` | SA, DC, FA | Read / change MOA status |
-| PATCH  | `/api/moa/[id]` | SA, DC, FA | Read / change MOA status |
+| Method | Path            | Roles      | Purpose                        |
+| ------ | --------------- | ---------- | ------------------------------ |
+| GET    | `/api/moa/[id]` | FA, DC, SA | Return one MOA record.         |
+| PATCH  | `/api/moa/[id]` | FA, DC, SA | Change an MOA record's status. |
 
 #### `monthly-reports`
 
-| Method | Path                            | Roles  | Purpose                   |
-| ------ | ------------------------------- | ------ | ------------------------- |
-| GET    | `/api/monthly-reports/[id]/pdf` | Public | Download / regenerate PDF |
-| POST   | `/api/monthly-reports/[id]/pdf` | Public | Download / regenerate PDF |
+| Method | Path                            | Roles           | Purpose                                      |
+| ------ | ------------------------------- | --------------- | -------------------------------------------- |
+| GET    | `/api/monthly-reports/[id]/pdf` | Own or assigned | Download a monthly report PDF.               |
+| POST   | `/api/monthly-reports/[id]/pdf` | Own or assigned | Generate or regenerate a monthly report PDF. |
 
 #### `notifications`
 
-| Method | Path                           | Roles           | Purpose       |
-| ------ | ------------------------------ | --------------- | ------------- |
-| PATCH  | `/api/notifications/[id]/read` | Signed in (own) | Mark one read |
-| GET    | `/api/notifications`           | Signed in       | Own inbox     |
-| PATCH  | `/api/notifications`           | Signed in       | Mark all read |
+| Method | Path                           | Roles           | Purpose                                    |
+| ------ | ------------------------------ | --------------- | ------------------------------------------ |
+| PATCH  | `/api/notifications/[id]/read` | Signed in (own) | Mark one notification read.                |
+| GET    | `/api/notifications`           | Signed in (own) | List the user's own notifications.         |
+| PATCH  | `/api/notifications`           | Signed in (own) | Mark all of the user's notifications read. |
 
 #### `onboarding`
 
-| Method | Path              | Roles     | Purpose                                                                       |
-| ------ | ----------------- | --------- | ----------------------------------------------------------------------------- |
-| POST   | `/api/onboarding` | Signed in | Beta Google sign-in: a new student sets their student number and class group. |
+| Method | Path              | Roles    | Purpose                                                                            |
+| ------ | ----------------- | -------- | ---------------------------------------------------------------------------------- |
+| POST   | `/api/onboarding` | SI (own) | A new student who signed in with Google sets their student number and class group. |
 
 #### `placements`
 
-| Method | Path                          | Roles           | Purpose                                                                                      |
-| ------ | ----------------------------- | --------------- | -------------------------------------------------------------------------------------------- |
-| POST   | `/api/placements/[id]/note`   | Signed in       | SAMCIS notes an intern's retraction: the placement ends and the intern may move on.          |
-| GET    | `/api/placements/[id]/notice` | Own or assigned | The intern's notification of retraction as a PDF, for the intern and the staff who see them. |
+| Method | Path                          | Roles                 | Purpose                                                   |
+| ------ | ----------------------------- | --------------------- | --------------------------------------------------------- |
+| POST   | `/api/placements/[id]/note`   | FA (assigned), DC, SA | Note an intern's retraction, which ends the placement.    |
+| GET    | `/api/placements/[id]/notice` | Own or assigned       | Download an intern's notification of retraction as a PDF. |
 
 #### `profile`
 
-| Method | Path                           | Roles     | Purpose                                                                     |
-| ------ | ------------------------------ | --------- | --------------------------------------------------------------------------- |
-| PATCH  | `/api/profile/full-name`       | SI        | Set own legal name                                                          |
-| POST   | `/api/profile/privacy-consent` | Signed in | FR-CK-05 / NFR-DP-03: both answers are logged; declining signs the user out |
-| DELETE | `/api/profile/sessions`        | Signed in | Account settings → Security: sign out every other device, keeping this one. |
+| Method | Path                           | Roles           | Purpose                                                                        |
+| ------ | ------------------------------ | --------------- | ------------------------------------------------------------------------------ |
+| PATCH  | `/api/profile/full-name`       | Signed in (own) | Set one's own name (the legal name for a student, the display name for staff). |
+| POST   | `/api/profile/privacy-consent` | Signed in (own) | Record the user's answer to the privacy notice.                                |
+| DELETE | `/api/profile/sessions`        | Signed in (own) | Sign out the user's other devices, keeping this one.                           |
 
 #### `semesters`
 
-| Method | Path                                   | Roles  | Purpose                                                                |
-| ------ | -------------------------------------- | ------ | ---------------------------------------------------------------------- |
-| POST   | `/api/semesters/[semesterId]/activate` | SA     | Activate (only one active)                                             |
-| POST   | `/api/semesters/[semesterId]/archive`  | SA     | Archive (deletes nothing)                                              |
-| PATCH  | `/api/semesters/[semesterId]`          | SA, DC | Workstream L1: coordinator or Super Admin sets the term's Week 1 start |
-| GET    | `/api/semesters`                       | SA, DC | List semesters                                                         |
-| POST   | `/api/semesters`                       | SA     | Create semester                                                        |
+| Method | Path                                   | Roles  | Purpose                                  |
+| ------ | -------------------------------------- | ------ | ---------------------------------------- |
+| POST   | `/api/semesters/[semesterId]/activate` | SA     | Make this the one active semester.       |
+| POST   | `/api/semesters/[semesterId]/archive`  | SA     | Archive a semester (nothing is deleted). |
+| PATCH  | `/api/semesters/[semesterId]`          | DC, SA | Set the semester's Week 1 start date.    |
+| GET    | `/api/semesters`                       | DC, SA | List semesters.                          |
+| POST   | `/api/semesters`                       | SA     | Create a semester.                       |
 
 #### `storage`
 
-| Method | Path                    | Roles       | Purpose                                                                             |
-| ------ | ----------------------- | ----------- | ----------------------------------------------------------------------------------- |
-| GET    | `/api/storage/download` | Signed link | Serve a stored file for the S3/MinIO driver; the HMAC-signed link is the permission |
+| Method | Path                    | Roles       | Purpose                                                         |
+| ------ | ----------------------- | ----------- | --------------------------------------------------------------- |
+| GET    | `/api/storage/download` | Signed link | Serve a stored file when the S3/MinIO storage driver is in use. |
 
 #### `time-requests`
 
-| Method | Path                             | Roles      | Purpose                                                                        |
-| ------ | -------------------------------- | ---------- | ------------------------------------------------------------------------------ |
-| POST   | `/api/time-requests/[id]/review` | SA, DC, FA | Workstream L1: Approve, or Return with a required note. The service checks     |
-| PATCH  | `/api/time-requests/[id]`        | SI         | Workstream L1: the intern edits a Pending request or resubmits a Returned one. |
+| Method | Path                             | Roles                 | Purpose                                            |
+| ------ | -------------------------------- | --------------------- | -------------------------------------------------- |
+| POST   | `/api/time-requests/[id]/review` | FA (assigned), DC, SA | Approve a time request, or return it with a note.  |
+| PATCH  | `/api/time-requests/[id]`        | SI (own)              | Edit a pending request or resubmit a returned one. |
 
 #### `users`
 
-| Method | Path                           | Roles  | Purpose                                  |
-| ------ | ------------------------------ | ------ | ---------------------------------------- |
-| POST   | `/api/users/[id]/force-logout` | SA     | End all sessions of a user               |
-| GET    | `/api/users/[id]`              | SA, DC | User profile                             |
-| PATCH  | `/api/users/[id]`              | SA, DC | Activate / deactivate (revokes sessions) |
-| POST   | `/api/users/[id]/unlock`       | SA     | Clear a lockout                          |
-| POST   | `/api/users/bulk-import`       | SA, DC | CSV/Excel class-list import              |
-| GET    | `/api/users`                   | SA, DC | List users                               |
-| POST   | `/api/users`                   | SA     | Create a user                            |
+| Method | Path                           | Roles                                  | Purpose                                                               |
+| ------ | ------------------------------ | -------------------------------------- | --------------------------------------------------------------------- |
+| POST   | `/api/users/[id]/force-logout` | SA                                     | End all of a user's sessions.                                         |
+| GET    | `/api/users/[id]`              | DC, SA; any user for their own         | Return a user's profile.                                              |
+| PATCH  | `/api/users/[id]`              | DC, SA (only SA for DC or SA accounts) | Activate or deactivate a user (deactivating ends their sessions).     |
+| POST   | `/api/users/[id]/unlock`       | SA                                     | Clear a sign-in lockout.                                              |
+| POST   | `/api/users/bulk-import`       | DC, SA                                 | Import students from a CSV or Excel class list, with a preview first. |
+| GET    | `/api/users`                   | DC, SA                                 | List and search users.                                                |
+| POST   | `/api/users`                   | SA                                     | Create a staff account.                                               |
 
 #### `weekly-reports`
 
-| Method | Path                                 | Roles           | Purpose                                                                                    |
-| ------ | ------------------------------------ | --------------- | ------------------------------------------------------------------------------------------ |
-| POST   | `/api/weekly-reports/[id]/ai`        | Own or assigned | Fire-and-forget hook called by the student form right after submit, so                     |
-| POST   | `/api/weekly-reports/[id]/entries`   | SI              | Remove a day added by mistake (?entryId=…), then refresh the week's totals.                |
-| DELETE | `/api/weekly-reports/[id]/entries`   | SI              | Workstream L1: add a non-scheduled day (e.g. a Saturday worked as OT) to a                 |
-| PUT    | `/api/weekly-reports/[id]/first-day` | SI              | The intern's first day of OJT, set from their first weekly report: the days of that week   |
-| GET    | `/api/weekly-reports/[id]/pdf`       | Public          | Download / regenerate PDF                                                                  |
-| POST   | `/api/weekly-reports/[id]/pdf`       | Public          | Download / regenerate PDF                                                                  |
-| GET    | `/api/weekly-reports/[id]/preview`   | SI              | Preview                                                                                    |
-| PATCH  | `/api/weekly-reports/[id]/review`    | FA              | Approve / Return / Regard / Disregard                                                      |
-| GET    | `/api/weekly-reports/[id]`           | Own or assigned | One report                                                                                 |
-| PATCH  | `/api/weekly-reports/[id]`           | SI              | Save a daily entry                                                                         |
-| POST   | `/api/weekly-reports/[id]/submit`    | SI              | Submit (late reason if past the deadline)                                                  |
-| POST   | `/api/weekly-reports/[id]/withdraw`  | SI              | Q21: the intern takes their own submitted week back to draft (before review and deadline). |
+| Method | Path                                 | Roles           | Purpose                                                                            |
+| ------ | ------------------------------------ | --------------- | ---------------------------------------------------------------------------------- |
+| POST   | `/api/weekly-reports/[id]/ai`        | Own or assigned | Run the AI check on a submitted weekly report.                                     |
+| POST   | `/api/weekly-reports/[id]/entries`   | SI (own)        | Add an unscheduled day (for example a Saturday worked) to a weekly report.         |
+| DELETE | `/api/weekly-reports/[id]/entries`   | SI (own)        | Remove a day added by mistake and refresh the week's totals.                       |
+| PUT    | `/api/weekly-reports/[id]/first-day` | SI (own)        | Set the intern's first day of OJT from their first weekly report.                  |
+| GET    | `/api/weekly-reports/[id]/pdf`       | Own or assigned | Download the weekly report PDF.                                                    |
+| POST   | `/api/weekly-reports/[id]/pdf`       | Own or assigned | Generate or regenerate the weekly report PDF.                                      |
+| GET    | `/api/weekly-reports/[id]/preview`   | SI (own)        | Preview the weekly report before submitting it.                                    |
+| PATCH  | `/api/weekly-reports/[id]/review`    | FA (assigned)   | Approve, return, regard or disregard a weekly report.                              |
+| GET    | `/api/weekly-reports/[id]`           | Own or assigned | Return one weekly report.                                                          |
+| PATCH  | `/api/weekly-reports/[id]`           | SI (own)        | Save one day's entry and return the updated totals.                                |
+| POST   | `/api/weekly-reports/[id]/submit`    | SI (own)        | Submit the weekly report (a reason is required when late).                         |
+| POST   | `/api/weekly-reports/[id]/withdraw`  | SI (own)        | Take a submitted week back to draft before it is reviewed and before the deadline. |
 
 #### `work-plans`
 
-| Method | Path                                                      | Roles           | Purpose                                                        |
-| ------ | --------------------------------------------------------- | --------------- | -------------------------------------------------------------- |
-| GET    | `/api/work-plans/[id]/file`                               | Own or assigned | Data Privacy Act: a trail of who opened an intern's documents. |
-| PATCH  | `/api/work-plans/[id]/review`                             | DC, SA          | Approve or Return a work plan                                  |
-| GET    | `/api/work-plans/[id]`                                    | Own or assigned | One work plan                                                  |
-| PATCH  | `/api/work-plans/[id]/schedule-change/coordinator-review` | SA, DC          | Final approval of a schedule change                            |
-| PATCH  | `/api/work-plans/[id]/schedule-change/faculty-review`     | FA              | First-step validation of a schedule change                     |
+| Method | Path                                                      | Roles           | Purpose                                                         |
+| ------ | --------------------------------------------------------- | --------------- | --------------------------------------------------------------- |
+| GET    | `/api/work-plans/[id]/file`                               | Own or assigned | Open the uploaded work plan PDF (each opening is logged).       |
+| PATCH  | `/api/work-plans/[id]/review`                             | DC, SA          | Approve or return a work plan.                                  |
+| GET    | `/api/work-plans/[id]`                                    | Own or assigned | Return one work plan.                                           |
+| PATCH  | `/api/work-plans/[id]/schedule-change/coordinator-review` | DC, SA          | Give the final approval or rejection of a schedule change.      |
+| PATCH  | `/api/work-plans/[id]/schedule-change/faculty-review`     | FA (assigned)   | Give the first-step approval or rejection of a schedule change. |
 
 ## 6. Data model
 
