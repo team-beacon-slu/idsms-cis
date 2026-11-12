@@ -1,23 +1,27 @@
 # One-time cutover: Supabase → self-hosted VM
 
-> **Updated 23 October 2026 (Phase 5, Stage 1):** the stack files live in `deploy/` (`deploy/docker-compose.yml`, `deploy/Caddyfile`, `deploy/Dockerfile`); the app selects MinIO with `STORAGE_DRIVER="s3"`; there are three buckets (`checklist-documents`, `moa-documents`, `generated-documents`). Written for a cloud VM in September 2026; the lab computer replaces the VM.
+> **Status (12 Nov 2026):** Active — not run yet. The stack it restores into is built and verified locally (PR #123: `deploy/`, `STORAGE_DRIVER` switch; PR #203: memory caps and log rotation); the move itself waits for the lab computer ([lab-server plan](phase5-lab-server-hosting.md)). Written for a cloud VM in September 2026; the lab computer replaces the VM. Facts below were checked against the repo on 12 Nov 2026: the stack files live in `deploy/` (`docker-compose.yml`, `Caddyfile`, `Dockerfile`, `OPERATIONS.md`), Postgres is 17 on both sides, the app selects MinIO with `STORAGE_DRIVER="s3"`, and there are three buckets (`checklist-documents`, `moa-documents`, `generated-documents`).
 
 This is the **one-time** runbook for moving IDSMS-CIS off Supabase (managed
 Postgres + Supabase Storage, app on Vercel) onto the single self-hosted VM
-(`docker-compose.yml`: `postgres` + `minio` + `app` + `caddy`). Run it top to
+(`deploy/docker-compose.yml`: `postgres` (pgvector, Postgres 17) + `minio`
+(Chainguard build) + the one-shot `minio-init` + `app` + `cron` + `caddy`). Run it top to
 bottom. Every stage ends with a **Rollback** note; up to and including the DNS
 cutover (Stage 8) every step is fully reversible with zero user-visible loss.
 
-Standing operations after cutover live in [`../../OPERATIONS.md`](../../deploy/OPERATIONS.md).
+Standing operations after cutover live in [`deploy/OPERATIONS.md`](../../deploy/OPERATIONS.md).
 
 ## Conventions
 
 - `<PROJECT_REF>` — the Supabase project ref (the `xxxx` in `xxxx.supabase.co`).
 - `<domain>` — the production hostname, e.g. `idsms.university.edu`.
 - `<VM_IP>` — the VM's public IP.
-- `$SUPABASE_DIRECT_URL` — the Supabase **direct** (port 5432, non-pooled)
-  connection string, from Supabase → Project Settings → Database → Connection
-  string → URI (not the `6543`/pgbouncer one).
+- `$SUPABASE_DIRECT_URL` — a Supabase connection string on **port 5432**
+  (not the `6543`/pgbouncer one), from Supabase → Project Settings → Database →
+  Connection string. The direct host is IPv6-only; from a network without IPv6
+  use the **session pooler** URI (also port 5432), as `.github/workflows/backup.yml` does.
+- `pg_dump` must be version **17 or newer** (Supabase runs Postgres 17). If the
+  machine has an older client, run it from the `postgres:17` image, as below.
 - Commands under "on the VM" run from `/opt/idsms`.
 
 ## Rollback-point summary
@@ -42,11 +46,18 @@ Standing operations after cutover live in [`../../OPERATIONS.md`](../../deploy/O
 
 - [ ] VM provisioned; Docker + Compose v2 installed; `<VM_SSH_USER>` created,
       in the `docker` group, owns `/opt/idsms`.
-- [ ] `/opt/idsms` contains the committed `docker-compose.yml` and `Caddyfile`
-      with `<domain>` filled in.
+- [ ] `/opt/idsms` contains copies of the committed `deploy/docker-compose.yml`
+      and `deploy/Caddyfile` with `<domain>` filled in (the repo's Caddyfile
+      ships with `idsms.example.edu`).
 - [ ] `/opt/idsms/.env.production` and `/opt/idsms/.env` written per
       [`OPERATIONS.md` §4](../../deploy/OPERATIONS.md#4-secrets-inventory-and-rotation).
-      Use a fresh `NEXTAUTH_SECRET`; **copy the existing
+      `.env` needs `POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`,
+      `CRON_SECRET` (compose refuses to start without it) and
+      `APP_ENV_FILE=/opt/idsms/.env.production` (the compose default
+      `../.env.production` is relative to the compose file). `.env.production`
+      needs `STORAGE_DRIVER="s3"`, the `MINIO_*` keys, the same `CRON_SECRET`,
+      and the email settings (`SMTP_USER`/`SMTP_PASS`, or `RESEND_*`); start from
+      `.env.example`. Use a fresh `NEXTAUTH_SECRET`; **copy the existing
       `STUDENT_DEFAULT_PASSWORD_PEPPER` verbatim from the current Vercel
       environment** — changing it locks out every student on a default password.
 - [ ] You have the Supabase **S3 access key + secret** (Supabase → Project
@@ -57,21 +68,22 @@ Standing operations after cutover live in [`../../OPERATIONS.md`](../../deploy/O
       a read-only / maintenance state (or simply accept that anything written
       after this point is lost and must be re-entered). Everything after this
       assumes no new writes hit Supabase.
-- [ ] **Reference row counts** — run on Supabase now and save the output:
+- [ ] Optional safety net while moving: the nightly GitHub backup of the
+      Supabase database (`.github/workflows/backup.yml`) is **disabled** until
+      Phase 5. To have a fresh encrypted off-site dump during the move, set its
+      `DATABASE_BACKUP_URL` and `BACKUP_PASSPHRASE` secrets and run
+      `gh workflow enable backup.yml`. After cutover the lab server's own backups
+      ([`OPERATIONS.md` §5](../../deploy/OPERATIONS.md#5-backups-and-restore))
+      take over.
+- [ ] **Reference row counts** for every table in `public` (32 tables as of
+      migration 031) — run on Supabase now and save the output:
 
   ```sql
-  SELECT 'users'                        AS t, count(*) FROM users
-  UNION ALL SELECT 'student_profiles',        count(*) FROM student_profiles
-  UNION ALL SELECT 'companies',               count(*) FROM companies
-  UNION ALL SELECT 'moa_records',             count(*) FROM moa_records
-  UNION ALL SELECT 'pre_deployment_checklist_items', count(*) FROM pre_deployment_checklist_items
-  UNION ALL SELECT 'work_plans',              count(*) FROM work_plans
-  UNION ALL SELECT 'weekly_reports',          count(*) FROM weekly_reports
-  UNION ALL SELECT 'daily_report_entries',    count(*) FROM daily_report_entries
-  UNION ALL SELECT 'deviation_reports',       count(*) FROM deviation_reports
-  UNION ALL SELECT 'generated_documents',     count(*) FROM generated_documents
-  UNION ALL SELECT 'notifications',           count(*) FROM notifications
-  UNION ALL SELECT 'audit_logs',              count(*) FROM audit_logs
+  SELECT table_name AS t,
+         (xpath('/row/c/text()',
+                query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text::bigint AS rows
+  FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
   ORDER BY t;
   ```
 
@@ -86,10 +98,12 @@ carried over (the VM runs plain Postgres + pgvector, and object metadata now
 lives in MinIO).
 
 ```bash
-pg_dump "$SUPABASE_DIRECT_URL" \
+# pg_dump 17 from the official image (skip the docker wrapper if your own client is 17+)
+docker run --rm -v "$PWD:/out" postgres:17 \
+  pg_dump "$SUPABASE_DIRECT_URL" \
   --no-owner --no-privileges --no-acl \
   --exclude-schema=storage --exclude-schema=auth --exclude-schema=realtime \
-  -Fc -f idsms.dump
+  -Fc -f /out/idsms.dump
 
 # sanity-check the archive
 pg_restore -l idsms.dump | grep -E 'TABLE DATA|EXTENSION|POLICY' | head -n 40
@@ -175,18 +189,16 @@ WHERE relnamespace = 'public'::regnamespace AND relkind = 'r'
 ORDER BY relname;
 ```
 
-Expect **`relrowsecurity = t` for all 20 application tables** — the 19 enabled by
-`prisma/migrations_manual/002_default_deny_rls.sql`
-(`accounts`, `sessions`, `users`, `student_profiles`, `class_groups`,
-`faculty_class_groups`, `semesters`, `companies`, `moa_records`,
-`pre_deployment_checklist_items`, `work_plans`, `weekly_reports`,
-`daily_report_entries`, `deviation_reports`, `generated_documents`,
-`notifications`, `holiday_calendar`, `system_config`, `password_reset_tokens`)
-plus `audit_logs` from `001_vector_extension_and_audit_rls.sql`.
+Expect **`relrowsecurity = t` on every row** (32 application tables as of
+migration 031). The first 19 are enabled by
+`prisma/migrations_manual/002_default_deny_rls.sql`, `audit_logs` by
+`001_vector_extension_and_audit_rls.sql`, and the tables added later by the
+migration that created each one (007, 009, 010, 018, 019, 020, 021, 025, 030).
 
 `ENABLE ROW LEVEL SECURITY` and `CREATE POLICY` are schema statements and are
 included in the dump, so they should already be present. If any table shows
-`f`, re-apply the relevant lines from `prisma/migrations_manual/002_*.sql` (bare
+`f`, re-apply the matching `ENABLE ROW LEVEL SECURITY` line from the migration
+that created it in `prisma/migrations_manual/` (bare
 `ALTER TABLE <t> ENABLE ROW LEVEL SECURITY;` is safe to repeat).
 
 ### 4.3 `audit_logs` append-only policies
@@ -213,18 +225,11 @@ Re-run the Stage 0 count query, now against the VM:
 
 ```bash
 docker compose exec postgres psql -U idsms -d idsms -f - <<'SQL'
-SELECT 'users' AS t, count(*) FROM users
-UNION ALL SELECT 'student_profiles',        count(*) FROM student_profiles
-UNION ALL SELECT 'companies',               count(*) FROM companies
-UNION ALL SELECT 'moa_records',             count(*) FROM moa_records
-UNION ALL SELECT 'pre_deployment_checklist_items', count(*) FROM pre_deployment_checklist_items
-UNION ALL SELECT 'work_plans',              count(*) FROM work_plans
-UNION ALL SELECT 'weekly_reports',          count(*) FROM weekly_reports
-UNION ALL SELECT 'daily_report_entries',    count(*) FROM daily_report_entries
-UNION ALL SELECT 'deviation_reports',       count(*) FROM deviation_reports
-UNION ALL SELECT 'generated_documents',     count(*) FROM generated_documents
-UNION ALL SELECT 'notifications',           count(*) FROM notifications
-UNION ALL SELECT 'audit_logs',              count(*) FROM audit_logs
+SELECT table_name AS t,
+       (xpath('/row/c/text()',
+              query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text::bigint AS rows
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
 ORDER BY t;
 SQL
 ```
@@ -244,7 +249,8 @@ compose network. Supabase's Storage S3 endpoint is reachable over the public
 internet from inside that container.
 
 ```bash
-docker run --rm -it --network idsms_net --entrypoint sh minio/mc:latest
+# minio/mc is no longer published; use the same pinned Chainguard client as minio-init
+docker run --rm -it --network idsms_net --entrypoint sh cgr.dev/chainguard/minio-client@sha256:f0b1d3d6ae12391d9bbe88345dee6da67027c93cda18dc5c9a463c2cc7d61b29
 ```
 
 Inside the container:
@@ -268,13 +274,15 @@ echo "generated: $(mc ls --recursive supa/generated-documents  | wc -l) -> $(mc 
 exit
 ```
 
-Both counts must match. Object keys are preserved, which is what the app expects
-(`{studentProfileId}/{requirementType}.{ext}` and
-`{companyId}/{moaRecordId}.{ext}`).
+Each pair of counts must match. Object keys are preserved, which is what the
+app expects: the database stores each file's key (for example
+`weekly/{studentProfileId}/{weeklyReportId}.pdf` in `generated-documents`), so
+the same keys must exist in MinIO.
 
-**Rollback:** in an `mc` container, `mc rb --force local/checklist-documents` and
-`mc rb --force local/moa-documents`, then re-run `docker compose up -d
-minio-init` to recreate the empty buckets. The Supabase side is read-only.
+**Rollback:** in an `mc` container, `mc rb --force` each of
+`local/checklist-documents`, `local/moa-documents` and
+`local/generated-documents`, then re-run `docker compose up -d minio-init` to
+recreate the empty buckets. The Supabase side is read-only.
 
 ---
 
@@ -284,7 +292,7 @@ minio-init` to recreate the empty buckets. The Supabase side is read-only.
 cd /opt/idsms
 # double-check .env.production is complete and NEXTAUTH_URL="https://<domain>"
 docker compose up -d --wait
-docker compose ps          # all four containers healthy
+docker compose ps          # postgres, minio, app healthy; cron and caddy running; minio-init exited 0
 ```
 
 `--wait` blocks until the `app` healthcheck (`/api/health`) passes. Caddy will
@@ -326,6 +334,13 @@ still no user impact.
 
 ## Stage 8 — DNS cutover (last reversible step)
 
+> **Lab computer:** with no inbound ports, the public hostname points at an
+> outbound tunnel (Cloudflare Tunnel or an SLU IT address, decision H2 in the
+> [lab-server plan](phase5-lab-server-hosting.md)) instead of an A record to
+> `<VM_IP>`. The `cloudflared` service is not in `deploy/docker-compose.yml`
+> yet; Caddy's Let's Encrypt step below applies only when ports 80/443 are
+> reachable.
+
 1. Confirm the `<domain>` record TTL is still low (300s) from Stage 0.
 2. Change the `<domain>` A/AAAA record (or CNAME) from Vercel to `<VM_IP>`.
 3. Watch Caddy obtain its certificate:
@@ -353,6 +368,11 @@ there if you revert.
 ## Stage 9 — Re-enable continuous deployment
 
 Only after Stage 8 is stable:
+
+> **Lab computer:** `deploy.yml` deploys over **SSH into the server**
+> (`VM_HOST`, `VM_SSH_USER`, `VM_SSH_PRIVATE_KEY`), which a lab PC with no
+> inbound ports cannot accept. The lab-server plan replaces it with a pull-based
+> deploy script (not written yet). The steps below apply only to a reachable VM.
 
 1. Edit `.github/workflows/deploy.yml` — uncomment the trigger:
 
@@ -398,12 +418,13 @@ Only after Stage 8 is stable:
       (`OPERATIONS.md` §5) archived somewhere durable.
 
 **Rollback during the window:** unpause Supabase, point `<domain>` DNS back to
-Vercel, and lift the write freeze. **Caveat:** the app code now uses MinIO for
-object storage (`src/lib/storage.ts` was rewritten in this migration), so a
-Vercel redeploy from `main` will not talk to Supabase Storage. A true revert past
-Stage 9 requires `git revert` of the storage/compose commits and a
-Supabase-Storage-backed build — treat Stage 10 as the practical point of no
-return.
+Vercel, and lift the write freeze. `src/lib/storage.ts` picks the backend from
+`STORAGE_DRIVER` (`supabase` is the default; `s3` is MinIO), so the Vercel
+project still talks to Supabase Storage as long as its env keeps
+`STORAGE_DRIVER="supabase"` — no code revert is needed. **Caveat:** anything
+written on the lab server after cutover exists only there; reverting means
+losing it or copying it back by hand, so treat the end of Stage 10 as the
+practical point of no return.
 
 **After 2 weeks**, with the VM stable and at least one verified restore drill
 (`OPERATIONS.md` §5.5):

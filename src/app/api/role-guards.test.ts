@@ -52,6 +52,8 @@ const CASES: Case[] = [
   ["weekly-reports/[id]/review", "PATCH", [FA]],
   ["work-plans/[id]/schedule-change/faculty-review", "PATCH", [FA]],
   ["checklist-items/bulk-review", "POST", [FA, DC, SA]],
+  // A company record carries the supervisor's contact: staff only.
+  ["companies/[id]", "GET", [FA, DC, SA]],
   // Intern-only writes: staff can't file or submit on an intern's behalf.
   ["weekly-reports/[id]/submit", "POST", [SI]],
   ["companies/[id]/join", "POST", [SI]],
