@@ -122,8 +122,9 @@ export function BulkImportForm({
         <CardHeader>
           <CardTitle>Upload class list</CardTitle>
           <CardDescription>
-            CSV or Excel. Columns: studentNumber, email, program, requiredHours, and optionally
-            classGroup (e.g. BSIT 4A) to file each row into its own section.
+            CSV or Excel. Columns: studentNumber, email, program, and optionally classGroup (e.g.
+            BSIT 4A) to file each row into its own section. Required hours come from the
+            program&apos;s setting in Settings.
           </CardDescription>
         </CardHeader>
         <CardContent>
