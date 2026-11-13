@@ -23,7 +23,9 @@ export const bulkImportRowSchema = z.object({
   studentNumber: z.string().min(1, "Student number is required"),
   email: emailSchema,
   program: z.enum(Program),
-  requiredHours: z.coerce.number().int().positive(),
+  // Ignored: required hours always come from the program setting (Settings), never the file,
+  // so an old or mistyped figure can't become a student's requirement. Kept so old files parse.
+  requiredHours: z.unknown().optional(),
   // Efficiency item 30: optional section name ("BSIT 4A"); overrides the class group picked.
   classGroup: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),

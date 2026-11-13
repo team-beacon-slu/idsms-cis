@@ -668,6 +668,9 @@ describe("requestPasswordReset", () => {
   });
 });
 
+// The program setting (600) wins over the file's requiredHours (486) on every import.
+const settingHours = jest.fn(async () => 600);
+
 describe("bulkImportStudents", () => {
   it("preserves each row's original spreadsheet row number in the result, including after a skip", async () => {
     prismaMock.user.findUnique
@@ -700,13 +703,19 @@ describe("bulkImportStudents", () => {
       ],
       "class-group-1",
       "semester-1",
-      "admin-1"
+      "admin-1",
+      settingHours
     );
 
     expect(result.totalRows).toBe(2);
     expect(result.results.map((r) => r.rowNumber)).toEqual([3, 7]);
     expect(result.results[0].status).toBe("skipped");
     expect(result.results[1].status).toBe("created");
+    // The file says 486; the BSIT setting (600) is what the student gets.
+    expect(settingHours).toHaveBeenCalledWith("BSIT");
+    expect(prismaMock.studentProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ requiredHours: 600 }) })
+    );
   });
 
   it("skips a row whose student number already exists", async () => {
@@ -727,7 +736,8 @@ describe("bulkImportStudents", () => {
       ],
       "class-group-1",
       "semester-1",
-      "admin-1"
+      "admin-1",
+      settingHours
     );
 
     expect(result.results[0]).toMatchObject({
@@ -753,7 +763,8 @@ describe("bulkImportStudents", () => {
       ],
       "class-group-1",
       "semester-1",
-      "admin-1"
+      "admin-1",
+      settingHours
     );
 
     expect(result.results[0]).toMatchObject({ status: "skipped", reason: "connection reset" });
@@ -1018,7 +1029,8 @@ describe("bulkImportStudents with a class group column", () => {
       ],
       "cg-4a",
       "semester-1",
-      "admin-1"
+      "admin-1",
+      settingHours
     );
 
     expect(prismaMock.studentProfile.create).toHaveBeenCalledWith(
