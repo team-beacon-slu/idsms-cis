@@ -8,6 +8,7 @@ import {
   previewBulkImport,
 } from "@/lib/services/accounts/userService";
 import { prisma } from "@/lib/prisma";
+import { getRequiredHoursConfig } from "@/lib/services/attendance/attendanceService";
 import { parseImportFile } from "@/lib/utils/fileImport";
 import { requireUserApi, requireRole } from "@/lib/auth/session";
 import { notifyAccountsCreatedByEmail } from "@/lib/services/notifications/notificationEvents";
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
       classGroupId,
       semesterId,
       user.id,
+      getRequiredHoursConfig,
       ipAddress
     );
     // FR-NT-01 #1 for each created student (passwords never leave this response).

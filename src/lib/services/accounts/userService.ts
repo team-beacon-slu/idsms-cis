@@ -755,9 +755,12 @@ export async function bulkImportStudents(
   classGroupId: string,
   semesterId: string,
   actingUserId: string,
+  // The program's setting (Settings, else the PRD default); a file's requiredHours is ignored.
+  requiredHoursFor: (program: Program) => Promise<number>,
   ipAddress?: string | null
 ): Promise<BulkImportResult> {
   const results: BulkImportRowResult[] = [];
+  const hoursByProgram = new Map<Program, number>();
 
   for (let index = 0; index < inputRows.length; index++) {
     const { rowNumber, row } = inputRows[index];
@@ -768,6 +771,9 @@ export async function bulkImportStudents(
       // 5 s interactive-transaction timeout and skip a valid student.
       const plaintextPassword = generateDefaultPassword(row.studentNumber);
       const hashedPassword = await hashPassword(plaintextPassword);
+      if (!hoursByProgram.has(row.program))
+        hoursByProgram.set(row.program, await requiredHoursFor(row.program));
+      const requiredHours = hoursByProgram.get(row.program)!;
       const outcome = await prisma.$transaction(async (tx) => {
         const existingEmail = await tx.user.findUnique({ where: { email: row.email } });
         if (existingEmail) {
@@ -796,7 +802,7 @@ export async function bulkImportStudents(
           program: row.program,
           classGroupId: rowGroupId,
           semesterId,
-          requiredHours: row.requiredHours,
+          requiredHours,
         });
 
         await logEvent(
