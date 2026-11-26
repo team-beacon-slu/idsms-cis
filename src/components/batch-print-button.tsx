@@ -7,15 +7,14 @@ import { Button } from "@/components/ui/button";
 
 type Intern = { id: string; name: string };
 
-// Batch print: the approved Weekly Work Reports of the chosen interns as one PDF, opened in a
-// new tab to print. With one intern there is nothing to choose.
+// Batch print: the approved Weekly Work Reports of the chosen interns as one PDF file, saved
+// to open and print. A download, not a new tab: the app's CSP (object-src 'none') carries over
+// to a blob: tab and can blank Chrome's PDF viewer. With one intern there is nothing to choose.
 export function BatchPrintButton({ interns }: { interns: Intern[] }) {
   const [chosen, setChosen] = useState<Set<string>>(new Set(interns.map((i) => i.id)));
   const [pending, setPending] = useState(false);
 
   async function print(ids: string[]) {
-    // Opened before the request so the browser doesn't block it as a pop-up.
-    const tab = window.open("", "_blank");
     setPending(true);
     try {
       const res = await fetch("/api/weekly-reports/batch-pdf", {
@@ -24,16 +23,18 @@ export function BatchPrintButton({ interns }: { interns: Intern[] }) {
         body: JSON.stringify({ studentProfileIds: ids }),
       });
       if (!res.ok) {
-        tab?.close();
         const body = await res.json().catch(() => null);
-        toast.error(body?.error ?? "Could not prepare the PDF");
+        toast.error(body?.error ?? "Could not prepare the PDF. Try fewer interns.");
         return;
       }
       const url = URL.createObjectURL(await res.blob());
-      if (tab) tab.location.href = url;
-      else window.location.href = url;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Weekly Work Reports.pdf";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      toast.success("PDF saved. Open it to print.");
     } catch {
-      tab?.close();
       toast.error("Could not reach the server. Check your connection and try again.");
     } finally {
       setPending(false);

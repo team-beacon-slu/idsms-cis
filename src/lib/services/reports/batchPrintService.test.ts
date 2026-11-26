@@ -24,9 +24,10 @@ import {
 } from "@/lib/services/reports/batchPrintService";
 
 const adviser = { id: "fac-1", role: Role.FACULTY_ADVISER };
-const week = (id: string, name: string, start: string) => ({
+const week = (id: string, name: string, start: string, profileId = `p-${name}`) => ({
   id,
   weekStart: new Date(`${start}T00:00:00Z`),
+  studentProfileId: profileId,
   studentProfile: { fullName: name },
 });
 
@@ -64,6 +65,16 @@ describe("renderWeeklyReportsBatch", () => {
     expect(pdf.indexOf("w-a1")).toBeLessThan(pdf.indexOf("w-b1"));
     expect(pdf.indexOf("w-b1")).toBeLessThan(pdf.indexOf("w-b2"));
     expect(pdf.match(/batch-doc page/g)).toHaveLength(2);
+  });
+
+  it("keeps two interns with the same name apart", async () => {
+    prismaMock.weeklyReport.findMany.mockResolvedValue([
+      week("x1", "Santos, Ana", "2026-09-07", "p-x"),
+      week("y1", "Santos, Ana", "2026-09-07", "p-y"),
+      week("x2", "Santos, Ana", "2026-09-14", "p-x"),
+    ] as never);
+    const pdf = (await renderWeeklyReportsBatch(["p-x", "p-y"], adviser)).toString();
+    expect(pdf.indexOf("x2")).toBeLessThan(pdf.indexOf("y1"));
   });
 
   it("refuses a batch larger than the limit", async () => {

@@ -20,13 +20,19 @@ const PRINTABLE = [WeeklyReportStatus.APPROVED, WeeklyReportStatus.REGARDED];
 export async function listPrintableWeeklyReports(studentProfileIds: string[]) {
   const reports = await prisma.weeklyReport.findMany({
     where: { studentProfileId: { in: studentProfileIds }, status: { in: PRINTABLE } },
-    select: { id: true, weekStart: true, studentProfile: { select: { fullName: true } } },
+    select: {
+      id: true,
+      weekStart: true,
+      studentProfileId: true,
+      studentProfile: { select: { fullName: true } },
+    },
     orderBy: { weekStart: "asc" },
   });
-  // Intern by intern (by name), each intern's weeks in order.
+  // Intern by intern (by name; same names kept apart by id), each intern's weeks in order.
   return reports.sort(
     (a, b) =>
       (a.studentProfile.fullName ?? "").localeCompare(b.studentProfile.fullName ?? "") ||
+      a.studentProfileId.localeCompare(b.studentProfileId) ||
       a.weekStart.getTime() - b.weekStart.getTime()
   );
 }
