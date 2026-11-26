@@ -55,7 +55,7 @@ export function RetentionActions({ id, label }: { id: string; label: string }) {
         onClick={keep}
         aria-label={`Keep ${label}`}
       >
-        {pending ? "Saving…" : "Keep"}
+        {pending ? "Saving..." : "Keep"}
       </Button>
       <PasswordAction
         triggerLabel="Delete permanently"

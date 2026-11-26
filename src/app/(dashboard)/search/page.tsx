@@ -40,7 +40,7 @@ export default async function SearchEntriesPage(props: { searchParams: Promise<{
       {hits === null ? (
         <p className="text-sm text-muted-foreground">
           Search by meaning is off right now (AI assist is switched off for you or for the
-          department).
+          cluster).
         </p>
       ) : (
         <>

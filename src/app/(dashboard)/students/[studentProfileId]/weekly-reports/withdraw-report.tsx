@@ -36,7 +36,7 @@ export function WithdrawReport({ weeklyReportId }: { weeklyReportId: string }) {
       className="cursor-pointer gap-1.5"
     >
       <Undo2 className="size-3.5" aria-hidden="true" />
-      {pending ? "Taking back..." : "Take back to fix"}
+      {pending ? "Withdrawing..." : "Withdraw to edit"}
     </Button>
   );
 }

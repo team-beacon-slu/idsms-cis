@@ -26,7 +26,7 @@ const TYPE_LABEL: Record<CalendarEventType, string> = {
   HOLIDAY: "Holiday",
   DEVIATION: "Approved deviation",
   COMPLETION: "Projected completion",
-  EVENT: "Department event",
+  EVENT: "Cluster event",
 };
 
 const TYPE_TONE: Record<CalendarEventType, Tone> = {
@@ -167,7 +167,7 @@ export function UnifiedCalendarView({
           ? "Your internship calendar"
           : role === "FACULTY_ADVISER"
             ? "Assigned students’ calendar"
-            : "Department calendar"}{" "}
+            : "Cluster calendar"}{" "}
         · Asia/Manila
       </p>
       {completion && (

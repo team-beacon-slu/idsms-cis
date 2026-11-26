@@ -243,7 +243,7 @@ export async function CoordinatorDashboard({
                     )}
                   >
                     <Download className="size-4" aria-hidden="true" />
-                    Weekly summary (Excel)
+                    Export weekly summary
                   </a>
                 )}
               </div>

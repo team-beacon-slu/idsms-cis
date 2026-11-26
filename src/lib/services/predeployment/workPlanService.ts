@@ -91,7 +91,7 @@ export async function reviewWorkPlan(
   ipAddress?: string | null
 ): Promise<WorkPlan> {
   if (actingUser.role !== Role.DEPARTMENT_COORDINATOR && actingUser.role !== Role.SUPER_ADMIN) {
-    throw new ForbiddenError("Only a Department Coordinator can review work plans");
+    throw new ForbiddenError("Only the internship coordinator can review work plans");
   }
 
   const workPlan = await prisma.workPlan.findUniqueOrThrow({ where: { id: workPlanId } });

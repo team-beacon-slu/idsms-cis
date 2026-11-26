@@ -44,7 +44,7 @@ export function WeeklyReportReviewActions({
   flags = [],
 }: {
   weeklyReportId: string;
-  /** The queue's next week, opened after a decision (Approve & next). */
+  /** The queue's next week, opened after a decision (Approve and next). */
   next?: { href: string; intern: string; left: number } | null;
   /** The queue's flags for this week (copy, vague days, ...). */
   flags?: string[];
@@ -99,7 +99,7 @@ export function WeeklyReportReviewActions({
           id="review-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add context for the student, e.g. what needs to be revised…"
+          placeholder="Add context for the student, e.g. what needs to be revised..."
           disabled={isPending}
           className="transition-colors duration-200"
         />
@@ -190,7 +190,7 @@ export function WeeklyReportReviewActions({
               )}
             >
               <Icon className="size-3.5" aria-hidden="true" />
-              {isPending ? "Saving..." : action === "APPROVE" && next ? "Approve & next" : label}
+              {isPending ? "Saving..." : action === "APPROVE" && next ? "Approve and next" : label}
             </Button>
           );
         })}

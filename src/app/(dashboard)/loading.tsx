@@ -2,7 +2,7 @@
 export default function DashboardLoading() {
   return (
     <div role="status" aria-busy="true" className="animate-pulse space-y-6">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">Loading...</span>
       <div className="h-8 w-56 rounded-md bg-muted" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (

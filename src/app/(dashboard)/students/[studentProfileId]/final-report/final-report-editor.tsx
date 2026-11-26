@@ -468,7 +468,7 @@ export function FinalReportEditor({
             >
               <Save className="size-3.5" aria-hidden="true" />
               {pending === "save"
-                ? "Saving…"
+                ? "Saving..."
                 : dirty
                   ? "Save draft (unsaved changes)"
                   : "Save draft"}
@@ -479,7 +479,7 @@ export function FinalReportEditor({
               className="cursor-pointer gap-1.5"
             >
               <Send className="size-3.5" aria-hidden="true" />
-              {pending === "submit" ? "Submitting…" : "Submit for review"}
+              {pending === "submit" ? "Submitting..." : "Submit for review"}
             </Button>
           </>
         )}
@@ -491,7 +491,7 @@ export function FinalReportEditor({
               className="cursor-pointer gap-1.5"
             >
               <FileDown className="size-3.5" aria-hidden="true" />
-              {pending === "pdf" ? "Generating…" : hasPdf ? "Regenerate PDF" : "Generate PDF"}
+              {pending === "pdf" ? "Generating..." : hasPdf ? "Regenerate PDF" : "Generate PDF"}
             </Button>
             {hasPdf && (
               <Button asChild variant="outline" className="cursor-pointer gap-1.5">

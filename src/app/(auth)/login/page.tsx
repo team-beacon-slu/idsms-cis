@@ -19,7 +19,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   INVALID_CREDENTIALS: "Incorrect email or password.",
   ACCOUNT_LOCKED:
     "This account is locked due to too many failed attempts. Try again later or reset your password.",
-  ACCOUNT_INACTIVE: "This account has been deactivated. Contact a Department Coordinator.",
+  ACCOUNT_INACTIVE: "This account has been deactivated. Contact the internship coordinator.",
   // next-auth's code when the beta Google sign-in refuses an account (authOptions signIn).
   AccessDenied:
     "Use your SLU Google account (@slu.edu.ph). If it is yours and still refused, it may be deactivated or locked.",

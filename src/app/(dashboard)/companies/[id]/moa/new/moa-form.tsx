@@ -64,7 +64,7 @@ export function MoaForm({
         <CardTitle>Add MOA record</CardTitle>
         <CardDescription>
           Link the MOA in Google Drive and record its validity. The signed copy stays with the
-          department.
+          cluster.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -122,7 +122,7 @@ export function MoaForm({
             </div>
           </fieldset>
           <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Create MOA record"}
+            {isSubmitting ? "Saving..." : "Add MOA"}
           </Button>
         </form>
       </CardContent>

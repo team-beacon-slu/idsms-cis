@@ -98,7 +98,7 @@ export default async function MyStudentsPage() {
               <Button asChild variant="outline" className="gap-1.5">
                 <Link href="/my-students/checklist" prefetch={false}>
                   <ClipboardCheck className="size-4" aria-hidden="true" />
-                  Class checklist
+                  Open class checklist
                 </Link>
               </Button>
               <Button asChild variant="outline" className="gap-1.5">
@@ -110,7 +110,7 @@ export default async function MyStudentsPage() {
               <Button asChild variant="outline" className="gap-1.5">
                 <a href="/api/compliance/weekly-summary" download>
                   <Download className="size-4" aria-hidden="true" />
-                  Weekly summary (Excel)
+                  Export weekly summary
                 </a>
               </Button>
               <BatchPrintButton

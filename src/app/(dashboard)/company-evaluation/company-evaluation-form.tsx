@@ -208,7 +208,7 @@ export function CompanyEvaluationForm({
           </section>
 
           <Button type="submit" disabled={left > 0 || pending} className="cursor-pointer">
-            {pending ? "Sending…" : "Send evaluation"}
+            {pending ? "Submitting..." : "Submit evaluation"}
           </Button>
           {left > 0 && (
             <p className="text-xs text-muted-foreground" aria-live="polite">

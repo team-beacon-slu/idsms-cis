@@ -98,7 +98,7 @@ export default async function UsersPage(props: {
     <div className="space-y-6">
       <PageHeader
         title="Users"
-        description="Accounts, roles and access across the department."
+        description="Accounts, roles and access across the cluster."
         actions={
           <Button asChild className="cursor-pointer">
             <Link href="/users/import" className="gap-2">

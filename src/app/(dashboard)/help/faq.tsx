@@ -82,19 +82,19 @@ export const COORDINATOR: Faq[] = [
     a: "Open an intern's Checklist and mark each item approved once you have seen the document in Google Classroom.",
   },
   {
-    q: "How do I get a report for the department?",
+    q: "How do I get a report for the cluster?",
     a: "Use Export to Excel or Weekly summary on the dashboard; they follow the semester and program filters you chose.",
   },
 ];
 
 export const ADMIN: Faq[] = [
   {
-    q: "Where are the department-wide rules?",
+    q: "Where are the cluster-wide rules?",
     a: "Settings holds the checklist requirements, required hours, notifications, deductions and AI options.",
   },
   {
     q: "Someone lost access to their account.",
-    a: "On Users, Unlock a locked account, or use Force logout if a device was lost. A forgotten password is reset by the user from the sign-in page.",
+    a: "On Users, Unlock a locked account, or use Force sign-out if a device was lost. A forgotten password is reset by the user from the sign-in page.",
   },
 ];
 

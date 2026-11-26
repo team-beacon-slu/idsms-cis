@@ -93,7 +93,7 @@ export function MergeDuplicates({ group }: { group: Member[] }) {
         {pending
           ? "Merging..."
           : armed
-            ? `Click again to merge into ${keepName} (can't be undone)`
+            ? `Confirm merge into ${keepName} (can't be undone)`
             : "Merge into the selected one"}
       </Button>
     </fieldset>

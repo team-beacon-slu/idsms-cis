@@ -183,7 +183,7 @@ export default async function ReviewQueuePage() {
                     <span className="font-medium text-foreground">{c.intern}</span>
                     <Button asChild size="sm" variant="outline">
                       <Link href={c.href} prefetch={false}>
-                        Validate
+                        Review
                       </Link>
                     </Button>
                   </li>

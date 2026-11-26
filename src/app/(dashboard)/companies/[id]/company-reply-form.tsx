@@ -46,7 +46,7 @@ export function CompanyReplyForm({ companyId, current }: { companyId: string; cu
         onClick={save}
         className="cursor-pointer"
       >
-        {pending ? "Saving…" : "Save reply"}
+        {pending ? "Saving..." : "Save reply"}
       </Button>
     </div>
   );

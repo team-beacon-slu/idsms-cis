@@ -105,7 +105,7 @@ export function PrivacyNoticeBody() {
           database host, and the email service that sends notifications.
         </p>
         <p>
-          <strong>AI assist.</strong> When the department turns it on, AI reads the text of weekly
+          <strong>AI assist.</strong> When the cluster turns it on, AI reads the text of weekly
           reports to give your adviser hints: a day very similar to an earlier one, planned tasks
           not found in your entries, a short set of your own sentences, a phrase worth a look. It
           never decides a grade, an approval or a deduction, and it never rewrites what you wrote.
@@ -197,7 +197,7 @@ export function TermsBody() {
           </li>
           <li>
             Staff use interns&apos; records only to monitor their internship, and never copy,
-            download or share them outside IDSMS-CIS except as the department requires.
+            download or share them outside IDSMS-CIS except as the cluster requires.
           </li>
           <li>Follow your host company&apos;s confidentiality rules in everything you write.</li>
         </ul>

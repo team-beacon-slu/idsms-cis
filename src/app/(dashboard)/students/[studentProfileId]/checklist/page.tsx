@@ -81,7 +81,7 @@ export default async function ChecklistPage(props: {
               <CardTitle>Endorsement letter</CardTitle>
               <CardDescription>
                 {progress.gateSatisfied
-                  ? "Issued by the department once all requirements are approved."
+                  ? "Issued by the cluster once all requirements are approved."
                   : `Available once all ${progress.total} required items are approved.`}
               </CardDescription>
             </div>

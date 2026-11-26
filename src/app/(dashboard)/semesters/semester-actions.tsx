@@ -57,7 +57,7 @@ export function SemesterActions({
             disabled={pending !== null}
             onClick={() => run("archive")}
           >
-            {pending === "archive" ? "Archiving…" : "Archive semester"}
+            {pending === "archive" ? "Archiving..." : "Archive semester"}
           </Button>
           <Button
             size="sm"
@@ -67,7 +67,7 @@ export function SemesterActions({
             disabled={pending !== null}
             onClick={() => setConfirmingArchive(false)}
           >
-            Keep semester
+            Cancel
           </Button>
         </div>
       </div>
@@ -85,7 +85,7 @@ export function SemesterActions({
           aria-label={`Activate ${name}`}
           onClick={() => run("activate")}
         >
-          {pending === "activate" ? "Activating…" : "Activate"}
+          {pending === "activate" ? "Activating..." : "Activate"}
         </Button>
       )}
       <Button

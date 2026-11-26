@@ -62,7 +62,7 @@ export default async function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Settings"
-        description="Department-wide rules: what interns need, how hours count, and what IDSMS sends."
+        description="Cluster-wide rules: what interns need, how hours count, and what IDSMS sends."
       />
 
       {/* Masonry columns: settings cards differ in height, so they stack without ragged rows. */}
@@ -184,7 +184,7 @@ async function CoordinatorSettings() {
   const requiredHours = await requiredHoursRows();
   return (
     <div className="max-w-3xl space-y-6">
-      <PageHeader title="Settings" description="Rules you set for the department." />
+      <PageHeader title="Settings" description="Rules you set for the cluster." />
       <Card>
         <CardHeader>
           <CardTitle className="text-lg text-brand-900">Required internship hours</CardTitle>
