@@ -121,9 +121,17 @@ describe("matching by program", () => {
     { id: "old", programs: [], required: true, active: false },
   ];
 
+  const allRows = ["all", "cs", "opt", "old", null];
+
   it("gates only active, required ones for the intern's program", () => {
-    expect(requiredCustomIds(customs, "BSIT")).toEqual(["all"]);
-    expect(requiredCustomIds(customs, "BSCS")).toEqual(["all", "cs"]);
+    expect(requiredCustomIds(customs, "BSIT", allRows)).toEqual(["all"]);
+    expect(requiredCustomIds(customs, "BSCS", allRows)).toEqual(["all", "cs"]);
+  });
+
+  it("never gates an intern on a requirement they have no checklist row for", () => {
+    // e.g. the intern was in an inactive semester when the requirement was added
+    expect(requiredCustomIds(customs, "BSCS", ["cs", null])).toEqual(["cs"]);
+    expect(requiredCustomIds(customs, "BSIT", [])).toEqual([]);
   });
 
   it("gives a newly imported intern a row for each active one of their program", async () => {

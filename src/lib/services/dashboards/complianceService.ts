@@ -247,7 +247,11 @@ export async function getComplianceRows(
         classType: s.classGroup?.classType ?? null,
         startBeforeMoaAllowed: s.startBeforeMoaAllowed ?? false,
       },
-      requiredCustomIds(customs, s.program)
+      requiredCustomIds(
+        customs,
+        s.program,
+        s.checklistItems.map((i) => i.customRequirementId)
+      )
     );
     const checklistApproved = s.checklistItems.filter(
       (i) => i.status === "APPROVED" && gate.has(itemKey(i))

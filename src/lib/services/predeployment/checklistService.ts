@@ -181,7 +181,15 @@ export async function isEndorsementGateSatisfied(
     loadActiveCustomRequirements(client),
   ]);
   const approved = new Set(items.filter((i) => i.status === ChecklistStatus.APPROVED).map(itemKey));
-  const { gate } = checklistRequirements(required, ctx, requiredCustomIds(customs, program));
+  const { gate } = checklistRequirements(
+    required,
+    ctx,
+    requiredCustomIds(
+      customs,
+      program,
+      items.map((i) => i.customRequirementId)
+    )
+  );
   return [...gate].every((t) => approved.has(t));
 }
 
@@ -212,7 +220,11 @@ export async function getChecklistProgress(studentProfileId: string): Promise<Ch
   const { applicable, gate } = checklistRequirements(
     required,
     ctx,
-    requiredCustomIds(customs, program)
+    requiredCustomIds(
+      customs,
+      program,
+      rows.map((r) => r.customRequirementId)
+    )
   );
   // Items that don't apply to this intern (e.g. a local company's proof of legitimacy) are hidden.
   // Custom rows exist only for interns they apply to, and stay visible once retired.

@@ -2,10 +2,9 @@
 -- adds to the pre-deployment checklist beyond the built-in types. A custom item is a
 -- checklist row with requirement_type 'CUSTOM' and custom_requirement_id set. Retired
 -- requirements stay (active = false) so approved items keep their history.
--- After 001-032. Additive; safe to re-run. Apply in TWO runs: Postgres cannot use a new
--- enum value in the transaction that added it.
+-- After 001-032. Safe to re-run. Apply this file, then 034 as a SEPARATE run: Postgres
+-- cannot use the new enum value 'CUSTOM' in the transaction that added it.
 
--- Run 1
 alter type "ChecklistRequirementType" add value if not exists 'CUSTOM';
 
 create table if not exists public.checklist_custom_requirements (
@@ -39,15 +38,3 @@ create unique index if not exists pre_deployment_checklist_items_custom_key
 alter table public.pre_deployment_checklist_items
   drop constraint if exists pre_deployment_checklist_items_student_profile_id_requirement_type_key;
 drop index if exists public.pre_deployment_checklist_items_student_profile_id_requirement_type_key;
-
--- Run 2: a CUSTOM row always names its requirement, and a built-in row never does.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'pre_deployment_checklist_items_custom_check'
-  ) then
-    alter table public.pre_deployment_checklist_items
-      add constraint pre_deployment_checklist_items_custom_check
-      check ((requirement_type = 'CUSTOM') = (custom_requirement_id is not null));
-  end if;
-end $$;

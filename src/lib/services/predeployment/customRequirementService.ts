@@ -26,8 +26,18 @@ const appliesTo = (c: Pick<Custom, "programs">, program: Program) =>
   c.programs.length === 0 || c.programs.includes(program);
 
 // Pure: the custom requirements that gate an intern of this program's endorsement letter.
-export function requiredCustomIds(customs: Custom[], program: Program): string[] {
-  return customs.filter((c) => c.active && c.required && appliesTo(c, program)).map((c) => c.id);
+// Required custom requirements for one intern. Only those the intern has a checklist row for
+// count toward the gate: without a row there is nothing to approve, and the intern would be
+// blocked for good (rows are added for the active semester's interns and on import).
+export function requiredCustomIds(
+  customs: Custom[],
+  program: Program,
+  ownRows: Iterable<string | null>
+): string[] {
+  const own = new Set(ownRows);
+  return customs
+    .filter((c) => c.active && c.required && appliesTo(c, program) && own.has(c.id))
+    .map((c) => c.id);
 }
 
 export function loadActiveCustomRequirements(client: Client = prisma): Promise<Custom[]> {
