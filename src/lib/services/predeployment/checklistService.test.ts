@@ -314,6 +314,10 @@ describe("bulkApproveChecklistItems", () => {
     prismaMock.preDeploymentChecklistItem.update.mockResolvedValue(
       baseItem({ id: "a", status: ChecklistStatus.APPROVED }) as never
     );
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([
+      { id: "a" },
+      { id: "b" },
+    ] as never);
 
     const result = await bulkApproveChecklistItems(["a", "b"], staffUser);
     expect(result.approved).toEqual([{ id: "a", studentProfileId: "profile-1" }]);
@@ -323,6 +327,16 @@ describe("bulkApproveChecklistItems", () => {
     expect(prismaMock.preDeploymentChecklistItem.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ uploadedAt: null }) })
     );
+  });
+
+  it("never approves a returned (or already approved) item in bulk, keeping its note", async () => {
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([] as never); // none pending
+    const result = await bulkApproveChecklistItems(["returned-1"], staffUser);
+    expect(result.approved).toEqual([]);
+    expect(result.failed).toEqual([
+      { id: "returned-1", error: "Only items waiting for review can be approved together" },
+    ]);
+    expect(prismaMock.preDeploymentChecklistItem.update).not.toHaveBeenCalled();
   });
 });
 

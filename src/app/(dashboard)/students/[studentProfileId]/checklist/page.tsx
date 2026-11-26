@@ -114,7 +114,7 @@ export default async function ChecklistPage(props: {
             </div>
             {canReview && (
               <ApproveAllButton
-                itemIds={progress.items.filter((i) => i.status !== "APPROVED").map((i) => i.id)}
+                itemIds={progress.items.filter((i) => i.status === "PENDING").map((i) => i.id)}
               />
             )}
           </div>

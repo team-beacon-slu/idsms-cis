@@ -361,7 +361,21 @@ export async function bulkApproveChecklistItems(
 }> {
   const approved: { id: string; studentProfileId: string }[] = [];
   const failed: { id: string; error: string }[] = [];
+  // Only items waiting for review are approved together: approving a returned item here
+  // would silently drop the adviser's note (one-at-a-time Approve stays available for that).
+  const waiting = new Set(
+    (
+      await prisma.preDeploymentChecklistItem.findMany({
+        where: { id: { in: itemIds }, status: ChecklistStatus.PENDING },
+        select: { id: true },
+      })
+    ).map((i) => i.id)
+  );
   for (const id of itemIds) {
+    if (!waiting.has(id)) {
+      failed.push({ id, error: "Only items waiting for review can be approved together" });
+      continue;
+    }
     try {
       const item = await reviewChecklistItem(id, "APPROVE", undefined, actingUser, ipAddress);
       approved.push({ id, studentProfileId: item.studentProfileId });

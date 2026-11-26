@@ -7,8 +7,9 @@ import { CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { sendJson } from "@/lib/utils/sendJson";
 
-// Approve every item of one intern that is not approved yet, through the same bulk route
-// as the class grid. Items the gate refuses (work plan, MOA) stay and are named in the toast.
+// Approve every item of one intern that is waiting for review, through the same bulk route
+// as the class grid. Returned items are left for one-at-a-time review so their notes stay.
+// Items the gate refuses (work plan, MOA) stay and are named in the toast.
 export function ApproveAllButton({ itemIds }: { itemIds: string[] }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
