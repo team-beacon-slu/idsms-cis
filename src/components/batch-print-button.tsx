@@ -11,7 +11,8 @@ type Intern = { id: string; name: string };
 // to open and print. A download, not a new tab: the app's CSP (object-src 'none') carries over
 // to a blob: tab and can blank Chrome's PDF viewer. With one intern there is nothing to choose.
 export function BatchPrintButton({ interns }: { interns: Intern[] }) {
-  const [chosen, setChosen] = useState<Set<string>>(new Set(interns.map((i) => i.id)));
+  // Starts empty: a whole class (43 interns, 130 weeks in the beta) is over the 60-report limit.
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState(false);
 
   async function print(ids: string[]) {
