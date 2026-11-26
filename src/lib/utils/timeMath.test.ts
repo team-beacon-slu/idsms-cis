@@ -1,6 +1,5 @@
 import {
   computeDayCredit,
-  dayExceptions,
   dayGaps,
   formatHrsMins,
   overlapMinutes,
@@ -214,69 +213,32 @@ describe("computeDayCredit — legacy fallback", () => {
   });
 });
 
-describe("8-hour regular day (panel, Nov 2026)", () => {
-  // A 9-hour shift: 08:00 to 18:00 with a 1-hour break.
-  const long = scheduleShift({
+// Panel revisions (Nov 2026), decided by the team: the regular day is the hours per day in
+// the intern's approved work plan; time beyond it is overtime (accepted, 30 minutes or more).
+describe("regular day follows the approved work plan", () => {
+  const nineHourPlan = scheduleShift({
     startTime: "08:00",
     endTime: "18:00",
     breakMinutes: 60,
     hoursPerDay: 9,
   });
-  const longDay = (over: Partial<DayCreditInput>) =>
-    day({ shift: long, scheduledHours: 9, ...over });
 
-  it("credits at most 8 hours for a full long shift", () => {
-    const c = computeDayCredit(longDay({ ranges: [["08:00", "18:00"]] }));
-    expect(c.baseHours).toBe(8);
-    expect(c.creditedHours).toBe(8);
-    expect(c.extraMinutes).toBe(60);
-  });
-
-  it("credits the hour beyond 8 only as accepted overtime", () => {
-    const c = computeDayCredit(longDay({ ranges: [["08:00", "18:00"]], approvedOtMinutes: 60 }));
-    expect(c.creditedOtHours).toBe(1);
-    expect(c.creditedHours).toBe(9);
-  });
-
-  it("does not credit less than 30 minutes beyond 8 hours", () => {
+  it("credits a 9-hour work plan day in full as regular time", () => {
     const c = computeDayCredit(
-      day({
-        shift: scheduleShift({
-          startTime: "08:00",
-          endTime: "17:20",
-          breakMinutes: 60,
-          hoursPerDay: 8.33,
-        }),
-        scheduledHours: 8.33,
-        ranges: [["08:00", "17:20"]],
-        approvedOtMinutes: 20,
-      })
+      day({ shift: nineHourPlan, scheduledHours: 9, ranges: [["08:00", "18:00"]] })
     );
+    expect(c.creditedHours).toBe(9);
+    expect(c.creditedOtHours).toBe(0);
+  });
+
+  it("credits an 8-hour plan at 8 hours and the rest only as accepted overtime", () => {
+    const extra = day({ ranges: [["08:00", "18:00"]] });
+    expect(computeDayCredit(extra).creditedHours).toBe(8);
+    expect(computeDayCredit({ ...extra, approvedOtMinutes: 60 }).creditedHours).toBe(9);
+  });
+
+  it("does not credit overtime under 30 minutes", () => {
+    const c = computeDayCredit(day({ ranges: [["08:00", "17:20"]], approvedOtMinutes: 20 }));
     expect(c.creditedHours).toBe(8);
-  });
-
-  it("asks for an overtime report for the time beyond 8 hours", () => {
-    expect(dayExceptions([["08:00", "18:00"]], long, true, 9)).toEqual([
-      { kind: "overtime", start: "17:00", end: "18:00", minutes: 60 },
-    ]);
-  });
-
-  it("joins shift time beyond 8 hours with overtime after the shift", () => {
-    expect(dayExceptions([["08:00", "19:00"]], long, true, 9)).toEqual([
-      { kind: "overtime", start: "17:00", end: "19:00", minutes: 120 },
-    ]);
-  });
-
-  it("leaves an 8-hour shift as before", () => {
-    expect(dayExceptions([["08:00", "17:00"]], shift, true, 8)).toEqual([]);
-    expect(computeDayCredit(day({ ranges: [["08:00", "17:00"]] })).creditedHours).toBe(8);
-  });
-
-  it("caps a legacy schedule without times at 8 hours", () => {
-    const c = computeDayCredit(day({ shift: null, scheduledHours: 9, actualHours: 9 }));
-    expect(c.baseHours).toBe(8);
-    expect(dayExceptions([["08:00", "18:00"]], null, true, 9)).toEqual([
-      { kind: "overtime", start: null, end: null, minutes: 120 },
-    ]);
   });
 });

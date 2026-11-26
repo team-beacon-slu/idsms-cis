@@ -1,4 +1,3 @@
-import { MAX_REGULAR_DAY_MINUTES } from "./timeMath";
 // Projected OJT completion: walk forward over the intern's working days until the
 // remaining hours are covered. Shared by the live per-intern projection and the
 // staff calendars, which project many interns at once.
@@ -16,9 +15,7 @@ export function projectCompletionDate(
   // The latest approved plan already reflects an approved schedule change from today onward.
 
   const workingDays = new Set(scheduleConfig.daysOfWeek);
-  // A regular day credits at most 8 hours (timeMath), so longer schedules don't finish sooner.
-  const creditedPerDay = Math.min(scheduleConfig.hoursPerDay, MAX_REGULAR_DAY_MINUTES / 60);
-  const daysNeeded = Math.ceil(remainingHours / creditedPerDay);
+  const daysNeeded = Math.ceil(remainingHours / scheduleConfig.hoursPerDay);
 
   let projected = now;
   let workingDaysCounted = 0;
