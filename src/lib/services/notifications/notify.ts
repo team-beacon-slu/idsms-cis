@@ -32,6 +32,7 @@ export type NotificationTrigger =
   | "AI_JOB_OFF"
   | "RETRACTION_FILED"
   | "RETRACTION_NOTED"
+  | "SUPERVISOR_CHANGED"
   | "SUBMITTED_FOR_REVIEW"
   | "REVIEW_DIGEST";
 

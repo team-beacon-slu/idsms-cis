@@ -405,13 +405,33 @@ model CompanyPlacement {
   retractionNotedById String?   @map("retraction_noted_by") @db.Uuid
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
-  company        Company        @relation(fields: [companyId], references: [id])
+  studentProfile StudentProfile        @relation(fields: [studentProfileId], references: [id])
+  company        Company               @relation(fields: [companyId], references: [id])
+  supervisors    PlacementSupervisor[]
 
   @@index([studentProfileId])
   @@index([companyId])
   @@index([retractionNotedById])
   @@map("company_placements")
+}
+
+// A change of supervisor during a placement (032), dated. The supervisor on a date is the
+// latest row on or before it, else the company's own supervisor.
+model PlacementSupervisor {
+  id                 String   @id @default(uuid()) @db.Uuid
+  placementId        String   @map("placement_id") @db.Uuid
+  supervisorName     String   @map("supervisor_name")
+  supervisorPosition String?  @map("supervisor_position")
+  supervisorContact  String   @map("supervisor_contact")
+  effectiveFrom      DateTime @map("effective_from") @db.Date
+  createdBy          String?  @map("created_by") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  placement CompanyPlacement @relation(fields: [placementId], references: [id])
+
+  @@index([placementId, effectiveFrom])
+  @@index([createdBy])
+  @@map("placement_supervisors")
 }
 
 // SAMCIS's company visit before the internship ends (025).

@@ -1,3 +1,4 @@
+import { hostOn } from "@/lib/services/predeployment/placementService";
 import { prisma } from "@/lib/prisma";
 import { getHolidayCalendarForStudent } from "@/lib/services/attendance/attendanceService";
 import {
@@ -127,7 +128,9 @@ export async function loadWeeklyReportDocumentData(
       positionTitle: profile.positionTitle,
       requiredHours: profile.requiredHours,
     },
-    company: profile.company,
+    // The host and supervisor of that week, so a reprint after a transfer or a change of
+    // supervisor still shows who signed for it; the current company when no placement covers it.
+    company: (await hostOn(report.studentProfileId, report.weekStart)) ?? profile.company,
     entries: report.dailyEntries.map((e) => ({
       reportDate: e.reportDate,
       actualHours: e.actualHours == null ? null : Number(e.actualHours),

@@ -162,3 +162,89 @@ export function VisitForm({ companyId }: { companyId: string }) {
     </form>
   );
 }
+
+// A change of supervisor during the placement, from the day it happened (panel revisions).
+export function SupervisorChangeForm({ placementId }: { placementId: string }) {
+  const router = useRouter();
+  const [supervisorName, setName] = useState("");
+  const [supervisorPosition, setPosition] = useState("");
+  const [supervisorContact, setContact] = useState("");
+  const [effectiveFrom, setFrom] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    const res = await sendJson(`/api/placements/${placementId}/supervisor`, {
+      method: "POST",
+      body: { supervisorName, supervisorPosition, supervisorContact, effectiveFrom },
+    });
+    setPending(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("New supervisor saved; your adviser was told");
+    setName("");
+    setPosition("");
+    setContact("");
+    setFrom("");
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="sup-name">New supervisor&apos;s full name</Label>
+          <Input
+            id="sup-name"
+            required
+            minLength={2}
+            maxLength={200}
+            value={supervisorName}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sup-position">Position (optional)</Label>
+          <Input
+            id="sup-position"
+            maxLength={200}
+            value={supervisorPosition}
+            onChange={(e) => setPosition(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sup-contact">Email or phone</Label>
+          <Input
+            id="sup-contact"
+            required
+            minLength={3}
+            maxLength={200}
+            value={supervisorContact}
+            onChange={(e) => setContact(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sup-from">Supervisor from</Label>
+          <Input
+            id="sup-from"
+            type="date"
+            required
+            value={effectiveFrom}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </div>
+      </div>
+      <Button
+        type="submit"
+        variant="outline"
+        disabled={pending}
+        className="cursor-pointer disabled:cursor-not-allowed"
+      >
+        {pending ? "Saving..." : "Save new supervisor"}
+      </Button>
+    </form>
+  );
+}
