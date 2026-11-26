@@ -18,6 +18,7 @@ import {
 import type { Metadata } from "next";
 import { ChevronDown, ClipboardCheck, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BatchPrintButton } from "@/components/batch-print-button";
 import { isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import { requestsAwaitingReviewByStudent } from "@/lib/services/dashboards/attentionService";
 import { displayName } from "@/lib/utils/displayName";
@@ -112,6 +113,12 @@ export default async function MyStudentsPage() {
                   Weekly summary (Excel)
                 </a>
               </Button>
+              <BatchPrintButton
+                interns={students.map((s) => ({
+                  id: s.id,
+                  name: displayName({ fullName: s.fullName, email: s.user.email }),
+                }))}
+              />
             </div>
           )
         }
