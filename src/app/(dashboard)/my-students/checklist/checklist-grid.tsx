@@ -40,6 +40,20 @@ export function ChecklistGrid({ rows, columns }: { rows: GridRow[]; columns: str
       .filter((i) => i.uploaded && i.status === "PENDING")
       .map((i) => i.id)
   );
+  // Ids a checkbox can select (pending items) in one column or one intern's row.
+  const pendingIn = (items: Array<{ id: string; status: string } | undefined>) =>
+    items.filter((i) => i?.status === "PENDING").map((i) => i!.id);
+  const columnIds = (c: string) => pendingIn(rows.map((r) => r.items[c]));
+  const rowIds = (r: GridRow) => pendingIn(Object.values(r.items));
+  const allSelected = (ids: string[]) => ids.length > 0 && ids.every((id) => selected.has(id));
+  // Tick a whole column or row; when every box in it is ticked already, untick them.
+  const toggleGroup = (ids: string[]) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (ids.every((id) => next.has(id))) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
   const toggle = (id: string) =>
     setSelected((s) => {
       const next = new Set(s);
@@ -117,29 +131,56 @@ export function ChecklistGrid({ rows, columns }: { rows: GridRow[]; columns: str
               <th scope="col" className="sticky left-0 bg-card px-3 py-2 text-left font-medium">
                 Intern
               </th>
-              {columns.map((c) => (
-                <th
-                  key={c}
-                  scope="col"
-                  title={requirementLabel(c)}
-                  className="px-2 py-2 text-center font-medium whitespace-nowrap"
-                >
-                  {SHORT[c] ?? requirementLabel(c)}
-                </th>
-              ))}
+              {columns.map((c) => {
+                const ids = columnIds(c);
+                return (
+                  <th
+                    key={c}
+                    scope="col"
+                    title={requirementLabel(c)}
+                    className="px-2 py-2 text-center font-medium whitespace-nowrap"
+                  >
+                    <label className="inline-flex min-h-10 cursor-pointer flex-col items-center justify-center gap-0.5">
+                      <span>{SHORT[c] ?? requirementLabel(c)}</span>
+                      <input
+                        type="checkbox"
+                        checked={allSelected(ids)}
+                        disabled={pending || ids.length === 0}
+                        onChange={() => toggleGroup(ids)}
+                        className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
+                      />
+                      <span className="sr-only">
+                        Select all {requirementLabel(c)} items ({ids.length})
+                      </span>
+                    </label>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((r) => (
               <tr key={r.studentId}>
                 <th scope="row" className="sticky left-0 bg-card px-3 py-2 text-left font-medium">
-                  <Link
-                    href={`/students/${r.studentId}/checklist`}
-                    prefetch={false}
-                    className="underline-offset-4 hover:underline"
-                  >
-                    {r.name}
-                  </Link>
+                  <span className="flex items-center gap-2">
+                    <label className="inline-flex min-h-10 min-w-6 cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={allSelected(rowIds(r))}
+                        disabled={pending || rowIds(r).length === 0}
+                        onChange={() => toggleGroup(rowIds(r))}
+                        className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
+                      />
+                      <span className="sr-only">Select all items for {r.name}</span>
+                    </label>
+                    <Link
+                      href={`/students/${r.studentId}/checklist`}
+                      prefetch={false}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {r.name}
+                    </Link>
+                  </span>
                 </th>
                 {columns.map((c) => {
                   const item = r.items[c];

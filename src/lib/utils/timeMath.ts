@@ -5,6 +5,11 @@ import { z } from "zod";
 export const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24-hour)");
 
 const MIN_CREDITED_OT_MINUTES = 30;
+// The panel (final defense, Nov 2026): a regular day credits at most 8 hours; time beyond it
+// counts only as accepted overtime of at least 30 minutes, like time outside the shift.
+export const MAX_REGULAR_DAY_MINUTES = 8 * 60;
+const regularCapMin = (scheduledHours: number) =>
+  Math.min(Math.round(scheduledHours * 60), MAX_REGULAR_DAY_MINUTES);
 const DAY_MIN = 24 * 60;
 
 export function parseHHMM(t: string): number {
@@ -136,6 +141,16 @@ export interface DayException {
   minutes: number;
 }
 
+// Time worked inside the shift, less the part of the break not already left unworked.
+function inShiftCredit(line: Array<[number, number]>, shift: Shift) {
+  const window: [number, number] = [shift.startMin, shift.endMin];
+  const inWindow = line.reduce((sum, r) => sum + overlapMinutes(r, window), 0);
+  // Unworked time inside the shift already counts as (part of) the break.
+  const unworked = shift.endMin - shift.startMin - inWindow;
+  const breakLeft = Math.max(0, shift.breakMinutes - unworked);
+  return { inWindow, credit: Math.max(0, inWindow - breakLeft) };
+}
+
 // What makes a worked day differ from the schedule, read straight from its times: late
 // arrival and early leave (dayGaps) and overtime before the shift or after it. A day off
 // worked is overtime in full. The weekly report asks for a reason only when this is non-empty.
@@ -155,7 +170,7 @@ export function dayExceptions(
   }
   if (!shift) {
     // No shift times (older schedules): compare the hours worked with the hours scheduled.
-    const extra = worked - Math.round(scheduledHours * 60);
+    const extra = worked - regularCapMin(scheduledHours);
     if (extra > 0) return [{ kind: "overtime", start: null, end: null, minutes: extra }];
     if (extra < 0) return [{ kind: "early", start: null, end: null, minutes: -extra }];
     return [];
@@ -172,12 +187,17 @@ export function dayExceptions(
       minutes: shift.startMin - first,
     });
   }
-  if (last > shift.endMin) {
+  // A shift longer than 8 hours: its last worked minutes beyond 8 are overtime too, joined
+  // with any overtime after the shift.
+  const overCap = inShiftCredit(line, shift).credit - regularCapMin(scheduledHours);
+  const capEnd = Math.min(last, shift.endMin);
+  if (last > shift.endMin || overCap > 0) {
+    const inShiftOt = Math.max(0, overCap);
     out.push({
       kind: "overtime",
-      start: toHHMM(shift.endMin),
-      end: toHHMM(last),
-      minutes: last - shift.endMin,
+      start: toHHMM(capEnd - inShiftOt),
+      end: toHHMM(Math.max(last, capEnd)),
+      minutes: Math.max(0, last - shift.endMin) + inShiftOt,
     });
   }
   return out;
@@ -209,22 +229,19 @@ export function computeDayCredit(input: DayCreditInput): DayCredit {
   const workedMin = ranges.length
     ? ranges.reduce((sum, [a, b]) => sum + (b - a), 0)
     : Math.round(Number(input.actualHours ?? 0) * 60);
-  const capMin = input.scheduledDay ? input.scheduledHours * 60 : 0;
+  const capMin = input.scheduledDay ? regularCapMin(input.scheduledHours) : 0;
 
   let baseMin: number;
   let tardy = false;
   let earlyLeave = false;
   const shift = input.shift;
   if (shift && ranges.length && input.scheduledDay) {
-    const window: [number, number] = [shift.startMin, shift.endMin];
-    const inWindow = ranges.reduce((sum, r) => sum + overlapMinutes(r, window), 0);
-    // Unworked time inside the shift already counts as (part of) the break.
-    const unworked = shift.endMin - shift.startMin - inWindow;
-    const breakLeft = Math.max(0, shift.breakMinutes - unworked);
-    baseMin = Math.min(Math.max(0, inWindow - breakLeft), capMin);
+    const { inWindow, credit } = inShiftCredit(ranges, shift);
+    baseMin = Math.min(credit, capMin);
     tardy = ranges[0][0] > shift.startMin;
     earlyLeave = ranges[ranges.length - 1][1] < shift.endMin;
-    const extraMin = workedMin - inWindow;
+    // Outside the shift, plus shift time beyond the 8-hour cap: overtime if accepted.
+    const extraMin = workedMin - inWindow + Math.max(0, credit - capMin);
     return finish(workedMin, baseMin, extraMin, tardy, earlyLeave, input.approvedOtMinutes);
   }
 

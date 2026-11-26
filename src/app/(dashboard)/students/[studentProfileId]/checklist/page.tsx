@@ -18,6 +18,7 @@ import { StatCard, StatStrip } from "@/components/stat-card";
 import { requirementLabel } from "@/lib/utils/requirementLabel";
 import { StatusBadge } from "@/components/status-badge";
 import { getEndorsementLetterDocument } from "@/lib/services/reports/documentService";
+import { ApproveAllButton } from "./approve-all-button";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { EndorsementLetterActions } from "./endorsement-letter-actions";
 import { StartBeforeMoa } from "./start-before-moa";
@@ -111,6 +112,11 @@ export default async function ChecklistPage(props: {
                   : `${progress.approvedCount} of ${progress.total} approved.`}
               </CardDescription>
             </div>
+            {canReview && (
+              <ApproveAllButton
+                itemIds={progress.items.filter((i) => i.status !== "APPROVED").map((i) => i.id)}
+              />
+            )}
           </div>
           <div
             className="h-2 w-full overflow-hidden rounded-full bg-muted"
