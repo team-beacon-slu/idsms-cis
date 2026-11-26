@@ -51,6 +51,7 @@ import type { AiHints as AiHintsData } from "@/lib/ai/processing";
 import { GenerateWeekButton } from "./generate-week-button";
 import { NotStartedWeek, WeekSection } from "./week-sections";
 import { ReportPdfActions } from "./report-pdf-actions";
+import { BatchPrintButton } from "@/components/batch-print-button";
 import { QuickApprove } from "./quick-approve";
 import { WithdrawReport } from "./withdraw-report";
 import type { Metadata } from "next";
@@ -418,6 +419,13 @@ export default async function WeeklyReportsPage(props: {
       <PageHeader
         title="Weekly reports"
         description="Daily accomplishments for each week. Due every Tuesday."
+        actions={
+          reports.some((r) => r.status === "APPROVED" || r.status === "REGARDED") && (
+            <BatchPrintButton
+              interns={[{ id: params.studentProfileId, name: profile?.fullName ?? "" }]}
+            />
+          )
+        }
       />
       {isOwner && reports.length === 0 && (
         <details className="rounded-lg border bg-card px-4 py-3 text-sm">

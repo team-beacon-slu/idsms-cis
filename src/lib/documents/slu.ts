@@ -62,6 +62,28 @@ ${body}
 </html>`;
 }
 
+// Batch print: several documents from samcisDocument (same CSS) as one, each starting on a
+// new page. The first document's head is kept; only the bodies are joined.
+export function combineDocuments(title: string, documents: string[]): string {
+  if (documents.length === 0) throw new Error("Nothing to combine");
+  const body = (html: string) => {
+    const match = /<body>([\s\S]*)<\/body>/.exec(html);
+    if (!match) throw new Error("Not a full HTML document");
+    return match[1];
+  };
+  const head = /<head>[\s\S]*<\/head>/.exec(documents[0])?.[0] ?? "";
+  const sections = documents
+    .map((d, i) => `<section class="batch-doc${i > 0 ? " page" : ""}">${body(d)}</section>`)
+    .join("\n");
+  return `<!doctype html>
+<html lang="en">
+${head.replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`)}
+<body>
+${sections}
+</body>
+</html>`;
+}
+
 // --- File names (OJT Documentation Guidelines, "Submission (electronic)") ---
 
 const lettersOnly = (s: string) => s.normalize("NFD").replace(/[^A-Za-z]/g, "");

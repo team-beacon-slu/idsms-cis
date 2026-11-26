@@ -1,4 +1,22 @@
-import { nameParts, sluFileName } from "@/lib/documents/slu";
+import { combineDocuments, nameParts, samcisDocument, sluFileName } from "@/lib/documents/slu";
+
+describe("combineDocuments (batch print)", () => {
+  it("keeps one head and starts every later document on a new page", () => {
+    const html = combineDocuments("Batch", [
+      samcisDocument("A", "<p>first</p>"),
+      samcisDocument("B", "<p>second</p>"),
+    ]);
+    expect(html.match(/<head>/g)).toHaveLength(1);
+    expect(html.match(/<body>/g)).toHaveLength(1);
+    expect(html).toContain("<title>Batch</title>");
+    expect(html).toMatch(/<section class="batch-doc">[\s\S]*first[\s\S]*<\/section>/);
+    expect(html).toMatch(/<section class="batch-doc page">[\s\S]*second/);
+  });
+
+  it("refuses an empty batch", () => {
+    expect(() => combineDocuments("Batch", [])).toThrow();
+  });
+});
 
 describe("SLU file names (OJT Documentation Guidelines)", () => {
   it("splits 'Last, First M.' and drops middle initials and spaces", () => {
