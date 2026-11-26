@@ -4,7 +4,9 @@ import { Role } from "@prisma/client";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
 import { ForbiddenError } from "@/lib/services/accounts/userService";
 import {
+  changeSupervisor,
   fileRetraction,
+  hostForWeek,
   noteRetraction,
   PlacementStateError,
 } from "@/lib/services/predeployment/placementService";
@@ -100,5 +102,111 @@ describe("noteRetraction", () => {
       retractionFiledAt: null,
     } as never);
     await expect(noteRetraction("pl-1", coordinator)).rejects.toThrow(PlacementStateError);
+  });
+});
+
+describe("changeSupervisor", () => {
+  const open = {
+    studentProfileId: "profile-1",
+    startedOn: d("2026-06-01"),
+    endedOn: null,
+    company: { name: "Acme" },
+  };
+  const input = {
+    supervisorName: "Rosa Reyes",
+    supervisorContact: "rosa@acme.test",
+    effectiveFrom: "2026-07-01",
+  };
+
+  it("records the new supervisor from the given day and tells the staff", async () => {
+    prismaMock.companyPlacement.findUnique.mockResolvedValue(open as never);
+    prismaMock.placementSupervisor.create.mockResolvedValue({ id: "ps-1" } as never);
+    await changeSupervisor("pl-1", input, student);
+    expect(prismaMock.placementSupervisor.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        placementId: "pl-1",
+        supervisorName: "Rosa Reyes",
+        effectiveFrom: d("2026-07-01"),
+        createdBy: "student-1",
+      }),
+    });
+    expect(prismaMock.auditLog.create).toHaveBeenCalled();
+  });
+
+  it("refuses an ended placement and a day before the placement started", async () => {
+    prismaMock.companyPlacement.findUnique.mockResolvedValue({
+      ...open,
+      endedOn: d("2026-07-15"),
+    } as never);
+    await expect(changeSupervisor("pl-1", input, student)).rejects.toThrow(PlacementStateError);
+    prismaMock.companyPlacement.findUnique.mockResolvedValue(open as never);
+    await expect(
+      changeSupervisor("pl-1", { ...input, effectiveFrom: "2026-05-01" }, student)
+    ).rejects.toThrow(PlacementStateError);
+    expect(prismaMock.placementSupervisor.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a future day", async () => {
+    prismaMock.companyPlacement.findUnique.mockResolvedValue(open as never);
+    await expect(
+      changeSupervisor("pl-1", { ...input, effectiveFrom: "2999-01-01" }, student)
+    ).rejects.toThrow(PlacementStateError);
+  });
+});
+
+describe("hostForWeek", () => {
+  const mon = d("2026-07-06");
+  const sun = d("2026-07-12");
+
+  it("takes the placement the week falls in (the later one after a mid-week move)", async () => {
+    prismaMock.companyPlacement.findFirst.mockResolvedValue({
+      endedOn: null,
+      company: { name: "Beta Inc", supervisorName: "New Boss" },
+      supervisors: [],
+    } as never);
+    await expect(hostForWeek("profile-1", mon, sun)).resolves.toEqual({
+      name: "Beta Inc",
+      supervisorName: "New Boss",
+    });
+    expect(prismaMock.companyPlacement.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          studentProfileId: "profile-1",
+          startedOn: { lte: sun },
+          OR: [{ endedOn: null }, { endedOn: { gte: mon } }],
+        },
+        orderBy: { startedOn: "desc" },
+      })
+    );
+  });
+
+  it("prints the supervisor in charge at the end of the week", async () => {
+    prismaMock.companyPlacement.findFirst.mockResolvedValue({
+      endedOn: null,
+      company: { name: "Acme", supervisorName: "Old Boss" },
+      // Latest first, as queried: changed on Wednesday of this week.
+      supervisors: [{ supervisorName: "Rosa Reyes", effectiveFrom: d("2026-07-08") }],
+    } as never);
+    await expect(hostForWeek("profile-1", mon, sun)).resolves.toEqual({
+      name: "Acme",
+      supervisorName: "Rosa Reyes",
+    });
+  });
+
+  it("ignores a change dated after the placement ended", async () => {
+    prismaMock.companyPlacement.findFirst.mockResolvedValue({
+      endedOn: d("2026-07-07"),
+      company: { name: "Acme", supervisorName: "Old Boss" },
+      supervisors: [{ supervisorName: "Too Late", effectiveFrom: d("2026-07-09") }],
+    } as never);
+    await expect(hostForWeek("profile-1", mon, sun)).resolves.toEqual({
+      name: "Acme",
+      supervisorName: "Old Boss",
+    });
+  });
+
+  it("is null without a placement in the week (callers use the current company)", async () => {
+    prismaMock.companyPlacement.findFirst.mockResolvedValue(null);
+    await expect(hostForWeek("profile-1", mon, sun)).resolves.toBeNull();
   });
 });

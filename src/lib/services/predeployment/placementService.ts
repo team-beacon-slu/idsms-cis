@@ -99,6 +99,21 @@ export async function fileRetraction(
 }
 
 async function notifyStaff(studentProfileId: string, companyName: string) {
+  await notifyStaffOf(
+    studentProfileId,
+    "RETRACTION_FILED",
+    "Notification of retraction",
+    `An intern filed a notification of retraction at ${companyName}. Note it to end the placement.`
+  );
+}
+
+// The intern's advisers and the coordinators, told by in-app notice and email.
+async function notifyStaffOf(
+  studentProfileId: string,
+  trigger: "RETRACTION_FILED" | "SUPERVISOR_CHANGED",
+  title: string,
+  body: string
+) {
   const profile = await prisma.studentProfile.findUnique({
     where: { id: studentProfileId },
     select: { classGroupId: true, semesterId: true },
@@ -116,12 +131,12 @@ async function notifyStaff(studentProfileId: string, companyName: string) {
   ]);
   await notify({
     userIds: [...new Set([...advisers.map((a) => a.facultyId), ...coordinators.map((c) => c.id)])],
-    trigger: "RETRACTION_FILED",
-    title: "Notification of retraction",
-    body: `An intern filed a notification of retraction at ${companyName}. Note it to end the placement.`,
+    trigger,
+    title,
+    body,
     link: `/students/${studentProfileId}/checklist`,
     email: true,
-  }).catch((error) => console.error("Retraction notice failed", error));
+  }).catch((error) => console.error("Staff notice failed:", title, error));
 }
 
 // SAMCIS notes the retraction: the placement ends on the intern's last day and the intern
@@ -186,8 +201,119 @@ export async function listPlacementsForStudent(studentProfileId: string) {
   return prisma.companyPlacement.findMany({
     where: { studentProfileId },
     orderBy: { startedOn: "desc" },
-    include: { company: { select: { id: true, name: true, address: true } } },
+    include: {
+      company: { select: { id: true, name: true, address: true, supervisorName: true } },
+      supervisors: { orderBy: [{ effectiveFrom: "asc" }, { createdAt: "asc" }] },
+    },
   });
+}
+
+export const supervisorChangeSchema = z.object({
+  supervisorName: z.string().trim().min(2, "Enter the supervisor's full name").max(200),
+  supervisorPosition: z.string().trim().max(200).optional(),
+  supervisorContact: z.string().trim().min(3, "Enter an email or phone number").max(200),
+  effectiveFrom: z.iso.date().transform((d) => new Date(`${d}T00:00:00.000Z`)),
+});
+
+// Panel revisions (Nov 2026): the intern's supervisor changed during the placement. Kept
+// as a dated row so each week's report prints the supervisor of that week. The intern
+// records it; staff who can see the intern may too. The company's own record is untouched.
+export async function changeSupervisor(
+  placementId: string,
+  input: unknown,
+  actingUser: ActingUser,
+  ip?: string | null
+) {
+  if (actingUser.role !== Role.STUDENT_INTERN && !RETRACTION_NOTERS.includes(actingUser.role)) {
+    throw new ForbiddenError();
+  }
+  const data = supervisorChangeSchema.parse(input);
+  const placement = await prisma.companyPlacement.findUnique({
+    where: { id: placementId },
+    select: { studentProfileId: true, startedOn: true, endedOn: true, company: true },
+  });
+  if (!placement) throw new PlacementStateError("That placement no longer exists");
+  await assertCanAccessStudent(actingUser, placement.studentProfileId);
+  if (placement.endedOn) {
+    throw new PlacementStateError("This placement has ended; record the change at your current company");
+  }
+  if (data.effectiveFrom < placement.startedOn) {
+    throw new PlacementStateError("The change can't be before you started at this company");
+  }
+  // Today in Manila (UTC+8), so an early-morning entry isn't refused as tomorrow.
+  const manilaToday = new Date(new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10));
+  if (data.effectiveFrom > manilaToday) {
+    throw new PlacementStateError("Record the change on or after the day it happens");
+  }
+  const row = await prisma.$transaction(async (tx) => {
+    const created = await tx.placementSupervisor.create({
+      data: {
+        placementId,
+        supervisorName: data.supervisorName,
+        supervisorPosition: data.supervisorPosition || null,
+        supervisorContact: data.supervisorContact,
+        effectiveFrom: data.effectiveFrom,
+        createdBy: actingUser.id,
+      },
+    });
+    await logEvent(
+      {
+        userId: actingUser.id,
+        action: "SUPERVISOR_CHANGED",
+        entityType: "CompanyPlacement",
+        entityId: placementId,
+        ipAddress: ip,
+        detail: { effectiveFrom: data.effectiveFrom.toISOString().slice(0, 10) },
+      },
+      tx
+    );
+    return created;
+  });
+  if (actingUser.role === Role.STUDENT_INTERN) {
+    await notifyStaffOf(
+      placement.studentProfileId,
+      "SUPERVISOR_CHANGED",
+      "Change of supervisor",
+      `An intern at ${placement.company.name} recorded a new supervisor, ${data.supervisorName}.`
+    );
+  }
+  return row;
+}
+
+// The host company and supervisor of an intern's report week: the placement the week falls
+// in (the later one when the intern moved mid-week, since its supervisor signs the week) and
+// the supervisor in charge at the end of that week or placement, else the company's own.
+// Null when no placement overlaps the week (callers fall back to the current company).
+export async function hostForWeek(
+  studentProfileId: string,
+  weekStart: Date,
+  weekEnd: Date
+): Promise<{ name: string; supervisorName: string } | null> {
+  const placement = await prisma.companyPlacement.findFirst({
+    where: {
+      studentProfileId,
+      startedOn: { lte: weekEnd },
+      OR: [{ endedOn: null }, { endedOn: { gte: weekStart } }],
+    },
+    orderBy: { startedOn: "desc" },
+    select: {
+      endedOn: true,
+      company: { select: { name: true, supervisorName: true } },
+      supervisors: {
+        where: { effectiveFrom: { lte: weekEnd } },
+        // Latest first; two changes on one day: the one entered last wins.
+        orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
+        select: { supervisorName: true, effectiveFrom: true },
+      },
+    },
+  });
+  if (!placement) return null;
+  const until = placement.endedOn && placement.endedOn < weekEnd ? placement.endedOn : weekEnd;
+  const current = placement.supervisors.find((s) => s.effectiveFrom <= until);
+  return {
+    name: placement.company.name,
+    supervisorName: current?.supervisorName ?? placement.company.supervisorName,
+  };
 }
 
 export async function listPlacementsForCompany(companyId: string) {

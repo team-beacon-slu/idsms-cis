@@ -28,8 +28,17 @@ import { CompanyVerifyToggle } from "./company-verify-toggle";
 import { CompanyForeignToggle } from "./company-foreign-toggle";
 import { MoaStatusActions } from "./moa-status-actions";
 import { CompanyReplyForm } from "./company-reply-form";
-import { NoteRetractionButton, RetractionForm, VisitForm } from "./placement-actions";
-import { listPlacementsForCompany } from "@/lib/services/predeployment/placementService";
+import {
+  NoteRetractionButton,
+  RetractionForm,
+  SupervisorChangeForm,
+  VisitForm,
+} from "./placement-actions";
+import { PlacementHistory } from "../placement-history";
+import {
+  listPlacementsForCompany,
+  listPlacementsForStudent,
+} from "@/lib/services/predeployment/placementService";
 import { listVisits, VISITORS } from "@/lib/services/predeployment/visitService";
 import {
   getCompanyFeedback,
@@ -119,11 +128,11 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
   const [placements, visits] = isStaff
     ? await Promise.all([listPlacementsForCompany(params.id), listVisits(params.id)])
     : [[], []];
-  const myPlacement = own
-    ? await prisma.companyPlacement.findFirst({
-        where: { studentProfileId: own.id, companyId: company.id, endedOn: null },
-      })
-    : null;
+  const myPlacements = own ? await listPlacementsForStudent(own.id) : [];
+  const myPlacement =
+    myPlacements.find((p) => p.companyId === company.id && p.endedOn === null) ?? null;
+  // The intern sees their own current supervisor (after a change), not just the company's.
+  const mySupervisor = myPlacement?.supervisors.at(-1);
   const canReply = REPLY_EDITORS.includes(user.role);
 
   return (
@@ -151,9 +160,11 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
           </div>
           <div className="flex items-center gap-2 text-sm text-foreground">
             <User className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>{company.supervisorName}</span>
+            <span>{mySupervisor?.supervisorName ?? company.supervisorName}</span>
             <Phone className="ml-1 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="text-muted-foreground">{company.supervisorContact}</span>
+            <span className="text-muted-foreground">
+              {mySupervisor?.supervisorContact ?? company.supervisorContact}
+            </span>
           </div>
 
           {isStaff && (
@@ -246,14 +257,30 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
         </Card>
       )}
 
+      {myPlacement && !myPlacement.retractionFiledAt && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Change of supervisor</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              If someone else at this company now supervises you, record them here from the day
+              it changed. Your weekly reports from that day print the new supervisor; earlier
+              weeks keep the old one.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <SupervisorChangeForm placementId={myPlacement.id} />
+          </CardContent>
+        </Card>
+      )}
+
       {myPlacement && own && (
         <Card>
           <CardHeader>
-            <CardTitle>Stopping at this company</CardTitle>
+            <CardTitle>Pull-out or transfer to another company</CardTitle>
             <p className="text-sm text-muted-foreground">
-              If you must stop working here for any reason, file a notification of retraction.
-              SAMCIS notes it, then you can join your next host company. Tell your supervisor and
-              adviser too.
+              If you are pulled out or transferred (to another company or to the school), file a
+              notification of retraction with your last day here. Once SAMCIS notes it, add your
+              next company; your hours so far carry over. Tell your supervisor and adviser too.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -278,6 +305,8 @@ export default async function CompanyDetailPage(props: { params: Promise<{ id: s
           </CardContent>
         </Card>
       )}
+
+      <PlacementHistory placements={myPlacements} />
 
       {isStaff && (
         <Card>
