@@ -203,7 +203,7 @@ export async function listPlacementsForStudent(studentProfileId: string) {
     orderBy: { startedOn: "desc" },
     include: {
       company: { select: { id: true, name: true, address: true, supervisorName: true } },
-      supervisors: { orderBy: { effectiveFrom: "asc" } },
+      supervisors: { orderBy: [{ effectiveFrom: "asc" }, { createdAt: "asc" }] },
     },
   });
 }
@@ -240,7 +240,9 @@ export async function changeSupervisor(
   if (data.effectiveFrom < placement.startedOn) {
     throw new PlacementStateError("The change can't be before you started at this company");
   }
-  if (data.effectiveFrom > today()) {
+  // Today in Manila (UTC+8), so an early-morning entry isn't refused as tomorrow.
+  const manilaToday = new Date(new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10));
+  if (data.effectiveFrom > manilaToday) {
     throw new PlacementStateError("Record the change on or after the day it happens");
   }
   const row = await prisma.$transaction(async (tx) => {
@@ -278,34 +280,39 @@ export async function changeSupervisor(
   return row;
 }
 
-// The host company and supervisor of an intern on a date: the placement that covered the
-// date and its latest supervisor change on or before it, else the company's supervisor.
-// Null when no placement covers the date (callers fall back to the current company).
-export async function hostOn(
+// The host company and supervisor of an intern's report week: the placement the week falls
+// in (the later one when the intern moved mid-week, since its supervisor signs the week) and
+// the supervisor in charge at the end of that week or placement, else the company's own.
+// Null when no placement overlaps the week (callers fall back to the current company).
+export async function hostForWeek(
   studentProfileId: string,
-  date: Date
+  weekStart: Date,
+  weekEnd: Date
 ): Promise<{ name: string; supervisorName: string } | null> {
   const placement = await prisma.companyPlacement.findFirst({
     where: {
       studentProfileId,
-      startedOn: { lte: date },
-      OR: [{ endedOn: null }, { endedOn: { gte: date } }],
+      startedOn: { lte: weekEnd },
+      OR: [{ endedOn: null }, { endedOn: { gte: weekStart } }],
     },
     orderBy: { startedOn: "desc" },
     select: {
+      endedOn: true,
       company: { select: { name: true, supervisorName: true } },
       supervisors: {
-        where: { effectiveFrom: { lte: date } },
-        orderBy: { effectiveFrom: "desc" },
-        take: 1,
-        select: { supervisorName: true },
+        where: { effectiveFrom: { lte: weekEnd } },
+        // Latest first; two changes on one day: the one entered last wins.
+        orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
+        select: { supervisorName: true, effectiveFrom: true },
       },
     },
   });
   if (!placement) return null;
+  const until = placement.endedOn && placement.endedOn < weekEnd ? placement.endedOn : weekEnd;
+  const current = placement.supervisors.find((s) => s.effectiveFrom <= until);
   return {
     name: placement.company.name,
-    supervisorName: placement.supervisors[0]?.supervisorName ?? placement.company.supervisorName,
+    supervisorName: current?.supervisorName ?? placement.company.supervisorName,
   };
 }
 

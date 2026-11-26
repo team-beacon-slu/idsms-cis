@@ -1,4 +1,4 @@
-import { hostOn } from "@/lib/services/predeployment/placementService";
+import { hostForWeek } from "@/lib/services/predeployment/placementService";
 import { DeviationType, ValidationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { weekNumberOf } from "@/lib/documents/weeklyReportData";
@@ -147,7 +147,9 @@ export async function loadTimeReportData(
     kind,
     student: { name: profile.fullName?.trim() || displayNameFromEmail(profile.user.email) },
     // A week's report prints that week's host and supervisor (see weeklyReportData).
-    company: (report && (await hostOn(studentProfileId, report.weekStart))) || profile.company,
+    company:
+      (report && (await hostForWeek(studentProfileId, report.weekStart, report.weekEnd))) ||
+      profile.company,
     week: report ? { number: weekNumber, start: report.weekStart, end: report.weekEnd } : null,
     rows,
     absences,
