@@ -1,9 +1,13 @@
 import { redirect } from "next/navigation";
-import { ChecklistRequirementType, Program, Role } from "@prisma/client";
+import { Program, Role } from "@prisma/client";
 import { requireUserPage } from "@/lib/auth/session";
 import { getAiSettings } from "@/lib/ai/settings";
 import { getRequiredHoursConfig } from "@/lib/services/attendance/attendanceService";
 import { getRequiredChecklistTypes } from "@/lib/services/predeployment/checklistService";
+import {
+  BUILT_IN_CHECKLIST_TYPES,
+  listCustomRequirements,
+} from "@/lib/services/predeployment/customRequirementService";
 import {
   getDeductionMatrix,
   getDefaultConductHours,
@@ -18,6 +22,7 @@ import { requirementLabel } from "@/lib/utils/requirementLabel";
 import { NotificationSettingsForm } from "../users/notification-settings-form";
 import { RequiredHoursForm } from "../users/required-hours-form";
 import { ChecklistSettingsForm } from "../users/checklist-settings-form";
+import { CustomRequirementsForm } from "../users/custom-requirements-form";
 import { AiSettingsForm } from "../users/ai-settings-form";
 import { AiPanel } from "./ai-panel";
 import { getAiPanel } from "@/lib/ai/jobs";
@@ -30,7 +35,7 @@ export const metadata: Metadata = { title: "Settings" };
 
 // System settings, one view of their own (they used to sit above the account list on
 // Users, which pushed that page's main job to the bottom). Super Admin; the coordinator sees
-// only the required hours (Q5: coordinators and the admin set them).
+// the required hours (Q5: coordinators and the admin set them) and added checklist requirements.
 export default async function SettingsPage() {
   const user = await requireUserPage();
   if (user.role === Role.DEPARTMENT_COORDINATOR) return <CoordinatorSettings />;
@@ -46,6 +51,7 @@ export default async function SettingsPage() {
     aiPanel,
     failedEmails,
     maintenanceNotice,
+    customRequirements,
   ] = await Promise.all([
     getNotificationSettings(),
     requiredHoursRows(),
@@ -56,6 +62,7 @@ export default async function SettingsPage() {
     getAiPanel(),
     countFailedEmails(),
     getMaintenanceNotice(),
+    listCustomRequirements(),
   ]);
 
   return (
@@ -72,17 +79,19 @@ export default async function SettingsPage() {
             <CardTitle className="text-lg text-brand-900">Checklist requirements</CardTitle>
             <CardDescription>
               Which pre-deployment items must be approved before an endorsement letter. Unticked
-              items stay on interns&apos; checklists as optional.
+              items stay on interns&apos; checklists as optional. Add a requirement when something
+              new is needed.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-8">
             <ChecklistSettingsForm
-              items={Object.values(ChecklistRequirementType).map((type) => ({
+              items={BUILT_IN_CHECKLIST_TYPES.map((type) => ({
                 type,
                 label: requirementLabel(type),
               }))}
               initial={required}
             />
+            <CustomRequirementsForm rows={customRequirements} programs={Object.values(Program)} />
           </CardContent>
         </Card>
 
@@ -181,7 +190,10 @@ async function requiredHoursRows() {
 }
 
 async function CoordinatorSettings() {
-  const requiredHours = await requiredHoursRows();
+  const [requiredHours, customRequirements] = await Promise.all([
+    requiredHoursRows(),
+    listCustomRequirements(),
+  ]);
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader title="Settings" description="Rules you set for the department." />
@@ -195,6 +207,20 @@ async function CoordinatorSettings() {
         </CardHeader>
         <CardContent>
           <RequiredHoursForm initial={requiredHours} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg text-brand-900">Checklist requirements</CardTitle>
+          <CardDescription>
+            Every intern has the built-in items:{" "}
+            {BUILT_IN_CHECKLIST_TYPES.map((t) => requirementLabel(t)).join(", ")}. The Super Admin
+            chooses which of those are required. Add a requirement here when something new is
+            needed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CustomRequirementsForm rows={customRequirements} programs={Object.values(Program)} />
         </CardContent>
       </Card>
     </div>

@@ -1,13 +1,17 @@
-import { ChecklistRequirementType, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
 import { prismaMock, resetPrismaMock } from "@/testUtils/prismaMock";
+import { BUILT_IN_CHECKLIST_TYPES } from "@/lib/services/predeployment/customRequirementService";
 import {
   completeOwnStudentProfile,
   ForbiddenError,
   OnboardingError,
 } from "@/lib/services/accounts/userService";
 
-beforeEach(() => resetPrismaMock());
+beforeEach(() => {
+  resetPrismaMock();
+  prismaMock.checklistCustomRequirement.findMany.mockResolvedValue([]);
+});
 
 const hours = jest.fn(async () => 486);
 const student = { role: "STUDENT_INTERN", privacyConsentVersion: PRIVACY_NOTICE_VERSION };
@@ -49,7 +53,7 @@ it("creates the profile from the class group, the active semester and the progra
   expect(hours).toHaveBeenCalledWith("BSIT");
   // The same checklist rows the coordinator import seeds: one per requirement type.
   const rows = prismaMock.preDeploymentChecklistItem.createMany.mock.calls[0][0]!.data as unknown[];
-  expect(rows).toHaveLength(Object.values(ChecklistRequirementType).length);
+  expect(rows).toHaveLength(BUILT_IN_CHECKLIST_TYPES.length);
   expect(prismaMock.auditLog.create).toHaveBeenCalled();
 });
 

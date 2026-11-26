@@ -148,7 +148,12 @@ export default async function ChecklistPage(props: {
                 {progress.items.map((item) => (
                   <TableRow key={item.id} className="transition-colors">
                     <TableCell className="font-medium text-foreground">
-                      {requirementLabel(item.requirementType)}
+                      {requirementLabel(item.requirementType, item.customRequirement?.name)}
+                      {item.customRequirement?.description && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {item.customRequirement.description}
+                        </span>
+                      )}
                       {item.requirementType === "PARENT_CONSENT_UNDERTAKING" && (
                         <a
                           href={`/api/students/${params.studentProfileId}/waiver`}
@@ -160,7 +165,9 @@ export default async function ChecklistPage(props: {
                       )}
                       {!item.required && (
                         <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                          optional
+                          {item.customRequirement && !item.customRequirement.active
+                            ? "retired"
+                            : "optional"}
                         </span>
                       )}
                     </TableCell>

@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { StudentDashboardTables } from "./student-dashboard";
 
 const req = (requirementType: string, status: string, required = true) => ({
+  id: requirementType,
   requirementType,
   status,
   required,

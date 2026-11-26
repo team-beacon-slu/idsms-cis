@@ -7,10 +7,15 @@ import { ForbiddenError } from "@/lib/services/accounts/userService";
 import { getLatestSubmission, isAwaitingReview } from "@/lib/services/reports/weeklyReportService";
 import {
   checklistRequirements,
+  itemKey,
   isPartner,
   PARTNER_SELECT,
   getRequiredChecklistTypes,
 } from "@/lib/services/predeployment/checklistService";
+import {
+  loadActiveCustomRequirements,
+  requiredCustomIds,
+} from "@/lib/services/predeployment/customRequirementService";
 import { CREDITED_HOURS_SELECT, sumCreditedHours } from "@/lib/utils/creditedHours";
 import { attendancePattern, patternNote } from "@/lib/utils/attendancePattern";
 import { longSchedule, parseScheduleConfig } from "@/lib/utils/schedule";
@@ -170,7 +175,11 @@ export async function getComplianceRows(
   scope: ComplianceScope,
   now: Date = new Date()
 ): Promise<ComplianceRow[]> {
-  const [where, required] = await Promise.all([scopeWhere(scope), getRequiredChecklistTypes()]);
+  const [where, required, customs] = await Promise.all([
+    scopeWhere(scope),
+    getRequiredChecklistTypes(),
+    loadActiveCustomRequirements(),
+  ]);
   if (!where) return [];
 
   // Due week = the Monday-Sunday week before the current Manila week; that
@@ -193,7 +202,9 @@ export async function getComplianceRows(
       user: { select: { email: true } },
       classGroup: { select: { name: true, classType: true } },
       company: { select: { name: true, ...PARTNER_SELECT } },
-      checklistItems: { select: { requirementType: true, status: true } },
+      checklistItems: {
+        select: { requirementType: true, customRequirementId: true, status: true },
+      },
       weeklyReports: {
         select: {
           weekStart: true,
@@ -228,14 +239,18 @@ export async function getComplianceRows(
       s.requiredHours > 0 ? Math.min(100, Math.round((confirmedHours / s.requiredHours) * 100)) : 0;
 
     // Counted against this intern's required items (Super Admin list, minus what doesn't apply).
-    const { gate } = checklistRequirements(required, {
-      isForeignCompany: s.company?.isForeign ?? false,
-      isPartnerCompany: isPartner(s.company),
-      classType: s.classGroup?.classType ?? null,
-      startBeforeMoaAllowed: s.startBeforeMoaAllowed ?? false,
-    });
+    const { gate } = checklistRequirements(
+      required,
+      {
+        isForeignCompany: s.company?.isForeign ?? false,
+        isPartnerCompany: isPartner(s.company),
+        classType: s.classGroup?.classType ?? null,
+        startBeforeMoaAllowed: s.startBeforeMoaAllowed ?? false,
+      },
+      requiredCustomIds(customs, s.program)
+    );
     const checklistApproved = s.checklistItems.filter(
-      (i) => i.status === "APPROVED" && gate.has(i.requirementType)
+      (i) => i.status === "APPROVED" && gate.has(itemKey(i))
     ).length;
     const checklistTotal = gate.size;
     const dueWeekState = reportState(

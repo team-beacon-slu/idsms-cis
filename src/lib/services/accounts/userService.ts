@@ -1,15 +1,12 @@
 // User management, RBAC, bulk CSV/Excel import, session revocation.
 // See PRD Module 1 (FR-UM-*), especially FR-UM-11 (instant session revocation).
 import { createHash, randomBytes } from "crypto";
-import {
-  ChecklistRequirementType,
-  Prisma,
-  PrismaClient,
-  Program,
-  Role,
-  User,
-} from "@prisma/client";
+import { Prisma, PrismaClient, Program, Role, User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  BUILT_IN_CHECKLIST_TYPES,
+  customChecklistRows,
+} from "@/lib/services/predeployment/customRequirementService";
 import { hashPassword, verifyPassword } from "@/lib/utils/password";
 import { generateDefaultPassword } from "@/lib/utils/defaultPassword";
 import { logEvent } from "@/lib/services/accounts/auditService";
@@ -657,10 +654,13 @@ async function createStudentProfile(
 ) {
   const studentProfile = await tx.studentProfile.create({ data });
   await tx.preDeploymentChecklistItem.createMany({
-    data: Object.values(ChecklistRequirementType).map((requirementType) => ({
-      studentProfileId: studentProfile.id,
-      requirementType,
-    })),
+    data: [
+      ...BUILT_IN_CHECKLIST_TYPES.map((requirementType) => ({
+        studentProfileId: studentProfile.id,
+        requirementType,
+      })),
+      ...(await customChecklistRows(studentProfile.id, data.program, tx)),
+    ],
   });
   return studentProfile;
 }

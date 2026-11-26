@@ -16,6 +16,7 @@ import {
 } from "@/lib/documents/errors";
 import { EndorsementDataIncompleteError } from "@/lib/documents/endorsementLetterData";
 import { ChecklistGateError } from "@/lib/services/predeployment/checklistService";
+import { CustomRequirementError } from "@/lib/services/predeployment/customRequirementService";
 import {
   CompanyStateError,
   InvalidMoaTransitionError,
@@ -75,6 +76,7 @@ const BAD_REQUEST_ERRORS = [
   LearningJournalError,
   CalendarEntryError,
   WeeklyReportWithdrawError,
+  CustomRequirementError,
 ];
 
 export function handleApiError(error: unknown): NextResponse {

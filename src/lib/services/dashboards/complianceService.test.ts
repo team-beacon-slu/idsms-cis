@@ -17,6 +17,7 @@ import { DEFAULT_REQUIRED_CHECKLIST } from "@/lib/services/predeployment/checkli
 
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.checklistCustomRequirement.findMany.mockResolvedValue([]);
 });
 
 const NOW = new Date("2026-10-12T00:00:00Z"); // Mon 08:00 Manila -> due week 2026-10-05
