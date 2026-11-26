@@ -138,7 +138,7 @@ export function HolidayList({
                     className="cursor-pointer gap-1 text-destructive"
                   >
                     <Trash2 className="size-3.5" aria-hidden="true" />
-                    {confirmingId === holiday.id ? "Click again to remove" : "Remove"}
+                    {confirmingId === holiday.id ? "Confirm remove" : "Remove"}
                     <span className="sr-only"> {holiday.name}</span>
                   </Button>
                 )}

@@ -366,7 +366,7 @@ export function ClassGroupActions({
           className="cursor-pointer gap-1 text-destructive"
         >
           <Trash2 className="size-3.5" aria-hidden="true" />
-          {confirming ? "Click again to delete" : "Delete"}
+          {confirming ? "Confirm delete" : "Delete"}
           <span className="sr-only"> {name}</span>
         </Button>
       )}

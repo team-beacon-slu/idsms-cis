@@ -63,7 +63,7 @@ export function NotificationList({ items }: { items: InboxItem[] }) {
           className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
         >
           <CheckCheck className="size-4" aria-hidden="true" />
-          Mark all read
+          Mark all as read
         </Button>
       </div>
       <ul className="divide-y rounded-lg border">

@@ -101,7 +101,7 @@ export function CreateSemesterForm() {
         <Input id="semester-end" name="endDate" type="date" required />
       </div>
       <Button type="submit" disabled={isPending} className="cursor-pointer">
-        {isPending ? "Creating…" : "Create semester"}
+        {isPending ? "Creating..." : "Create semester"}
       </Button>
     </form>
   );

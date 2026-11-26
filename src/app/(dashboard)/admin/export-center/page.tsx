@@ -137,7 +137,7 @@ export default async function ExportCenterPage(props: {
           </select>
         </div>
         <Button type="submit" variant="outline" className="cursor-pointer">
-          Apply
+          Apply filters
         </Button>
       </form>
 

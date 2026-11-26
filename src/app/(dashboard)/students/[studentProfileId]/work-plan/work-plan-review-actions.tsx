@@ -65,7 +65,7 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
             className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
           >
             <CheckCircle2 className="size-3.5" aria-hidden="true" />
-            {isPending ? "Saving..." : "Approve"}
+            {isPending ? "Approving..." : "Approve"}
           </Button>
         )}
         <Button
@@ -79,7 +79,7 @@ export function WorkPlanReviewActions({ workPlanId }: { workPlanId: string }) {
           )}
         >
           <RotateCcw className="size-3.5" aria-hidden="true" />
-          {isPending ? "Saving..." : returning ? "Send back with this note" : "Return"}
+          {isPending ? "Returning..." : returning ? "Return with note" : "Return"}
         </Button>
         {returning && (
           <Button

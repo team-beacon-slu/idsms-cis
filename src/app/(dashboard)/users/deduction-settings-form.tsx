@@ -210,7 +210,7 @@ export function DeductionSettingsForm({
 
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={pending} className="cursor-pointer">
-          {pending ? "Saving…" : "Save deduction settings"}
+          {pending ? "Saving..." : "Save deduction settings"}
         </Button>
         <Button
           type="button"

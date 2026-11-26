@@ -140,7 +140,7 @@ function InlineReason({
             if (ok) setOpen(false);
           }}
         >
-          {pending ? "Saving…" : submitLabel}
+          {pending ? "Saving..." : submitLabel}
         </Button>
         <Button
           size="sm"
@@ -511,7 +511,7 @@ export function ConductCard({
             />
           </div>
           <Button type="submit" disabled={issuing} className="cursor-pointer">
-            {issuing ? "Saving…" : "Add record"}
+            {issuing ? "Saving..." : "Add record"}
           </Button>
         </form>
       )}

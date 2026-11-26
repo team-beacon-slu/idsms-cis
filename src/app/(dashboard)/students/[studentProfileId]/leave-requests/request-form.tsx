@@ -160,7 +160,7 @@ export function RequestForm({
               disabled={pending}
               onChange={(e) => set({ proofType: e.target.value })}
             >
-              <option value="">Choose…</option>
+              <option value="">Choose...</option>
               <option value="MEDICAL_CERTIFICATE">Medical certificate</option>
               <option value="PROOF_OF_LEAVE">Proof of leave</option>
               <option value="WRITTEN_NOTICE">Written notice</option>
@@ -263,7 +263,7 @@ export function RequestForm({
           className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
         >
           <Send className="size-3.5" aria-hidden="true" />
-          {pending ? "Saving..." : requestId ? "Resubmit request" : "Send request"}
+          {pending ? "Submitting..." : requestId ? "Resubmit request" : "Submit request"}
         </Button>
         {onDone && requestId && (
           <Button

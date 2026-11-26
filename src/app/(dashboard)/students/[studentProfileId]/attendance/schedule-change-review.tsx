@@ -77,7 +77,7 @@ export function ScheduleChangeReview({
             className="cursor-pointer gap-1.5 disabled:cursor-not-allowed"
           >
             <CheckCircle2 className="size-3.5" aria-hidden="true" />
-            {isPending ? "Saving..." : "Approve"}
+            {isPending ? "Approving..." : "Approve"}
           </Button>
         )}
         <Button
@@ -88,7 +88,7 @@ export function ScheduleChangeReview({
           className="cursor-pointer gap-1.5 text-destructive disabled:cursor-not-allowed"
         >
           <XCircle className="size-3.5" aria-hidden="true" />
-          {rejecting ? "Reject with this reason" : "Reject"}
+          {rejecting ? "Reject with reason" : "Reject"}
         </Button>
         {rejecting && (
           <Button

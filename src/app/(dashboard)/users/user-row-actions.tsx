@@ -88,7 +88,7 @@ export function UserRowActions({
           onClick={forceLogout}
         >
           <LogOut className="size-3.5" aria-hidden="true" />
-          Force logout
+          Force sign-out
         </Button>
       )}
       {canSuperAdmin && isLocked && (

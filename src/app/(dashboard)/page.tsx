@@ -55,7 +55,7 @@ export default async function DashboardHomePage(props: {
         <PageHeader
           hero
           greeting={greeting()}
-          title="Department overview"
+          title="Cluster overview"
           description="Every intern this semester: hours, requirements and weekly reports."
         />
         <GettingStarted role={user.role} />

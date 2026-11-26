@@ -54,7 +54,7 @@ export function WeekOneField({
         onClick={save}
         className="cursor-pointer"
       >
-        {pending ? "Saving…" : "Save"}
+        {pending ? "Saving..." : "Save"}
       </Button>
     </div>
   );

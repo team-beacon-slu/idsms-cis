@@ -161,7 +161,7 @@ export default async function CalendarPage() {
       {coordinatorView && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Department events</CardTitle>
+            <CardTitle className="text-base">Cluster events</CardTitle>
             <CardDescription>
               Orientations, seminars and other dates every intern and adviser should see. They show
               on everyone&apos;s calendar this semester; they are not days off.

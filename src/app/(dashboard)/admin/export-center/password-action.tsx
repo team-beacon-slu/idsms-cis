@@ -110,7 +110,7 @@ export function PasswordAction({
           className="cursor-pointer"
           disabled={pending || !password}
         >
-          {pending ? "Working…" : confirmLabel}
+          {pending ? "Checking..." : confirmLabel}
         </Button>
         <Button
           type="button"

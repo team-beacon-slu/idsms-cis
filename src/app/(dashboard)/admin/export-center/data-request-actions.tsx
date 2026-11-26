@@ -90,7 +90,7 @@ export function DataRequestActions({ id, email }: { id: string; email: string })
               disabled={pending}
               onClick={markFulfilled}
             >
-              {pending ? "Saving…" : "Confirm"}
+              {pending ? "Saving..." : "Confirm"}
             </Button>
             <Button
               type="button"

@@ -68,7 +68,7 @@ export default async function WeeklyReportReviewPage(props: {
   // assist switch is on.
   const [on, { similarityThreshold }] = await Promise.all([jobsOnFor(user), getAiSettings()]);
   const view = getAdvisoryView(report!, { on, similarityThreshold });
-  // Approve & next: the queue's next week, so the adviser never goes back to the list.
+  // Approve and next: the queue's next week, so the adviser never goes back to the list.
   // Flags are the same ones the queue shows; approving a flagged week asks once more.
   const queue = awaitingReview ? await getReviewQueue(user.id, { on, similarityThreshold }) : [];
   const nextItem = queue.find((q) => q.id !== report!.id);

@@ -1238,7 +1238,7 @@ export function WeeklyReportForm({
                       className="h-8 cursor-pointer px-2 text-xs text-red-700"
                     >
                       {removeArmed === entry.id
-                        ? "Click again to remove (with its text)"
+                        ? "Confirm remove (with its text)"
                         : "Remove this day"}
                     </Button>
                   </div>
@@ -1441,7 +1441,7 @@ export function WeeklyReportForm({
                           onChange={(e) => updateRow(entry.id, { proofType: e.target.value })}
                           className="flex h-9 w-64 max-w-full cursor-pointer rounded-md border border-input bg-background px-2 text-sm disabled:cursor-not-allowed"
                         >
-                          <option value="">Choose…</option>
+                          <option value="">Choose...</option>
                           {Object.entries(PROOF_LABEL).map(([v, label]) => (
                             <option key={v} value={v}>
                               {label}
@@ -1621,7 +1621,7 @@ export function WeeklyReportForm({
       </div>
       {/* Announces save and submit progress to screen readers (toasts can be missed). */}
       <p role="status" className="sr-only">
-        {isPending ? "Saving your report…" : ""}
+        {isPending ? "Saving your report..." : ""}
       </p>
 
       {/* On a phone the actions stay in reach at the bottom of the screen. */}
