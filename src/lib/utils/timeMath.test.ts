@@ -212,3 +212,33 @@ describe("computeDayCredit — legacy fallback", () => {
     expect(c.creditedHours).toBe(0);
   });
 });
+
+// Panel revisions (Nov 2026), decided by the team: the regular day is the hours per day in
+// the intern's approved work plan; time beyond it is overtime (accepted, 30 minutes or more).
+describe("regular day follows the approved work plan", () => {
+  const nineHourPlan = scheduleShift({
+    startTime: "08:00",
+    endTime: "18:00",
+    breakMinutes: 60,
+    hoursPerDay: 9,
+  });
+
+  it("credits a 9-hour work plan day in full as regular time", () => {
+    const c = computeDayCredit(
+      day({ shift: nineHourPlan, scheduledHours: 9, ranges: [["08:00", "18:00"]] })
+    );
+    expect(c.creditedHours).toBe(9);
+    expect(c.creditedOtHours).toBe(0);
+  });
+
+  it("credits an 8-hour plan at 8 hours and the rest only as accepted overtime", () => {
+    const extra = day({ ranges: [["08:00", "18:00"]] });
+    expect(computeDayCredit(extra).creditedHours).toBe(8);
+    expect(computeDayCredit({ ...extra, approvedOtMinutes: 60 }).creditedHours).toBe(9);
+  });
+
+  it("does not credit overtime under 30 minutes", () => {
+    const c = computeDayCredit(day({ ranges: [["08:00", "17:20"]], approvedOtMinutes: 20 }));
+    expect(c.creditedHours).toBe(8);
+  });
+});
