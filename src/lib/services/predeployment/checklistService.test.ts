@@ -30,6 +30,7 @@ function baseItem(overrides: Partial<Record<string, unknown>> = {}) {
     id: "item-1",
     studentProfileId: "profile-1",
     requirementType: ChecklistRequirementType.MEDICAL_CERTIFICATE,
+    customRequirementId: null,
     status: ChecklistStatus.PENDING,
     filePath: null,
     reviewerId: null,
@@ -41,6 +42,7 @@ function baseItem(overrides: Partial<Record<string, unknown>> = {}) {
 
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.checklistCustomRequirement.findMany.mockResolvedValue([]);
 });
 
 const NINE = DEFAULT_REQUIRED_CHECKLIST;
@@ -183,6 +185,72 @@ describe("getChecklistProgress", () => {
     const progress = await getChecklistProgress("profile-1");
     expect(progress.items).toEqual([]);
     expect(progress).toMatchObject({ approvedCount: 0, total: 9, percentage: 0 });
+  });
+});
+
+describe("custom requirements in the gate (033)", () => {
+  const custom = (over: Record<string, unknown> = {}) => ({
+    id: "custom-1",
+    programs: [],
+    required: true,
+    active: true,
+    ...over,
+  });
+  const customRow = (status: ChecklistStatus, over: Record<string, unknown> = {}) =>
+    baseItem({
+      id: "item-c",
+      requirementType: ChecklistRequirementType.CUSTOM,
+      customRequirementId: "custom-1",
+      status,
+      customRequirement: { name: "Vaccination card", description: null, active: true },
+      ...over,
+    });
+
+  it("holds the letter until an active required custom item for the program is approved", async () => {
+    profile({ program: "BSIT" });
+    prismaMock.checklistCustomRequirement.findMany.mockResolvedValue([custom()] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([
+      ...rows(NINE),
+      customRow(ChecklistStatus.PENDING),
+    ] as never);
+    expect(await isEndorsementGateSatisfied("profile-1")).toBe(false);
+
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([
+      ...rows(NINE),
+      customRow(ChecklistStatus.APPROVED),
+    ] as never);
+    expect(await isEndorsementGateSatisfied("profile-1")).toBe(true);
+  });
+
+  it("ignores a custom requirement for another program, or an optional one", async () => {
+    profile({ program: "BSIT" });
+    prismaMock.checklistCustomRequirement.findMany.mockResolvedValue([
+      custom({ programs: ["BSCS"] }),
+      custom({ id: "custom-2", required: false }),
+    ] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue(rows(NINE) as never);
+    expect(await isEndorsementGateSatisfied("profile-1")).toBe(true);
+  });
+
+  it("counts it in progress, and keeps a retired one visible but not required", async () => {
+    profile({ program: "BSIT" });
+    prismaMock.checklistCustomRequirement.findMany.mockResolvedValue([custom()] as never);
+    prismaMock.preDeploymentChecklistItem.findMany.mockResolvedValue([
+      customRow(ChecklistStatus.PENDING),
+      customRow(ChecklistStatus.APPROVED, {
+        id: "item-r",
+        customRequirementId: "custom-old",
+        customRequirement: { name: "Old form", description: null, active: false },
+      }),
+    ] as never);
+
+    const progress = await getChecklistProgress("profile-1");
+
+    expect(progress.total).toBe(10);
+    expect(progress.items.map((i) => [i.id, i.required])).toEqual([
+      ["item-c", true],
+      ["item-r", false],
+    ]);
   });
 });
 

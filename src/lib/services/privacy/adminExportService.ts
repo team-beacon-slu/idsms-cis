@@ -266,6 +266,7 @@ async function checklistSheet(semesterId?: string): Promise<ExportSheet[]> {
     where: { studentProfile: liveStudents(semesterId) },
     select: {
       requirementType: true,
+      customRequirement: { select: { name: true } },
       status: true,
       reviewDate: true,
       comments: true,
@@ -288,7 +289,7 @@ async function checklistSheet(semesterId?: string): Promise<ExportSheet[]> {
       columns,
       items.map((i) => ({
         "Student number": i.studentProfile.studentNumber,
-        Requirement: i.requirementType,
+        Requirement: i.customRequirement?.name ?? i.requirementType,
         Status: i.status,
         "Reviewer email": i.reviewer?.email ?? "",
         "Reviewed at": manila(i.reviewDate),

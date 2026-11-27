@@ -30,7 +30,17 @@ const SHORT: Record<string, string> = {
   INTERNSHIP_AGREEMENT: "Agreement",
 };
 
-export function ChecklistGrid({ rows, columns }: { rows: GridRow[]; columns: string[] }) {
+export function ChecklistGrid({
+  rows,
+  columns,
+  customNames = {},
+}: {
+  rows: GridRow[];
+  columns: string[];
+  /** Column key (a custom requirement id) to the name the coordinator gave it. */
+  customNames?: Record<string, string>;
+}) {
+  const nameOf = (c: string) => requirementLabel(c, customNames[c]);
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState(false);
@@ -137,11 +147,11 @@ export function ChecklistGrid({ rows, columns }: { rows: GridRow[]; columns: str
                   <th
                     key={c}
                     scope="col"
-                    title={requirementLabel(c)}
+                    title={nameOf(c)}
                     className="px-2 py-2 text-center font-medium whitespace-nowrap"
                   >
                     <label className="inline-flex min-h-10 cursor-pointer flex-col items-center justify-center gap-0.5">
-                      <span>{SHORT[c] ?? requirementLabel(c)}</span>
+                      <span className="max-w-28 truncate">{SHORT[c] ?? nameOf(c)}</span>
                       <input
                         type="checkbox"
                         checked={allSelected(ids)}
@@ -150,7 +160,7 @@ export function ChecklistGrid({ rows, columns }: { rows: GridRow[]; columns: str
                         className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
                       />
                       <span className="sr-only">
-                        Select all {requirementLabel(c)} items ({ids.length})
+                        Select all {nameOf(c)} items ({ids.length})
                       </span>
                     </label>
                   </th>
@@ -201,7 +211,7 @@ export function ChecklistGrid({ rows, columns }: { rows: GridRow[]; columns: str
                       </td>
                     );
                   }
-                  const label = `${requirementLabel(c)} for ${r.name}`;
+                  const label = `${nameOf(c)} for ${r.name}`;
                   return (
                     <td key={c} className="px-2 py-1 text-center">
                       <label className="inline-flex min-h-10 min-w-10 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md hover:bg-muted">

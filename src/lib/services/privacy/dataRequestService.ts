@@ -232,6 +232,7 @@ export async function buildPersonalDataWorkbook(
           orderBy: { createdAt: "asc" },
           select: {
             requirementType: true,
+            customRequirement: { select: { name: true } },
             status: true,
             reviewDate: true,
             comments: true,
@@ -364,7 +365,7 @@ export async function buildPersonalDataWorkbook(
       "Checklist",
       ["Requirement", "Status", "Reviewed at", "Comments"],
       checklist.map((c) => ({
-        Requirement: c.requirementType,
+        Requirement: c.customRequirement?.name ?? c.requirementType,
         Status: c.status,
         "Reviewed at": manila(c.reviewDate),
         Comments: c.comments,

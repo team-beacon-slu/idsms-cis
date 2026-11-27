@@ -12,6 +12,8 @@ const REQUIREMENT_LABELS: Record<string, string> = {
   INTERNSHIP_AGREEMENT: "Internship agreement",
 };
 
-export function requirementLabel(type: string): string {
+// customName: a coordinator-added (CUSTOM) requirement shows its own name.
+export function requirementLabel(type: string, customName?: string | null): string {
+  if (customName) return customName;
   return REQUIREMENT_LABELS[type] ?? type.replaceAll("_", " ").toLowerCase();
 }

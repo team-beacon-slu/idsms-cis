@@ -49,6 +49,7 @@ function baseUser(overrides: Partial<Record<string, unknown>> = {}) {
 
 beforeEach(() => {
   resetPrismaMock();
+  prismaMock.checklistCustomRequirement.findMany.mockResolvedValue([]);
   mockedVerifyPassword.mockReset();
   mockedHashPassword.mockResolvedValue("new-hashed-password");
   mockedGenerateDefaultPassword.mockReturnValue("GENERATED1");

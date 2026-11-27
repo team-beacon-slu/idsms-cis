@@ -31,7 +31,13 @@ export function StudentDashboardTables({
   history,
   aside,
 }: {
-  requirements: Array<{ requirementType: string; status: string; required: boolean }>;
+  requirements: Array<{
+    id: string;
+    requirementType: string;
+    status: string;
+    required: boolean;
+    customRequirement?: { name: string } | null;
+  }>;
   history: WeeklyHistoryRow[];
   /** Shown under Recent weeks, so the right column matches the checklist's height. */
   aside?: React.ReactNode;
@@ -86,7 +92,7 @@ export function StudentDashboardTables({
                     const f = FOLDER[item.status] ?? FOLDER.NOT_STARTED;
                     return (
                       <li
-                        key={item.requirementType}
+                        key={item.id}
                         className={cn(
                           "flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1.5 text-sm dark:border-white/8 dark:bg-white/5",
                           // Phones: long names take a line each, so show three and link the rest.
@@ -95,7 +101,7 @@ export function StudentDashboardTables({
                       >
                         <span aria-hidden="true" className={cn("size-2.5 rounded-full", f.tab)} />
                         <span className="font-medium text-foreground">
-                          {requirementLabel(item.requirementType)}
+                          {requirementLabel(item.requirementType, item.customRequirement?.name)}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {f.label}

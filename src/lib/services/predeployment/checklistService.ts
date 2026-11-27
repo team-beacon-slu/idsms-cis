@@ -14,6 +14,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/services/accounts/auditService";
 import { assertCanAccessStudent, ForbiddenError } from "@/lib/services/accounts/userService";
+import {
+  BUILT_IN_CHECKLIST_TYPES,
+  loadActiveCustomRequirements,
+  requiredCustomIds,
+} from "@/lib/services/predeployment/customRequirementService";
 
 export class ChecklistGateError extends Error {
   constructor(message: string) {
@@ -37,7 +42,7 @@ export const DEFAULT_REQUIRED_CHECKLIST: ChecklistRequirementType[] = [
   ChecklistRequirementType.MOA,
 ];
 const REQUIRED_CONFIG_KEY = "checklist.requiredItems";
-const requiredListSchema = z.array(z.enum(ChecklistRequirementType)).max(20);
+const requiredListSchema = z.array(z.enum(BUILT_IN_CHECKLIST_TYPES)).max(20);
 
 export async function getRequiredChecklistTypes(
   client: PrismaClient | Prisma.TransactionClient = prisma
@@ -88,13 +93,15 @@ export interface ChecklistContext {
 // a start-before-MOA override takes the MOA out of the gate (it stays on the list).
 // shortcut: partner status is the company's MOA today, so the intern whose own MOA gets
 // approved stops needing DTI/SEC from then on; snapshot it at deployment if that matters.
+// Gate keys are built-in types plus the ids of required custom requirements (itemKey).
 export function checklistRequirements(
   required: ChecklistRequirementType[],
-  ctx: ChecklistContext
-): { applicable: Set<ChecklistRequirementType>; gate: Set<ChecklistRequirementType> } {
+  ctx: ChecklistContext,
+  customRequired: string[] = []
+): { applicable: Set<ChecklistRequirementType>; gate: Set<string> } {
   const irregular = !!ctx.classType && ctx.classType.trim().toLowerCase() !== "regular";
   const applicable = new Set(
-    Object.values(ChecklistRequirementType).filter(
+    BUILT_IN_CHECKLIST_TYPES.filter(
       (t) =>
         (t !== ChecklistRequirementType.GOVERNMENT_COMPANY_PERMIT ||
           (!ctx.isPartnerCompany && !ctx.isForeignCompany)) &&
@@ -103,13 +110,20 @@ export function checklistRequirements(
         (t !== ChecklistRequirementType.INTERNSHIP_AGREEMENT || irregular)
     )
   );
-  const gate = new Set(
-    required.filter(
+  const gate = new Set<string>([
+    ...required.filter(
       (t) => applicable.has(t) && !(t === ChecklistRequirementType.MOA && ctx.startBeforeMoaAllowed)
-    )
-  );
+    ),
+    ...customRequired,
+  ]);
   return { applicable, gate };
 }
+
+// A checklist row's gate key: its custom requirement's id, else its built-in type.
+export const itemKey = (i: {
+  requirementType: ChecklistRequirementType;
+  customRequirementId: string | null;
+}): string => i.customRequirementId ?? i.requirementType;
 
 // What a company needs to say whether it is outside the Philippines and already a partner.
 export const PARTNER_SELECT = {
@@ -127,6 +141,7 @@ export const isPartner = (company: { moaRecords?: unknown[] } | null | undefined
 const CONTEXT_SELECT = {
   startBeforeMoaAllowed: true,
   startBeforeMoaReason: true,
+  program: true,
   company: { select: PARTNER_SELECT },
   classGroup: { select: { classType: true } },
 } satisfies Prisma.StudentProfileSelect;
@@ -147,6 +162,7 @@ async function loadContext(
       startBeforeMoaAllowed: profile.startBeforeMoaAllowed,
     },
     startBeforeMoaReason: profile.startBeforeMoaReason,
+    program: profile.program,
   };
 }
 
@@ -155,23 +171,33 @@ export async function isEndorsementGateSatisfied(
   studentProfileId: string,
   client: PrismaClient | Prisma.TransactionClient = prisma
 ): Promise<boolean> {
-  const [required, { ctx }, items] = await Promise.all([
+  const [required, { ctx, program }, items, customs] = await Promise.all([
     getRequiredChecklistTypes(client),
     loadContext(studentProfileId, client),
     client.preDeploymentChecklistItem.findMany({
       where: { studentProfileId },
-      select: { requirementType: true, status: true },
+      select: { requirementType: true, customRequirementId: true, status: true },
     }),
+    loadActiveCustomRequirements(client),
   ]);
-  const approved = new Set(
-    items.filter((i) => i.status === ChecklistStatus.APPROVED).map((i) => i.requirementType)
+  const approved = new Set(items.filter((i) => i.status === ChecklistStatus.APPROVED).map(itemKey));
+  const { gate } = checklistRequirements(
+    required,
+    ctx,
+    requiredCustomIds(
+      customs,
+      program,
+      items.map((i) => i.customRequirementId)
+    )
   );
-  const { gate } = checklistRequirements(required, ctx);
   return [...gate].every((t) => approved.has(t));
 }
 
 export interface ChecklistProgress {
-  items: (PreDeploymentChecklistItem & { required: boolean })[];
+  items: (PreDeploymentChecklistItem & {
+    required: boolean;
+    customRequirement: { name: string; description: string | null; active: boolean } | null;
+  })[];
   approvedCount: number;
   total: number;
   percentage: number;
@@ -180,19 +206,31 @@ export interface ChecklistProgress {
 }
 
 export async function getChecklistProgress(studentProfileId: string): Promise<ChecklistProgress> {
-  const [rows, required, { ctx, startBeforeMoaReason }] = await Promise.all([
+  const [rows, required, { ctx, startBeforeMoaReason, program }, customs] = await Promise.all([
     prisma.preDeploymentChecklistItem.findMany({
       where: { studentProfileId },
-      orderBy: { requirementType: "asc" },
+      // CUSTOM is the enum's last value, so added requirements follow the built-in ones.
+      orderBy: [{ requirementType: "asc" }, { createdAt: "asc" }],
+      include: { customRequirement: { select: { name: true, description: true, active: true } } },
     }),
     getRequiredChecklistTypes(),
     loadContext(studentProfileId, prisma),
+    loadActiveCustomRequirements(),
   ]);
-  const { applicable, gate } = checklistRequirements(required, ctx);
+  const { applicable, gate } = checklistRequirements(
+    required,
+    ctx,
+    requiredCustomIds(
+      customs,
+      program,
+      rows.map((r) => r.customRequirementId)
+    )
+  );
   // Items that don't apply to this intern (e.g. a local company's proof of legitimacy) are hidden.
+  // Custom rows exist only for interns they apply to, and stay visible once retired.
   const items = rows
-    .filter((r) => applicable.has(r.requirementType))
-    .map((r) => ({ ...r, required: gate.has(r.requirementType) }));
+    .filter((r) => r.customRequirementId !== null || applicable.has(r.requirementType))
+    .map((r) => ({ ...r, required: gate.has(itemKey(r)) }));
   const approvedCount = items.filter(
     (i) => i.required && i.status === ChecklistStatus.APPROVED
   ).length;

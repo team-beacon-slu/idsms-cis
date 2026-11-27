@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ChecklistRequirementType, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
+import { itemKey } from "@/lib/services/predeployment/checklistService";
+import { BUILT_IN_CHECKLIST_TYPES } from "@/lib/services/predeployment/customRequirementService";
 import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
@@ -35,22 +37,39 @@ export default async function ClassChecklistPage() {
           user: { select: { email: true } },
           checklistItems: {
             where: { archivedAt: null },
-            select: { id: true, requirementType: true, status: true, uploadedAt: true },
+            select: {
+              id: true,
+              requirementType: true,
+              customRequirementId: true,
+              customRequirement: { select: { name: true } },
+              status: true,
+              uploadedAt: true,
+            },
           },
         },
         orderBy: { studentNumber: "asc" },
       })
     : [];
 
-  // Columns: the requirement types any of these interns has, in the checklist's own order.
-  const present = new Set(students.flatMap((s) => s.checklistItems.map((i) => i.requirementType)));
-  const columns = Object.values(ChecklistRequirementType).filter((t) => present.has(t));
+  // Columns: the requirement types any of these interns has, in the checklist's own order,
+  // then added (custom) requirements, keyed by their id.
+  const allItems = students.flatMap((s) => s.checklistItems);
+  const present = new Set(allItems.map(itemKey));
+  const customNames = Object.fromEntries(
+    allItems.flatMap((i) =>
+      i.customRequirementId ? [[i.customRequirementId, i.customRequirement?.name ?? ""]] : []
+    )
+  );
+  const columns = [
+    ...BUILT_IN_CHECKLIST_TYPES.filter((t) => present.has(t)),
+    ...Object.keys(customNames),
+  ];
   const rows: GridRow[] = students.map((s) => ({
     studentId: s.id,
     name: displayName({ ...s, email: s.user.email }),
     items: Object.fromEntries(
       s.checklistItems.map((i) => [
-        i.requirementType,
+        itemKey(i),
         { id: i.id, status: i.status, uploaded: i.uploadedAt !== null },
       ])
     ),
@@ -85,7 +104,7 @@ export default async function ClassChecklistPage() {
               </Link>
             </p>
           ) : (
-            <ChecklistGrid rows={rows} columns={columns} />
+            <ChecklistGrid rows={rows} columns={columns} customNames={customNames} />
           )}
         </CardContent>
       </Card>

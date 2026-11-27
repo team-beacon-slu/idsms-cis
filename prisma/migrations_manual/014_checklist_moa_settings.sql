@@ -17,4 +17,4 @@ insert into pre_deployment_checklist_items (id, student_profile_id, requirement_
 select gen_random_uuid(), p.id, t, now()
 from student_profiles p
 cross join unnest(array['PROOF_OF_CORPORATE_LEGITIMACY', 'INTERNSHIP_AGREEMENT']::"ChecklistRequirementType"[]) t
-on conflict (student_profile_id, requirement_type) do nothing;
+on conflict do nothing; -- bare: still valid after 033 replaced the (student, type) unique index with partial ones

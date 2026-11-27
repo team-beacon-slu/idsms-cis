@@ -47,6 +47,8 @@ const CASES: Case[] = [
   ["class-groups/copy-advisers", "POST", [DC, SA]],
   ["company-days", "POST", [DC, SA]],
   ["department-events", "POST", [DC, SA]],
+  ["config/checklist/custom", "POST", [DC, SA]],
+  ["config/checklist/custom/[id]/retire", "POST", [DC, SA]],
   ["work-plans/[id]/schedule-change/coordinator-review", "PATCH", [DC, SA]],
   // Reviews: an intern must never approve their own work.
   ["weekly-reports/[id]/review", "PATCH", [FA]],

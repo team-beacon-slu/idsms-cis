@@ -63,7 +63,7 @@ Versions from `package.json` (caret ranges as declared).
 deploy/                        self-hosting stack: Dockerfile, docker-compose.yml, Caddyfile, OPERATIONS.md
 prisma/
   schema.prisma                data model (single source for tables Prisma manages)
-  migrations_manual/           001–031 hand-run SQL, applied in number order
+  migrations_manual/           001–033 hand-run SQL, applied in number order
   seed-holidays.ts             Philippine holidays seed
 src/
   proxy.ts                     route protection and the CSP nonce (Next 16's middleware)
@@ -623,6 +623,8 @@ Prisma manages tables with `prisma db push` (there is no Prisma migrations histo
 | `030_department_events.sql`              | `department_events`: events the coordinator posts on every calendar for the semester; no effect on hours. Additive.                                                                                                                                                                               |
 | `031_email_notifications.sql`            | `users.email_notifications`: each user's email switch (off = bell and inbox only; password resets still send). Additive.                                                                                                                                                                          |
 | `032_placement_supervisors.sql`          | `placement_supervisors`: an intern's change of supervisor during a placement, dated; weekly reports print the supervisor of their week. Additive.                                                                                                                                                  |
+| `033_checklist_custom_requirements.sql`  | `checklist_custom_requirements` (requirements the coordinator or Super Admin adds; retired, never deleted), `ChecklistRequirementType` value `CUSTOM` and `pre_deployment_checklist_items.custom_requirement_id`; the one-row-per-type unique index becomes two partial unique indexes (built-in, custom). Not purely additive (drops the old unique index); 014's ON CONFLICT is bare so it still re-runs. |
+| `034_checklist_custom_check.sql`         | Check: a `CUSTOM` checklist row names its custom requirement and a built-in row never does. Run separately after 033 (a new enum value can't be used in the transaction that added it). |
 
 **The rule:** run `prisma db push`, then re-run every manual SQL file in order, because `db push` can drop indexes it does not know about. Migration 007 means users can never be hard-deleted (the audit log's foreign key would need an UPDATE); the app only deactivates users. New manual migrations are applied to a database only with the PM's approval.
 

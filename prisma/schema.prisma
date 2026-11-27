@@ -58,6 +58,7 @@ enum ChecklistRequirementType {
   MOA
   PROOF_OF_CORPORATE_LEGITIMACY // foreign-owned host companies only
   INTERNSHIP_AGREEMENT // irregular students only
+  CUSTOM // 033: a requirement the coordinator added; see customRequirementId
 }
 
 enum ChecklistStatus {
@@ -180,28 +181,29 @@ model Session {
 // ── Core domain tables ──────────────────────────────────────────────────
 
 model User {
-  holidaysAdded         HolidayCalendarEntry[] @relation("HolidayCreatedBy")
-  departmentEventsAdded DepartmentEvent[]      @relation("DepartmentEventCreatedBy")
-  id                    String                 @id @default(uuid()) @db.Uuid
-  email                 String                 @unique
-  hashedPassword        String                 @map("hashed_password")
-  role                  Role
-  isActive              Boolean                @default(true) @map("is_active")
-  mustResetPassword     Boolean                @default(true) @map("must_reset_password")
-  failedLoginAttempts   Int                    @default(0) @map("failed_login_attempts")
-  lockedUntil           DateTime?              @map("locked_until")
+  holidaysAdded           HolidayCalendarEntry[]       @relation("HolidayCreatedBy")
+  departmentEventsAdded   DepartmentEvent[]            @relation("DepartmentEventCreatedBy")
+  customRequirementsAdded ChecklistCustomRequirement[] @relation("CustomRequirementCreatedBy")
+  id                      String                       @id @default(uuid()) @db.Uuid
+  email                   String                       @unique
+  hashedPassword          String                       @map("hashed_password")
+  role                    Role
+  isActive                Boolean                      @default(true) @map("is_active")
+  mustResetPassword       Boolean                      @default(true) @map("must_reset_password")
+  failedLoginAttempts     Int                          @default(0) @map("failed_login_attempts")
+  lockedUntil             DateTime?                    @map("locked_until")
   // FR-CK-05: null until the user agrees to the privacy notice; a new version asks again.
-  privacyConsentAt      DateTime?              @map("privacy_consent_at") @db.Timestamptz
-  privacyConsentVersion String?                @map("privacy_consent_version")
+  privacyConsentAt        DateTime?                    @map("privacy_consent_at") @db.Timestamptz
+  privacyConsentVersion   String?                      @map("privacy_consent_version")
   // Display name for staff (students' legal name lives on student_profiles.full_name).
-  fullName              String?                @map("full_name")
+  fullName                String?                      @map("full_name")
   // ai-assist-plan step 6: each person can turn AI hints off for themselves.
-  aiAssist              Boolean                @default(true) @map("ai_assist")
+  aiAssist                Boolean                      @default(true) @map("ai_assist")
   // 031: off = notices stay in the bell and inbox; email-only messages still send.
-  emailNotifications    Boolean                @default(true) @map("email_notifications")
-  createdAt             DateTime               @default(now()) @map("created_at")
-  updatedAt             DateTime               @updatedAt @map("updated_at")
-  deletedAt             DateTime?              @map("deleted_at")
+  emailNotifications      Boolean                      @default(true) @map("email_notifications")
+  createdAt               DateTime                     @default(now()) @map("created_at")
+  updatedAt               DateTime                     @updatedAt @map("updated_at")
+  deletedAt               DateTime?                    @map("deleted_at")
 
   accounts               Account[]
   sessions               Session[]
@@ -492,28 +494,52 @@ model MoaRecord {
 }
 
 model PreDeploymentChecklistItem {
-  id               String                   @id @default(uuid()) @db.Uuid
-  studentProfileId String                   @map("student_profile_id") @db.Uuid
-  requirementType  ChecklistRequirementType @map("requirement_type")
-  status           ChecklistStatus          @default(PENDING)
+  id                  String                   @id @default(uuid()) @db.Uuid
+  studentProfileId    String                   @map("student_profile_id") @db.Uuid
+  requirementType     ChecklistRequirementType @map("requirement_type")
+  // 033: set only when requirementType is CUSTOM.
+  customRequirementId String?                  @map("custom_requirement_id") @db.Uuid
+  status              ChecklistStatus          @default(PENDING)
   // Holds a Storage object path (resolved to a signed URL at read time), not
   // a fetchable URL — renamed from fileUrl since nothing wrote it before now.
-  filePath         String?                  @map("file_path")
-  reviewerId       String?                  @map("reviewer_id") @db.Uuid
-  reviewDate       DateTime?                @map("review_date")
-  comments         String?
+  filePath            String?                  @map("file_path")
+  reviewerId          String?                  @map("reviewer_id") @db.Uuid
+  reviewDate          DateTime?                @map("review_date")
+  comments            String?
   // 027: the intern says the file is on Google Classroom; cleared by approve/return.
-  uploadedAt       DateTime?                @map("uploaded_at") @db.Timestamptz(3)
-  archivedAt       DateTime?                @map("archived_at")
-  createdAt        DateTime                 @default(now()) @map("created_at")
-  updatedAt        DateTime                 @updatedAt @map("updated_at")
+  uploadedAt          DateTime?                @map("uploaded_at") @db.Timestamptz(3)
+  archivedAt          DateTime?                @map("archived_at")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
 
-  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
-  reviewer       User?          @relation("ChecklistReviewer", fields: [reviewerId], references: [id])
+  studentProfile    StudentProfile              @relation(fields: [studentProfileId], references: [id])
+  reviewer          User?                       @relation("ChecklistReviewer", fields: [reviewerId], references: [id])
+  customRequirement ChecklistCustomRequirement? @relation(fields: [customRequirementId], references: [id])
 
-  @@unique([studentProfileId, requirementType])
+  // 033: one row per built-in type (custom_requirement_id null) and one per custom
+  // requirement, enforced by two partial unique indexes Prisma can't express.
   @@index([reviewerId])
+  @@index([customRequirementId])
   @@map("pre_deployment_checklist_items")
+}
+
+// 033: requirements the coordinator or Super Admin adds beyond the built-in types. Retired
+// (active = false), never deleted, so approved items keep their history.
+model ChecklistCustomRequirement {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  programs    Program[] // empty = every program
+  required    Boolean   @default(true)
+  active      Boolean   @default(true)
+  createdById String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  createdBy User?                        @relation("CustomRequirementCreatedBy", fields: [createdById], references: [id])
+  items     PreDeploymentChecklistItem[]
+
+  @@index([createdById])
+  @@map("checklist_custom_requirements")
 }
 
 model WorkPlan {
