@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Final reports" };
 export default async function FinalReportsQueuePage() {
   const user = await requireUserPage();
   if (!FINAL_REPORT_REVIEWERS.includes(user.role)) redirect("/");
-  const reports = await listFinalReportsAwaitingReview();
+  const reports = await listFinalReportsAwaitingReview(user);
 
   return (
     <div className="space-y-6">

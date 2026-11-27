@@ -114,6 +114,7 @@ export function getNavGroups(role: Role, studentProfileId?: string): NavGroup[] 
           ...home.items,
           { href: "/my-students", label: "My students", icon: Users },
           { href: "/review-queue", label: "Review queue", icon: Inbox },
+          { href: "/final-reports", label: "Final reports", icon: BookOpenCheck },
           { href: "/search", label: "Search entries", icon: Search },
         ],
       },
