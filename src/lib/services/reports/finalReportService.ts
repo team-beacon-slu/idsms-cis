@@ -27,7 +27,13 @@ import {
 
 type ActingUser = { id: string; role: Role };
 
-export const FINAL_REPORT_REVIEWERS: Role[] = [Role.DEPARTMENT_COORDINATOR, Role.SUPER_ADMIN];
+// Panel revisions (final defense): the intern's own Faculty Adviser may also review the final
+// requirements (the report and its attachments, e.g. the certificate of completion).
+export const FINAL_REPORT_REVIEWERS: Role[] = [
+  Role.FACULTY_ADVISER,
+  Role.DEPARTMENT_COORDINATOR,
+  Role.SUPER_ADMIN,
+];
 const EDITABLE: FinalReportStatus[] = [FinalReportStatus.DRAFT, FinalReportStatus.RETURNED];
 // FR-FT-01: same gate as the final cover page (credited hours vs threshold).
 export async function getFinalReportState(studentProfileId: string) {
@@ -212,6 +218,7 @@ export async function reviewFinalReport(
   if (!FINAL_REPORT_REVIEWERS.includes(actingUser.role)) throw new ForbiddenError();
   const review = reviewSchema.parse(input);
   const report = await prisma.finalTechnicalReport.findUniqueOrThrow({ where: { id: reportId } });
+  await assertCanAccessStudent(actingUser, report.studentProfileId); // advisers: own interns only
 
   const attachments: Attachments = { ...asAttachments(report.attachments) };
   for (const k of review.confirmed) {
@@ -255,9 +262,21 @@ export async function reviewFinalReport(
   );
 }
 
-export async function listFinalReportsAwaitingReview() {
+// An adviser sees only the reports of interns in their own class groups (as on My students).
+export async function listFinalReportsAwaitingReview(viewer?: ActingUser) {
+  const groups =
+    viewer?.role === Role.FACULTY_ADVISER
+      ? await prisma.facultyClassGroup.findMany({
+          where: { facultyId: viewer.id },
+          select: { classGroupId: true, semesterId: true },
+        })
+      : null;
+  if (groups && groups.length === 0) return []; // an empty OR would mean "everyone"
   return prisma.finalTechnicalReport.findMany({
-    where: { status: FinalReportStatus.SUBMITTED, studentProfile: { deletedAt: null } },
+    where: {
+      status: FinalReportStatus.SUBMITTED,
+      studentProfile: { deletedAt: null, ...(groups ? { OR: groups } : {}) },
+    },
     orderBy: { submittedAt: "asc" },
     select: {
       id: true,

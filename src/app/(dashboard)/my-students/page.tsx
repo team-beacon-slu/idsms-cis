@@ -66,6 +66,12 @@ export default async function MyStudentsPage() {
           include: { user: { select: { email: true } }, company: { select: { name: true } } },
           orderBy: { studentNumber: "asc" },
         });
+  // Panel (final defense): interns newly assigned (added in the last 14 days) are listed first
+  // and marked New, so a batch of new assignments is not lost among the rest. Stable sort keeps
+  // student-number order inside each group.
+  students.sort(
+    (a, b) => Number(isNewlyAssigned(b.createdAt)) - Number(isNewlyAssigned(a.createdAt))
+  );
 
   // What waits on the adviser per intern: submitted weeks and time requests.
   const assigned = classGroups.map((g) => ({
@@ -164,6 +170,7 @@ export default async function MyStudentsPage() {
                   >
                     {displayName({ fullName: student.fullName, email: student.user.email })}
                   </Link>
+                  {isNewlyAssigned(student.createdAt) && <NewBadge />}
                   <WaitingBadge count={waiting.get(student.id) ?? 0} />
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -214,6 +221,7 @@ export default async function MyStudentsPage() {
                       {student.company?.name ?? "—"}
                     </TableCell>
                     <TableCell>
+                      {isNewlyAssigned(student.createdAt) && <NewBadge />}
                       <WaitingBadge count={waiting.get(student.id) ?? 0} />
                     </TableCell>
                     <TableCell>
@@ -234,6 +242,19 @@ export default async function MyStudentsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+const NEW_FOR_MS = 14 * 24 * 60 * 60 * 1000;
+function isNewlyAssigned(createdAt: Date) {
+  return Date.now() - createdAt.getTime() < NEW_FOR_MS;
+}
+
+function NewBadge() {
+  return (
+    <span className="inline-flex shrink-0 rounded-full border border-brand-200 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-brand-900">
+      New
+    </span>
   );
 }
 

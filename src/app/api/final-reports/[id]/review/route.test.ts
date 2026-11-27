@@ -29,10 +29,16 @@ beforeEach(() => {
   (requireUserApi as jest.Mock).mockResolvedValue({ id: "c-1", role: "DEPARTMENT_COORDINATOR" });
 });
 
-it("rejects a faculty adviser with 401", async () => {
-  (requireUserApi as jest.Mock).mockResolvedValue({ id: "f-1", role: "FACULTY_ADVISER" });
+it("rejects an intern with 401", async () => {
+  (requireUserApi as jest.Mock).mockResolvedValue({ id: "s-1", role: "STUDENT_INTERN" });
   expect((await call()).status).toBe(401);
   expect(reviewFinalReport).not.toHaveBeenCalled();
+});
+
+it("lets a faculty adviser through to the service, which limits them to their own interns", async () => {
+  (requireUserApi as jest.Mock).mockResolvedValue({ id: "f-1", role: "FACULTY_ADVISER" });
+  expect((await call()).status).toBe(200);
+  expect(reviewFinalReport).toHaveBeenCalled();
 });
 
 it("reviews for a coordinator, and maps an already-reviewed report to 409", async () => {

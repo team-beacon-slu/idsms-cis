@@ -22,6 +22,7 @@ import {
 import { ForbiddenError } from "@/lib/services/accounts/userService";
 import {
   getFinalReportState,
+  listFinalReportsAwaitingReview,
   reviewFinalReport,
   saveFinalReportDraft,
   submitFinalReport,
@@ -205,6 +206,24 @@ describe("submitFinalReport", () => {
   });
 });
 
+describe("listFinalReportsAwaitingReview", () => {
+  it("shows an adviser only the reports of their own class groups", async () => {
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue([] as never);
+    await expect(listFinalReportsAwaitingReview(faculty)).resolves.toEqual([]);
+    expect(prismaMock.finalTechnicalReport.findMany).not.toHaveBeenCalled();
+
+    const groups = [{ classGroupId: "cg-1", semesterId: "s-1" }];
+    prismaMock.facultyClassGroup.findMany.mockResolvedValue(groups as never);
+    prismaMock.finalTechnicalReport.findMany.mockResolvedValue([] as never);
+    await listFinalReportsAwaitingReview(faculty);
+    expect(prismaMock.finalTechnicalReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: "SUBMITTED", studentProfile: { deletedAt: null, OR: groups } },
+      })
+    );
+  });
+});
+
 describe("reviewFinalReport (FR-FT-03)", () => {
   beforeEach(() => {
     prismaMock.finalTechnicalReport.findUniqueOrThrow.mockResolvedValue({
@@ -257,10 +276,31 @@ describe("reviewFinalReport (FR-FT-03)", () => {
     });
   });
 
-  it("only coordinators and Super Admins review", async () => {
+  it("an intern can never review", async () => {
     await expect(
-      reviewFinalReport("fr-1", { action: "APPROVE", confirmed: [] }, faculty)
+      reviewFinalReport("fr-1", { action: "APPROVE", confirmed: [] }, student)
     ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("a Faculty Adviser reviews only their own interns' final requirements", async () => {
+    prismaMock.studentProfile.findUnique.mockResolvedValue({
+      userId: "student-1",
+      classGroupId: "cg-1",
+      semesterId: "s-1",
+    } as never);
+    prismaMock.facultyClassGroup.findFirst.mockResolvedValue(null); // not this adviser's group
+    await expect(
+      reviewFinalReport("fr-1", { action: "RETURN", note: "Attach the certificate" }, faculty)
+    ).rejects.toThrow(ForbiddenError);
+    expect(prismaMock.finalTechnicalReport.updateMany).not.toHaveBeenCalled();
+
+    prismaMock.facultyClassGroup.findFirst.mockResolvedValue({ id: "link-1" } as never);
+    await reviewFinalReport(
+      "fr-1",
+      { action: "RETURN", note: "Attach the certificate" },
+      faculty
+    );
+    expect(prismaMock.finalTechnicalReport.updateMany).toHaveBeenCalled();
   });
 
   it("a report already reviewed is a 409", async () => {
